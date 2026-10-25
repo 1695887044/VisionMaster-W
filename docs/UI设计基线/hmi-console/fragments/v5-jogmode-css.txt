@@ -1,0 +1,17 @@
+/* ===== v5 点动模式：一行「模式 + 档位」，不分两个属性、不分两种形态 ===== */
+.axp-jogmode{display:flex;align-items:center;gap:6px;height:26px;padding:0 12px 0 12px;margin-bottom:6px}
+.axp-jogmode .lbl{font-size:10px;color:var(--ax-muted);flex:0 0 auto}
+.axp-jogmode .modes{display:flex;gap:3px;flex:0 0 auto}
+.axp-jogmode .modes b{display:inline-flex;align-items:center;justify-content:center;height:20px;padding:0 7px;border-radius:4px;border:1px solid #33383F;background:#22252A;color:#C8CDD4;font-size:10px;font-weight:500;cursor:pointer}
+.axp-jogmode .modes b.on{background:rgba(255,97,97,.22);border-color:#FF6161;color:#FFD9D9;font-weight:600}
+.axp-jogmode .steps{display:flex;align-items:center;gap:2px;margin-left:2px;opacity:.45}
+.axp-jogmode .steps.on{opacity:1}
+.axp-jogmode .steps i{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:18px;padding:0 3px;border-radius:3px;border:1px solid transparent;font-family:var(--mono);font-style:normal;font-size:9.5px;color:#A8AEB8;cursor:pointer}
+.axp-jogmode .steps i.on{background:rgba(255,97,97,.22);border-color:#FF6161;color:#FFD9D9;font-weight:600}
+.axp-jogmode .unit{font-size:9px;color:var(--ax-muted);margin-right:2px}
+.axp-jogmode .now{margin-left:auto;font-family:var(--mono);font-size:10px;color:#FF8E8E;white-space:nowrap}
+.axp-jogmode .now em{font-style:normal;color:var(--ax-muted);font-size:9px;margin-right:3px}
+.axp-jogmode .now.cont{color:#7FD8A0}
+/* 连续/单步 两态按钮角标：连续不显示，单步显示档位 */
+.axp-btn .jmode{display:block;font-size:8px;line-height:1;letter-spacing:.2px;color:#9AA1AB;font-weight:400;margin-top:1px}
+.axp-btn.sm .jmode{color:#FFB0B0}

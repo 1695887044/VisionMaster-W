@@ -94,4 +94,60 @@
     <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
     <Setter Property="BorderThickness" Value="0,0,0,1" />
   </Style>
+
+  <!--
+      ============================================================
+      v2.1「报警配置」基线（docs/UI设计基线/scada-alarm-config）
+      ============================================================
+  -->
+  <!--  主卡：白底 + 1px 卡片描边 + r10；上下留白由视图的外边距负责  -->
+  <Style x:Key="DialogAlarmCard" TargetType="Border">
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <!--  标题栏 44：左侧铃铛 + 标题，右侧计数；Background 由视图给 Transparent（拖拽命中区）  -->
+  <Style x:Key="DialogAlarmTitleBar" TargetType="Border">
+    <Setter Property="Height" Value="44" />
+    <Setter Property="Padding" Value="16,0,14,0" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+  </Style>
+  <!--  工具栏 48：左右 14，控件间距 8 由视图的 StackPanel 负责  -->
+  <Style x:Key="DialogAlarmToolbar" TargetType="Border">
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Padding" Value="14,0" />
+  </Style>
+  <!--  底栏 56：落在灰底上（无白底、无分隔线），左提示 / 右关闭  -->
+  <Style x:Key="DialogAlarmFooter" TargetType="Border">
+    <Setter Property="Height" Value="56" />
+    <Setter Property="Padding" Value="20,0" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <!--  展开行：row-alt 底 + 左侧 2px 主色竖条 + 基线 padding:10px 16px 12px 18px（WPF 序：左,上,右,下）  -->
+  <Style x:Key="DialogDetailPanel" TargetType="Border">
+    <Setter Property="Padding" Value="18,10,16,12" />
+    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+    <Setter Property="BorderThickness" Value="2,0,0,0" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <!--  新增行的「待完成」提示：warning-soft 底 + 同族描边 + r6 + 基线 padding:8px 10px（WPF 序：左,上,右,下）  -->
+  <Style x:Key="DialogSetupHint" TargetType="Border">
+    <Setter Property="Margin" Value="0,0,0,10" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <Style x:Key="DialogSetupHintText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="LineHeight" Value="18.4" />
+    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
 </ResourceDictionary>

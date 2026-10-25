@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<title>拖拽落点提示 · 设计基线 v2（已确认）</title>
+<style>
+  :root {
+    /* ---- 第一层令牌（与 UI/Controls/Themes/Colors.xaml 对齐） ---- */
+    --surface: #FFFFFF;
+    --canvas-bg: #F7F8FA;
+    --text-primary: #0F172A;
+    --text-secondary: #475569;
+    --text-tertiary: #64748B;
+    --border-light: #EEF2F7;
+    --border-hair: #E6E9EF;
+    --accent: #0EA5E9;
+    --accent-text: #0369A1;
+    --accent-soft: #ECF8FD;
+    --warn: #F59E0B;
+    --warn-text: #B45309;
+    --warn-soft: #FEF5E7;
+    --danger: #DC2626;
+    --danger-text: #B91C1C;
+    --danger-soft: #FCEFEE;
+    --lock: #64748B;
+    --lock-text: #475569;
+    --lock-soft: #F3F4F6;
+    --shadow-card: 0 2px 6px rgba(15,23,42,.06), 0 14px 30px -10px rgba(15,23,42,.22);
+    --shadow-hint: 0 2px 6px rgba(15,23,42,.06), 0 6px 16px -6px rgba(15,23,42,.16);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 0 80px;
+    background: #F1F3F6;
+    color: var(--text-primary);
+    font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.6;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+  header.hero {
+    background: var(--surface); border-bottom: 1px solid var(--border-hair);
+    padding: 34px 0 26px; margin-bottom: 26px;
+  }
+  header.hero .page { padding-top: 0; }
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -.2px; }
+  .sub { color: var(--text-tertiary); font-size: 13px; }
+  .badges { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    font-size: 11.5px; padding: 3px 9px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--accent-text); font-weight: 600;
+  }
+  .badge.gray { background: var(--lock-soft); color: var(--lock-text); }
+  section {
+    background: var(--surface); border: 1px solid var(--border-hair);
+    border-radius: 14px; padding: 22px 24px; margin-bottom: 18px;
+  }
+  h2 { font-size: 16px; margin: 0 0 4px; }
+  h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 8px; }
+  h3 { font-size: 13.5px; margin: 20px 0 8px; color: var(--text-secondary); }
+  p { margin: 8px 0; }
+  .muted { color: var(--text-tertiary); font-size: 12.5px; }
+  code {
+    font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px;
+    background: #F4F6F9; padding: 1px 5px; border-radius: 4px; color: #0B4F6C;
+  }
+
+  /* ---- 画布背景（模拟 FlowCanvas 的点阵底） ---- */
+  .canvas {
+    background-color: var(--canvas-bg);
+    background-image: radial-gradient(#DDE3EA 1px, transparent 1px);
+    background-size: 16px 16px;
+    border: 1px solid var(--border-hair); border-radius: 10px;
+    position: relative; overflow: hidden;
+  }
+
+  /* ============ 拖拽卡片（v2 基线，已实现） ============ */
+  .ghost {
+    display: inline-flex; align-items: center; gap: 10px;
+    height: 46px; min-width: 168px; max-width: 268px;
+    padding: 0 16px 0 8px;
+    background: rgba(255,255,255,.98);
+    border: 1px solid var(--border-hair); border-radius: 12px;
+    box-shadow: var(--shadow-card);
+  }
+  .ghost .chip {
+    width: 28px; height: 28px; border-radius: 9px; flex: 0 0 28px;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(160deg, rgba(14,165,233,.18), rgba(14,165,233,.07));
+    border: 1px solid rgba(14,165,233,.30);
+    color: var(--accent); font-size: 14px;
+  }
+  .ghost .meta { min-width: 0; }
+  .ghost .title {
+    font-size: 13px; font-weight: 600; color: var(--text-primary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 165px;
+  }
+  .ghost .cat {
+    font-size: 10px; color: var(--text-tertiary); margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 165px;
+  }
+
+  /* ============ 落点提示条（本稿新增） ============ */
+  .hint {
+    display: inline-flex; align-items: center; gap: 6px;
+    height: 26px; padding: 0 9px; border-radius: 8px;
+    font-size: 11.5px; font-weight: 500; letter-spacing: .1px;
+    box-shadow: var(--shadow-hint);
+    max-width: 340px; white-space: nowrap;
+  }
+  .hint svg { width: 11px; height: 11px; flex: 0 0 11px; }
+  .hint .txt { overflow: hidden; text-overflow: ellipsis; }
+  .hint .verb { font-weight: 600; }
+  .hint .path { opacity: .78; }
+  .hint.valid   { background: var(--accent-soft); color: var(--accent-text); }
+  .hint.valid svg { color: var(--accent); }
+  .hint.caution { background: var(--warn-soft); color: var(--warn-text); }
+  .hint.caution svg { color: var(--warn); }
+  .hint.illegal { background: var(--danger-soft); color: var(--danger-text); }
+  .hint.illegal svg { color: var(--danger); }
+  .hint.locked  { background: var(--lock-soft); color: var(--lock-text); }
+  .hint.locked svg { color: var(--lock); }
+
+  /* 组合：卡片在上、提示条在下，左缘对齐 */
+  .stack { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
+  /* 状态展示格 */
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 14px; }
+  .cell { }
+  .cell .stage {
+    height: 132px; display: flex; align-items: center; justify-content: flex-start;
+    padding-left: 26px; padding-top: 20px;
+  }
+  .cell .cap { margin-top: 8px; font-size: 12.5px; }
+  .cell .cap b { font-weight: 600; }
+  .cell .cap span { color: var(--text-tertiary); }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+  th { color: var(--text-tertiary); font-weight: 600; font-size: 12px; }
+  td code { font-size: 11.5px; }
+
+  .spec { display: grid; grid-template-columns: 168px 1fr; gap: 0; margin-top: 10px; }
+  .spec div { padding: 7px 0; border-bottom: 1px solid var(--border-light); font-size: 12.5px; }
+  .spec div:nth-child(odd) { color: var(--text-tertiary); }
+
+  /* 间距标注图 */
+  .measure { position: relative; height: 210px; margin-top: 16px; }
+  .measure .stack { position: absolute; left: 96px; top: 26px; }
+  .dim {
+    position: absolute; font-size: 10.5px; color: #7C3AED; font-weight: 600;
+    font-family: "Cascadia Mono", Consolas, monospace; white-space: nowrap;
+  }
+  .dim::before {
+    content: ""; position: absolute; left: -26px; top: 50%; width: 20px; height: 1px;
+    background: #C4B5FD;
+  }
+  .dim-line { position: absolute; background: #C4B5FD; }
+  .cursor {
+    position: absolute; left: 74px; top: 30px; width: 0; height: 0;
+    border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-bottom: 11px solid #334155; transform: rotate(-18deg);
+  }
+  .axis {
+    position: absolute; left: 96px; top: 26px; width: 1px; height: 120px;
+    background: repeating-linear-gradient(to bottom, #C4B5FD 0 4px, transparent 4px 8px);
+  }
+  .axis-h {
+    position: absolute; left: 96px; top: 26px; height: 1px; width: 260px;
+    background: repeating-linear-gradient(to right, #C4B5FD 0 4px, transparent 4px 8px);
+  }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 5px 0; }
+  .do-dont { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
+  .do-dont .box { border-radius: 10px; padding: 12px 14px; font-size: 12.5px; }
+  .do-dont .do { background: #F0FBF4; border: 1px solid #C9EBD6; }
+  .do-dont .dont { background: #FDF2F2; border: 1px solid #F3CFCF; }
+  .do-dont b { display: block; margin-bottom: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="page">
+    <h1>拖拽落点提示 · 设计基线 v2（已确认）</h1>
+    <div class="sub">Web 设计媒介，不参与构建、不部署（AGENTS.md §30.1 R126）。本稿为 WPF 复刻的唯一依据。</div>
+    <div class="badges">
+      <span class="badge">v2 已确认 · 2026-10-24</span>
+      <span class="badge gray">动词：添加 / 移动</span>
+      <span class="badge gray">路径分隔符：/</span>
+      <span class="badge gray">状态③：做</span>
+    </div>
+  </div>
+</header>
+
+<div class="page">
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">01</span>问题：卡片说了"是什么"，没说"落到哪"</h2>
+  <p>
+    现有 v2 拖拽卡片回答的是<strong>身份</strong>——拖的是什么算子、属于哪一类。但用户在画布上真正拿不准的是<strong>落点</strong>：
+  </p>
+  <ul>
+    <li>画布是<strong>扁平全深度渲染</strong>，一个并行分组里有几条分支、分支里还有容器，肉眼看到的"空白处"未必是顶层空白；</li>
+    <li>落点规则不直观：<strong>容器框内</strong> → 落到该容器第一条分支末尾；<strong>其余</strong> → 按节点中心 Y 插进顶层序列；</li>
+    <li>落到容器框边缘时，用户无法预判是"进容器"还是"插在容器旁边"。</li>
+  </ul>
+  <p>
+    当前实现把库自带的英文浮层（<code>Copy to</code>）关掉了，于是<strong>完全没有落点反馈</strong>——比英文更糟。
+    本稿补的就是这一层。
+  </p>
+  <div class="do-dont">
+    <div class="box do"><b>目标</b>用一行字回答"落到哪"；非法落点说清为什么；不遮挡卡片、不挡鼠标。</div>
+    <div class="box dont"><b>非目标</b>不改落点规则本身，不改卡片视觉（v2 基线冻结），不新增第二套配色。</div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">02</span>模型：两个浮层，各答一个问题</h2>
+  <p>
+    卡片（v2，已实现）跟着光标走，回答<strong>是什么</strong>；提示条（本稿新增）跟在卡片正下方，回答<strong>落到哪</strong>。
+    两者左缘对齐、纵向间隔 6px，视觉上是一组，语义上互不覆盖。
+  </p>
+  <div class="measure">
+    <div class="cursor"></div>
+    <div class="axis"></div>
+    <div class="axis-h"></div>
+    <div class="stack">
+      <div class="ghost">
+        <div class="chip">✦</div>
+        <div class="meta">
+          <div class="title">图像采集</div>
+          <div class="cat">视觉工具</div>
+        </div>
+      </div>
+      <div class="hint valid">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+        <span class="txt"><span class="verb">添加</span> → 主流程 · 末尾</span>
+      </div>
+    </div>
+    <div class="dim" style="left:392px; top:14px;">光标 → 卡片 (16, 12)</div>
+    <div class="dim" style="left:392px; top:74px;">卡片 → 提示条 6</div>
+    <div class="dim" style="left:392px; top:112px;">提示条高 26</div>
+  </div>
+  <p class="muted">
+    为什么不做成"卡片里加第三行"：卡片由拖拽源驱动（只知道拖的是什么），落点由放置端决定。
+    塞进卡片就必须在两个 VM 之间共享一份"当前落点"状态，多一处同步面；
+    而 gong 本来就有 <code>EffectText</code> / <code>DestinationText</code> 与独立的
+    <code>EffectAdornerTranslation</code>，提示条是它天然的位置（见 §07）。
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">03</span>五种状态</h2>
+  <p class="muted">以下按 1:1 真实尺寸渲染，底为画布点阵底。</p>
+
+  <div class="grid">
+    <!-- 1 -->
+    <div class="cell">
+      <div class="canvas stage">
+        <div class="stack">
+          <div class="ghost">
+            <div class="chip">✦</div>
+            <div class="meta"><div class="title">图像采集</div><div class="cat">视觉工具</div></div>
+          </div>
+          <div class="hint valid">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+            <span class="txt"><span class="verb">添加</span> → 主流程 · 末尾</span>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>① 有效 · 顶层</b> <span>— 工具箱拖入（Copy）。动词「添加」，天蓝。</span></div>
+    </div>
+
+    <!-- 2 -->
+    <div class="cell">
+      <div class="canvas stage">
+        <div class="stack">
+          <div class="ghost">
+            <div class="chip">✦</div>
+            <div class="meta"><div class="title">模板匹配</div><div class="cat">视觉工具</div></div>
+          </div>
+          <div class="hint valid">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+            <span class="txt"><span class="verb">移动</span> → 并行组 <span class="path">/</span> 分支 2 · 末尾</span>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>② 有效 · 嵌套分支</b> <span>— 画布内拖动（Move）。动词「移动」，路径用 <code>/</code> 分隔。</span></div>
+    </div>
+
+    <!-- 3 -->
+    <div class="cell">
+      <div class="canvas stage">
+        <div class="stack">
+          <div class="ghost">
+            <div class="chip">✦</div>
+            <div class="meta"><div class="title">图像采集</div><div class="cat">视觉工具</div></div>
+          </div>
+          <div class="hint caution">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2.5 14 13H2L8 2.5Z"/><path d="M8 6.5v3M8 11.2v.1"/></svg>
+            <span class="txt">会展开「并行组」后再放入</span>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>③ 需注意</b> <span>— 落点是折叠容器内部：允许，但会改变视图状态。琥珀。</span></div>
+    </div>
+
+    <!-- 4 -->
+    <div class="cell">
+      <div class="canvas stage">
+        <div class="stack">
+          <div class="ghost">
+            <div class="chip" style="background:linear-gradient(160deg,rgba(220,38,38,.16),rgba(220,38,38,.06));border-color:rgba(220,38,38,.28);color:var(--danger)">⇢</div>
+            <div class="meta"><div class="title">跳出循环</div><div class="cat">逻辑控制</div></div>
+          </div>
+          <div class="hint illegal">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8" cy="8" r="6"/><path d="M4.4 11.6 11.6 4.4"/></svg>
+            <span class="txt">不能放这里：Break 只能放在循环里</span>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>④ 非法</b> <span>— 必须说清原因，不许只变红不说为什么。红。</span></div>
+    </div>
+
+    <!-- 5 -->
+    <div class="cell">
+      <div class="canvas stage">
+        <div class="stack">
+          <div class="ghost">
+            <div class="chip">✦</div>
+            <div class="meta"><div class="title">图像采集</div><div class="cat">视觉工具</div></div>
+          </div>
+          <div class="hint locked">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.8 7V5.2a2.2 2.2 0 0 1 4.4 0V7"/></svg>
+            <span class="txt">运行中不能编辑</span>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>⑤ 锁定</b> <span>— 运行锁生效。灰，不判红（不是用户的错）。</span></div>
+    </div>
+
+    <!-- 6 -->
+    <div class="cell">
+      <div class="canvas stage">
+        <div class="stack">
+          <div class="ghost">
+            <div class="chip">✦</div>
+            <div class="meta"><div class="title">图像采集</div><div class="cat">视觉工具</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="cap"><b>⑥ 无落点</b> <span>— 光标不在任何放置端上：整条收起（不是变灰），只留卡片。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">04</span>文案规则</h2>
+  <p>一条公式：<code>[动词] 「名称」→ [路径] · [位置]</code>。动词由拖拽效果决定，不由拖拽源写死。</p>
+  <table>
+    <tr><th style="width:150px">场景</th><th style="width:290px">模板</th><th>示例</th></tr>
+    <tr>
+      <td>工具箱 → 顶层</td>
+      <td><code>添加「{名称}」→ 主流程 · 末尾</code></td>
+      <td>添加「图像采集」→ 主流程 · 末尾</td>
+    </tr>
+    <tr>
+      <td>工具箱 → 容器内</td>
+      <td><code>添加「{名称}」→ {容器} / {分支} · 末尾</code></td>
+      <td>添加「图像采集」→ 并行组 / 分支 2 · 末尾</td>
+    </tr>
+    <tr>
+      <td>画布内移动</td>
+      <td><code>移动「{名称}」→ {路径} · 末尾</code></td>
+      <td>移动「模板匹配」→ 判断 / 成功分支 · 末尾</td>
+    </tr>
+    <tr>
+      <td>插到两步之间</td>
+      <td><code>{动词}「{名称}」→ {路径} · 插到「{目标}」之前</code></td>
+      <td>添加「图像采集」→ 主流程 · 插到「模板匹配」之前</td>
+    </tr>
+    <tr>
+      <td>深层嵌套（≥3 级）</td>
+      <td>保留末两级，前缀省略为 <code>… /</code></td>
+      <td>移动「模板匹配」→ … / 并行组 / 分支 2 · 末尾</td>
+    </tr>
+    <tr>
+      <td>非法落点</td>
+      <td><code>不能放这里：{原因}</code></td>
+      <td>不能放这里：Break 只能放在循环里</td>
+    </tr>
+    <tr>
+      <td>落点是自己/自己的子孙</td>
+      <td><code>不能放这里：不能放进自己里面</code></td>
+      <td>不能放这里：不能放进自己里面</td>
+    </tr>
+    <tr>
+      <td>运行中</td>
+      <td><code>运行中不能编辑</code></td>
+      <td>运行中不能编辑</td>
+    </tr>
+  </table>
+  <h3>文案纪律</h3>
+  <ul>
+    <li><strong>动词只认拖拽效果</strong>：Copy → 添加；Move → 移动。画布内拖动一律 Move，即使只是同层换位。</li>
+    <li><strong>「主流程」是顶层的位置名</strong>，不是流程名。流程名在标签栏上已经有了，这里重复一遍只会挤掉真正需要的信息。</li>
+    <li><strong>非法原因必须可执行</strong>：「不能放这里」后面必须跟"怎么才能放"，不能只写"不支持"。</li>
+    <li><strong>不写英文、不写枚举名</strong>：<code>ParallelStep</code> / <code>BranchType.Else</code> 这类一律不上屏。</li>
+    <li><strong>名称超长</strong>：截断名称，不截断路径尾部（叶子信息优先）。</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">05</span>规格与令牌映射</h2>
+
+  <h3>卡片（沿用 v2，不改）</h3>
+  <div class="spec">
+    <div>尺寸</div><div>高 46 / 宽 168~268（内容自适应）</div>
+    <div>圆角 / 描边</div><div>12 / 1px <code>#E6E9EF</code></div>
+    <div>图标块</div><div>28×28 / 圆角 9 / 分类色 18%→7% 渐变 + 30% 描边</div>
+    <div>文本</div><div>名称 13 SemiBold <code>#0F172A</code>；分类 10 <code>#64748B</code></div>
+    <div>阴影</div><div>双层（WPF 单层近似）</div>
+    <div>指针偏移</div><div>(16, 12)</div>
+  </div>
+
+  <h3>提示条（新增）</h3>
+  <div class="spec">
+    <div>尺寸</div><div>高 26 / 宽自适应，最大 340，超出省略</div>
+    <div>圆角</div><div>8</div>
+    <div>内边距</div><div>水平 9 / 垂直 0（单行居中）</div>
+    <div>图标</div><div>11×11，与文字间距 6</div>
+    <div>字号 / 字重</div><div>11.5 / Medium(500)；动词 600</div>
+    <div>行高</div><div>单行，<code>CharacterEllipsis</code></div>
+    <div>底色</div><div>状态色 8~10% 叠白（见下表），无描边</div>
+    <div>阴影</div><div><code>0 2px 6px rgba(15,23,42,.06)</code> + <code>0 6px 16px -6px rgba(15,23,42,.16)</code></div>
+    <div>位置</div><div>卡片正下方，左缘对齐，间距 6 → 指针偏移 (16, 64)</div>
+  </div>
+
+  <h3>状态色</h3>
+  <table>
+    <tr><th style="width:90px">状态</th><th style="width:110px">底</th><th style="width:110px">文字</th><th style="width:100px">图标</th><th>WPF 令牌</th></tr>
+    <tr><td>有效</td><td><code>#ECF8FD</code></td><td><code>#0369A1</code></td><td><code>#0EA5E9</code></td><td><code>DialogAccentBrush</code> + 新增 soft/text 两级</td></tr>
+    <tr><td>需注意</td><td><code>#FEF5E7</code></td><td><code>#B45309</code></td><td><code>#F59E0B</code></td><td>新增 <code>DragHintWarn*</code></td></tr>
+    <tr><td>非法</td><td><code>#FCEFEE</code></td><td><code>#B91C1C</code></td><td><code>#DC2626</code></td><td><code>FlowCanvasFailedTextBrush</code> 同族</td></tr>
+    <tr><td>锁定</td><td><code>#F3F4F6</code></td><td><code>#475569</code></td><td><code>#64748B</code></td><td><code>DialogTextTertiaryBrush</code> 同族</td></tr>
+  </table>
+  <p class="muted">
+    全部新色必须进 <code>UI/Controls/Themes/Colors.xaml</code>（R140：第一方 XAML 不许出现 <code>#RRGGBB</code>）。
+    提示条内部只引令牌，不写字面色。
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">06</span>交互细节</h2>
+  <ul>
+    <li><strong>跟随</strong>：提示条与卡片同帧跟随光标；两者用同一份指针偏移的纵向累加，不各自插值，避免"卡片到了、提示条还在路上"。</li>
+    <li><strong>落点切换</strong>：只换文字与状态色，<strong>不做位移/缩放</strong>。快速划过多个容器时，位移会让人误判落点。</li>
+    <li><strong>出现 / 消失</strong>：出现 120ms 淡入 + 2px 下移；消失 90ms 淡出。<strong>无落点时整条收起</strong>，不留一条空底色。</li>
+    <li><strong>文本变化</strong>：不淡入淡出，直接替换。切换动画会让"落点已变"这件事显得比实际慢半拍。</li>
+    <li><strong>不做脉冲/呼吸</strong>：拖拽过程中光标附近已经有卡片 + 提示条两个物体，再加动效会干扰对落点的判断。</li>
+    <li><strong>禁止光标遮挡</strong>：提示条左缘与光标保持 16px，箭头不压文字。</li>
+    <li><strong>高 DPI</strong>：全部用 DIP；26 高在 125% 下是 32.5 物理像素，不做像素对齐修正（与卡片一致）。</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">07</span>实现路径（供复刻阶段参考）</h2>
+  <p>
+    gong-wpf-dragdrop 4.0.0 提供了放置端的全部钩子，<strong>不需要改库</strong>：
+  </p>
+  <p class="muted">
+    ⚠ <strong>复刻时修正</strong>：gong 4.0.0 的 <code>DropHintState</code> 只有 None / Active / Error 三态，
+    且模板 DataContext 只有 <code>HintText</code> + <code>HintState</code>，<strong>表达不了"需注意 / 锁定"两档</strong>。
+    因此实现时把提示条与卡片放进同一个拖拽 adorner 模板，落点状态经一个单写者临时对象
+    （<code>DragHintPresenter</code>）传给模板。视觉与位置不变，详见 README「实现形态」。
+  </p>
+  <ul>
+    <li><code>DragAdornerTemplate</code> —— 卡片 + 提示条的组合（<code>DragGhostStack</code>）；</li>
+    <li><code>IDropTarget.DragOver / DragLeave / Drop</code> —— 放置端写提示与收尾；</li>
+    <li><code>UseDefaultEffectDataTemplate="False"</code> —— 保持现状（已关掉英文 <code>Copy to</code>）；</li>
+    <li>放置端与提示条之间只传"整句文案 + 档位"，文案由 <code>DragHintText</code> 的纯函数拼。</li>
+  </ul>
+  <h3>两处放置端需要补的数据</h3>
+  <table>
+    <tr><th style="width:180px">放置端</th><th style="width:150px">现状</th><th>要做的</th></tr>
+    <tr>
+      <td>流程栏 <code>ProcessViewModel.DragOver</code></td>
+      <td>已填 <code>EffectText</code>（"添加算子"/"移动算子"）+ <code>DestinationText</code></td>
+      <td>按 §04 公式重排文案（动词 + 路径 + 位置），把 <code>DestinationText</code> 拼成完整一句</td>
+    </tr>
+    <tr>
+      <td>画布 <code>CanvasDropTarget.DragOver</code></td>
+      <td><strong>完全没填</strong>（这就是原来显示英文 <code>Copy to</code> 的直接原因）</td>
+      <td>复用 <code>ResolveInsertTarget</code> 的落点判定，产出"主流程 / 容器 / 分支"与"末尾 / 之前"两段信息</td>
+    </tr>
+  </table>
+  <p class="muted">
+    画布侧的落点判定已经是纯函数（<code>ResolveInsertTarget</code> + <code>ComputeInsertIndexByY</code>），
+    DragOver 里调一次即可，不需要第二套规则——否则提示与真实落点会漂移。
+  </p>
+</section>
+
+<!-- ============================================================ -->
+<section>
+  <h2><span class="n">08</span>已确认事项与已知偏差</h2>
+  <h3>用户已拍板（2026-10-24）</h3>
+  <ul>
+    <li><strong>动词</strong>：「添加 / 移动」。</li>
+    <li><strong>路径分隔符</strong>：<code>/</code>。</li>
+    <li><strong>状态 ③（会展开折叠分组）</strong>：做。</li>
+  </ul>
+  <h3>已知偏差（R130）</h3>
+  <ul>
+    <li><strong>WPF 无"下移"动效</strong>：本稿 120ms 淡入 + 2px 下移；WPF 只复刻 Fade（与 v2 卡片同一处理）。</li>
+    <li><strong>字体度量</strong>：本稿用系统 UI 字体，WPF 用应用默认字体，340px 上限的截断点可能差 1~2 字符。</li>
+    <li><strong>两个浮层合成一个 adorner 承载</strong>：gong 4.0.0 没有 5 态的可定制浮层钩子
+      （内置 <code>DropHintState</code> 只有 None/Active/Error 三态，且模板 DataContext 只有
+      <code>HintText</code> + <code>HintState</code>），要表达"需注意/锁定"两档就得自己写 adorner。
+      故复刻时把提示条与卡片放进<strong>同一个</strong>拖拽 adorner 模板里（纵向 StackPanel），
+      视觉与位置和本稿完全一致，只是不再由两个独立 adorner 承载。
+      代价：落点状态要经一个单写者的临时状态对象传给模板（见 README「实现形态」）。</li>
+    <li><strong>画布内部拖节点不在覆盖范围</strong>：那条路径用的是视图自己的 Popup，不是 gong adorner；
+      本稿只覆盖"工具箱 → 流程栏 / 画布"。</li>
+  </ul>
+</section>
+
+</div>
+</body>
+</html>

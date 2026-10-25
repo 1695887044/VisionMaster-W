@@ -40,7 +40,6 @@ VisionMaster\Views\DialogViews\MotionBoard\MotionBoardDebugView.xaml|6
 VisionMaster\Views\DialogViews\MotionBoard\MotionBoardPointsView.xaml|1
 VisionMaster\Views\DialogViews\MotionBoard\MotionBoardSettingsView.xaml|3
 VisionMaster\Views\DialogViews\MotionBoard\MotionBoardTheme.xaml|23
-VisionMaster\Views\DialogViews\ScadaAlarmConfigDialogView.xaml|2
 VisionMaster\Views\DialogViews\ScadaAxisPickerView.xaml|16
 VisionMaster\Views\DialogViews\ScadaFlowPickerView.xaml|19
 VisionMaster\Views\DialogViews\ScadaPagePickerView.xaml|26

@@ -1,0 +1,66 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-run-loop",
+  "title": "循环运行一条流程",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "与单次运行的唯一差别是引擎持续循环；停止走「停止本流程」或运行条「停止」。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "工位1"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    },
+    {
+      "assert": "text_absent",
+      "text": "已禁用"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.run_loop",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.run_loop"
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "循环运行",
+      "timeout_ms": 15000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "run"]
+}

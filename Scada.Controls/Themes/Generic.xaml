@@ -42,7 +42,11 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AxisPanelElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ImageViewElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/PictureElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/GifElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/LineElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/PolygonElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/BezierElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/DynamicLineElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/RunMeterElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/QRCodeElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/BarcodeElement.xaml" />
@@ -52,8 +56,12 @@
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/SelectorSwitchElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/TextFieldElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ComboBoxElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/StateViewElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/BitTableElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/SubPageElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/AckButtonElement.xaml" />
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/DataGridElement.xaml" />
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/RecipePanelElement.xaml" />
 
         <!-- 画布宿主不是图元，但它同样是"默认样式在本程序集"的自定义控件，缺这一行就是一块空白面板 -->
         <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaCanvas.xaml" />

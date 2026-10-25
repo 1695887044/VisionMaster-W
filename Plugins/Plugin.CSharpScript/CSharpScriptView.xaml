@@ -592,7 +592,7 @@
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                     </Grid.ColumnDefinitions>
-                                                    <!-- 图形类输出（HImage/HRegion/HXld/HObject）才显示「显示窗口」 -->
+                                                    <!-- 只有 HImage 输出才有「显示窗口」：预览通道只收 HImage -->
                                                     <StackPanel
                                                         Grid.Column="0"
                                                         Margin="0,0,6,0"
@@ -601,7 +601,7 @@
                                                             <Style TargetType="StackPanel">
                                                                 <Setter Property="Visibility" Value="Collapsed" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsIconic}" Value="True">
+                                                                    <DataTrigger Binding="{Binding ShowsDisplayWindow}" Value="True">
                                                                         <Setter Property="Visibility" Value="Visible" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
@@ -615,7 +615,7 @@
                                                             Width="96"
                                                             SelectedIndex="{Binding DisplayWindow}"
                                                             Style="{StaticResource RowComboStyle}"
-                                                            ToolTip="把该图形结果显示到主界面第几号视图窗口">
+                                                            ToolTip="把该图像结果显示到主界面第几号视图窗口（仅 HImage 输出会推送）">
                                                             <ComboBoxItem Content="不显示" />
                                                             <ComboBoxItem Content="窗口1" />
                                                             <ComboBoxItem Content="窗口2" />
@@ -751,7 +751,7 @@
                                                         Grid.Column="1"
                                                         Style="{StaticResource RowInputStyle}"
                                                         Text="{Binding Alias, UpdateSourceTrigger=LostFocus}"
-                                                        ToolTip="脚本里的键（留空 = 变量名）" />
+                                                        ToolTip="脚本里的键（留空 = 确认时固化为当前变量名；之后变量改名不影响脚本）" />
                                                     <TextBlock
                                                         Grid.Column="2"
                                                         Margin="6,0,0,0"
@@ -836,6 +836,7 @@
                                     <Run Foreground="{StaticResource DialogAccentTextBrush}" Text="Context.ShowImage(img, 窗口号)" /><Run Text="  推送图像" /><LineBreak />
                                     <Run Foreground="{StaticResource DialogAccentTextBrush}" Text="Context.NewMarks()" /><Run Text="              建标注层" /><LineBreak />
                                     <Run Foreground="{StaticResource DialogAccentTextBrush}" Text="Context.MarkText/MarkLine(...)" /><Run Text="  文本 / 线标注" /><LineBreak />
+                                    <Run Foreground="{StaticResource DialogAccentTextBrush}" Text="Context.ThrowIfCancellationRequested()" /><Run Text="  长循环查取消" /><LineBreak />
                                     <Run Foreground="{StaticResource DialogSuccessTextBrush}" Text="Context.Fail(&quot;原因&quot;)" /><Run Text="             主动判失败" />
                                 </TextBlock>
                             </Border>

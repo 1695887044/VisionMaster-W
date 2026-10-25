@@ -21,7 +21,7 @@ namespace Core.Halcon.Models
     /// </summary>
     public sealed class ImageFrame : IDisposable
     {
-        private readonly string? _slotKeyOverride;
+        private string? _slotKeyOverride;
 
         /// <param name="slotKeyOverride">
         /// 唯一槽位键：传了这帧就"永不与别的帧合并"（插件主动注入的图用——列表要一条条列出来）；
@@ -67,6 +67,30 @@ namespace Core.Halcon.Models
         /// 构造时传了唯一键的帧（插件注入）不走这个合并。
         /// </summary>
         public string SlotKey => _slotKeyOverride ?? (FlowName + "\u0001" + StepName + "\u0001" + PortName);
+
+        /// <summary>
+        /// 改槽位键（**只给采集服务在"收容开关切换"时重整槽位用**）。
+        ///
+        /// 为什么需要：收容开关决定注入帧占"流程+窗口号"槽还是各占一条。
+        /// 已收下的帧如果还挂着旧键，开关一开就会出现"旧的那条还在 + 新的另起一条"，
+        /// 同一窗口两张图；开关一关又会出现"新帧覆盖了，旧帧却仍按 GUID 散在集合里"。
+        /// 切换当场按新口径重算键，下一次 <c>InsertOrReplace</c> 才能正确命中。
+        ///
+        /// <b>调用方必须同时维护采集服务的槽位索引</b>——本方法只改帧自己，索引是另一份状态。
+        /// </summary>
+        public void Reslot(string? slotKey)
+        {
+            _slotKeyOverride = slotKey;
+        }
+
+        /// <summary>
+        /// 本帧是否来自插件主动注入（<c>PublishPreview</c>），而不是输出端口兜底采集。
+        ///
+        /// 两类帧的槽位语义完全不同：注入帧的位置是"流程 + 窗口号"（收容时每帧一条），
+        /// 兜底帧的位置是"流程 + 步骤 + 端口"。切换收容开关时要**只收敛注入帧**，
+        /// 兜底帧本来就被端口数封顶，动它等于白扔可见的中间过程图。
+        /// </summary>
+        public bool IsInjectedPreview { get; init; }
 
         /// <summary>图像本体（本对象独占，Dispose 释放）</summary>
         public HImage? Image { get; set; }

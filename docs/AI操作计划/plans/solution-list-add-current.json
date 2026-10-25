@@ -1,0 +1,82 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-list-add-current",
+  "title": "把当前方案加入启动清单",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "只对已保存到磁盘的当前方案有效；未保存时点它会提示先保存。",
+  "params": {
+    "solution_name": {
+      "type": "string",
+      "required": true,
+      "example": "产线A"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.file",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.file",
+      "expect": {
+        "element": "app.menu.file.list",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.file.list",
+      "expect": {
+        "window": "dialog.solution_list",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.solution_list.add_current"
+    },
+    {
+      "n": 5,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.solution_list.row",
+      "name_contains": "${solution_name}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.solution_list.confirm",
+      "expect": {
+        "window": "dialog.solution_list",
+        "state": "closed"
+      },
+      "timeout_ms": 10000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "startup"]
+}

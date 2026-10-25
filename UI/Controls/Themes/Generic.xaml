@@ -30,6 +30,9 @@
         <ResourceDictionary Source="/UI;component/Themes/Controls/Navigation.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/Layout.xaml" />
         <ResourceDictionary Source="/UI;component/Themes/Controls/Misc.xaml" />
+        <!--  步骤右键菜单样式：流程栏与画布共用（2026-10-24 从 ProcessView 下沉）。
+              两个视图仍各自就地 merge 一份（R22），这里的合并只保证应用级也能解析。  -->
+        <ResourceDictionary Source="/UI;component/Themes/Controls/StepContextMenu.xaml" />
 
         <!--
             PluginConfigStyles 必须排在控件样式之后：

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -82,6 +83,29 @@ namespace VisionMaster.Scada.Controls
                        Group = ScadaPropertyGroups.Operation, DefaultValue = "10", Min = 0.1, Max = 10000,
                        Description = "按住点动按钮时的速度（mm/s）；方向由按钮决定")]
         public partial double JogVelocityMmPerS { get; set; }
+
+        /// <summary>
+        /// 点动模式：连续（按住才走）或单步（按一次走一格）。
+        ///
+        /// 为什么做成"一个模式开关"而不是另加两颗按钮：面板高度是固定的，
+        /// 两种点动是对**同一对**点动键的两种解释；多长一行按钮就要牺牲位置大字与状态灯。
+        /// </summary>
+        [ScadaProperty(Key = "JogMode", DisplayName = "点动模式", Kind = ElementPropertyKind.Choice,
+                       Choices = new[] { nameof(ScadaJogMode.Continuous), nameof(ScadaJogMode.Step) },
+                       Group = ScadaPropertyGroups.Operation, DefaultValue = nameof(ScadaJogMode.Continuous),
+                       Description = "连续 = 按住才走（松开即停）；单步 = 按一次走一个「点动步长」，目标 = 当前位置 ± 步长")]
+        public partial ScadaJogMode JogMode { get; set; }
+
+        /// <summary>
+        /// 单步点动的步长（mm）。只在 <see cref="ScadaJogMode.Step"/> 下有意义。
+        ///
+        /// 口径：0.1 mm 精度、0~50 mm。取 0 表示"没给步长"——此时单步点动键灰掉，
+        /// 而不是发一个 0 mm 的空定位（那会被门禁当成"目标=当前位置"，看起来像按钮坏了）。
+        /// </summary>
+        [ScadaProperty(Key = "JogStepMm", DisplayName = "点动步长", Kind = ElementPropertyKind.Number,
+                       Group = ScadaPropertyGroups.Operation, DefaultValue = "1", Min = 0, Max = 50,
+                       Description = "单步点动的步长（mm，0.1 精度，0~50）；目标 = 当前位置 ± 步长。0 = 单步点动不可用")]
+        public partial double JogStepMm { get; set; }
 
         /// <summary>
         /// 示教/定位前是否弹二次确认（默认开）。
@@ -439,6 +463,98 @@ namespace VisionMaster.Scada.Controls
         /// <summary>操作按钮是否可用（只读）</summary>
         public bool CanOperate => (bool)GetValue(CanOperateProperty);
 
+        private static readonly DependencyPropertyKey CanJogPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanJog), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>
+        /// 两个点动键是否可点（只读）= <see cref="CanOperate"/> 且当前轴**不在运动**。
+        ///
+        /// 为什么不直接连 CanOperate：运动中再发 JogStart / 单步定位会和正在执行的指令抢同一根轴，
+        /// 但「停止 / 清报警 / 失能 / 回零」在运动中恰恰是**该点**的那几个键——
+        /// 一起灰掉等于在最需要处置的时候把按钮收走了。所以只锁点动这两颗。
+        /// </summary>
+        public static readonly DependencyProperty CanJogProperty = CanJogPropertyKey.DependencyProperty;
+
+        /// <summary>两个点动键是否可点（只读；运动中锁这两颗，其余按钮照常）</summary>
+        public bool CanJog => (bool)GetValue(CanJogProperty);
+
+        // ---- 步进点动行的算好属性 ----
+        // 与 CommandsVisibility / PointsVisibility 同一套路：基类是纯 DP 控件、没有 CLR 属性通知，
+        // 所以凡是要在界面上跟着变的，一律做成只读 DP（模板直绑），不做 DataTrigger（本环境不触发）。
+
+        private static readonly DependencyPropertyKey IsStepJogPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsStepJog), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>步进点动行里「单步」是否选中（只读）</summary>
+        public static readonly DependencyProperty IsStepJogProperty = IsStepJogPropertyKey.DependencyProperty;
+
+        /// <summary>「单步」是否选中（只读；连续是默认档）</summary>
+        public bool IsStepJog => (bool)GetValue(IsStepJogProperty);
+
+        private static readonly DependencyPropertyKey IsContinuousJogPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsContinuousJog), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(true));
+
+        /// <summary>「连续」是否选中（只读）</summary>
+        public static readonly DependencyProperty IsContinuousJogProperty =
+            IsContinuousJogPropertyKey.DependencyProperty;
+
+        /// <summary>「连续」是否选中（只读）</summary>
+        public bool IsContinuousJog => (bool)GetValue(IsContinuousJogProperty);
+
+        private static readonly DependencyPropertyKey JogStepTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(JogStepText), typeof(string), typeof(AxisPanelElement), new PropertyMetadata("—"));
+
+        /// <summary>步长文本（只读）：单步档两位小数，连续档给「—」——省得用户以为它生效了</summary>
+        public static readonly DependencyProperty JogStepTextProperty = JogStepTextPropertyKey.DependencyProperty;
+
+        /// <summary>步长文本（只读）</summary>
+        public string JogStepText => (string)GetValue(JogStepTextProperty);
+
+        private static readonly DependencyPropertyKey IsStepFieldEditablePropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(IsStepFieldEditable), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>步长输入框是否可编辑（只读；连续档下只做显示）</summary>
+        public static readonly DependencyProperty IsStepFieldEditableProperty =
+            IsStepFieldEditablePropertyKey.DependencyProperty;
+
+        /// <summary>步长输入框是否可编辑（只读）</summary>
+        public bool IsStepFieldEditable => (bool)GetValue(IsStepFieldEditableProperty);
+
+        private static readonly DependencyPropertyKey JogStepValidPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(JogStepValid), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>单步步长是否可用（只读）= 单步档 且 步长落在 0~50 且不为 0</summary>
+        public static readonly DependencyProperty JogStepValidProperty =
+            JogStepValidPropertyKey.DependencyProperty;
+
+        /// <summary>单步步长是否可用（只读）</summary>
+        public bool JogStepValid => (bool)GetValue(JogStepValidProperty);
+
+        private static readonly DependencyPropertyKey MovingBannerVisibilityPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(MovingBannerVisibility), typeof(Visibility), typeof(AxisPanelElement),
+            new PropertyMetadata(Visibility.Collapsed));
+
+        /// <summary>运动中提示条的显隐（只读；模板直绑，不做 DataTrigger）</summary>
+        public static readonly DependencyProperty MovingBannerVisibilityProperty =
+            MovingBannerVisibilityPropertyKey.DependencyProperty;
+
+        /// <summary>运动中提示条的显隐（只读）</summary>
+        public Visibility MovingBannerVisibility => (Visibility)GetValue(MovingBannerVisibilityProperty);
+
+        /// <summary>单步点动的步长上限（mm）。用户口径：0~50。</summary>
+        public const double JogStepMaxMm = 50d;
+
+        /// <summary>步长的最小有效增量（mm）。用户口径：精度 0.1。</summary>
+        public const double JogStepQuantumMm = 0.1d;
+
+        /// <summary>把步长夹到"合法且对齐 0.1"的口径里（写入口与提交口共用）</summary>
+        public static double NormalizeJogStep(double value)
+        {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return 0d;
+            double clamped = Math.Clamp(value, 0d, JogStepMaxMm);
+            return Math.Round(clamped / JogStepQuantumMm, MidpointRounding.AwayFromZero) * JogStepQuantumMm;
+        }
+
         /// <summary>最近一次操作的结果文案（只读；空串 = 上一次是成功的）</summary>
         public string CommandMessage => (string)GetValue(CommandMessageProperty);
 
@@ -545,6 +661,10 @@ namespace VisionMaster.Scada.Controls
 
             SetValue(CanOperatePropertyKey, can);
             SetValue(CanEditPropertyKey, can && ShowCommands);
+
+            // 点动键额外挡一道"轴没在动"：运动中按下去会和正在走的指令抢轴。
+            // 停止/清报警/失能/回零**不**受这一条约束（那正是运动中该点的键）。
+            SetValue(CanJogPropertyKey, can && !IsMoving);
 
             TeachCommand.RaiseCanExecuteChanged();
             LocateCommand.RaiseCanExecuteChanged();
@@ -778,6 +898,12 @@ namespace VisionMaster.Scada.Controls
             // 权限（RequiredRole）改了要立刻反映到按钮上：属性面板改完、或加载期恢复布局，
             // 都走 RefreshCore → 这里。不补的话按钮会停在旧权限上，直到下一次切轴。
             RefreshCanOperate();
+
+            // 数据快照也要一起补：运动锁（CanJog）是由「权限 + 是否在动」两个条件算出来的，
+            // 只刷权限会让 IsMoving 停在上一次的旧值——轴其实在动、点动键却还是亮的。
+            // 这是会让机构抢轴的那一类错误，不是观感问题。
+            RefreshFromSource();
+            RefreshJogAvailability();
         }
 
         // ---- 操作按钮的模板部件名（模板里 x:Name 必须逐字一致）----
@@ -789,6 +915,15 @@ namespace VisionMaster.Scada.Controls
         public const string PartBtnJogForward = "BtnJogForward";
         public const string PartBtnJogReverse = "BtnJogReverse";
         public const string PartBtnClearAlarm = "BtnClearAlarm";
+
+        /// <summary>点动模式胶囊：连续</summary>
+        public const string PartBtnJogContinuous = "BtnJogContinuous";
+
+        /// <summary>点动模式胶囊：单步</summary>
+        public const string PartBtnJogStep = "BtnJogStep";
+
+        /// <summary>单步步长输入框</summary>
+        public const string PartJogStepBox = "JogStepBox";
 
         /// <summary>回零必须长按多久才触发（与参考模板一致：防误触）</summary>
         private static readonly TimeSpan HomeHoldDelay = TimeSpan.FromMilliseconds(500);
@@ -808,6 +943,21 @@ namespace VisionMaster.Scada.Controls
         private MouseButtonEventHandler? _jogUp;
         private MouseEventHandler? _jogLeave;
         private MouseEventHandler? _jogLostCapture;
+
+        // 点动模式胶囊与步长框：同样存字段，模板重套用时要能逐字摘掉。
+        private ToggleButton? _jogContinuousButton;
+        private ToggleButton? _jogStepButton;
+        private TextBox? _jogStepBox;
+        private KeyEventHandler? _jogStepKeyDown;
+        private RoutedEventHandler? _jogStepLostFocus;
+
+        /// <summary>
+        /// 步长框里的文本是不是控件自己写进去的。
+        ///
+        /// TextBox.Text 的 TwoWay 回写与"用户敲字"在这一层分不出来，而 R35 明确要求用户意图只能由真实输入事件判定。
+        /// 所以控件每次把算好的 JogStepText 填进去时置位，用户按键时清除；清除之后才算"这是人改的"。
+        /// </summary>
+        private bool _jogStepTextIsOurs = true;
 
         public override void OnApplyTemplate()
         {
@@ -837,6 +987,8 @@ namespace VisionMaster.Scada.Controls
             if (GetTemplateChild(PartBtnJogReverse) is Button jogReverse)
                 AttachJog(jogReverse, -1);
 
+            AttachJogMode();
+
             // 数据可能先于模板到达（RuntimeContext 在造控件之后才注入），这里补摆一次。
             RebuildAxisItems();
             RefreshFromSource();
@@ -844,6 +996,133 @@ namespace VisionMaster.Scada.Controls
             SetValue(CommandsVisibilityPropertyKey, ShowCommands ? Visibility.Visible : Visibility.Collapsed);
             UpdatePointsLayout();
             RefreshRows();
+            RefreshJogAvailability();
+        }
+
+        /// <summary>
+        /// 单步点动能不能走：步长必须落在 0~50 mm 内且不为 0。
+        ///
+        /// 判的是**原始值**，不是夹取后的值。属性面板/画布上手动填的 62.5 必须明确拒绝并说清范围，
+        /// 不能先偷偷夹到 50 再走——那样用户以为走的是 62.5，实际只走了 50，
+        /// 位置差出来的 12.5 mm 在精密测量站上是事故而不是不便。
+        /// NormalizeJogStep 只用于"把合法输入量化到 0.1 粒度"，不负责任何越界兜底。
+        /// </summary>
+        private bool CanStepJog
+            => !double.IsNaN(JogStepMm) && !double.IsInfinity(JogStepMm)
+               && JogStepMm > 0 && JogStepMm <= JogStepMaxMm;
+
+        private void AttachJogMode()
+        {
+            // 两个 ToggleButton 的 IsChecked 是 OneWay 绑到只读 DP 的（真正的档位由 JogMode 决定），
+            // 所以这里只挂 Click：点一下就把 JogMode 切过去，选中态再从 RefreshJogAvailability 回流。
+            // 不挂 Checked/Unchecked —— 那会在数据源回流时二次触发，变成来回翻。
+            if (GetTemplateChild(PartBtnJogContinuous) is ToggleButton continuous)
+            {
+                _jogContinuousButton = continuous;
+                continuous.Click += OnJogContinuousClicked;
+            }
+
+            if (GetTemplateChild(PartBtnJogStep) is ToggleButton step)
+            {
+                _jogStepButton = step;
+                step.Click += OnJogStepClicked;
+            }
+
+            if (GetTemplateChild(PartJogStepBox) is TextBox box)
+            {
+                _jogStepBox = box;
+                _jogStepKeyDown = OnJogStepKeyDown;
+                _jogStepLostFocus = OnJogStepLostFocus;
+                box.PreviewKeyDown += _jogStepKeyDown;
+                box.LostFocus += _jogStepLostFocus;
+            }
+        }
+
+        private void DetachJogMode()
+        {
+            if (_jogContinuousButton != null)
+                _jogContinuousButton.Click -= OnJogContinuousClicked;
+
+            if (_jogStepButton != null)
+                _jogStepButton.Click -= OnJogStepClicked;
+
+            if (_jogStepBox != null)
+            {
+                if (_jogStepKeyDown != null) _jogStepBox.PreviewKeyDown -= _jogStepKeyDown;
+                if (_jogStepLostFocus != null) _jogStepBox.LostFocus -= _jogStepLostFocus;
+            }
+
+            _jogContinuousButton = null;
+            _jogStepButton = null;
+            _jogStepBox = null;
+            _jogStepKeyDown = null;
+            _jogStepLostFocus = null;
+        }
+
+        private void OnJogContinuousClicked(object sender, RoutedEventArgs e)
+            => SetJogMode(ScadaJogMode.Continuous);
+
+        private void OnJogStepClicked(object sender, RoutedEventArgs e)
+            => SetJogMode(ScadaJogMode.Step);
+
+        /// <summary>
+        /// 切换点动模式（胶囊点击、脚本、断言都走这里）。
+        /// 同档重复点击视为无效、不当成"取消选择"——点动只有连续/单步两种，没有第三态；
+        /// 但 ToggleButton 被点一下会自己翻过去，所以同档时要把 IsChecked 按回真实值。
+        /// </summary>
+        public void SetJogMode(ScadaJogMode mode)
+        {
+            if (JogMode == mode)
+            {
+                RefreshJogAvailability();
+                return;
+            }
+
+            JogMode = mode;
+        }
+
+        /// <summary>步长框里一按键就说明后面这段是人在改（R35：用户意图只认真实输入事件）</summary>
+        private void OnJogStepKeyDown(object sender, KeyEventArgs e) => _jogStepTextIsOurs = false;
+
+        private void OnJogStepLostFocus(object sender, RoutedEventArgs e)
+            => CommitJogStep((sender as TextBox)?.Text);
+
+        /// <summary>
+        /// 步长框失焦提交：文本 → 0.1 mm 一档、0~50 mm 的合法步长。
+        ///
+        /// 宽进严出（R34）：能解析就收；解析不了或越界就说清被拒的原值，再把框里的文本刷回真实值，
+        /// 不留下"框里写着 62.5、实际按 1.0 在走"这种看不出问题却会撞车的状态。
+        /// </summary>
+        private void CommitJogStep(string? text)
+        {
+            var raw = (text ?? string.Empty).Trim();
+
+            // 从这一刻起文本重新归控件所有：无论提交成功与否，下面都会把框里的内容刷成真实值。
+            _jogStepTextIsOurs = true;
+
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var value)
+                || !double.IsFinite(value))
+            {
+                SetValue(CommandMessagePropertyKey,
+                    $"步长「{raw}」不是有效数字（0 ~ {JogStepMaxMm:0.#} mm，精度 {JogStepQuantumMm:0.#}）");
+                RefreshJogAvailability();
+                return;
+            }
+
+            if (value < 0 || value > JogStepMaxMm)
+            {
+                SetValue(CommandMessagePropertyKey, $"步长「{raw}」超出 0 ~ {JogStepMaxMm:0.#} mm，已拒绝");
+                RefreshJogAvailability();
+                return;
+            }
+
+            var normalized = NormalizeJogStep(value);
+
+            // 写回 DP 会走 OnJogStepMmPropertyChanged → RefreshJogAvailability，框里的文本随之刷新。
+            if (Math.Abs(normalized - JogStepMm) > double.Epsilon)
+                JogStepMm = normalized;
+            else
+                RefreshJogAvailability();
         }
 
         private void AttachJog(Button button, int direction)
@@ -890,11 +1169,29 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>
         /// 开始点动（按钮按下时调用；也开放给脚本/断言）。
-        /// 方向：正数正向、负数反向；速度取 <see cref="JogVelocityMmPerS"/>。
+        /// 方向：正数正向、负数反向。
+        ///
+        /// 两种模式的区别就落在这里：
+        /// <list type="bullet">
+        /// <item>连续：<c>JogStart</c> + 带符号速度 <see cref="JogVelocityMmPerS"/>，松开由 <see cref="EndJog"/> 发停；</item>
+        /// <item>单步：<c>TryMove(当前位置 ± 步长)</c>，与动作表「轴绝对定位」同一条路径——门禁/软限位/到位判定只有一份。</item>
+        /// </list>
+        /// 单步**不发停下**：它本身就是一条完整定位指令，再补一发 JogStop 只会在到位过程中打断它。
         /// </summary>
         public bool StartJog(int direction)
         {
             if (direction == 0) return false;
+
+            // 运动锁：轴正在走的时候不接受点动（连续/单步都拒）。这条与 CanJog 同源，
+            // 但真正按住时按钮已经灰了，这里再判一次是给脚本/断言与"按下那一刻刚好开始动"的竞态兜底。
+            if (IsMoving)
+            {
+                SetValue(CommandMessagePropertyKey, "轴正在运动，点动已锁定（到位或停止后自动放开）");
+                return false;
+            }
+
+            if (IsStepJog)
+                return StepJog(direction);
 
             _jogHeld = true;
             bool ok = TryExecuteCommand(
@@ -904,6 +1201,63 @@ namespace VisionMaster.Scada.Controls
             if (!ok) _jogHeld = false;
             return ok;
         }
+
+        /// <summary>
+        /// 单步点动：目标 = 当前显示位置 ± 步长，一次 <see cref="IScadaAxisCommandSink.TryMove"/>。
+        ///
+        /// 位置取的是**面板上已经显示的那个三位小数**（<see cref="PositionText"/>）而不是原始快照：
+        /// 用户看到 128.480、按 +1.0，期望的落点就是 129.480；拿内部更多位去算会得到他没见过的目标。
+        /// </summary>
+        private bool StepJog(int direction)
+        {
+            if (!CanStepJog)
+
+            {
+                SetValue(CommandMessagePropertyKey, JogStepMm <= 0
+                    ? "单步点动的步长是 0，请先设一个 0.1~50 mm 的步长"
+                    : $"单步步长「{JogStepMm:F2}」超出 0~{JogStepMaxMm:F0} mm，请改到范围内");
+                return false;
+            }
+
+            if (!CheckCanRun(out var error))
+            {
+                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
+                return false;
+            }
+
+            if (!TryParsePositionMm(out double current))
+            {
+                SetValue(CommandMessagePropertyKey, "当前没有有效位置，无法单步点动（请先使能/回零）");
+                return false;
+            }
+
+            double step = NormalizeJogStep(JogStepMm);
+            double target = current + (Math.Sign(direction) * step);
+
+            bool ok;
+            try
+            {
+                ok = RuntimeContext!.AxisCommands!.TryMove(SelectedAxisId, target, JogVelocityMmPerS, out error);
+            }
+            catch (Exception ex)
+            {
+                ok = false;
+                error = $"命令执行异常：{ex.Message}";
+            }
+
+            SetValue(CommandMessagePropertyKey, ok
+                ? $"点动 {step:F2} mm 已下发 · 目标 {target:F3}"
+                : error ?? "命令被拒绝（没有给出原因）");
+
+            return ok;
+        }
+
+        /// <summary>把面板上的位置文本（三位小数）还原成数值；"—"等占位一律算"没有位置"</summary>
+        internal bool TryParsePositionMm(out double positionMm)
+            => double.TryParse(PositionText, NumberStyles.Float, CultureInfo.InvariantCulture, out positionMm)
+               && !double.IsNaN(positionMm)
+               && !double.IsInfinity(positionMm);
+
 
         /// <summary>结束点动（按钮松开/移出/失焦时调用；也开放给脚本/断言）。</summary>
         public void EndJog()
@@ -989,6 +1343,7 @@ namespace VisionMaster.Scada.Controls
             // 点动的处理是匿名委托，只能靠存下来的字段逐字摘（见字段区注释）。
             DetachJog(_jogForwardButton, _jogForwardDown);
             DetachJog(_jogReverseButton, _jogReverseDown);
+            DetachJogMode();
             _jogForwardButton = null;
             _jogReverseButton = null;
             _jogForwardDown = null;
@@ -1195,6 +1550,9 @@ namespace VisionMaster.Scada.Controls
             SetValue(IsInPositionPropertyKey, sample.InPosition);
             SetValue(IsAlarmPropertyKey, sample.Alarm);
 
+            // 运动锁跟 IsMoving 一起走：轴开始/结束运动的这一拍就把点动键放开或锁上。
+            RefreshJogAvailability();
+
             SetValue(PositionTextPropertyKey, sample.IsValid
                 ? sample.PositionMm.ToString("F3", CultureInfo.InvariantCulture)
                 : "—");
@@ -1243,6 +1601,64 @@ namespace VisionMaster.Scada.Controls
         partial void OnAccentColorPropertyChanged() => RefreshFromSource();
         partial void OnAlarmColorPropertyChanged() => RefreshFromSource();
         partial void OnOffColorPropertyChanged() => RefreshFromSource();
+
+        /// <summary>
+        /// 点动模式换了：撤掉"按着"的状态（从单步切回连续、或反过来时，按住中的那一颗已经不对应任何东西），
+        /// 再把步进行的算好属性刷一遍。
+        /// </summary>
+        partial void OnJogModePropertyChanged()
+        {
+            _jogHeld = false;
+            RefreshJogAvailability();
+        }
+
+        partial void OnJogStepMmPropertyChanged() => RefreshJogAvailability();
+
+        /// <summary>
+        /// 点动相关的只读状态一起重算：运动锁 + 步进行文案/可编辑/可用 + 运动中提示条。
+        ///
+        /// 之所以集中一处，是因为这些值有四个驱动源（运动快照节拍、角色变化、换轴、改属性），
+        /// 散着写漏一个，界面就会出现"按钮灰着却能点"或者"运动中还能点动"——
+        /// 后者是真的会让机构抢轴，不是观感问题。
+        /// </summary>
+        private void RefreshJogAvailability()
+        {
+            bool can = CanOperate && !IsMoving;
+            bool step = JogMode == ScadaJogMode.Step;
+            double stepMm = NormalizeJogStep(JogStepMm);
+
+            SetValue(CanJogPropertyKey, can);
+            SetValue(IsStepJogPropertyKey, step);
+            SetValue(IsContinuousJogPropertyKey, !step);
+            SetValue(IsStepFieldEditablePropertyKey, step && CanOperate);
+            SetValue(JogStepValidPropertyKey, step && stepMm > 0);
+            SetValue(JogStepTextPropertyKey, step
+                ? stepMm.ToString("F2", CultureInfo.InvariantCulture)
+                : "—");
+            SetValue(MovingBannerVisibilityPropertyKey, IsMoving ? Visibility.Visible : Visibility.Collapsed);
+
+            SyncJogStepBox();
+        }
+
+        /// <summary>
+        /// 把算好的步长文本灌回输入框。
+        ///
+        /// 只在"这段文本是控件自己写的、或者用户还没开始改"时才灌：用户正在框里敲 12.3 的时候，
+        /// 任何一次节拍（200ms）刷进来的 F2 文本都会把他打到一半的字吃掉。
+        /// 用户敲完之后由 <see cref="CommitJogStep"/> 统一按 0.1 mm 归一，再把 _jogStepTextIsOurs 置回 true。
+        /// </summary>
+        private void SyncJogStepBox()
+        {
+            if (_jogStepBox == null) return;
+
+            // 用户已经改过、但还没失焦提交：这段输入归用户，不覆盖。
+            if (!_jogStepTextIsOurs) return;
+
+            string target = JogStepText;
+            if (string.Equals(_jogStepBox.Text, target, StringComparison.Ordinal)) return;
+
+            _jogStepBox.Text = target;
+        }
 
         partial void OnShowCommandsPropertyChanged()
         {

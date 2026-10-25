@@ -94,19 +94,22 @@ namespace VisionMaster.Services
             trialSession = session;
 
             // 4. 正式执行上下文（与正式运行一致）；取消令牌由调用方（配置窗口）提供，
-            //    而非写死 None——否则插件里等图这类阻塞将永远无法被叫停
-            var context = new ExecutionContext(logger, session, workspace, cancellationToken)
-            {
-                Cameras = cameras ?? NullCameraProvider.Instance,
-                // 试运行也要能取到运动设备 —— 否则"选了卡、一执行就报找不到"
-                Motions = motions ?? NullMotionProvider.Instance,
-                // 「调用流程」步骤同理：不注入的话面板上点「执行」必然报"没有绑定流程引擎"
-                FlowInvoker = flowInvoker ?? NullFlowInvoker.Instance,
-                // 「立刻读 / 立刻写」同理：不注入的话试运行必然报"没有接入通讯层"
-                Comms = comms ?? NullCommVariableAccess.Instance,
-                // 数据库三步同理：不注入的话试运行必然报"没有接入数据库服务"
-                Database = database ?? NullDatabaseAccess.Instance
-            };
+            //    而非写死 None——否则插件里等图这类阻塞将永远无法被叫停。
+            //    能力面装配走 ExecutionContext.Create 单点（同一份 RuntimeCapabilities 清单），
+            //    不再手写对象初始化器：试运行曾漏过 Database，症状是"面板点执行报没有接入数据库服务"。
+            var context = ExecutionContext.Create(logger, session, workspace, cancellationToken,
+                new ExecutionContextCapabilitySource
+                {
+                    // 试运行也要能取到运动设备 —— 否则"选了卡、一执行就报找不到"
+                    Cameras = cameras,
+                    Motions = motions,
+                    // 「调用流程」步骤同理：不注入的话面板上点「执行」必然报"没有绑定流程引擎"
+                    FlowInvoker = flowInvoker,
+                    // 「立刻读 / 立刻写」同理：不注入的话试运行必然报"没有接入通讯层"
+                    Comms = comms,
+                    // 数据库三步同理：不注入的话试运行必然报"没有接入数据库服务"
+                    Database = database
+                });
 
             try
             {

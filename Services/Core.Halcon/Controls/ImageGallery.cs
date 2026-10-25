@@ -181,6 +181,65 @@ namespace Core.Halcon.Controls
             set => SetValue(HintTextProperty, value);
         }
 
+        /// <summary>
+        /// 是否显示下方缩略图条（含它与大图之间的分隔条）。
+        ///
+        /// 关掉时必须**把行高折成 0**，不能只设 Visibility：模板里那一行是固定 112px
+        /// （<c>ImageGallery.xaml</c> 的第三行），元素藏起来行定义仍然占着高度，
+        /// 大图一点也不会变大——多格布局下这正是"格子被条子吃掉一半"的成因。
+        /// 折叠逻辑由模板触发器负责，属性只表达意图。
+        /// </summary>
+        public static readonly DependencyProperty ShowThumbnailStripProperty = DependencyProperty.Register(
+            nameof(ShowThumbnailStrip), typeof(bool), typeof(ImageGallery),
+            new PropertyMetadata(true));
+
+        public bool ShowThumbnailStrip
+        {
+            get => (bool)GetValue(ShowThumbnailStripProperty);
+            set => SetValue(ShowThumbnailStripProperty, value);
+        }
+
+        /// <summary>
+        /// 本格是否可能装下不止一张图（= 采集开启 且 保留插件注入图的历史帧）。
+        ///
+        /// 这个值决定三件事有没有意义，缺了它就会给出**点了没反应**的菜单项：
+        /// · 「锁定跟随」——每格只有一张时，新图必然顶掉旧的，"保住当前查看"无从谈起；
+        /// · 「对比模式」——只剩一张时左右两边显示的是同一张图；
+        /// · 「显示缩略图条」——条子里永远只有一张缩略图。
+        /// 置 false 时这三项一律置灰，并在悬停提示里说明去哪儿打开。
+        ///
+        /// 由宿主（<c>ImageView</c>）从配置推下来；控件不认识配置服务（本程序集不引用宿主层）。
+        /// </summary>
+        public static readonly DependencyProperty SupportsFrameHistoryProperty = DependencyProperty.Register(
+            nameof(SupportsFrameHistory), typeof(bool), typeof(ImageGallery),
+            new PropertyMetadata(false, OnSupportsFrameHistoryChanged));
+
+        public bool SupportsFrameHistory
+        {
+            get => (bool)GetValue(SupportsFrameHistoryProperty);
+            set => SetValue(SupportsFrameHistoryProperty, value);
+        }
+
+        private static void OnSupportsFrameHistoryChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is not ImageGallery gallery || (bool)e.NewValue) return;
+
+            // 能力收回：对比模式的第二张大图此时会显示"同一张图"（更糟的是那张可能已被顶掉释放），
+            // 对比基准同理。连同基准一起清掉，避免把已释放的 HImage 留在界面上。
+            if (gallery.IsCompareMode)
+                gallery.SetCurrentValue(IsCompareModeProperty, false);
+
+            gallery.SetCurrentValue(PinnedFrameProperty, null);
+        }
+
+        /// <summary>
+        /// 用户在右键菜单里切换了"显示缩略图条"。
+        /// 控件只表达意图（自己那个 DP 已经翻好、界面立刻生效），**落盘由宿主做**——
+        /// 本程序集拿不到 AppSettingsService，硬引会在编译期就把分层破坏掉。
+        /// 宿主收到后应当写配置并广播，让多格布局里其余各格一起跟随。
+        /// </summary>
+        public event EventHandler? ThumbnailStripToggleRequested;
+
         #endregion
 
         /// <summary>筛选后的帧列表（与 <see cref="ItemsSource"/> 同步维护，供模板直接绑定）</summary>
@@ -261,6 +320,9 @@ namespace Core.Halcon.Controls
         /// 2026-10-08：补"钉住当前帧 / 对比模式 / 锁定跟随"三项——默认模板没有工具条
         /// （PART_Pin / PART_Compare / PART_Lock 都不放在默认模板里），
         /// 不补这三项的话 PinnedFrame / IsCompareMode / AutoSelectNewest 整套 API 无 UI 入口可达。
+        /// 2026-10-24：补"显示缩略图条"——收容打开时用户想临时多看一点大图，不该被迫去系统设置。
+        /// 同时这三项（锁定/对比/条子）在"每格只有一张图"时置灰：那时它们点了也没有可观察的
+        /// 效果，留着可点的菜单项等于让人以为软件没反应。
         /// </summary>
         private void EnsureContextMenu()
         {
@@ -287,6 +349,20 @@ namespace Core.Halcon.Controls
             lockFollow.Click += (s, e) =>
                 SetCurrentValue(AutoSelectNewestProperty, !((MenuItem)s!).IsChecked);
 
+            // 缩略图条开关：控件只管自己这一格立刻生效 + 发事件，落盘与多格同步交给宿主
+            var strip = new MenuItem
+            {
+                Header = "显示缩略图条",
+                IsCheckable = true,
+                IsChecked = ShowThumbnailStrip,
+            };
+            strip.Click += (s, e) =>
+            {
+                var show = ((MenuItem)s!).IsChecked;
+                SetCurrentValue(ShowThumbnailStripProperty, show);
+                ThumbnailStripToggleRequested?.Invoke(this, EventArgs.Empty);
+            };
+
             var clear = new MenuItem { Header = "清空画布" };
             clear.Click += OnClearClick;
 
@@ -303,6 +379,7 @@ namespace Core.Halcon.Controls
                     pin,
                     compare,
                     lockFollow,
+                    strip,
                     new Separator(),
                     clear,
                     new Separator(),
@@ -311,14 +388,33 @@ namespace Core.Halcon.Controls
                 },
             };
 
-            // 打开菜单时同步勾选态（Pin/Compare/Lock 状态可能被宿主侧 API 改过）
+            // 打开菜单时同步勾选态与可用性（状态可能被宿主侧 API 改过；能力随配置变）
             ContextMenu.Opened += (s, e) =>
             {
+                bool history = SupportsFrameHistory;
+
                 compare.IsChecked = IsCompareMode;
                 lockFollow.IsChecked = !AutoSelectNewest;
-                pin.IsEnabled = SelectedFrame != null;
+                strip.IsChecked = ShowThumbnailStrip;
+                pin.IsEnabled = SelectedFrame != null && history;
+
+                // 每个项各自的"为什么不能点"：只说一句"不可用"，用户还得自己猜去哪儿开
+                compare.IsEnabled = history;
+                lockFollow.IsEnabled = history;
+                strip.IsEnabled = history;
+                pin.ToolTip = history ? null : NoHistoryHint;
+                compare.ToolTip = history ? null : NoHistoryHint;
+                lockFollow.ToolTip = history ? null : NoHistoryHint;
+                strip.ToolTip = history ? null : NoHistoryHint;
             };
         }
+
+        /// <summary>
+        /// "为什么这几项不能点"的统一文案。指向设置里的具体开关名，不写"相关设置"这种要人再找一遍的话。
+        /// </summary>
+        private const string NoHistoryHint =
+            "当前每格只显示最新一张。要到「系统参数设置 → 画布」勾选「保留插件注入图的历史帧」，"
+            + "这一格才会有多张图——那时锁定/对比/缩略图条才有意义。";
 
         // ── 断言辅助（internal + InternalsVisibleTo FlowCanvasChecks；不走反射，改菜单结构不用同步改断言）──
 

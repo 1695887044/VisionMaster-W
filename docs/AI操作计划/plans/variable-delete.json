@@ -1,0 +1,104 @@
+{
+  "schema": "vm-plan/1",
+  "id": "variable-delete",
+  "title": "删除一个全局变量",
+  "version": "1.0.0",
+  "risk": "high",
+  "description": "删除有二次确认；流程运行中被禁止（会提示先停止）。删除后引用它的算子会报错。",
+  "params": {
+    "variable_name": {
+      "type": "string",
+      "required": true,
+      "example": "TempValue"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    },
+    {
+      "assert": "text_absent",
+      "text": "运行中"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.system",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.system",
+      "expect": {
+        "element": "app.menu.system.global_vars",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.system.global_vars",
+      "expect": {
+        "window": "dialog.variable_manager",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.variable_manager.row",
+      "target_name": "${variable_name}"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.variable_manager.row_delete",
+      "expect": {
+        "window": "dialog.delete_confirm",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.delete_confirm.ok",
+      "expect": {
+        "window": "dialog.delete_confirm",
+        "state": "closed"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 7,
+      "do": "assert",
+      "assert": "element_absent",
+      "target": "dialog.variable_manager.row",
+      "name_contains": "${variable_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_absent",
+      "target": "dialog.variable_manager.row",
+      "name_contains": "${variable_name}"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["variable", "delete"]
+}

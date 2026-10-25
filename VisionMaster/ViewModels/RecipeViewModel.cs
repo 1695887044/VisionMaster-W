@@ -17,6 +17,9 @@ namespace VisionMaster.ViewModels
         private readonly RecipeService _service;
         private readonly IDialogService _dialogService;
 
+        /// <summary>配方管理器交回来的「登录」出口（null = 没接上，按钮会自己藏起来）</summary>
+        private Action? _requestLogin;
+
         public DelegateCommand OpenManagerCommand { get; }
 
         public RecipeViewModel(RecipeService service, IDialogService dialogService, IWorkspaceManager workspace)
@@ -44,8 +47,38 @@ namespace VisionMaster.ViewModels
 
         private void OpenManager()
         {
-            _dialogService.ShowDialog("RecipeManagerView", new DialogParameters(), _ => Refresh());
+            // 「登录」按钮的出口由宿主给：配方管理器自己不碰 IDialogService。
+            // 出口为 null 时那个按钮自己会藏起来（不再留一个点了没反应的死键）。
+            var parameters = new DialogParameters
+            {
+                { DialogViewModels.RecipeManagerViewModel.RequestLoginParameter, new Action<Action>(RegisterLoginEntry) },
+            };
+            _dialogService.ShowDialog("RecipeManagerView", parameters);
+            Refresh();
         }
+
+        private void ShowLoginDialog()
+        {
+            _dialogService.ShowDialog("ScadaLoginView");
+            Refresh();
+        }
+
+        /// <summary>
+        /// 配方管理器把它的「登录」出口交回来，本 VM 接成弹 Shell 那个登录弹窗
+        /// （同一份会话状态：登录成功后 <see cref="RecipeService.StateChanged"/> 会把权限刷成最新）。
+        /// <para>
+        /// 这里必须把 <paramref name="request"/> 真正包进委托里再交给它，不能只"存下"。
+        /// 2026-10-24 踩过：旧实现是 <c>_requestLogin = request;</c>，而 <c>_requestLogin</c>
+        /// 全仓没有读取点，<see cref="ShowLoginDialog"/> 也没有调用点 —— 于是登录按钮
+        /// 弹不出窗、也没有任何报错（探针自建回调把这条断链掩盖了）。
+        /// </para>
+        /// </summary>
+        private void RegisterLoginEntry(Action request)
+            => _requestLogin = () =>
+            {
+                ShowLoginDialog();
+                request();
+            };
 
         public void Refresh()
         {

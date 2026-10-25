@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SCADA 状态列表 + Hmi.StateView · 设计基线 v1</title>
+<style>
+  :root{
+    --radius:12px;
+    --radius-sm:8px;
+    --shadow:0 18px 48px rgba(0,0,0,.28);
+    --mono:"Cascadia Mono","Consolas","SFMono-Regular",monospace;
+    --sans:"Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1016; --bg2:#0e1318; --surface:#151c23; --raised:#1b242d;
+    --border:#2a3745; --border2:#3a4a5c;
+    --text:#e6eef7; --text2:#a9b7c6; --muted:#7c8a99;
+    --accent:#38bdf8; --accent2:#0ea5e9;
+    --success:#22c55e; --warning:#f59e0b; --danger:#ef4444;
+    --grid:rgba(255,255,255,.045);
+    --code-bg:#0f151b;
+    --input:#111922;
+  }
+  :root[data-theme="light"]{
+    --bg:#eef3f9; --bg2:#f4f7fb; --surface:#ffffff; --raised:#f8fafc;
+    --border:#d8e0ea; --border2:#b9c6d6;
+    --text:#0f172a; --text2:#475569; --muted:#64748b;
+    --accent:#0284c7; --accent2:#0369a1;
+    --success:#15803d; --warning:#b45309; --danger:#b91c1c;
+    --grid:rgba(15,23,42,.05);
+    --code-bg:#f1f5f9;
+    --input:#ffffff;
+    --shadow:0 18px 48px rgba(15,23,42,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(1200px 600px at 12% -10%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(900px 500px at 92% 0%, rgba(34,197,94,.07), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    min-height:100vh;
+  }
+  .wrap{max-width:1480px;margin:0 auto;padding:26px 28px 72px}
+  header.top{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+    padding:18px 0 22px;border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;gap:14px;align-items:flex-start}
+  .logo{
+    width:44px;height:44px;border-radius:12px;flex:none;
+    background:linear-gradient(145deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;color:#04121c;font-weight:800;font-size:18px;
+    box-shadow:0 10px 24px rgba(56,189,248,.28);
+  }
+  h1{font-size:24px;line-height:1.2;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--text2);font-size:13px;line-height:1.6;max-width:860px}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;
+    border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:11px;
+  }
+  .pill b{color:var(--text);font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.15)}
+  .theme-btn{
+    flex:none;border:1px solid var(--border);background:var(--surface);color:var(--text2);
+    border-radius:999px;padding:8px 13px;font-size:12px;cursor:pointer;font-family:inherit;
+  }
+  .theme-btn:hover{border-color:var(--accent);color:var(--text)}
+  .lede{margin:18px 0 0;color:var(--text2);font-size:13.5px;line-height:1.75;max-width:1100px}
+  .lede code{font-family:var(--mono);font-size:12px;background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:1px 5px;color:var(--text)}
+  .section{margin-top:30px}
+  .section h2{font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .section h2 .num{
+    font-family:var(--mono);font-size:11px;color:var(--accent);border:1px solid rgba(56,189,248,.35);
+    background:rgba(56,189,248,.08);border-radius:999px;padding:2px 7px;
+  }
+  .section .desc{color:var(--muted);font-size:12px;margin:0 0 14px}
+  .split{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(360px,.85fr);gap:18px;align-items:start}
+  @media(max-width:1180px){.split{grid-template-columns:1fr}}
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .card-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:13px 16px;border-bottom:1px solid var(--border);background:var(--raised);
+  }
+  .card-head h3{margin:0;font-size:13px;letter-spacing:.2px}
+  .card-head .hint{font-size:11px;color:var(--muted)}
+  .card-body{padding:16px}
+  .stage{
+    position:relative;border-radius:var(--radius-sm);overflow:hidden;
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+      var(--bg2);
+    background-size:22px 22px,22px 22px,auto;
+    border:1px solid var(--border);
+    padding:18px;
+  }
+  .hmi-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  @media(max-width:900px){.hmi-row{grid-template-columns:1fr}}
+  .hmi-card{
+    background:linear-gradient(180deg,var(--surface),var(--bg2));
+    border:1px solid var(--border);border-radius:10px;overflow:hidden;
+    display:flex;flex-direction:column;min-height:238px;
+  }
+  .hmi-title{
+    padding:10px 12px;border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    background:var(--raised);
+  }
+  .hmi-title .name{font-size:12px;font-weight:600}
+  .hmi-title .type{font-family:var(--mono);font-size:10px;color:var(--muted)}
+  .hmi-body{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:18px 14px;text-align:center}
+  .state-view{
+    min-width:150px;min-height:92px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;gap:12px;
+    padding:12px 16px;border:1px dashed transparent;position:relative;
+    background:rgba(0,0,0,.10);
+  }
+  :root[data-theme="light"] .state-view{background:rgba(15,23,42,.03)}
+  .state-view.text-only{font-size:22px;font-weight:700;letter-spacing:.4px}
+  .state-view .state-img{
+    width:58px;height:58px;border-radius:12px;object-fit:contain;flex:none;
+    background:rgba(255,255,255,.04);
+  }
+  .state-view .state-text{font-size:20px;font-weight:700;line-height:1.2}
+  .state-view.both .state-text{font-size:17px}
+  .state-view .placeholder-img{
+    width:58px;height:58px;border-radius:12px;border:1px dashed var(--border2);
+    display:grid;place-items:center;font-size:10px;color:var(--muted);flex:none;
+  }
+  .state-view .lost-dot{
+    position:absolute;top:7px;right:7px;width:8px;height:8px;border-radius:50%;
+    background:var(--warning);box-shadow:0 0 0 3px rgba(245,158,11,.18);
+  }
+  .state-view .fallback{color:var(--muted);font-weight:600}
+  .hmi-foot{padding:8px 12px;border-top:1px solid var(--border);background:var(--raised);display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .hmi-foot .value{font-family:var(--mono);font-size:11px;color:var(--text2)}
+  .hmi-foot .status{font-size:10px;color:var(--muted);text-align:right;line-height:1.35}
+  .status.bad{color:var(--warning)}
+  .status.ok{color:var(--success)}
+  .controls{
+    margin-top:14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+  }
+  @media(max-width:900px){.controls{grid-template-columns:1fr}}
+  .control{
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;
+  }
+  .control label{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text2);margin-bottom:6px}
+  .control label b{font-family:var(--mono);color:var(--text);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent);height:18px}
+  input[type=number],input[type=text],select{
+    width:100%;background:var(--input);border:1px solid var(--border);border-radius:7px;
+    color:var(--text);font-family:inherit;font-size:12px;padding:6px 8px;outline:none;
+  }
+  input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .row > *{flex:1}
+  .row .shrink{flex:none}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--input)}
+  .seg button{
+    border:0;background:transparent;color:var(--text2);font-family:inherit;font-size:11px;
+    padding:6px 10px;cursor:pointer;
+  }
+  .seg button.on{background:rgba(56,189,248,.15);color:var(--accent);font-weight:600}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--text2);cursor:pointer;user-select:none}
+  .toggle input{width:14px;height:14px;accent-color:var(--accent)}
+  .note{
+    margin-top:14px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+    background:var(--raised);color:var(--text2);font-size:11.5px;line-height:1.65;
+  }
+  .note b{color:var(--text)}
+  .note.warn{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+  .spec ul{margin:0;padding-left:18px;color:var(--text2);font-size:12px;line-height:1.8}
+  .spec li{margin:6px 0}
+  .spec li b{color:var(--text)}
+  .spec h4{margin:16px 0 6px;font-size:12px;color:var(--text)}
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:10.5px;letter-spacing:.03em;text-transform:uppercase}
+  td{color:var(--text2);line-height:1.5}
+  td b{color:var(--text)}
+  code{font-family:var(--mono);font-size:11px;background:var(--code-bg);border:1px solid var(--border);border-radius:5px;padding:1px 4px;color:var(--text)}
+  .manager{display:grid;grid-template-columns:220px minmax(0,1fr);gap:0;min-height:420px}
+  @media(max-width:900px){.manager{grid-template-columns:1fr}}
+  .list-pane{border-right:1px solid var(--border);background:var(--raised);padding:10px}
+  @media(max-width:900px){.list-pane{border-right:0;border-bottom:1px solid var(--border)}}
+  .list-pane .pane-title{font-size:10.5px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin:2px 4px 8px}
+  .list-item{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 9px;border-radius:7px;cursor:pointer;color:var(--text2);font-size:12px;
+    border:1px solid transparent;
+  }
+  .list-item:hover{background:rgba(56,189,248,.07)}
+  .list-item.on{background:rgba(56,189,248,.13);border-color:rgba(56,189,248,.35);color:var(--text)}
+  .list-item .mode{font-family:var(--mono);font-size:9.5px;color:var(--muted)}
+  .list-item.on .mode{color:var(--accent)}
+  .add-btn{
+    width:100%;margin-top:8px;border:1px dashed var(--border2);background:transparent;color:var(--text2);
+    border-radius:7px;padding:7px;font-family:inherit;font-size:11px;cursor:pointer;
+  }
+  .add-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .edit-pane{padding:14px 16px}
+  .edit-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .edit-head .grow{flex:1;min-width:160px}
+  .edit-head .title{font-size:13px;font-weight:600;margin:0 0 2px}
+  .edit-head .sub{font-size:10.5px;color:var(--muted)}
+  .danger-btn{
+    border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.08);color:var(--danger);
+    border-radius:7px;padding:6px 9px;font-family:inherit;font-size:11px;cursor:pointer;
+  }
+  .danger-btn:hover{background:rgba(239,68,68,.16)}
+  .entries{max-height:300px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+  .entries table{font-size:11px}
+  .entries th{position:sticky;top:0;background:var(--raised);z-index:1}
+  .entries td{padding:5px 6px}
+  .entries input,.entries select{padding:4px 6px;font-size:11px}
+  .entries .icon-btn{
+    border:1px solid var(--border);background:transparent;color:var(--muted);
+    border-radius:5px;width:24px;height:24px;cursor:pointer;font-family:inherit;
+  }
+  .entries .icon-btn:hover{color:var(--danger);border-color:rgba(239,68,68,.4)}
+  .empty{
+    padding:28px 16px;text-align:center;color:var(--muted);font-size:12px;line-height:1.7;
+  }
+  .state-matrix td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+  .tag{display:inline-flex;padding:2px 7px;border-radius:999px;font-size:10px;border:1px solid var(--border);color:var(--text2);background:var(--raised)}
+  .tag.ok{color:var(--success);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08)}
+  .tag.warn{color:var(--warning);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+  .tag.bad{color:var(--danger);border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08)}
+  .footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:11px;line-height:1.7}
+  .toast{
+    position:fixed;right:22px;bottom:22px;z-index:50;max-width:360px;
+    background:var(--surface);border:1px solid var(--border);border-radius:10px;
+    box-shadow:var(--shadow);padding:10px 13px;font-size:12px;color:var(--text2);
+    opacity:0;transform:translateY(8px);pointer-events:none;transition:.18s ease;
+  }
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast b{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">S</div>
+      <div>
+        <h1>状态列表 + <span style="font-family:var(--mono);font-size:20px">Hmi.StateView</span></h1>
+        <div class="sub">
+          P1-1 设计基线 v1。把“同一套状态在十个图元上配十份”收成一份方案级状态列表；
+          一个 <code>Hmi.StateView</code> 用 <b>文本 / 图片 / 图文</b> 三种呈现覆盖图形开关、图形 IO 域、字指示灯、符号 IO 域。
+        </div>
+        <div class="meta">
+          <span class="pill"><span class="dot"></span><b>Web 设计稿</b> · 可操作演示</span>
+          <span class="pill">日期 <b>2026-10-24</b></span>
+          <span class="pill">范围 <b>P1-1</b></span>
+          <span class="pill">控件 <b>1 个 TypeKey</b></span>
+        </div>
+      </div>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button">切换浅色</button>
+  </header>
+
+  <p class="lede">
+    这个设计稿只解决一件事：<b>状态从哪来、怎么匹配、匹配不到怎么办</b>。
+    按钮 / 标签的静态文字仍然手填，<b>不建列表</b>；只有“同一个变量的一组状态”才建列表。
+    下面所有卡片都可操作——改值、改显示方式、改列表条目、模拟绑定丢失/列表缺失/图片缺失，预览会实时变化。
+    设计稿里的图片是内联 SVG 示意，实现阶段走方案目录 <code>Image\</code> 的相对路径。
+  </p>
+
+  <div class="note warn" style="margin-top:14px">
+    <b>P1-1 范围（2026-10-24 修订）：</b>本稿展示完整目标形态；P1-1 先只做
+    <b>“共享文本列表 + Hmi.ComboBox 接入”</b>（只读文字 / 只读下拉 / 读写下拉）。
+    <b>Hmi.StateView、图形开关、图形 IO 域、字指示灯、SelectorSwitch/BitButton/Lamp 的状态文字全部放 P1-2</b>，
+    等出现第二个真实消费方再做；按钮标题永远手填。
+  </div>
+
+  <!-- ================= 1. 运行态演示 ================= -->
+  <section class="section" id="runtime">
+    <h2><span class="num">01</span>运行态演示</h2>
+    <p class="desc">三个典型场景：设备状态（纯文本）、OK/NG（图片+文本）、工位模式（位号 + 图文）。</p>
+
+    <div class="split">
+      <div class="card">
+        <div class="card-head">
+          <h3>HMI 运行画面 · 状态视图</h3>
+          <span class="hint">拖动滑杆 / 改值，立即匹配</span>
+        </div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="hmi-row" id="hmiRow"></div>
+          </div>
+
+          <div class="controls">
+            <div class="control">
+              <label>设备状态值 <b id="deviceValueLabel">2</b></label>
+              <input id="deviceSlider" type="range" min="0" max="5" step="1" value="2" />
+              <div class="row" style="margin-top:6px">
+                <select id="devicePresentation">
+                  <option value="text">文本</option>
+                  <option value="image">图片</option>
+                  <option value="both">图文</option>
+                </select>
+              </div>
+            </div>
+            <div class="control">
+              <label>OK / NG 值 <b id="okngValueLabel">1</b></label>
+              <input id="okngSlider" type="range" min="0" max="2" step="1" value="1" />
+              <div class="row" style="margin-top:6px">
+                <select id="okngPresentation">
+                  <option value="text">文本</option>
+                  <option value="image">图片</option>
+                  <option value="both" selected>图文</option>
+                </select>
+              </div>
+            </div>
+            <div class="control">
+              <label>工位模式值（位号） <b id="stationValueLabel">2</b></label>
+              <select id="stationValue">
+                <option value="0">0 · 无</option>
+                <option value="1">1 · bit0</option>
+                <option value="2" selected>2 · bit1</option>
+                <option value="4">4 · bit2</option>
+                <option value="3">3 · 两位同时置位</option>
+              </select>
+              <div class="row" style="margin-top:6px">
+                <select id="stationPresentation">
+                  <option value="text">文本</option>
+                  <option value="image">图片</option>
+                  <option value="both" selected>图文</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px;align-items:center">
+            <label class="toggle shrink"><input id="flagLost" type="checkbox" /> 模拟绑定丢失（保留末值 + 橙点）</label>
+            <label class="toggle shrink"><input id="flagListMissing" type="checkbox" /> 模拟状态列表缺失</label>
+            <label class="toggle shrink"><input id="flagImageMissing" type="checkbox" /> 模拟图片缺失</label>
+          </div>
+
+          <div class="note">
+            <b>匹配口径：</b>
+            位 = 0/1 精确匹配；位号 = 变量值必须<b>恰好一位为 1</b>（<code>value == 1 &lt;&lt; bit</code>），两位同时置位按“未匹配”走回退；
+            范围 = 包含起止值的第一个区间。匹配不到一律显示 <code>DefaultText</code>，不猜、不显示空白。
+          </div>
+        </div>
+      </div>
+
+      <aside class="card spec">
+        <div class="card-head"><h3>口径</h3><span class="hint">实现前必须定死</span></div>
+        <div class="card-body">
+          <ul>
+            <li><b>方案级共享</b>：状态列表存在 <code>ScadaDocument.StateLists</code>，控件只存稳定 <code>StateListId</code>；名字只做显示与旧数据兜底。</li>
+            <li><b>一个 TypeKey</b>：<code>Hmi.StateView</code>。不新建图形开关/图形 IO 域/字指示灯三个类——它们只是“呈现方式 + 列表模式”的不同组合。</li>
+            <li><b>三种模式</b>：位（2 条）、位号（0~31 位）、范围（起止值）。</li>
+            <li><b>三种呈现</b>：文本 / 图片 / 图文；图片走方案 <code>Image\</code> 相对路径。</li>
+            <li><b>回退可见</b>：列表缺失、无匹配、图片缺失、绑定丢失各有明确状态，不静默显示空白。</li>
+            <li><b>绑定丢失保留末值</b>：与 IOField/ComboBox 同一口径，右上角橙点 + ToolTip 原因。</li>
+          </ul>
+
+          <h4>属性草案</h4>
+          <table>
+            <tr><th>属性</th><th>类型</th><th>说明</th></tr>
+            <tr><td><b>StateListId</b></td><td>StateList</td><td>方案级状态列表（选择器 + 管理入口）</td></tr>
+            <tr><td><b>Value</b></td><td>Number</td><td>可绑定变量；位/位号/范围都按它匹配</td></tr>
+            <tr><td><b>Presentation</b></td><td>Choice</td><td>Text / Image / Both</td></tr>
+            <tr><td><b>DefaultText</b></td><td>Text</td><td>无匹配时的文字；默认 <code>—</code></td></tr>
+            <tr><td><b>ImageStretch</b></td><td>Choice</td><td>Uniform / UniformToFill / Fill / None</td></tr>
+            <tr><td><b>TextAlignment / FontSize / Foreground</b></td><td>基类</td><td>复用现有文字属性，不另造</td></tr>
+          </table>
+
+          <div class="note warn">
+            <b>不做的事：</b>不在控件里内嵌“每图元一份”的条目；不把状态列表做成页面属性（多页共用同一套设备状态）；不把图片绝对路径写进 <code>.vms</code>。
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 2. 状态列表管理器 ================= -->
+  <section class="section" id="manager">
+    <h2><span class="num">02</span>状态列表管理器</h2>
+    <p class="desc">左边是方案里的列表，右边编辑条目；改动实时反映到上面的运行态预览。</p>
+
+    <div class="card">
+      <div class="card-head">
+        <h3>状态列表</h3>
+        <span class="hint">方案级 · 一份定义，多处引用</span>
+      </div>
+      <div class="manager">
+        <div class="list-pane">
+          <div class="pane-title">列表</div>
+          <div id="listButtons"></div>
+          <button class="add-btn" id="addListBtn" type="button">＋ 新建状态列表</button>
+        </div>
+        <div class="edit-pane" id="editPane"></div>
+      </div>
+    </div>
+
+    <div class="note">
+      <b>管理器边界（v1）：</b>只做列表增删改、模式切换、条目增删、文本/图片路径；不做导入导出、不做多语言分列、不做条目拖拽排序。
+      <b>按钮/标签的静态标题不进列表</b>；列表只服务于“同一个变量的一组状态”。
+      <b>切换模式</b>会按新模式重置条目（实现时先确认再重置）。图片选择复用属性面板的
+      <code>ImageFile</code> 选择器（复制进方案 <code>Image\</code> + SHA-256 查重）。
+    </div>
+  </section>
+
+  <!-- ================= 3. 边界与状态矩阵 ================= -->
+  <section class="section" id="matrix">
+    <h2><span class="num">03</span>边界与状态矩阵</h2>
+    <p class="desc">这些状态必须都能在界面上说清，不能靠“看起来没配”。</p>
+
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>运行态状态</h3><span class="hint">视觉 + 文案</span></div>
+        <div class="card-body">
+          <table class="state-matrix">
+            <tr><th>状态</th><th>显示</th><th>说明</th></tr>
+            <tr><td>匹配</td><td><span class="tag ok">正常</span></td><td>按条目显示文本/图片；Both 时图片在左、文字在右。</td></tr>
+            <tr><td>无匹配</td><td><span class="tag warn">回退</span></td><td>显示 <code>DefaultText</code>（默认 <code>—</code>）；图片位显示占位框，不保留上一条的图。</td></tr>
+            <tr><td>列表缺失</td><td><span class="tag bad">配置错误</span></td><td>显示“未找到状态列表”；ToolTip 带 <code>StateListId</code> 与名字，方便找回。</td></tr>
+            <tr><td>图片缺失</td><td><span class="tag warn">资源缺失</span></td><td>文字照常显示；图片位显示虚线占位 + “图片缺失”，不静默空白。</td></tr>
+            <tr><td>绑定丢失</td><td><span class="tag warn">橙点</span></td><td>保留最后一次有效匹配的文本/图片；右上角橙点 + ToolTip 原因。</td></tr>
+            <tr><td>模式不匹配</td><td><span class="tag warn">回退</span></td><td>位号模式收到 3（两位同时置位）→ 按无匹配处理，不猜“最低位”。</td></tr>
+            <tr><td>空列表</td><td><span class="tag bad">配置错误</span></td><td>列表存在但 0 条：显示 <code>DefaultText</code> + “状态列表为空”。</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <aside class="card spec">
+        <div class="card-head"><h3>匹配示例</h3><span class="hint">位 / 位号 / 范围</span></div>
+        <div class="card-body">
+          <h4>位（0/1）</h4>
+          <table>
+            <tr><th>值</th><th>条目</th><th>结果</th></tr>
+            <tr><td>0</td><td>0 · 停止</td><td>停止</td></tr>
+            <tr><td>1</td><td>1 · 运行</td><td>运行</td></tr>
+            <tr><td>2</td><td>—</td><td>回退 <code>DefaultText</code></td></tr>
+          </table>
+          <h4>位号（0~31）</h4>
+          <table>
+            <tr><th>值</th><th>条目</th><th>结果</th></tr>
+            <tr><td>1</td><td>bit0 · 上料</td><td>上料</td></tr>
+            <tr><td>2</td><td>bit1 · 检测</td><td>检测</td></tr>
+            <tr><td>3</td><td>—（两位同时）</td><td>回退</td></tr>
+          </table>
+          <h4>范围</h4>
+          <table>
+            <tr><th>值</th><th>条目</th><th>结果</th></tr>
+            <tr><td>0~60</td><td>0~60 · 低速</td><td>低速</td></tr>
+            <tr><td>61~100</td><td>61~100 · 高速</td><td>高速</td></tr>
+            <tr><td>101</td><td>—</td><td>回退</td></tr>
+          </table>
+          <div class="note">
+            范围条目按<b>定义顺序</b>取第一个命中；重叠区间由用户自己负责，管理器在保存时提示重叠（v1 只提示，不自动合并）。
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ================= 4. 决策 ================= -->
+  <section class="section" id="decisions">
+    <h2><span class="num">04</span>已定 / 待确认</h2>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>已定</h3><span class="hint">按这些实现</span></div>
+        <div class="card-body spec">
+          <ul>
+            <li><b>方案级，不是页面级</b>：同一套“设备状态”被多页引用，页面级会逼用户复制。</li>
+            <li><b>稳定 ID + 名字兜底</b>：控件存 <code>StateListId</code>；列表改名不打断引用，旧数据按名字找回。</li>
+            <li><b>一个 TypeKey</b>：<code>Hmi.StateView</code>；不新增图形开关/图形 IO/字指示灯三个类。</li>
+            <li><b>图片走方案资产</b>：只存相对路径，复用 <code>SolutionAssetService</code> 的复制/查重/缺失回退。</li>
+            <li><b>回退文案可配</b>：<code>DefaultText</code> 默认 <code>—</code>，不强制中文。</li>
+            <li><b>绑定丢失保留末值</b>：与现有 IOField/ComboBox 一致，不闪空。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>待确认</h3><span class="hint">实现前拍板</span></div>
+        <div class="card-body spec">
+          <ul>
+            <li><b>Q1</b> 状态列表管理器放哪：SCADA 编辑器顶部“资源”菜单，还是属性面板行内“管理…”？</li>
+            <li><b>Q2</b> 条目文本是否要支持多语言列（现在只一列）？若近期有出口需求，建议条目按语言存字典。</li>
+            <li><b>Q3</b> 图片缺失时是否允许“保留上一次有效图”？本稿选择“不保留”，避免把旧状态当新状态。</li>
+            <li><b>Q4</b> 范围重叠：只提示，还是拒绝保存？本稿选择提示。</li>
+            <li><b>Q5</b> 是否允许一个 StateView 同时绑“文本列表”和“图形列表”两个不同列表？本稿不允许，保持一份列表一种模式。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="footer">
+    设计基线 v1 · 2026-10-24 · 仅设计，不改 WPF/XAML 代码。实现前先按 R111 六项确认布局/间距/令牌/字号/五态/交互，
+    再按 R112 复刻、R113 入库。图片为内联 SVG 示意，不代表最终资产。
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  const IMAGES = {
+    ok: svg('#22c55e', 'M20 34l10 10 18-22', '#052e16'),
+    ng: svg('#ef4444', 'M22 22l20 20M42 22L22 42', '#450a0a'),
+    gear: svg('#38bdf8', 'M32 20a12 12 0 1 0 0 24 12 12 0 0 0 0-24zm0 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10z', '#082f49'),
+    camera: svg('#a78bfa', 'M18 26h8l4-6h12l4 6h8v20H18z', '#2e1065')
+  };
+
+  function svg(bg, path, fg) {
+    const s = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">'
+      + '<rect width="64" height="64" rx="14" fill="' + bg + '"/>'
+      + '<path d="' + path + '" fill="none" stroke="' + fg + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'
+      + '</svg>';
+    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s);
+  }
+
+  const state = {
+    theme: 'dark',
+    activeListId: 'device',
+    lists: [
+      {
+        id: 'device', name: '设备状态', mode: 'range',
+        entries: [
+          { value: 0, end: 0, text: '停止', image: '' },
+          { value: 1, end: 1, text: '待机', image: '' },
+          { value: 2, end: 2, text: '运行', image: 'gear' },
+          { value: 3, end: 3, text: '报警', image: 'ng' },
+          { value: 4, end: 4, text: '维护', image: '' }
+        ]
+      },
+      {
+        id: 'okng', name: 'OK / NG', mode: 'bit',
+        entries: [
+          { value: 0, end: 0, text: 'NG', image: 'ng' },
+          { value: 1, end: 0, text: 'OK', image: 'ok' }
+        ]
+      },
+      {
+        id: 'station', name: '工位模式', mode: 'bitno',
+        entries: [
+          { value: 0, end: 0, text: '上料', image: 'camera' },
+          { value: 1, end: 0, text: '检测', image: 'gear' },
+          { value: 2, end: 0, text: '下料', image: 'ok' }
+        ]
+      }
+    ],
+    views: [
+      { id: 'deviceView', listId: 'device', value: 2, presentation: 'text', fallback: '未知状态', lastEntry: null },
+      { id: 'okngView', listId: 'okng', value: 1, presentation: 'both', fallback: '未判定', lastEntry: null },
+      { id: 'stationView', listId: 'station', value: 2, presentation: 'both', fallback: '未选择', lastEntry: null }
+    ],
+    flags: { lost: false, listMissing: false, imageMissing: false }
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  function listOf(id) {
+    if (state.flags.listMissing) return null;
+    return state.lists.find((l) => l.id === id) || null;
+  }
+
+  function matchEntry(list, value) {
+    if (!list) return null;
+    const v = Number(value);
+    if (list.mode === 'bit') {
+      return list.entries.find((e) => Number(e.value) === v) || null;
+    }
+    if (list.mode === 'bitno') {
+      if (!Number.isInteger(v) || v <= 0 || (v & (v - 1)) !== 0) return null;
+      const bit = Math.log2(v);
+      return list.entries.find((e) => Number(e.value) === bit) || null;
+    }
+    return list.entries.find((e) => {
+      const a = Number(e.value);
+      const b = Number.isFinite(Number(e.end)) && Number(e.end) >= a ? Number(e.end) : a;
+      return v >= a && v <= b;
+    }) || null;
+  }
+
+  function modeLabel(mode) {
+    return mode === 'bit' ? '位' : mode === 'bitno' ? '位号' : '范围';
+  }
+
+  function renderHmi() {
+    const row = $('hmiRow');
+    row.innerHTML = '';
+    state.views.forEach((v) => {
+      const list = listOf(v.listId);
+      let entry = v.bindingLost ? v.lastEntry : matchEntry(list, v.value);
+      if (!v.bindingLost && entry) v.lastEntry = entry;
+      if (v.bindingLost && !v.lastEntry) entry = null;
+
+      const card = document.createElement('div');
+      card.className = 'hmi-card';
+
+      const title = document.createElement('div');
+      title.className = 'hmi-title';
+      title.innerHTML = '<span class="name">' + escapeHtml(v.title || (list ? list.name : '状态视图')) + '</span>'
+        + '<span class="type">Hmi.StateView</span>';
+      card.appendChild(title);
+
+      const body = document.createElement('div');
+      body.className = 'hmi-body';
+
+      const view = document.createElement('div');
+      view.className = 'state-view ' + (v.presentation === 'text' ? 'text-only' : v.presentation);
+      view.id = v.id;
+
+      const text = entry ? entry.text : v.fallback;
+      const imageKey = entry ? entry.image : '';
+      const imageMissing = state.flags.imageMissing && imageKey;
+      const listMissing = state.flags.listMissing;
+      const noMatch = !entry && !listMissing;
+
+      if (v.presentation !== 'text') {
+        if (imageKey && !imageMissing) {
+          const img = document.createElement('img');
+          img.className = 'state-img';
+          img.alt = text;
+          img.src = IMAGES[imageKey] || '';
+          view.appendChild(img);
+        } else {
+          const ph = document.createElement('div');
+          ph.className = 'placeholder-img';
+          ph.textContent = imageMissing ? '图片缺失' : '无图片';
+          view.appendChild(ph);
+        }
+      }
+
+      if (v.presentation !== 'image') {
+        const t = document.createElement('div');
+        t.className = 'state-text' + (noMatch || listMissing ? ' fallback' : '');
+        t.textContent = listMissing ? '未找到状态列表' : text;
+        view.appendChild(t);
+      }
+
+      if (state.flags.lost) {
+        const dot = document.createElement('span');
+        dot.className = 'lost-dot';
+        dot.title = '绑定丢失：保留最后一次有效值';
+        view.appendChild(dot);
+      }
+
+      body.appendChild(view);
+      card.appendChild(body);
+
+      const foot = document.createElement('div');
+      foot.className = 'hmi-foot';
+      const value = document.createElement('span');
+      value.className = 'value';
+      value.textContent = 'value = ' + v.value + ' · ' + (list ? modeLabel(list.mode) : '列表缺失');
+      const status = document.createElement('span');
+      status.className = 'status' + (listMissing || imageMissing ? ' bad' : state.flags.lost ? ' bad' : entry ? ' ok' : '');
+      status.textContent = listMissing
+        ? '配置错误：列表缺失'
+        : state.flags.lost
+          ? '绑定丢失，保留末值'
+          : imageMissing
+            ? '资源缺失：图片'
+            : entry
+              ? '已匹配'
+              : '无匹配，回退';
+      foot.appendChild(value);
+      foot.appendChild(status);
+      card.appendChild(foot);
+
+      row.appendChild(card);
+    });
+  }
+
+  function renderListButtons() {
+    const box = $('listButtons');
+    box.innerHTML = '';
+    state.lists.forEach((l) => {
+      const item = document.createElement('div');
+      item.className = 'list-item' + (l.id === state.activeListId ? ' on' : '');
+      item.innerHTML = '<span>' + escapeHtml(l.name) + '</span><span class="mode">' + modeLabel(l.mode) + ' · ' + l.entries.length + '</span>';
+      item.onclick = () => {
+        state.activeListId = l.id;
+        renderListButtons();
+        renderEditor();
+      };
+      box.appendChild(item);
+    });
+  }
+
+  function renderEditor() {
+    const pane = $('editPane');
+    const list = state.lists.find((l) => l.id === state.activeListId);
+    if (!list) {
+      pane.innerHTML = '<div class="empty">没有状态列表。<br/>点左下角「新建状态列表」开始。</div>';
+      return;
+    }
+
+    pane.innerHTML = '';
+
+    const head = document.createElement('div');
+    head.className = 'edit-head';
+    head.innerHTML =
+      '<div class="grow"><div class="title">编辑列表</div>'
+      + '<div class="sub">方案级共享 · 控件只引用 StateListId</div></div>'
+      + '<div class="seg" id="modeSeg">'
+      + '<button type="button" data-mode="bit" class="' + (list.mode === 'bit' ? 'on' : '') + '">位</button>'
+      + '<button type="button" data-mode="bitno" class="' + (list.mode === 'bitno' ? 'on' : '') + '">位号</button>'
+      + '<button type="button" data-mode="range" class="' + (list.mode === 'range' ? 'on' : '') + '">范围</button>'
+      + '</div>'
+      + '<button class="danger-btn" id="deleteListBtn" type="button">删除列表</button>';
+    pane.appendChild(head);
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'row';
+    nameRow.style.marginBottom = '10px';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.value = list.name;
+    nameInput.setAttribute('aria-label', '列表名称');
+    nameInput.oninput = () => {
+      list.name = nameInput.value || '未命名列表';
+      renderListButtons();
+      renderHmi();
+    };
+    nameRow.appendChild(nameInput);
+    pane.appendChild(nameRow);
+
+    const entries = document.createElement('div');
+    entries.className = 'entries';
+    const table = document.createElement('table');
+    table.innerHTML = '<thead><tr>'
+      + '<th style="width:72px">' + (list.mode === 'range' ? '起始' : '值/位') + '</th>'
+      + (list.mode === 'range' ? '<th style="width:72px">结束</th>' : '')
+      + '<th>文本</th><th style="width:112px">图片</th><th style="width:34px"></th>'
+      + '</tr></thead>';
+    const tbody = document.createElement('tbody');
+    list.entries.forEach((entry, index) => {
+      const tr = document.createElement('tr');
+
+      const valueTd = document.createElement('td');
+      const valueInput = document.createElement('input');
+      valueInput.type = 'number';
+      valueInput.value = entry.value;
+      valueInput.oninput = () => {
+        entry.value = Number(valueInput.value) || 0;
+        renderHmi();
+      };
+      valueTd.appendChild(valueInput);
+      tr.appendChild(valueTd);
+
+      if (list.mode === 'range') {
+        const endTd = document.createElement('td');
+        const endInput = document.createElement('input');
+        endInput.type = 'number';
+        endInput.value = entry.end;
+        endInput.oninput = () => {
+          entry.end = Number(endInput.value) || 0;
+          renderHmi();
+        };
+        endTd.appendChild(endInput);
+        tr.appendChild(endTd);
+      }
+
+      const textTd = document.createElement('td');
+      const textInput = document.createElement('input');
+      textInput.type = 'text';
+      textInput.value = entry.text;
+      textInput.oninput = () => {
+        entry.text = textInput.value;
+        renderHmi();
+      };
+      textTd.appendChild(textInput);
+      tr.appendChild(textTd);
+
+      const imageTd = document.createElement('td');
+      const imageSelect = document.createElement('select');
+      [['', '无'], ['ok', 'OK'], ['ng', 'NG'], ['gear', '齿轮'], ['camera', '相机']].forEach(([value, label]) => {
+        const opt = document.createElement('option');
+        opt.value = value;
+        opt.textContent = label;
+        if (entry.image === value) opt.selected = true;
+        imageSelect.appendChild(opt);
+      });
+      imageSelect.onchange = () => {
+        entry.image = imageSelect.value;
+        renderHmi();
+      };
+      imageTd.appendChild(imageSelect);
+      tr.appendChild(imageTd);
+
+      const opTd = document.createElement('td');
+      const del = document.createElement('button');
+      del.className = 'icon-btn';
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = '删除条目';
+      del.onclick = () => {
+        list.entries.splice(index, 1);
+        renderEditor();
+        renderListButtons();
+        renderHmi();
+      };
+      opTd.appendChild(del);
+      tr.appendChild(opTd);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    entries.appendChild(table);
+    pane.appendChild(entries);
+
+    const add = document.createElement('button');
+    add.className = 'add-btn';
+    add.type = 'button';
+    add.textContent = '＋ 添加条目';
+    add.onclick = () => {
+      const next = list.entries.length ? Number(list.entries[list.entries.length - 1].value) + 1 : 0;
+      list.entries.push({ value: next, end: next, text: '状态 ' + (list.entries.length + 1), image: '' });
+      renderEditor();
+      renderListButtons();
+      renderHmi();
+    };
+    pane.appendChild(add);
+
+    head.querySelectorAll('#modeSeg button').forEach((btn) => {
+      btn.onclick = () => {
+        const mode = btn.dataset.mode;
+        if (mode === list.mode) return;
+        list.mode = mode;
+        if (mode === 'bit') {
+          list.entries = [
+            { value: 0, end: 0, text: '状态 0', image: '' },
+            { value: 1, end: 0, text: '状态 1', image: '' }
+          ];
+        } else if (mode === 'bitno') {
+          list.entries = [
+            { value: 0, end: 0, text: '位 0', image: '' },
+            { value: 1, end: 0, text: '位 1', image: '' },
+            { value: 2, end: 0, text: '位 2', image: '' }
+          ];
+        } else {
+          list.entries = [
+            { value: 0, end: 10, text: '低', image: '' },
+            { value: 11, end: 20, text: '高', image: '' }
+          ];
+        }
+        renderEditor();
+        renderListButtons();
+        renderHmi();
+      };
+    });
+
+    head.querySelector('#deleteListBtn').onclick = () => {
+      if (!confirm('删除状态列表「' + list.name + '」？引用它的控件会显示“未找到状态列表”。')) return;
+      state.lists = state.lists.filter((l) => l.id !== list.id);
+      state.activeListId = state.lists[0] ? state.lists[0].id : '';
+      renderListButtons();
+      renderEditor();
+      renderHmi();
+      toast('已删除列表；引用它的控件进入“列表缺失”态');
+    };
+  }
+
+  function bindRuntime() {
+    $('deviceSlider').oninput = (e) => {
+      state.views[0].value = Number(e.target.value);
+      $('deviceValueLabel').textContent = e.target.value;
+      renderHmi();
+    };
+    $('okngSlider').oninput = (e) => {
+      state.views[1].value = Number(e.target.value);
+      $('okngValueLabel').textContent = e.target.value;
+      renderHmi();
+    };
+    $('stationValue').onchange = (e) => {
+      state.views[2].value = Number(e.target.value);
+      $('stationValueLabel').textContent = e.target.value;
+      renderHmi();
+    };
+    $('devicePresentation').onchange = (e) => {
+      state.views[0].presentation = e.target.value;
+      renderHmi();
+    };
+    $('okngPresentation').onchange = (e) => {
+      state.views[1].presentation = e.target.value;
+      renderHmi();
+    };
+    $('stationPresentation').onchange = (e) => {
+      state.views[2].presentation = e.target.value;
+      renderHmi();
+    };
+    $('flagLost').onchange = (e) => {
+      state.flags.lost = e.target.checked;
+      renderHmi();
+    };
+    $('flagListMissing').onchange = (e) => {
+      state.flags.listMissing = e.target.checked;
+      renderHmi();
+    };
+    $('flagImageMissing').onchange = (e) => {
+      state.flags.imageMissing = e.target.checked;
+      renderHmi();
+    };
+    $('addListBtn').onclick = () => {
+      const id = 'list-' + Date.now();
+      state.lists.push({
+        id,
+        name: '新状态列表',
+        mode: 'bit',
+        entries: [
+          { value: 0, end: 0, text: '状态 0', image: '' },
+          { value: 1, end: 0, text: '状态 1', image: '' }
+        ]
+      });
+      state.activeListId = id;
+      renderListButtons();
+      renderEditor();
+      renderHmi();
+      toast('已新建状态列表；给它改名并补条目');
+    };
+  }
+
+  function escapeHtml(text) {
+    return String(text == null ? '' : text)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  let toastTimer = null;
+  function toast(message) {
+    const el = $('toast');
+    el.innerHTML = '<b>' + escapeHtml(message) + '</b>';
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  }
+
+  function bindTheme() {
+    const btn = $('themeBtn');
+    btn.onclick = () => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', state.theme);
+      btn.textContent = state.theme === 'dark' ? '切换浅色' : '切换深色';
+    };
+  }
+
+  function init() {
+    state.views[0].title = '设备状态';
+    state.views[1].title = '检测结果';
+    state.views[2].title = '工位模式';
+    bindTheme();
+    bindRuntime();
+    renderListButtons();
+    renderEditor();
+    renderHmi();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

@@ -803,6 +803,9 @@ namespace ScadaWebChecks
             // ---------------- B53：DataGrid 行数据（独立宿主 + 假 IScadaRuntimeDataProvider） ----------------
             await RunGridChecksAsync(http);
 
+            // ---------------- B57：配方面板（独立宿主 + 假 System.Recipe.* 值源） ----------------
+            await RunRecipeChecksAsync(http);
+
             // ---------------- B54：cmd.result 只读查询（ack 丢失后的兜底；主宿主 AllowCommands=false） ----------------
             {
                 var resultIssue = await IssueTicketAsync(http, baseUrl);
@@ -1721,8 +1724,117 @@ namespace ScadaWebChecks
         }
 
         /// <summary>
-        /// B56：24 槽的容量行为。MaxSessions=1 时：
-        /// 第一个连接正常入册（admitted=1、handshake=0）；
+        /// B57：配方面板的 <c>recipe</c> 消息。假值源提供 6 条 <c>System.Recipe.*</c>，
+        /// 断言消息里的 header / statusKey / 明细行与截断行。
+        /// </summary>
+        private static async Task RunRecipeChecksAsync(HttpClient http)
+        {
+            var port = GetFreePort();
+            var document = new ScadaDocument();
+            var page = document.AddPage("配方页");
+            page.Version = 1;
+
+            page.Elements.Add(new ScadaElement
+            {
+                TypeKey = "Hmi.RecipePanel",
+                Name = "配方面板",
+                X = 10,
+                Y = 10,
+                Width = 300,
+                Height = 200,
+                Properties = new Dictionary<string, string>
+                {
+                    ["ShowDetails"] = "True",
+                    ["MaxRows"] = "4",
+                    ["Title"] = "当前配方",
+                },
+            });
+
+            document.SetStartupPage(page);
+
+            var runtime = new ScadaRuntime(document);
+            runtime.Start();
+
+            var hub = new FakeRunHub();
+            hub.SetRunning(runtime, document, 1);
+
+            var values = new FakeValueSource();
+            values.Add(Guid.NewGuid(), "System.Recipe.Active", true);
+            values.Add(Guid.NewGuid(), "System.Recipe.Name", "产品A");
+            values.Add(Guid.NewGuid(), "System.Recipe.Version", 3);
+            values.Add(Guid.NewGuid(), "System.Recipe.EntryCount", 6);
+            values.Add(Guid.NewGuid(), "System.Recipe.Status", "偏离 2");
+            values.Add(Guid.NewGuid(), "System.Recipe.Summary",
+                "检测.Threshold = 0.75\n检测.Mode = Circle\n定位.X = 120\n定位.Y = 35\n计数 = 5\n名称 = 产品A");
+
+            var settings = new ScadaWebSettings
+            {
+                Enabled = true,
+                Port = port,
+                BindAddress = "127.0.0.1",
+                AllowAnonymousView = true,
+                MaxSessions = 4
+            };
+
+            var host = new ScadaWebHost(
+                hub,
+                authenticator: null,
+                catalog: null,
+                new FakeLog(),
+                settings,
+                values: values);
+
+            host.Start();
+
+            if (!host.IsListening)
+            {
+                Check("B57", false, $"配方宿主未启动：{host.LastError ?? "<none>"}");
+                return;
+            }
+
+            var baseUrl = $"http://127.0.0.1:{port}";
+
+            try
+            {
+                var issue = await IssueTicketAsync(http, baseUrl);
+                var (connected, connectError, socket) =
+                    await ConnectAsync($"{baseUrl.Replace("http", "ws")}/ws?ticket={issue.Ticket}");
+
+                if (!connected || socket == null)
+                {
+                    Check("B57", false, $"配方宿主 WS 连接失败：{connectError ?? "<none>"}");
+                    return;
+                }
+
+                using (socket)
+                {
+                    await ReceiveUntilAsync(socket, m => TypeOf(m) == "hello", 3000);
+                    await ReceiveUntilAsync(socket, m => TypeOf(m) == "snapshot", 5000);
+
+                    var recipeMessage = await ReceiveUntilAsync(socket, m => TypeOf(m) == "recipe", 6000);
+                    var first = (recipeMessage?["elements"] as JArray)?.FirstOrDefault() as JObject;
+                    var rows = first?["rows"] as JArray;
+                    var lastRow = rows?.Count > 0 ? rows[^1] as JObject : null;
+
+                    Check("B57",
+                        recipeMessage != null
+                        && first?.Value<string>("header") == "产品A · v3"
+                        && first?.Value<string>("status") == "偏离 2"
+                        && first?.Value<string>("statusKey") == "warn"
+                        && rows?.Count == 4
+                        && lastRow?.Value<string>("text") == "… 共 6 项"
+                        && lastRow?.Value<bool>("truncated") == true,
+                        recipeMessage == null
+                            ? "未收到 recipe"
+                            : $"header={first?.Value<string>("header")} statusKey={first?.Value<string>("statusKey")} " +
+                              $"rows={rows?.Count} last={lastRow?.Value<string>("text")}");
+                }
+            }
+            finally
+            {
+                await host.StopAsync();
+            }
+        }
         /// 第二个客户端仍能取票并通过握手（握手预留槽），但转活跃时被 1013 拒绝——
         /// 不是 HTTP 503（那会被前端渲染成"登录失败"）。
         /// </summary>

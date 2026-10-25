@@ -10,7 +10,5 @@
     xmlns:ui="clr-namespace:UI;assembly=UI"
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
-    <Grid x:Name="grid" Margin="5">
-        <ToggleButton Style="{StaticResource Grid_SwitchToggleStyle}" />
-    </Grid>
+    <Grid x:Name="grid" Margin="5" />
 </UserControl>

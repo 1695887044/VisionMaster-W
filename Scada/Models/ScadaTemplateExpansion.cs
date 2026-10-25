@@ -30,6 +30,21 @@ namespace VisionMaster.Scada
 
         /// <summary>整批内容的起始左上角 Y</summary>
         public double OriginY { get; init; }
+
+        /// <summary>
+        /// 严格替换：只把 <see cref="SelectedArrayRoots"/> 里的数组根换成实例序号，
+        /// 其余数组根保留 <see cref="OriginalIndex"/>。
+        /// </summary>
+        public bool StrictArrayReplacement { get; init; }
+
+        /// <summary>模板保存时记录的数组根清单；不在清单里的 <c>{i}</c> 按名称规则处理，不参与严格选择。</summary>
+        public IReadOnlySet<string>? ArrayRoots { get; init; }
+
+        /// <summary>严格模式下勾选要替换的数组根；null = 全部替换（等同非严格）。</summary>
+        public IReadOnlySet<string>? SelectedArrayRoots { get; init; }
+
+        /// <summary>模板保存时的原始序号；严格模式下未勾选的根回退到它。</summary>
+        public int OriginalIndex { get; init; }
     }
 
     /// <summary>
@@ -215,13 +230,16 @@ namespace VisionMaster.Scada
                             unparameterizedRefs.Add(
                                 new ScadaVariableRef(binding.VariableId, binding.VariableName, binding.ArrayIndex).DisplayText);
 
+                        int referenceNumber = ReferenceNumber(
+                            settings, binding.VariableName, binding.ArrayIndex, number);
+
                         // 停用绑定不阻断整批，但仍尽量把引用落成"以后启用就能用"的形态：
                         // 能解析就按 A（独立变量）/ B（数组根+下标）落好；解析不到才只替换文本。
                         if (!binding.IsEnabled)
                         {
                             if (TryResolveReference(
                                     binding.VariableId, binding.VariableName, binding.ArrayIndex,
-                                    number, resolver,
+                                    referenceNumber, resolver,
                                     out var disabledResolved, out _))
                             {
                                 binding.VariableId = disabledResolved.VariableId;
@@ -230,7 +248,7 @@ namespace VisionMaster.Scada
                             }
                             else if (binding.VariableName != null)
                             {
-                                binding.VariableName = ScadaTemplateTokens.Substitute(binding.VariableName, number);
+                                binding.VariableName = ScadaTemplateTokens.Substitute(binding.VariableName, referenceNumber);
                             }
 
                             continue;
@@ -238,7 +256,7 @@ namespace VisionMaster.Scada
 
                         if (TryResolveReference(
                                 binding.VariableId, binding.VariableName, binding.ArrayIndex,
-                                number, resolver,
+                                referenceNumber, resolver,
                                 out var resolved, out string? error))
                         {
                             binding.VariableId = resolved.VariableId;
@@ -267,12 +285,15 @@ namespace VisionMaster.Scada
                             unparameterizedRefs.Add(
                                 new ScadaVariableRef(animation.VariableId, animation.VariableName, animation.ArrayIndex).DisplayText);
 
+                        int referenceNumber = ReferenceNumber(
+                            settings, animation.VariableName, animation.ArrayIndex, number);
+
                         // 停用动画同样"能解析就落好、解析不到只替换文本"（理由同停用绑定）
                         if (!animation.IsEnabled)
                         {
                             if (TryResolveReference(
                                     animation.VariableId, animation.VariableName, animation.ArrayIndex,
-                                    number, resolver,
+                                    referenceNumber, resolver,
                                     out var disabledResolved, out _))
                             {
                                 animation.VariableId = disabledResolved.VariableId;
@@ -281,7 +302,7 @@ namespace VisionMaster.Scada
                             }
                             else if (animation.VariableName != null)
                             {
-                                animation.VariableName = ScadaTemplateTokens.Substitute(animation.VariableName, number);
+                                animation.VariableName = ScadaTemplateTokens.Substitute(animation.VariableName, referenceNumber);
                             }
 
                             continue;
@@ -289,7 +310,7 @@ namespace VisionMaster.Scada
 
                         if (TryResolveReference(
                                 animation.VariableId, animation.VariableName, animation.ArrayIndex,
-                                number, resolver,
+                                referenceNumber, resolver,
                                 out var resolved, out string? error))
                         {
                             animation.VariableId = resolved.VariableId;
@@ -346,9 +367,12 @@ namespace VisionMaster.Scada
                             if (action.Type != ScadaActionType.WriteVariable)
                                 continue;
 
+                            int referenceNumber = ReferenceNumber(
+                                settings, action.VariableName, action.ArrayIndex, number);
+
                             if (!TryResolveReference(
                                     action.VariableId, action.VariableName, action.ArrayIndex,
-                                    number, resolver,
+                                    referenceNumber, resolver,
                                     out var resolved, out string? error))
                             {
                                 collectedErrors.Add(new ScadaTemplateExpansionError(
@@ -411,6 +435,46 @@ namespace VisionMaster.Scada
         /// <summary>
         /// 解析一条引用：优先用模板里写的名字（已做令牌替换）；名字为空时退回 Id+下标。
         /// </summary>
+        /// <summary>
+        /// 严格模式下这条引用该用哪个序号：勾选的根用实例序号，未勾选的根回退到模板原始序号。
+        /// 名字里没有数组根（名称替换规则产生的 <c>Cylinder{i}</c>）一律用实例序号。
+        /// </summary>
+        private static int ReferenceNumber(
+            ScadaTemplateExpansionOptions settings,
+            string? variableName,
+            int arrayIndex,
+            int number)
+        {
+            if (!settings.StrictArrayReplacement)
+                return number;
+
+            if (settings.ArrayRoots is not { Count: > 0 } roots)
+                return number;
+
+            string? root = ExtractArrayRoot(variableName, arrayIndex);
+
+            if (root == null || !roots.Contains(root))
+                return number;
+
+            if (settings.SelectedArrayRoots is { } selected && !selected.Contains(root))
+                return settings.OriginalIndex;
+
+            return number;
+        }
+
+        private static string? ExtractArrayRoot(string? variableName, int arrayIndex)
+        {
+            if (string.IsNullOrWhiteSpace(variableName))
+                return null;
+
+            int open = variableName.IndexOf('[');
+
+            if (open > 0)
+                return variableName[..open].Trim();
+
+            return arrayIndex >= 0 ? variableName.Trim() : null;
+        }
+
         private static bool TryResolveReference(
             Guid variableId,
             string? variableName,

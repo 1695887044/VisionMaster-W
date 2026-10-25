@@ -240,3 +240,31 @@ xmlns:scada="clr-namespace:VisionMaster.Scada.Controls;assembly=VM.Scada.Control
 - **历史范围用循环按钮而不是下拉**：ComboBox 弹出层受应用级主题控制，深色 HMI 画面上会出现白底下拉；按钮文字即当前范围，点击切下一档并立即查询。
 - **Web 端历史/声音/二维码/趋势仍是占位**：R132A 只要求“已设计画面的运行态查看”，历史查询在 Web 是非目标；`Hmi.Picture`/背景图的 Web 资源路由仍未接（与上一批同一条偏差）。
 - **历史只认 CSV**：数据记录插件的账本目录要指到 `<方案根>\History`；不自动发现插件配置里的其他目录。
+
+## 十、时钟“设了居中却不在中间”修复（2026-10-24 用户反馈）
+
+### 10.1 现象与定位
+
+用户截图：时钟 `Hmi.Clock`（X=1410 / Y=180 / 宽 360 / 高 44 / 字号 22），属性面板「水平对齐 = 居中」，但时间看起来贴在上沿、不在框中间。
+
+先量像素排除“水平对齐没生效”：截图里选中框 x=362..695、时间文字 x=427..630，**左右留白都是 65px，文字中心 = 框中心 = 528.5**——水平方向其实已经居中。真正偏的是**垂直**方向：文字 y=464..475，框 y=458..499，上方 6px、下方 24px。
+
+根因在 `ClockElement.xaml` 的两行布局：
+
+- 第 0 行（时间）是 `*`，第 1 行（标签）是 `Auto`；
+- 模板注释假设“`Text` 为空时 TextBlock 量出来的高度是 0，整行自然塌掉”——**这个假设是错的**：TextBlock 即使 `Text=""`，只要设了 `FontSize`，量出来的仍是一整行行高（22px 字约 28px）；
+- 于是 44 高的框里，标签行白占 28px，时间行只剩 16px；28px 的字在 16px 行里垂直居中 → 溢出到框外，视觉上就是“贴着上沿”。
+
+### 10.2 修法
+
+| 文件 | 改动 |
+| --- | --- |
+| `Scada.Controls\Themes\ClockElement.xaml` | 标签 TextBlock 加 Style：`Text` 为 `""` 或 `null` 时 `Visibility=Collapsed`，让 Auto 行真正塌掉；时间行拿到整高后 `VerticalAlignment=Center` 才落在 22px 中心 |
+| 同上 | 标签行原来硬编码 `TextAlignment="Center"`，改为 `TemplateBinding TextAlignment`——用户把水平对齐改成左/右时，标签不再和设定打架 |
+
+### 10.3 验证
+
+- 临时探针（已删）在屏幕外真窗口里量到：修复前时间 TextBlock `at=(0,-6)`（溢出框外），修复后 `at=(0,8)`、高 28 → 中心 22 = 44/2；空标签 TextBlock `0×0`。
+- `ScadaChecks` 新增 `[BK1]~[BK6]`（`BackgroundAssetChecks.RunClockLayoutChecks`）：空标签收起 / 时间垂直居中 / 模型 Left→控件 Left / 属性面板写模型 / 已挂载控件自动刷新 / 有标签时两行都在框内。
+- 全量 `ScadaChecks`：**2691 通过 / 0 失败**。
+- 注：运行中的 `VisionMaster.exe` 需要**重启**才会加载新 `VM.Scada.Controls.dll`（DLL 已在 19:51 复制到 bin）。

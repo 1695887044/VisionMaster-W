@@ -77,6 +77,45 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
+    /// 变量值的释放口：变量一旦**自己持有**非托管值（当前只有 HImage），就必须有人负责释放。
+    ///
+    /// 为什么单独一个接口而不是加进 <see cref="IVariable"/>：与 <see cref="IValueChangeNotifier"/>
+    /// 同一范式——加进主接口会让所有实现者（含断言桩）被迫实现一个与它们无关的口子。
+    ///
+    /// 谁实现：会自己拷贝并持有值的模型（当前只有 <see cref="LocalVariableModel"/>）。
+    /// 谁调用：变量被移出集合 / 集合被 Clear（<c>VariableRegistry.OnSourceChanged</c>），
+    /// 统一经 <see cref="VariableValueOwner.Release"/>，不要在各处各写一遍判型与 try/catch。
+    /// </summary>
+    public interface IVariableValueOwner
+    {
+        /// <summary>释放本变量持有的全部非托管值，并把当前值置空。</summary>
+        void ReleaseValues();
+    }
+
+    /// <summary>
+    /// 释放调用的唯一落点：判型 + 吞异常。
+    /// 释放失败不该打断集合维护（与 <c>VisionPluginBase</c> 回收输出端口同一口径）。
+    /// </summary>
+    public static class VariableValueOwner
+    {
+        /// <summary>释放一个变量持有的值；不实现 <see cref="IVariableValueOwner"/> 的变量是空操作。</summary>
+        public static void Release(IVariable? variable)
+        {
+            if (variable is not IVariableValueOwner owner)
+                return;
+
+            try
+            {
+                owner.ReleaseValues();
+            }
+            catch
+            {
+                // 释放失败不打断调用方（集合维护 / 方案卸载）
+            }
+        }
+    }
+
+    /// <summary>
     /// 值就地变更通知口。
     ///
     /// 为什么需要它：数组元素的就地编辑（变量管理弹窗的 [i] 行、元素级复位）改的是

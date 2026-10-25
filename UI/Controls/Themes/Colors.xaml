@@ -133,6 +133,11 @@
     <SolidColorBrush x:Key="DialogAccentBrush" Color="#0EA5E9" />
     <SolidColorBrush x:Key="DialogAccentDarkBrush" Color="#0284C7" />
     <SolidColorBrush x:Key="DialogAccentLightBrush" Color="#E0F2FE" />
+    <!--
+        DropShadowEffect.Color 只收 Color 不收 Brush，所以主色另存一条 Color 令牌。
+        用途：静默单元格 / 选择器聚焦时那圈 3px 主色柔光（设计基线 §7.2）。
+    -->
+    <Color x:Key="DialogAccentColor">#0EA5E9</Color>
 
     <!--
         主色浅底再淡一阶 + 同族浅描边：专给"蓝底分组"容器用
@@ -292,6 +297,33 @@
     <SolidColorBrush x:Key="FlowCanvasLinkBrush" Color="#3B82F6" />
     <SolidColorBrush x:Key="FlowCanvasLinkIllegalBrush" Color="#EF4444" />
     <SolidColorBrush x:Key="FlowCanvasOrderLinkBrush" Color="#94A3B8" />
+
+    <!--  连线交叉分离描边：同色线条互相穿过时，先画一圈画布底色的粗笔再画本线，
+          交叉处出现一道"断口"，一眼能看出谁在上谁在下（Nodify BaseConnection.OutlineBrush
+          正是"同几何粗笔垫底"的机制）。取画布底色而不是白色，是为了在泳道淡蓝底上也自然  -->
+    <SolidColorBrush x:Key="FlowCanvasLinkOutlineBrush" Color="#F7F8FA" />
+
+    <!--  连线中段标签：底色 + 字色。此前只给 Text 不给底色，标签直接飘在点阵背景上，
+          与线交叠时既看不清边界也读不出字（用户口径"文字也不醒目"）  -->
+    <SolidColorBrush x:Key="FlowCanvasLinkLabelBackgroundBrush" Color="#F2FFFFFF" />
+    <SolidColorBrush x:Key="FlowCanvasLinkLabelTextBrush" Color="#1D4ED8" />
+    <SolidColorBrush x:Key="FlowCanvasOrderLinkLabelTextBrush" Color="#64748B" />
+
+    <!--  ====================  拖拽落点提示条（设计基线 docs/UI设计基线/drag-drop-hint v2）  ====================  -->
+    <!--  四档状态色：底 = 状态色 8~10% 叠白（无描边），文字与图标同色系深一档。
+          口径见设计稿 §05；提示条内部只引这四个键，不写字面色（R140）。  -->
+    <SolidColorBrush x:Key="DragHintValidBackgroundBrush" Color="#ECF8FD" />
+    <SolidColorBrush x:Key="DragHintValidTextBrush" Color="#0369A1" />
+    <SolidColorBrush x:Key="DragHintValidIconBrush" Color="#0EA5E9" />
+    <SolidColorBrush x:Key="DragHintCautionBackgroundBrush" Color="#FEF5E7" />
+    <SolidColorBrush x:Key="DragHintCautionTextBrush" Color="#B45309" />
+    <SolidColorBrush x:Key="DragHintCautionIconBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="DragHintIllegalBackgroundBrush" Color="#FCEFEE" />
+    <SolidColorBrush x:Key="DragHintIllegalTextBrush" Color="#B91C1C" />
+    <SolidColorBrush x:Key="DragHintIllegalIconBrush" Color="#DC2626" />
+    <SolidColorBrush x:Key="DragHintLockedBackgroundBrush" Color="#F3F4F6" />
+    <SolidColorBrush x:Key="DragHintLockedTextBrush" Color="#475569" />
+    <SolidColorBrush x:Key="DragHintLockedIconBrush" Color="#64748B" />
 
     <!--  ====================  逻辑容器类型色（flow-logic）  ====================  -->
     <!--  只用于容器组头/边框/类型徽标；叶子节点仍用 ToolboxCategoryVisuals 的分类色。  -->

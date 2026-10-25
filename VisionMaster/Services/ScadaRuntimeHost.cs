@@ -881,7 +881,7 @@ namespace VisionMaster.Services
             // 数据泵虽然拿着同一个值源，但它只按 ScadaBinding 推属性，帮不了"按名字取数"。
             window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(
                 engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations, _valueSource,
-                priorAlarms);
+                priorAlarms, stateLists: document.StateLists, subPages: _session);
 
             engine.Attach();
             beat.Start();

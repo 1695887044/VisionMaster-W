@@ -1,0 +1,112 @@
+{
+  "schema": "vm-plan/1",
+  "id": "variable-rename",
+  "title": "重命名一个全局变量",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "变量行右侧图标按钮没有 UIA Name，按行内第 2 个按钮定位；系统变量行没有该按钮。",
+  "params": {
+    "old_name": {
+      "type": "string",
+      "required": true,
+      "example": "Result1"
+    },
+    "new_name": {
+      "type": "string",
+      "required": true,
+      "example": "定位结果"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.system",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.system",
+      "expect": {
+        "element": "app.menu.system.global_vars",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.system.global_vars",
+      "expect": {
+        "window": "dialog.variable_manager",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.variable_manager.row",
+      "target_name": "${old_name}"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.variable_manager.row_rename",
+      "expect": {
+        "window": "dialog.variable_rename",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "type",
+      "target": "dialog.variable_rename.input",
+      "text": "${new_name}",
+      "clear": true
+    },
+    {
+      "n": 7,
+      "do": "click",
+      "target": "dialog.variable_rename.ok",
+      "expect": {
+        "window": "dialog.variable_rename",
+        "state": "closed"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 8,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.variable_manager.row",
+      "name_contains": "${new_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_exists",
+      "target": "dialog.variable_manager.row",
+      "name_contains": "${new_name}"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["variable", "rename"]
+}

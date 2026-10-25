@@ -1,0 +1,68 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-disable",
+  "title": "禁用一条流程",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "禁用后流程胶囊变灰，运行类命令会被拦下；菜单标题同时从「禁用」变成「启用」。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "调试流程"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.disable",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.disable"
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "text_exists",
+      "text": "已禁用",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "text_exists",
+      "text": "已禁用"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "disable"]
+}

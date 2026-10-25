@@ -643,8 +643,11 @@ namespace FlowCanvasChecks
 
             var testRunner = ResolveRepoFile(@"Engine\PluginTestRunner.cs");
             string runnerText = testRunner != null ? File.ReadAllText(testRunner) : string.Empty;
+            //   2026-10-24 起判据换成"走单点装配"：回落 NullMotionProvider 那句话已随对象初始化器一起删除，
+            //   试运行改走 ExecutionContext.Create + ExecutionContextCapabilitySource（与正式运行同一份清单）。
             Check("★试运行的执行上下文同样注入（与正式运行共用同一条组装规则）",
-                runnerText.Contains("Motions = motions ?? NullMotionProvider.Instance")
+                runnerText.Contains("ExecutionContext.Create(")
+                && runnerText.Contains("Motions = motions")
                 && runnerText.Contains("IMotionProvider motions = null"),
                 testRunner == null ? "定位不到 PluginTestRunner.cs" : "");
 

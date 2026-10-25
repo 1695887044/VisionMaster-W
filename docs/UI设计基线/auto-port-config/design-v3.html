@@ -1,0 +1,1234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运控步骤参数面板 · 设计基线 v3 · 名字类只可选 + 来源缺失按缺陷报红</title>
+</head>
+<body>
+<div id="ap-root">
+  <!-- 内联 SVG 图标集（无外部依赖；与 v1/v2 同一套，新增 i-bug / i-refresh） -->
+  <svg width="0" height="0" style="position:absolute;overflow:hidden" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="i-step" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1.6"></rect>
+        <rect x="14" y="14" width="7" height="7" rx="1.6"></rect>
+        <path d="M10 6.5h4a2 2 0 0 1 2 2V13"></path>
+      </symbol>
+      <symbol id="i-motion" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 17h6l3-10 3 10h6"></path>
+        <circle cx="6" cy="17" r="1.4"></circle>
+        <circle cx="18" cy="17" r="1.4"></circle>
+      </symbol>
+      <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M18 6 6 18M6 6l12 12"></path>
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 11v5M12 8h.01"></path>
+      </symbol>
+      <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 4 2.8 20h18.4L12 4Z"></path>
+        <path d="M12 10v4M12 17.2h.01"></path>
+      </symbol>
+      <symbol id="i-error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"></circle>
+        <path d="M12 7.5v5M12 16.4h.01"></path>
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m5 12 4 4L19 6"></path>
+      </symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m6 9 6 6 6-6"></path>
+      </symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 11V5a1 1 0 0 1 1-1h6l9 9-7 7-9-9Z"></path>
+        <circle cx="8.2" cy="8.2" r="1.1"></circle>
+      </symbol>
+      <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.5 14.5 14.5 9.5"></path>
+        <path d="M7 17H5.5a3.5 3.5 0 0 1 0-7H8"></path>
+        <path d="M17 7h1.5a3.5 3.5 0 0 1 0 7H16"></path>
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4.5" y="10" width="15" height="10" rx="2.4"></rect>
+        <path d="M8 10V7.6a4 4 0 0 1 8 0V10"></path>
+      </symbol>
+      <symbol id="i-bool" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="7" width="18" height="10" rx="5"></rect>
+        <circle cx="16" cy="12" r="2.2"></circle>
+      </symbol>
+      <symbol id="i-number" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 3 8 21M16 3l-2 18M4 9h16M3 15h16"></path>
+      </symbol>
+      <symbol id="i-enum" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 6h11M9 12h11M9 18h11"></path>
+        <circle cx="4.5" cy="6" r="1"></circle>
+        <circle cx="4.5" cy="12" r="1"></circle>
+        <circle cx="4.5" cy="18" r="1"></circle>
+      </symbol>
+      <symbol id="i-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 6h14M12 6v13M9 19h6"></path>
+      </symbol>
+      <symbol id="i-card" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="2"></rect>
+        <path d="M7 9.5h4M7 13h2.5M15.5 9.5h1.5M15.5 13h1.5"></path>
+      </symbol>
+      <symbol id="i-card-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.5 6.5A2 2 0 0 1 6.5 5H19a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H6.5a2 2 0 0 1-2-2V6.5Z"></path>
+        <path d="M3.5 3.5 20.5 20.5"></path>
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14"></path>
+      </symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z"></path>
+        <path d="M19 16.5 19.7 18.3 21.5 19l-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8Z"></path>
+      </symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 5h16l1.5 8v4a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-4L4 5Z"></path>
+        <path d="M3 13h5l1.2 2h5.6L16 13h5"></path>
+      </symbol>
+      <symbol id="i-bug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="7" y="7.5" width="10" height="12" rx="5"></rect>
+        <path d="M9.5 7.5V6a2.5 2.5 0 0 1 5 0v1.5"></path>
+        <path d="M3.5 11h3.5M17 11h3.5M3.5 16h3.5M17 16h3.5M5 7l2 2M19 7l-2 2"></path>
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 12a8 8 0 1 1-2.6-5.9"></path>
+        <path d="M20 4v5h-5"></path>
+      </symbol>
+    </defs>
+  </svg>
+
+  <style>
+    /* ============================================================
+       颜色令牌：全文件唯一的 #RRGGBB 定义处（R140 精神）。
+       其余一切颜色只能通过 var(--ap-*) 引用。
+       v3 未新增任何颜色语义，沿用 v2.1 的 29 个令牌。
+       ============================================================ */
+    #ap-root{
+      --ap-surface:#FFFFFF;
+      --ap-surface-2:#F8FAFC;
+      --ap-surface-3:#F1F5F9;
+      --ap-surface-4:#FBFCFE;
+      --ap-border:#E2E8F0;
+      --ap-border-soft:#EEF2F7;
+      --ap-border-strong:#CBD5E1;
+      --ap-text:#0F172A;
+      --ap-text-2:#475569;
+      --ap-text-3:#94A3B8;
+      --ap-text-4:#64748B;
+      --ap-primary:#0EA5E9;
+      --ap-primary-strong:#0284C7;
+      --ap-primary-text:#0369A1;
+      --ap-primary-soft:#F0F9FF;
+      --ap-primary-light:#E0F2FE;
+      --ap-primary-border:#BAE6FD;
+      --ap-success:#22C55E;
+      --ap-success-text:#15803D;
+      --ap-success-soft:#F0FDF4;
+      --ap-success-border:#BBF7D0;
+      --ap-danger:#EF4444;
+      --ap-danger-text:#B91C1C;
+      --ap-danger-soft:#FEF2F2;
+      --ap-danger-border:#FECACA;
+      --ap-warning:#F59E0B;
+      --ap-warning-text:#B45309;
+      --ap-warning-soft:#FFF4E5;
+      --ap-warning-border:#FDE68A;
+
+      --ap-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --ap-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+
+      --ap-r-sm:6px;
+      --ap-r-md:8px;
+      --ap-r-lg:10px;
+      --ap-r-xl:12px;
+      --ap-r-window:16px;
+      --ap-s1:4px;
+      --ap-s2:8px;
+      --ap-s3:12px;
+      --ap-s4:16px;
+      --ap-s5:20px;
+      --ap-s6:24px;
+
+      --ap-t-fast:150ms;
+      --ap-t-slow:200ms;
+
+      --ap-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      --ap-shadow-raise:0 1px 2px rgba(15,23,42,.10);
+      --ap-shadow-btn:0 1px 2px rgba(14,165,233,.28);
+      --ap-focus-ring:0 0 0 3px rgba(14,165,233,.18);
+      --ap-window-width:560px;
+      --ap-window-width-wide:640px;
+
+      font-family:var(--ap-font);
+      color:var(--ap-text);
+      -webkit-font-smoothing:antialiased;
+      font-size:12px;
+      line-height:1.5;
+    }
+    body{margin:0;padding:0;background:var(--ap-surface-3);}
+    #ap-root *{box-sizing:border-box;}
+    #ap-root button,#ap-root input,#ap-root select{font-family:inherit;font-size:inherit;color:inherit;}
+    #ap-root [hidden]{display:none !important;}
+    #ap-root .ap-ico{width:16px;height:16px;display:block;flex:none;}
+
+    /* ================= 展示页骨架 ================= */
+    #ap-root .ap-page{max-width:1280px;margin:0 auto;padding:var(--ap-s6) var(--ap-s6) 48px;}
+    #ap-root .ap-page-head{margin:0 0 var(--ap-s4);}
+    #ap-root .ap-page-title-row{display:flex;align-items:center;gap:var(--ap-s2);flex-wrap:wrap;}
+    #ap-root .ap-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;}
+    #ap-root .ap-ver{display:inline-flex;align-items:center;height:22px;padding:0 var(--ap-s2);border-radius:var(--ap-r-sm);
+      background:var(--ap-primary-light);color:var(--ap-primary-text);font-size:11px;font-weight:700;}
+    #ap-root .ap-page-sub{margin:7px 0 var(--ap-s3);font-size:12.5px;line-height:1.65;color:var(--ap-text-2);max-width:1020px;}
+    #ap-root .ap-page-sub b{color:var(--ap-text);font-weight:600;}
+    #ap-root .ap-page-sub code,#ap-root .ap-note-body code,#ap-root .ap-table code,#ap-root .ap-cap code,#ap-root .ap-copy-card code{
+      font-family:var(--ap-mono);font-size:10.5px;padding:1px 4px;border-radius:var(--ap-s1);
+      background:var(--ap-surface-3);color:var(--ap-text-2);}
+
+    /* 控制条 */
+    #ap-root .ap-demo-bar{display:flex;align-items:center;gap:var(--ap-s5);flex-wrap:wrap;margin-top:var(--ap-s3);}
+    #ap-root .ap-demo-group{display:flex;align-items:center;gap:var(--ap-s2);}
+    #ap-root .ap-demo-label{font-size:11.5px;color:var(--ap-text-4);white-space:nowrap;}
+    #ap-root .ap-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--ap-r-md);background:var(--ap-surface-3);flex-wrap:wrap;}
+    #ap-root .ap-seg button{height:26px;padding:0 10px;border:0;border-radius:var(--ap-r-sm);background:transparent;
+      color:var(--ap-text-2);font-size:11.5px;line-height:1;cursor:pointer;
+      transition:background var(--ap-t-fast) ease,color var(--ap-t-fast) ease,box-shadow var(--ap-t-fast) ease;}
+    #ap-root .ap-seg button:hover{color:var(--ap-text);background:var(--ap-surface-2);}
+    #ap-root .ap-seg button.is-on{background:var(--ap-surface);color:var(--ap-text);font-weight:600;box-shadow:var(--ap-shadow-raise);}
+    #ap-root .ap-seg button:focus-visible{outline:2px solid var(--ap-primary);outline-offset:1px;}
+    #ap-root .ap-scope{display:flex;align-items:flex-start;gap:var(--ap-s1);margin:var(--ap-s3) 0 0;font-size:11.5px;line-height:1.6;color:var(--ap-text-2);max-width:1020px;}
+    #ap-root .ap-scope .ap-ico{width:13px;height:13px;margin-top:2px;color:var(--ap-warning-text);}
+    #ap-root .ap-scope b{color:var(--ap-text);font-weight:600;}
+
+    /* ================= 产品窗口 ================= */
+    #ap-root .ap-stage{display:flex;justify-content:center;padding:var(--ap-s2) 0 var(--ap-s1);}
+    #ap-root .ap-window{width:var(--ap-window-width);max-width:100%;display:flex;flex-direction:column;overflow:hidden;
+      background:var(--ap-surface);border-radius:var(--ap-r-window);box-shadow:var(--ap-shadow-window);transition:width var(--ap-t-slow) ease;}
+    #ap-root .ap-window.is-wide{--ap-window-width:var(--ap-window-width-wide);}
+
+    /* 标题栏 */
+    #ap-root .ap-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 var(--ap-s4);
+      background:var(--ap-surface);border-bottom:1px solid var(--ap-border-soft);}
+    #ap-root .ap-app-icon{width:40px;height:40px;flex:none;border-radius:var(--ap-r-xl);display:flex;align-items:center;justify-content:center;
+      background:var(--ap-primary-light);color:var(--ap-primary-text);}
+    #ap-root .ap-app-icon .ap-ico{width:19px;height:19px;}
+    #ap-root .ap-title-text{margin-left:var(--ap-s3);min-width:0;flex:1;}
+    #ap-root .ap-title-line{display:flex;align-items:center;gap:var(--ap-s2);min-width:0;}
+    #ap-root .ap-title{font-size:16px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--ap-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-title-actions{display:flex;align-items:center;gap:var(--ap-s1);margin-left:var(--ap-s3);flex:none;}
+    #ap-root .ap-auto-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;
+      background:var(--ap-primary-soft);color:var(--ap-primary-text);font-size:10.5px;font-weight:600;white-space:nowrap;}
+    #ap-root .ap-auto-chip .ap-ico{width:12px;height:12px;}
+    #ap-root .ap-icon-btn{width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--ap-r-md);display:inline-flex;
+      align-items:center;justify-content:center;background:transparent;color:var(--ap-text-4);cursor:pointer;
+      transition:background var(--ap-t-fast) ease,color var(--ap-t-fast) ease,transform 80ms ease;}
+    #ap-root .ap-icon-btn .ap-ico{width:15px;height:15px;}
+    #ap-root .ap-icon-btn:hover{background:var(--ap-surface-3);color:var(--ap-text);}
+    #ap-root .ap-icon-btn:active{background:var(--ap-border);transform:scale(.96);}
+    #ap-root .ap-icon-btn:focus-visible{outline:2px solid var(--ap-primary);outline-offset:2px;}
+    #ap-root .ap-icon-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+
+    /* 内容区 */
+    #ap-root .ap-content{flex:none;display:flex;flex-direction:column;min-height:0;padding:var(--ap-s2) var(--ap-s5);background:var(--ap-surface);}
+
+    /* 步骤卡 */
+    #ap-root .ap-step-card{display:flex;align-items:center;gap:var(--ap-s3);min-height:56px;padding:var(--ap-s1) 14px;
+      border:1px solid var(--ap-border-soft);border-radius:var(--ap-r-xl);background:var(--ap-surface-2);}
+    #ap-root .ap-step-icon{width:38px;height:38px;flex:none;border-radius:11px;display:flex;align-items:center;justify-content:center;
+      background:var(--ap-surface);border:1px solid var(--ap-primary-border);color:var(--ap-primary-text);}
+    #ap-root .ap-step-icon .ap-ico{width:18px;height:18px;}
+    #ap-root .ap-step-main{min-width:0;flex:1;}
+    #ap-root .ap-step-kicker{font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--ap-text-3);}
+    #ap-root .ap-step-name{margin-top:3px;font-size:14px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-step-sub{margin-top:2px;font-size:11.5px;line-height:1.4;color:var(--ap-text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-step-metrics{display:flex;align-items:center;gap:var(--ap-s1);flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:210px;}
+    #ap-root .ap-metric{display:inline-flex;align-items:center;gap:var(--ap-s1);height:24px;padding:0 var(--ap-s2);border-radius:999px;
+      background:var(--ap-surface);border:1px solid var(--ap-border);color:var(--ap-text-2);font-size:10.5px;font-weight:600;white-space:nowrap;}
+    #ap-root .ap-metric b{color:var(--ap-text);font-weight:700;font-variant-numeric:tabular-nums;}
+    #ap-root .ap-metric.is-bug{border-color:var(--ap-danger-border);background:var(--ap-danger-soft);color:var(--ap-danger-text);}
+    #ap-root .ap-metric.is-bug b{color:var(--ap-danger-text);}
+
+    /* 区块 */
+    #ap-root .ap-section{margin-top:var(--ap-s2);border:1px solid var(--ap-border);border-radius:var(--ap-r-xl);
+      background:var(--ap-surface);overflow:hidden;transition:box-shadow var(--ap-t-fast) ease,border-color var(--ap-t-fast) ease;}
+    #ap-root .ap-section-head{display:flex;align-items:center;gap:var(--ap-s2);min-height:36px;padding:0 10px;
+      background:var(--ap-surface-2);border-bottom:1px solid var(--ap-border-soft);cursor:pointer;user-select:none;
+      transition:background var(--ap-t-fast) ease;}
+    #ap-root .ap-section-head:hover{background:var(--ap-surface-3);}
+    #ap-root .ap-section-head:focus-visible,#ap-root .ap-section-head.is-focus{outline:2px solid var(--ap-primary);outline-offset:-2px;}
+    #ap-root .ap-section-caret{width:13px;height:13px;color:var(--ap-text-3);transition:transform var(--ap-t-fast) ease;}
+    #ap-root .ap-section.is-collapsed .ap-section-caret{transform:rotate(-90deg);}
+    #ap-root .ap-section-title{font-size:12.5px;font-weight:600;}
+    #ap-root .ap-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 var(--ap-s1);
+      border-radius:999px;background:var(--ap-surface-3);color:var(--ap-text-4);font-size:10px;font-weight:700;line-height:1;
+      font-variant-numeric:tabular-nums;}
+    #ap-root .ap-section-hint{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:10.5px;color:var(--ap-text-3);white-space:nowrap;}
+    #ap-root .ap-section-hint .ap-ico{width:11px;height:11px;}
+    #ap-root .ap-section-body{position:relative;}
+
+    /* 语义分区：输入参数=可连线（浅主色顶边）；插件参数=纯常量（左侧中性竖条） */
+    #ap-root .ap-section.is-ports .ap-section-body{border-top:2px solid var(--ap-primary-border);}
+    #ap-root .ap-section.is-config .ap-section-head{box-shadow:inset 4px 0 0 var(--ap-border-strong);}
+    #ap-root .ap-section.is-config .ap-section-body{box-shadow:inset 4px 0 0 var(--ap-surface-3);}
+    #ap-root .ap-section.is-config .ap-section-title{color:var(--ap-text);}
+    #ap-root .ap-zone-mark{display:inline-flex;align-items:center;gap:3px;height:18px;padding:0 var(--ap-s1);border-radius:var(--ap-s1);
+      font-size:9.5px;font-weight:700;line-height:1;white-space:nowrap;}
+    #ap-root .ap-zone-mark.is-linkable{background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+    #ap-root .ap-zone-mark.is-const{background:var(--ap-surface-3);color:var(--ap-text-4);}
+    #ap-root .ap-zone-mark .ap-ico{width:10px;height:10px;}
+
+    /* 参数行：标签 | 控件 | 行尾动作 */
+    #ap-root .ap-list{background:var(--ap-surface);}
+    #ap-root .ap-row{display:grid;grid-template-columns:minmax(0,1fr) 232px 34px;gap:var(--ap-s2);align-items:start;
+      min-height:48px;padding:var(--ap-s1) var(--ap-s3);border-bottom:1px solid var(--ap-border-soft);
+      transition:background var(--ap-t-fast) ease;}
+    #ap-root .ap-row:last-child{border-bottom:0;}
+    #ap-root .ap-row:hover{background:var(--ap-surface-4);}
+    #ap-root .ap-row.is-selected{background:var(--ap-primary-soft);}
+    #ap-root .ap-row.is-bug-row{background:var(--ap-danger-soft);}
+    #ap-root .ap-row-main{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:2px;padding-top:6px;}
+    #ap-root .ap-row-label-line{display:flex;align-items:center;gap:var(--ap-s1);min-width:0;}
+    #ap-root .ap-row-label{min-width:0;font-size:12px;font-weight:500;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-row-meta{display:flex;align-items:center;gap:5px;min-width:0;flex-wrap:wrap;}
+    #ap-root .ap-port-key{font-family:var(--ap-mono);font-size:10px;line-height:1;color:var(--ap-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-type{display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:var(--ap-s1);
+      background:var(--ap-surface-3);color:var(--ap-text-4);font-size:9.5px;font-weight:600;line-height:1;white-space:nowrap;}
+    #ap-root .ap-type .ap-ico{width:9px;height:9px;}
+    #ap-root .ap-required{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:var(--ap-s1);
+      background:var(--ap-danger-soft);color:var(--ap-danger-text);font-size:9.5px;font-weight:700;line-height:1;white-space:nowrap;}
+    #ap-root .ap-optional{display:inline-flex;align-items:center;height:16px;padding:0 5px;border-radius:var(--ap-s1);
+      background:var(--ap-surface-2);color:var(--ap-text-3);font-size:9.5px;font-weight:600;line-height:1;white-space:nowrap;}
+    /* 名字类：只可选的字段一律带「只可选」标记，替代 v2 的「可手填」暗示 */
+    #ap-root .ap-closed{display:inline-flex;align-items:center;gap:3px;height:16px;padding:0 5px;border-radius:var(--ap-s1);
+      background:var(--ap-surface-3);color:var(--ap-text-4);font-size:9.5px;font-weight:600;line-height:1;white-space:nowrap;}
+    #ap-root .ap-closed .ap-ico{width:9px;height:9px;}
+    #ap-root .ap-row-help{font-size:10px;line-height:1.35;color:var(--ap-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+
+    /* 控件层 */
+    #ap-root .ap-control{min-width:0;padding-top:6px;display:flex;flex-direction:column;gap:var(--ap-s1);}
+    #ap-root .ap-field{position:relative;}
+    #ap-root .ap-input{width:100%;height:36px;padding:0 9px;border:1px solid var(--ap-border);border-radius:var(--ap-r-md);
+      background:var(--ap-surface);color:var(--ap-text);font-size:11.5px;line-height:36px;outline:none;
+      transition:border-color var(--ap-t-fast) ease,box-shadow var(--ap-t-fast) ease,background var(--ap-t-fast) ease;}
+    #ap-root .ap-input::placeholder{color:var(--ap-text-3);}
+    #ap-root .ap-input:hover:not(:disabled){border-color:var(--ap-border-strong);}
+    #ap-root .ap-input:focus,#ap-root .ap-select:focus{border-color:var(--ap-primary);box-shadow:var(--ap-focus-ring);}
+    #ap-root .ap-input:disabled{background:var(--ap-surface-2);color:var(--ap-text-3);cursor:not-allowed;}
+    #ap-root .ap-input.is-number{font-variant-numeric:tabular-nums;text-align:right;padding-right:10px;}
+    /* 校验错误：只染外圈（与 ShowConfigRowError 的 DialogDangerBrush 描边同义，不加底色） */
+    #ap-root .ap-shell{height:38px;border-radius:var(--ap-r-md);border:1px solid transparent;padding:0;display:flex;align-items:center;
+      transition:border-color var(--ap-t-fast) ease,background var(--ap-t-fast) ease;}
+    #ap-root .ap-shell > *{flex:1;min-width:0;}
+    #ap-root .ap-shell.is-error{border-color:var(--ap-danger);}
+    #ap-root .ap-shell.is-error .ap-input,#ap-root .ap-shell.is-error .ap-select{border-color:transparent;}
+    #ap-root .ap-select-wrap{position:relative;width:100%;min-width:0;}
+    #ap-root .ap-select{width:100%;height:36px;padding:0 28px 0 9px;border:1px solid var(--ap-border);border-radius:var(--ap-r-md);
+      background:var(--ap-surface);color:var(--ap-text);font-size:11.5px;outline:none;cursor:pointer;
+      appearance:none;-webkit-appearance:none;
+      transition:border-color var(--ap-t-fast) ease,box-shadow var(--ap-t-fast) ease;}
+    #ap-root .ap-select:hover:not(:disabled){border-color:var(--ap-border-strong);}
+    #ap-root .ap-select:disabled{background:var(--ap-surface-2);color:var(--ap-text-3);cursor:not-allowed;}
+    #ap-root .ap-select-wrap > .ap-ico{position:absolute;right:9px;top:50%;transform:translateY(-50%);width:12px;height:12px;color:var(--ap-text-3);pointer-events:none;}
+    /* 【v3 新增】空候选占位框：与 select 同尺寸，但画成「被禁用 + 虚线」，绝不画成可输入的 TextBox */
+    #ap-root .ap-select.is-empty{border-style:dashed;border-color:var(--ap-border-strong);background:var(--ap-surface-2);
+      color:var(--ap-text-3);cursor:not-allowed;display:flex;align-items:center;padding:0 9px;}
+    #ap-root .ap-select.is-empty.is-bug{border-style:solid;border-color:var(--ap-danger);background:var(--ap-danger-soft);color:var(--ap-danger-text);font-weight:600;}
+    #ap-root .ap-select-wrap.has-empty > .ap-ico{color:var(--ap-text-3);}
+    #ap-root .ap-number-wrap{display:flex;align-items:center;gap:var(--ap-s1);}
+    #ap-root .ap-unit{font-size:10px;line-height:1;color:var(--ap-text-3);flex:none;min-width:16px;}
+
+    /* 布尔开关 */
+    #ap-root .ap-switch{position:relative;width:100%;height:36px;display:flex;align-items:center;gap:var(--ap-s2);padding:0 9px;
+      border:1px solid var(--ap-border);border-radius:var(--ap-r-md);background:var(--ap-surface);cursor:pointer;
+      transition:border-color var(--ap-t-fast) ease,background var(--ap-t-fast) ease;}
+    #ap-root .ap-switch:hover{border-color:var(--ap-border-strong);}
+    #ap-root .ap-switch:focus-visible{outline:2px solid var(--ap-primary);outline-offset:2px;}
+    #ap-root .ap-switch-track{width:32px;height:18px;border-radius:999px;background:var(--ap-border-strong);position:relative;flex:none;
+      transition:background var(--ap-t-fast) ease;}
+    #ap-root .ap-switch-knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--ap-surface);
+      box-shadow:var(--ap-shadow-raise);transition:transform var(--ap-t-fast) ease;}
+    #ap-root .ap-switch.is-on .ap-switch-track{background:var(--ap-primary);}
+    #ap-root .ap-switch.is-on .ap-switch-knob{transform:translateX(14px);}
+    #ap-root .ap-switch-text{font-size:11.5px;color:var(--ap-text-2);}
+    #ap-root .ap-switch.is-on .ap-switch-text{color:var(--ap-text);font-weight:600;}
+
+    /* 只读 / 禁用 / 加载 */
+    #ap-root .ap-readonly{display:flex;align-items:center;gap:5px;width:100%;height:36px;padding:0 9px;border:1px dashed var(--ap-border);
+      border-radius:var(--ap-r-md);background:var(--ap-surface-2);color:var(--ap-text-4);font-size:11px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    #ap-root .ap-state-label{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--ap-text-3);}
+    #ap-root .ap-state-label .ap-ico{width:11px;height:11px;}
+
+    /* 提示：info / error / muted（v3 去掉了 warn 档，见文末判据表） */
+    #ap-root .ap-hint{display:flex;align-items:flex-start;gap:5px;margin:0;font-size:10.5px;line-height:1.5;}
+    #ap-root .ap-hint .ap-ico{width:11px;height:11px;flex:none;margin-top:2px;}
+    #ap-root .ap-hint b{font-weight:600;}
+    #ap-root .ap-hint.is-info{color:var(--ap-text-2);}
+    #ap-root .ap-hint.is-info .ap-ico{color:var(--ap-primary);}
+    #ap-root .ap-hint.is-error{color:var(--ap-danger-text);}
+    #ap-root .ap-hint.is-error .ap-ico{color:var(--ap-danger-text);}
+    #ap-root .ap-hint.is-muted{color:var(--ap-text-3);}
+    #ap-root .ap-hint.is-muted .ap-ico{color:var(--ap-text-3);}
+    #ap-root .ap-hint-sub{color:var(--ap-text-3);font-weight:400;}
+    #ap-root .ap-hint-action{margin-left:4px;border:0;background:transparent;color:var(--ap-primary-text);font-size:10.5px;
+      text-decoration:underline;text-underline-offset:2px;cursor:pointer;padding:0;}
+    #ap-root .ap-hint-action:hover{color:var(--ap-primary-strong);}
+    #ap-root .ap-hint-action:focus-visible{outline:2px solid var(--ap-primary);outline-offset:2px;border-radius:2px;}
+    #ap-root .ap-hint-action.is-danger{color:var(--ap-danger-text);}
+    #ap-root .ap-hint-action.is-danger:hover{color:var(--ap-danger-text);text-decoration-thickness:2px;}
+
+    /* 行尾动作 */
+    #ap-root .ap-actions{display:flex;align-items:center;justify-content:flex-end;padding-top:10px;min-height:36px;}
+    #ap-root .ap-actions .ap-icon-btn{width:28px;height:28px;border-radius:var(--ap-r-sm);}
+    #ap-root .ap-actions .ap-icon-btn .ap-ico{width:14px;height:14px;}
+    #ap-root .ap-actions .ap-icon-btn.is-active{background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+    #ap-root .ap-actions .ap-icon-btn.is-danger{color:var(--ap-danger-text);}
+    #ap-root .ap-actions .ap-icon-btn.is-danger:hover{background:var(--ap-danger-soft);color:var(--ap-danger-text);}
+    #ap-root .ap-lock{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;color:var(--ap-text-3);cursor:default;flex:none;}
+    #ap-root .ap-lock .ap-ico{width:13px;height:13px;}
+
+    /* 区块内说明条 */
+    #ap-root .ap-inline-note{display:flex;align-items:flex-start;gap:5px;margin:0;padding:var(--ap-s2) var(--ap-s3);
+      font-size:10.5px;line-height:1.55;color:var(--ap-text-2);background:var(--ap-surface-2);border-top:1px solid var(--ap-border-soft);}
+    #ap-root .ap-inline-note .ap-ico{width:12px;height:12px;margin-top:2px;color:var(--ap-text-3);flex:none;}
+    #ap-root .ap-inline-note.is-error{background:var(--ap-danger-soft);color:var(--ap-danger-text);}
+    #ap-root .ap-inline-note.is-error .ap-ico{color:var(--ap-danger-text);}
+    #ap-root .ap-inline-note b{color:inherit;font-weight:600;}
+
+    /* 空态 */
+    #ap-root .ap-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:150px;padding:var(--ap-s6);
+      border:1px dashed var(--ap-border-strong);border-radius:var(--ap-r-xl);background:var(--ap-surface-2);text-align:center;margin-top:var(--ap-s2);}
+    #ap-root .ap-empty-icon{width:46px;height:46px;border-radius:var(--ap-r-xl);display:flex;align-items:center;justify-content:center;
+      background:var(--ap-surface);border:1px solid var(--ap-border);color:var(--ap-text-3);}
+    #ap-root .ap-empty-icon .ap-ico{width:21px;height:21px;}
+    #ap-root .ap-empty-title{margin-top:var(--ap-s3);font-size:13px;font-weight:600;}
+    #ap-root .ap-empty-sub{margin:5px 0 0;max-width:380px;font-size:11.5px;line-height:1.6;color:var(--ap-text-2);}
+
+    /* 加载态 */
+    #ap-root .ap-skeleton{display:flex;flex-direction:column;gap:var(--ap-s2);padding:0;}
+    #ap-root .ap-skel-row{display:grid;grid-template-columns:minmax(0,1fr) 232px 34px;gap:var(--ap-s2);align-items:center;
+      min-height:48px;padding:var(--ap-s1) var(--ap-s3);border-bottom:1px solid var(--ap-border-soft);}
+    #ap-root .ap-skel-row:last-child{border-bottom:0;}
+    #ap-root .ap-skel-bar{height:10px;border-radius:var(--ap-s1);background:var(--ap-surface-3);position:relative;overflow:hidden;}
+    #ap-root .ap-skel-bar::after{content:"";position:absolute;inset:0;transform:translateX(-100%);
+      background:var(--ap-surface-2);animation:ap-shimmer 1.1s ease-in-out infinite;}
+    #ap-root .ap-skel-bar.is-field{height:36px;border-radius:var(--ap-r-md);}
+    #ap-root .ap-skel-bar.is-w60{width:60%;}
+    #ap-root .ap-skel-bar.is-w40{width:40%;}
+    @keyframes ap-shimmer{0%{transform:translateX(-100%);}100%{transform:translateX(100%);}}
+
+    /* 页脚 */
+    #ap-root .ap-footer{height:56px;flex:none;display:flex;align-items:center;justify-content:space-between;gap:var(--ap-s3);
+      padding:0 var(--ap-s4);background:var(--ap-surface-2);border-top:1px solid var(--ap-border-soft);}
+    #ap-root .ap-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+    #ap-root .ap-status-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;
+      background:var(--ap-surface);border:1px solid var(--ap-border);color:var(--ap-text-2);font-size:10.5px;font-weight:500;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:330px;}
+    #ap-root .ap-status-dot{width:6px;height:6px;flex:none;border-radius:50%;background:var(--ap-text-3);}
+    #ap-root .ap-status-chip.is-running{border-color:var(--ap-primary-border);background:var(--ap-primary-soft);color:var(--ap-primary-text);}
+    #ap-root .ap-status-chip.is-running .ap-status-dot{background:var(--ap-primary);animation:ap-pulse 1.1s ease-in-out infinite;}
+    #ap-root .ap-status-chip.is-ok{border-color:var(--ap-success-border);background:var(--ap-success-soft);color:var(--ap-success-text);}
+    #ap-root .ap-status-chip.is-ok .ap-status-dot{background:var(--ap-success);}
+    #ap-root .ap-status-chip.is-err{border-color:var(--ap-danger-border);background:var(--ap-danger-soft);color:var(--ap-danger-text);}
+    #ap-root .ap-status-chip.is-err .ap-status-dot{background:var(--ap-danger);}
+    @keyframes ap-pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.45;transform:scale(.8);}}
+    #ap-root .ap-elapsed{font-family:var(--ap-mono);font-size:11px;color:var(--ap-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+    #ap-root .ap-footer-right{display:flex;align-items:center;gap:var(--ap-s1);flex:none;}
+    #ap-root .ap-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:32px;padding:0 14px;border-radius:var(--ap-r-md);
+      border:1px solid var(--ap-border);background:var(--ap-surface);color:var(--ap-text-2);font-size:11.5px;font-weight:500;line-height:1;
+      cursor:pointer;white-space:nowrap;transition:background var(--ap-t-fast) ease,border-color var(--ap-t-fast) ease,
+      color var(--ap-t-fast) ease,box-shadow var(--ap-t-fast) ease,transform 80ms ease;}
+    #ap-root .ap-btn .ap-ico{width:13px;height:13px;}
+    #ap-root .ap-btn:hover:not(:disabled){background:var(--ap-surface-3);border-color:var(--ap-border-strong);color:var(--ap-text);}
+    #ap-root .ap-btn:active:not(:disabled){transform:translateY(1px);}
+    #ap-root .ap-btn:focus-visible{outline:2px solid var(--ap-primary);outline-offset:2px;}
+    #ap-root .ap-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+    #ap-root .ap-btn-ghost{border-color:transparent;background:transparent;}
+    #ap-root .ap-btn-primary{border-color:var(--ap-primary-strong);background:var(--ap-primary);color:var(--ap-surface);font-weight:600;box-shadow:var(--ap-shadow-btn);}
+    #ap-root .ap-btn-primary:hover:not(:disabled){background:var(--ap-primary-strong);border-color:var(--ap-primary-strong);color:var(--ap-surface);}
+
+    /* ================= 文案层（改前 / 改后） ================= */
+    #ap-root .ap-copy{margin:var(--ap-s5) auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--ap-s3);}
+    #ap-root .ap-copy-card{border:1px solid var(--ap-border);border-radius:var(--ap-r-xl);background:var(--ap-surface);padding:var(--ap-s3) 14px;}
+    #ap-root .ap-copy-card h3{margin:0 0 var(--ap-s2);font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px;}
+    #ap-root .ap-copy-card h3 .ap-ico{width:12px;height:12px;}
+    #ap-root .ap-copy-card dl{margin:0;display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--ap-s1) var(--ap-s2);font-size:10.5px;line-height:1.6;}
+    #ap-root .ap-copy-card dt{color:var(--ap-text-3);white-space:nowrap;}
+    #ap-root .ap-copy-card dd{margin:0;color:var(--ap-text-2);}
+    #ap-root .ap-copy-card dd.is-new{color:var(--ap-primary-text);font-weight:600;}
+    #ap-root .ap-copy-card dd.is-bad{color:var(--ap-danger-text);text-decoration:line-through;text-decoration-thickness:1px;}
+
+    /* ================= 说明区 ================= */
+    #ap-root .ap-notes{max-width:1280px;margin:var(--ap-s5) auto 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--ap-s3);}
+    #ap-root .ap-notes-head{grid-column:1/-1;margin:var(--ap-s2) 0 0;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--ap-text-3);}
+    #ap-root .ap-note{display:flex;gap:11px;padding:14px 15px;border:1px solid var(--ap-border-soft);border-radius:var(--ap-r-xl);background:var(--ap-surface);}
+    #ap-root .ap-note-num{width:24px;height:24px;flex:none;border-radius:var(--ap-s1);display:flex;align-items:center;justify-content:center;
+      background:var(--ap-primary-light);color:var(--ap-primary-text);font-family:var(--ap-mono);font-size:10px;font-weight:700;}
+    #ap-root .ap-note-num.is-danger{background:var(--ap-danger-soft);color:var(--ap-danger-text);}
+    #ap-root .ap-note-body{min-width:0;}
+    #ap-root .ap-note-body b{display:block;font-size:12px;font-weight:600;}
+    #ap-root .ap-note-body span{display:block;margin-top:var(--ap-s1);font-size:11.5px;line-height:1.6;color:var(--ap-text-2);}
+    #ap-root .ap-table{grid-column:1/-1;width:100%;border-collapse:collapse;background:var(--ap-surface);
+      border:1px solid var(--ap-border-soft);border-radius:var(--ap-r-xl);overflow:hidden;font-size:11px;}
+    #ap-root .ap-table caption{caption-side:top;text-align:left;padding:0 0 var(--ap-s2);font-size:11px;font-weight:700;
+      letter-spacing:.08em;color:var(--ap-text-3);}
+    #ap-root .ap-table th{text-align:left;font-weight:600;color:var(--ap-text-4);background:var(--ap-surface-2);
+      padding:var(--ap-s2) 10px;border-bottom:1px solid var(--ap-border);font-size:10.5px;white-space:nowrap;}
+    #ap-root .ap-table td{padding:var(--ap-s2) 10px;border-bottom:1px solid var(--ap-border-soft);color:var(--ap-text-2);vertical-align:top;line-height:1.55;}
+    #ap-root .ap-table tr:last-child td{border-bottom:0;}
+    #ap-root .ap-table td.is-key{color:var(--ap-text);font-family:var(--ap-mono);font-size:10.5px;white-space:nowrap;}
+    #ap-root .ap-table .ap-swatch{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid var(--ap-border-strong);
+      vertical-align:-2px;margin-right:5px;}
+    #ap-root .ap-token-dot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid var(--ap-border);}
+    #ap-root .ap-seg-mini{height:24px;padding:0 8px;border-radius:var(--ap-r-sm);border:1px solid var(--ap-border);
+      background:var(--ap-surface);color:var(--ap-primary-text);font-size:10.5px;cursor:pointer;}
+    #ap-root .ap-seg-mini:hover{background:var(--ap-primary-soft);}
+
+    @media (max-width:900px){
+      #ap-root .ap-notes,#ap-root .ap-copy{grid-template-columns:1fr;}
+    }
+    @media (max-width:640px){
+      #ap-root .ap-page{padding:var(--ap-s4) var(--ap-s3) 32px;}
+      #ap-root .ap-window{width:100%;}
+      #ap-root .ap-row,#ap-root .ap-skel-row{grid-template-columns:minmax(0,1fr) 150px 34px;padding:var(--ap-s1) 10px;}
+      #ap-root .ap-step-metrics{max-width:120px;}
+      #ap-root .ap-status-chip{max-width:180px;}
+    }
+  </style>
+
+  <noscript>
+    <div style="max-width:1280px;margin:0 auto;padding:12px 24px;font-size:11.5px;line-height:1.6;color:var(--ap-warning-text);background:var(--ap-warning-soft)">
+      <b>脚本已禁用：</b>列表可能为空。请启用脚本后使用顶部「场景」按钮，或在 URL 后加
+      <code>?s=ok</code> / <code>?s=nosource</code> / <code>?s=noentry</code> / <code>?s=silent</code> / <code>?s=stale</code> /
+      <code>?s=invalid</code> / <code>?s=readonly</code> / <code>?s=nonmotion</code> / <code>?s=w640</code> /
+      <code>?s=loading</code> / <code>?s=empty</code> 直接打开对应状态。
+    </div>
+  </noscript>
+
+  <div class="ap-page">
+    <header class="ap-page-head">
+      <div class="ap-page-title-row">
+        <h1>运控步骤参数面板 · 名字类字段「只可选」+ 候选来源缺失按缺陷报红</h1>
+        <span class="ap-ver">v3</span>
+      </div>
+      <p class="ap-page-sub">
+        Web 设计基线 <b>v3</b>：推翻 v2.1 的「空候选 → 可手填」思路。判据来自一条事实——
+        <b>轴名、运动卡名、通讯变量名这些是框架权威清单里的「名字」，不是用户臆造的值</b>：
+        清单取不到时，用户手填一个不存在的轴名，只会在<b>运行期</b>才炸，且炸得离故障点很远。
+        v3 因此改成：<b>名字类字段只能从候选里选</b>；候选取不到就<b>禁用控件 + 红字说明原因与下一步</b>；
+        如果是<b>框架自己没登记候选来源</b>（代码缺陷，不是环境问题），按 <b>bug 红着脸报错</b>，并给出「重新配置」入口。
+        样例数据仍是真实插件 <b>MotionHomePlugin</b>（<code>Axis</code> = <code>InputPort&lt;string&gt;</code> +
+        <code>IsFunctionalEnum=true</code> + <code>OptionKind=MotionAxisName</code>；<code>Mode</code> 枚举、<code>TimeoutMs</code> 整数）。
+        颜色只经令牌变量引用，令牌定义只有本文件 <code>#ap-root</code> 一处。
+      </p>
+
+      <div class="ap-demo-bar">
+        <div class="ap-demo-group" role="group" aria-label="场景">
+          <span class="ap-demo-label">场景</span>
+          <div class="ap-seg" id="ap-scene-seg">
+            <button type="button" data-scene="ok" class="is-on" aria-pressed="true">正常（有候选）</button>
+            <button type="button" data-scene="noentry" aria-pressed="false">缺陷·来源未登记</button>
+            <button type="button" data-scene="nosource" aria-pressed="false">空·已登记但无卡</button>
+            <button type="button" data-scene="silent" aria-pressed="false">缺陷·来源抛异常</button>
+            <button type="button" data-scene="stale" aria-pressed="false">已选值失效</button>
+            <button type="button" data-scene="invalid" aria-pressed="false">校验错误</button>
+            <button type="button" data-scene="readonly" aria-pressed="false">只读项</button>
+            <button type="button" data-scene="nonmotion" aria-pressed="false">非运控插件</button>
+            <button type="button" data-scene="w640" aria-pressed="false">640 宽对照</button>
+            <button type="button" data-scene="loading" aria-pressed="false">加载中</button>
+            <button type="button" data-scene="empty" aria-pressed="false">空态</button>
+          </div>
+        </div>
+        <div class="ap-demo-group" role="group" aria-label="窗口宽度">
+          <span class="ap-demo-label">宽度</span>
+          <div class="ap-seg" id="ap-width-seg">
+            <button type="button" data-width="560" class="is-on" aria-pressed="true">560</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="ap-scope">
+        <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+        <span><b>本版边界：</b>只改<b>控件形态与文案</b>（名字类不给输入框）+ <b>候选来源缺失的报错口径</b>；
+        <b>不改</b>连线模型、<b>不改</b> <code>[StepConfig]</code> 写回路径、<b>不新增持久化键</b>、<b>不新增面板落点</b>、<b>不动画布与停靠布局</b>。
+        <b>输出端口</b>仍不在本面板渲染（见「明确不做」D1）。窗口 560 主 / 640 对照，<code>SizeToContent=Height</code>、<code>MinHeight=180</code>、<code>MaxHeight=760</code>。</span>
+      </div>
+    </header>
+
+    <!-- ================= 产品窗口 ================= -->
+    <div class="ap-stage">
+      <div class="ap-window" id="ap-window" data-scene="ok">
+        <div class="ap-titlebar">
+          <div class="ap-app-icon"><svg class="ap-ico" aria-hidden="true"><use href="#i-motion"></use></svg></div>
+          <div class="ap-title-text">
+            <div class="ap-title-line"><div class="ap-title" id="ap-title">轴回零_0</div></div>
+            <div class="ap-subtitle" id="ap-subtitle">按指定方式让轴回零并等待完成；超时即判失败</div>
+          </div>
+          <div class="ap-title-actions">
+            <span class="ap-auto-chip"><svg class="ap-ico" aria-hidden="true"><use href="#i-sparkles"></use></svg>自动生成</span>
+            <button type="button" class="ap-icon-btn" id="ap-close" aria-label="关闭" title="关闭（等价于取消）">
+              <svg class="ap-ico" aria-hidden="true"><use href="#i-x"></use></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="ap-content">
+          <section class="ap-step-card" aria-label="步骤信息">
+            <div class="ap-step-icon"><svg class="ap-ico" aria-hidden="true"><use href="#i-step"></use></svg></div>
+            <div class="ap-step-main">
+              <div class="ap-step-kicker">步骤信息 · STEP</div>
+              <div class="ap-step-name" id="ap-step-name">轴回零_0</div>
+              <div class="ap-step-sub" id="ap-step-sub">通用参数面板 · 无自定义配置界面</div>
+            </div>
+            <div class="ap-step-metrics" id="ap-step-metrics">
+              <span class="ap-metric">输入 <b>3</b></span>
+              <span class="ap-metric">只可选 <b>1</b></span>
+              <span class="ap-metric">插件参数 <b>3</b></span>
+            </div>
+          </section>
+
+          <section class="ap-section is-ports" id="ap-section-ports" aria-label="输入参数">
+            <div class="ap-section-head" id="ap-ports-head" tabindex="0" role="button" aria-expanded="true">
+              <svg class="ap-ico ap-section-caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+              <span class="ap-section-title">输入参数</span>
+              <span class="ap-count" id="ap-count-ports">3</span>
+              <span class="ap-zone-mark is-linkable"><svg class="ap-ico" aria-hidden="true"><use href="#i-link"></use></svg>可连线</span>
+              <span class="ap-section-hint">
+                <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+                值类可手填或连线 · 名字类只能选
+              </span>
+            </div>
+            <div class="ap-section-body">
+              <div class="ap-list" id="ap-list-ports"></div>
+              <div class="ap-inline-note" id="ap-ports-note">
+                <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+                <span><b>轴名是「名字」不是「值」</b>：候选来自框架当前的轴清单，改轴设置后这里自动跟着变，所以只能选、不能打字。</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="ap-section is-config" id="ap-section-config" aria-label="插件参数">
+            <div class="ap-section-head" id="ap-config-head" tabindex="0" role="button" aria-expanded="true">
+              <svg class="ap-ico ap-section-caret" aria-hidden="true"><use href="#i-chevron-down"></use></svg>
+              <span class="ap-section-title">插件参数</span>
+              <span class="ap-count" id="ap-count-config">3</span>
+              <span class="ap-zone-mark is-const"><svg class="ap-ico" aria-hidden="true"><use href="#i-tag"></use></svg>仅本步骤</span>
+              <span class="ap-section-hint">
+                <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+                常量 · 不参与流程连线 · 确认后写入步骤
+              </span>
+            </div>
+            <div class="ap-section-body">
+              <div class="ap-list" id="ap-list-config"></div>
+              <div class="ap-inline-note" id="ap-config-note">
+                <svg class="ap-ico" aria-hidden="true"><use href="#i-tag"></use></svg>
+                <span><b>[StepConfig] 配置项属于本步骤自己</b>：改动只影响「轴回零_0」，不会跟着流程上游变化；保存后于下一次执行生效。</span>
+              </div>
+            </div>
+          </section>
+
+          <div class="ap-loading" id="ap-loading" hidden>
+            <div class="ap-inline-note" style="border-top:0;background:var(--ap-primary-soft);color:var(--ap-primary-text)">
+              <svg class="ap-ico" aria-hidden="true"><use href="#i-info"></use></svg>
+              <span id="ap-loading-text"><b>正在读取插件参数…</b></span>
+            </div>
+            <div class="ap-skeleton">
+              <div class="ap-skel-row"><div><div class="ap-skel-bar is-w60"></div><div class="ap-skel-bar is-w40" style="margin-top:var(--ap-s1)"></div></div><div class="ap-skel-bar is-field"></div><div></div></div>
+              <div class="ap-skel-row"><div><div class="ap-skel-bar is-w40"></div></div><div class="ap-skel-bar is-field"></div><div></div></div>
+            </div>
+          </div>
+
+          <div class="ap-empty" id="ap-empty" hidden>
+            <div class="ap-empty-icon"><svg class="ap-ico" aria-hidden="true"><use href="#i-inbox"></use></svg></div>
+            <div class="ap-empty-title" id="ap-empty-title">该步骤没有可编辑参数</div>
+            <p class="ap-empty-sub" id="ap-empty-sub">它没有输入端口，也没有 [StepConfig] 属性。确认 / 取消仍然可用。</p>
+          </div>
+        </div>
+
+        <div class="ap-footer">
+          <div class="ap-footer-left">
+            <span class="ap-status-chip" id="ap-status-chip"><span class="ap-status-dot"></span><span id="ap-status-text">状态: 参数完整</span></span>
+            <span class="ap-elapsed" id="ap-elapsed">改动: 0 处</span>
+          </div>
+          <div class="ap-footer-right">
+            <button type="button" class="ap-btn ap-btn-ghost" id="ap-cancel">取消</button>
+            <button type="button" class="ap-btn ap-btn-primary" id="ap-confirm">确认</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 文案对照（改前 / 改后） ================= -->
+    <div class="ap-copy" id="ap-copy">
+      <div class="ap-copy-card">
+        <h3><svg class="ap-ico" aria-hidden="true"><use href="#i-bug"></use></svg>v2.1 的做法（<code>LinkableValueEditor</code> 现状）</h3>
+        <dl>
+          <dt>空候选</dt><dd class="is-bad">「无候选，可手填」——给一个普通输入框</dd>
+          <dt>后果</dt><dd>用户打一个不存在的轴名，<b>配置期零反馈</b>，到运行期才「轴不存在」</dd>
+          <dt>原因</dt><dd><code>IsHandFillFallback = closedSet &amp;&amp; !hasOptions &amp;&amp; IsTextEditable</code>（<code>LinkableValueEditor.xaml.cs:379</code>）</dd>
+          <dt>缺陷静默</dt><dd><code>GetOptionItems</code> 的 <code>catch { }</code> 把来源异常吞掉（<code>StepConfigOptionSource.cs:148-151</code>），界面与「没配卡」长得一模一样</dd>
+        </dl>
+      </div>
+      <div class="ap-copy-card">
+        <h3><svg class="ap-ico" aria-hidden="true"><use href="#i-check"></use></svg>v3：三种状态，只有一种是「正常」</h3>
+        <dl>
+          <dt>有候选</dt><dd class="is-new">普通下拉，行尾 🔒 + 「只可选」徽章</dd>
+          <dt>已登记但空</dt><dd class="is-new">禁用下拉 + 灰字「运动卡未配置，去设置」——<b>环境问题</b>，用户自己能修</dd>
+          <dt>来源未登记</dt><dd class="is-new">红框 + 「这是程序缺陷」+ 「复制诊断」——<b>不是</b>用户的锅</dd>
+          <dt>来源抛异常</dt><dd class="is-new">红框 + 异常类型与消息摘要 + 「复制诊断」（不再静默吞）</dd>
+          <dt>已选值失效</dt><dd class="is-new">红框 + 原值原样保留 + 请重新选择</dd>
+        </dl>
+      </div>
+    </div>
+
+    <!-- ================= 说明 ================= -->
+    <div class="ap-notes">
+      <div class="ap-notes-head">设计要点（v2.1 → v3 的增量）</div>
+
+      <div class="ap-note">
+        <div class="ap-note-num is-danger">01</div>
+        <div class="ap-note-body">
+          <b>名字类字段<b>不再有</b>可编辑框</b>
+          <span>轴名 / 卡名 / 通讯变量名一律渲染成下拉（或空候选时的禁用占位）。<code>LinkableValueEditor.xaml.cs:379</code> 的
+            <code>IsHandFillFallback</code> 对「有 <code>OptionKind</code> 的封闭集合端口」恒为 false；
+            XAML 里 <code>PART_NoOptionHint</code> 的「无候选，可手填」整句删除（<code>LinkableValueEditor.xaml:150</code>）。</span>
+        </div>
+      </div>
+
+      <div class="ap-note">
+        <div class="ap-note-num is-danger">02</div>
+        <div class="ap-note-body">
+          <b>「来源未登记」是缺陷，不是空态</b>
+          <span>现在没有任何 API 能区分「没登记来源」和「登记了但返回空」——只能靠 <code>GetOptionItems().Count == 0</code> 反推。
+            v3 要求 <code>StepConfigOptionSource</code> 提供判据（新增 <code>HasProvider(kind)</code> 或让 <code>GetOptionItems</code> 返回「空 + 原因」结果类型），
+            否则界面只能一律当空态处理，<b>缺陷永远静默</b>。</span>
+        </div>
+      </div>
+
+      <div class="ap-note">
+        <div class="ap-note-num is-danger">03</div>
+        <div class="ap-note-body">
+          <b>「按 bug 直接红着脸报错」的落地口径</b>
+          <span>红框 + 红字 <b>「这是程序缺陷，不是配置问题」</b> + 具体原因 + <b>「复制诊断」</b>按钮（剪贴板文本含 kind/插件类/宿主版本，供开发者复现）。
+            同一处缺陷在一批任务里可跳过（确认按钮仍可用，因为不改这个字段也能跑），<b>但页脚状态胶囊必须转红并计入缺陷数</b>，不允许静默通过。</span>
+        </div>
+      </div>
+
+      <div class="ap-note">
+        <div class="ap-note-num">04</div>
+        <div class="ap-note-body">
+          <b>「重新配置」是一个入口，不是一句文案</b>
+          <span>空候选态给「去运动卡设置 →」按钮：走既有的设置对话框命令（<b>不新增面板落点</b>，R47 不违反）；
+            用户配完卡回来，本面板<b>重新取一次候选</b>（<code>GetOptionItems</code> 本来每次现取，不取快照），下拉自动恢复可选。</span>
+        </div>
+      </div>
+
+      <div class="ap-note">
+        <div class="ap-note-num">05</div>
+        <div class="ap-note-body">
+          <b>已选值失效 = 红 + 保留原值</b>
+          <span>流程里存的轴名在当前清单里找不到（改名/删轴/换卡）：不自动清空、不偷偷改成第一个候选，
+            而是红框 + 原值 + 「该轴当前不存在，请重新选择」。这属于<b>流程数据过期</b>，比缺陷更常见，文案必须分开。</span>
+        </div>
+      </div>
+
+      <div class="ap-note">
+        <div class="ap-note-num">06</div>
+        <div class="ap-note-body">
+          <b>只读项与「非运控插件」不复用缺陷样式</b>
+          <span><code>[StepConfig]</code> 集合 / 自定义类仍是虚线只读框 + 灰字；<b>没有 <code>OptionKind</code></b> 的普通字符串仍是可手填输入框
+            （那是用户自己的文本参数，不是框架清单）。<b>只有「声明了 OptionKind 却取不到候选」才报红。</b></span>
+        </div>
+      </div>
+
+      <table class="ap-table">
+        <caption>状态判据表（实现时逐条对号；v2.1 的 warn-A / warn-B 两档已合并为下面的 4 档）</caption>
+        <thead>
+          <tr><th>状态</th><th>触发条件（代码事实）</th><th>控件形态</th><th>颜色</th><th>文案与动作</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-surface-3)"></span><b>正常</b></td>
+            <td><code>port.OptionKind != null</code> 且 <code>GetOptionItems(kind).Count &gt; 0</code></td>
+            <td>下拉（只可选）</td>
+            <td>中性</td>
+            <td>无提示；行尾 🔒「只可选」</td>
+          </tr>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-text-3)"></span><b>空·来源已登记</b></td>
+            <td><code>HasProvider(kind) == true</code> 且候选 0 项（当前没有这个 API → 见要点 02）</td>
+            <td>禁用下拉占位</td>
+            <td>灰（虚线边）</td>
+            <td>「运动卡未配置，配好后这里会自动出候选」+ <b>去运动卡设置 →</b></td>
+          </tr>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-danger)"></span><b>缺陷·未登记</b></td>
+            <td><code>port.OptionKind != null</code> 且 <code>HasProvider(kind) == false</code></td>
+            <td>禁用下拉占位</td>
+            <td>红（实线边 + 行底淡红）</td>
+            <td>「<b>这是程序缺陷</b>：没有为 <code>MotionAxisName</code> 登记候选来源」+ <b>复制诊断</b></td>
+          </tr>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-danger)"></span><b>缺陷·来源抛异常</b></td>
+            <td>provider 内 <code>throw</code>（<code>StepConfigOptionSource.cs:148-151</code> 现在 <code>catch { }</code> 吞掉）</td>
+            <td>禁用下拉占位</td>
+            <td>红</td>
+            <td>「<b>这是程序缺陷</b>：取候选时抛 <code>InvalidOperationException</code>」+ 摘要 + <b>复制诊断</b></td>
+          </tr>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-danger)"></span><b>已选值失效</b></td>
+            <td>端口已有值，但不在当前候选集合里</td>
+            <td>下拉（值保留，标红）</td>
+            <td>红</td>
+            <td>「该轴「<i>Z4</i>」当前不存在，请重新选择」；不自动改写流程</td>
+          </tr>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-text-2)"></span><b>普通文本</b></td>
+            <td><code>OptionKind == null</code>（用户自己的字符串参数）</td>
+            <td>输入框（可手填）</td>
+            <td>中性</td>
+            <td>无提示 —— <b>本版不误伤</b></td>
+          </tr>
+          <tr>
+            <td><span class="ap-token-dot" style="background:var(--ap-text-3)"></span><b>只读</b></td>
+            <td><code>ConfigEditorKind.ReadOnly</code>（集合 / 自定义类）</td>
+            <td>虚线只读框</td>
+            <td>灰</td>
+            <td>「该类型暂不支持在此编辑」</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="ap-notes-head">五态与动效（R115 / R116）</div>
+      <table class="ap-table">
+        <thead><tr><th>开关</th><th>观察对象</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><button type="button" class="ap-seg-mini" id="ap-states-btn">显示五态对照 →</button></td><td>输入框 / 下拉 / 按钮 / 图标按钮</td><td>默认 / 悬停 / 按下 / 聚焦（主色边 + 3px 光环）/ 禁用（40% 透明 + 禁用光标）</td></tr>
+        </tbody>
+      </table>
+
+      <div class="ap-notes-head">令牌映射（颜色 → WPF 资源键；本文件只有 <code>#ap-root</code> 一处 #RRGGBB）</div>
+      <table class="ap-table">
+        <thead><tr><th>CSS 变量</th><th>WPF 资源键</th><th>v3 用途变化</th></tr></thead>
+        <tbody>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-surface)"></span>--ap-surface</td><td>DialogSurfaceBrush</td><td>窗口 / 输入框 / 卡片底</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-surface-2)"></span>--ap-surface-2</td><td>DialogRowAlternateBrush</td><td>区块头 / 禁用占位底 / 页脚</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-surface-3)"></span>--ap-surface-3</td><td>DialogRowHoverBrush</td><td>悬停底 / 徽章 / 骨架条</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-border)"></span>--ap-border</td><td>DialogBorderBrush</td><td>输入框边 / 区块边</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-border-soft)"></span>--ap-border-soft</td><td>DialogBorderLightBrush</td><td>行分隔线</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-border-strong)"></span>--ap-border-strong</td><td>DialogBorderStrongBrush</td><td>插件参数段竖条 / <b>空候选虚线边</b></td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-text)"></span>--ap-text</td><td>DialogTextPrimaryBrush</td><td>标题 / 标签</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-text-2)"></span>--ap-text-2</td><td>DialogTextSecondaryBrush</td><td>说明 / info 提示</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-text-3)"></span>--ap-text-3</td><td>DialogTextMutedBrush</td><td>禁用占位文字 / 灰字</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-text-4)"></span>--ap-text-4</td><td>ScadaSecondaryTextBrush（近似）</td><td>徽章文字</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-primary)"></span>--ap-primary</td><td>DialogAccentBrush</td><td>聚焦边</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-primary-strong)"></span>--ap-primary-strong</td><td>DialogAccentDarkBrush</td><td>主按钮悬停</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-primary-text)"></span>--ap-primary-text</td><td>DialogAccentTextBrush</td><td>可连线徽章 / 文字链接（含「去设置」）</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-primary-soft)"></span>--ap-primary-soft</td><td>DialogAccentSoftBrush</td><td>可连线徽章底 / 加载条底</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-primary-light)"></span>--ap-primary-light</td><td>DialogAccentLightBrush</td><td>步骤图标底 / 版本徽章</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-primary-border)"></span>--ap-primary-border</td><td>DialogAccentBorderBrush</td><td>输入参数段顶边轨</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-success)"></span>--ap-success</td><td>DialogSuccessBrush</td><td>成功状态点</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-success-text)"></span>--ap-success-text</td><td>DialogSuccessTextBrush</td><td>成功文字</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-success-soft)"></span>--ap-success-soft</td><td>DialogSuccessSubtleBrush</td><td>成功胶囊底</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-success-border)"></span>--ap-success-border</td><td>DialogSuccessBorderBrush</td><td>成功胶囊边</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-danger)"></span>--ap-danger</td><td>DialogDangerBrush</td><td><b>缺陷行外圈</b> + 校验错误外圈</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-danger-text)"></span>--ap-danger-text</td><td>DialogDangerTextBrush</td><td>缺陷说明文字 / 必填徽章</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-danger-soft)"></span>--ap-danger-soft</td><td>DialogDangerSubtleBrush</td><td><b>缺陷行底色</b> / 失败胶囊底</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-danger-border)"></span>--ap-danger-border</td><td>DialogDangerBorderBrush</td><td>缺陷胶囊边 / 指标胶囊</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-warning)"></span>--ap-warning</td><td>DialogWarningBrush</td><td>v3 界面内<b>不再使用</b>（只保留在页头边界说明里）</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-warning-text)"></span>--ap-warning-text</td><td>DialogWarningTextBrush</td><td>同上</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-warning-soft)"></span>--ap-warning-soft</td><td>DialogWarningSubtleBrush</td><td>页头边界说明条底</td></tr>
+          <tr><td class="is-key"><span class="ap-swatch" style="background:var(--ap-warning-border)"></span>--ap-warning-border</td><td>DialogWarningBorderBrush</td><td>页头边界说明条边</td></tr>
+          <tr><td class="is-key">--ap-r-sm / md / lg / xl / window</td><td><code>CornerRadius</code> 6 / 8 / 10 / 12 / 16</td><td>仓内暂无圆角令牌字典（与 v1/v2 同口径）</td></tr>
+          <tr><td class="is-key">--ap-s1 … --ap-s6</td><td>间距 4 / 8 / 12 / 16 / 20 / 24</td><td>全部 4 的倍数</td></tr>
+          <tr><td class="is-key">--ap-t-fast / slow</td><td>动效 150ms / 200ms</td><td>R116；骨架 shimmer 1.1s 属「持续进行」不在此列</td></tr>
+          <tr><td class="is-key">阴影 / 焦点环</td><td>宿主 <code>DropShadowEffect</code> + <code>DialogFocusVisual</code></td><td>焦点环 = 2px <code>DialogAccentBrush</code> 圆角描边</td></tr>
+        </tbody>
+      </table>
+
+      <div class="ap-notes-head">明确不做（本版仍延后）</div>
+      <div class="ap-notes" style="margin:0">
+        <div class="ap-note"><div class="ap-note-num">D1</div><div class="ap-note-body"><b>输出端口渲染</b><span>兜底面板仍只渲输入端口 + <code>[StepConfig]</code>；输出端口只读表另起一批。</span></div></div>
+        <div class="ap-note"><div class="ap-note-num">D2</div><div class="ap-note-body"><b>参数分组与搜索</b><span><code>[StepConfig]</code> 无分组元数据；≥12 项时才需要。</span></div></div>
+        <div class="ap-note"><div class="ap-note-num">D3</div><div class="ap-note-body"><b>撤销</b><span>运行期改配置不进撤销栈（R136），只做确认式保存。</span></div></div>
+        <div class="ap-note"><div class="ap-note-num">D4</div><div class="ap-note-body"><b>面板落点 / 画布改动</b><span>「去运动卡设置」只调用既有的设置对话框命令，不新增落点、不动 dockable。</span></div></div>
+        <div class="ap-note"><div class="ap-note-num">D5</div><div class="ap-note-body"><b>属性面板那一路同步改</b><span><code>OptionSourceGenerator</code> 的 <code>IsEditable = true</code> 不再允许手填——同批次做，但不是本面板的视觉范围。</span></div></div>
+        <div class="ap-note"><div class="ap-note-num">D6</div><div class="ap-note-body"><b>通讯变量名 / 子流程名</b><span>与轴名同一判据，本稿只用轴名做样例，落地时按 <code>StepConfigOptionKind</code> 六类统一处理。</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+    var root = document.getElementById('ap-root');
+
+    /* ---------- 真实参数：MotionHomePlugin ---------- */
+    var HOME = {
+      title: '轴回零_0',
+      subtitle: '按指定方式让轴回零并等待完成；超时即判失败',
+      ports: [
+        /* 名字类：OptionKind=MotionAxisName，封闭集合，永不可手填 */
+        { label: '轴号', key: 'Axis', type: '文本', icon: 'i-text', required: true, closed: true,
+          options: ['X', 'Y', 'Z', '4'], chosen: 0,
+          help: '来自框架轴清单 · 只可选' },
+        /* 值类：可连线 + 可手填 */
+        { label: '目标位置', key: 'Target', type: '数值', icon: 'i-number', number: 'NaN', unit: 'mm', optional: true, linkable: true,
+          help: 'NaN = 只看设备到位信号' },
+        { label: '到位容差', key: 'Tolerance', type: '数值', icon: 'i-number', number: '0.05', unit: 'mm', optional: true, linkable: true,
+          help: '默认 0.05 mm' }
+      ],
+      config: [
+        { label: '回零方式', key: 'Mode', type: '枚举', icon: 'i-enum',
+          options: ['负限位 + Index', '正限位 + Index', '原点开关', '负限位 + 原点', '正限位 + 原点',
+                    '负限位（不回原点）', '正限位（不回原点）', '零位置预设（不找开关）'],
+          chosen: 0, help: '中文显示，写入的仍是枚举成员名' },
+        { label: '超时', key: 'TimeoutMs', type: '整数', icon: 'i-number', number: '120000', unit: 'ms',
+          help: '超时即判失败；与「走得慢」区分' },
+        { label: '回零速度', key: 'SpeedPercent', type: '小数', icon: 'i-number', number: '30.0', unit: '%',
+          help: '相对配置速度的百分比' }
+      ]
+    };
+
+    /* ---------- 四种「轴名取不到」的语义与文案（唯一来源） ---------- */
+    var AXIS_STATE = {
+      ok:       { level: 'ok',       text: '', action: '' },
+      nosource: { level: 'empty',    text: '运动卡未配置：轴清单为空。配好运动卡后自动出现候选。', action: '去运动卡设置 →' },
+      noentry:  { level: 'bug', code: '来源未登记', text: '这是程序缺陷：没有为 MotionAxisName 登记候选来源，宿主本应注册。', action: '复制诊断' },
+      silent:   { level: 'bug', code: '来源抛异常', text: '这是程序缺陷：取候选时抛 InvalidOperationException，异常被吞掉了。', action: '复制诊断' },
+      stale:    { level: 'stale',    text: '该轴「Z4」在当前轴清单里不存在（可能已改名或删除），请重新选择。原值会保留，不会被自动改写。', action: '' }
+    };
+
+    var el = {
+      win: root.querySelector('#ap-window'),
+      title: root.querySelector('#ap-title'),
+      subtitle: root.querySelector('#ap-subtitle'),
+      stepName: root.querySelector('#ap-step-name'),
+      stepSub: root.querySelector('#ap-step-sub'),
+      metrics: root.querySelector('#ap-step-metrics'),
+      listPorts: root.querySelector('#ap-list-ports'),
+      listConfig: root.querySelector('#ap-list-config'),
+      portsNote: root.querySelector('#ap-ports-note'),
+      secPorts: root.querySelector('#ap-section-ports'),
+      secConfig: root.querySelector('#ap-section-config'),
+      countPorts: root.querySelector('#ap-count-ports'),
+      countConfig: root.querySelector('#ap-count-config'),
+      loading: root.querySelector('#ap-loading'),
+      loadingText: root.querySelector('#ap-loading-text'),
+      empty: root.querySelector('#ap-empty'),
+      emptyTitle: root.querySelector('#ap-empty-title'),
+      emptySub: root.querySelector('#ap-empty-sub'),
+      statusChip: root.querySelector('#ap-status-chip'),
+      statusText: root.querySelector('#ap-status-text'),
+      elapsed: root.querySelector('#ap-elapsed'),
+      confirm: root.querySelector('#ap-confirm'),
+      cancel: root.querySelector('#ap-cancel')
+    };
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+      });
+    }
+    function ico(id, cls) {
+      return '<svg class="ap-ico' + (cls ? ' ' + cls : '') + '" aria-hidden="true"><use href="#' + id + '"></use></svg>';
+    }
+    function typeBadge(t, icon) { return '<span class="ap-type">' + ico(icon) + esc(t) + '</span>'; }
+
+    /* ---------- 名字类控件：三种形态共用同一个「控件位」 ---------- */
+    function closedControlHtml(p, axisState) {
+      var st = AXIS_STATE[axisState] || AXIS_STATE.ok;
+      if (st.level === 'ok') {
+        var opts = '';
+        p.options.forEach(function (o, k) { opts += '<option' + (k === p.chosen ? ' selected' : '') + '>' + esc(o) + '</option>'; });
+        return '<div class="ap-field"><div class="ap-select-wrap">' +
+            '<select class="ap-select" aria-label="' + esc(p.label) + '">' + opts + '</select>' + ico('i-chevron-down') + '</div></div>';
+      }
+      if (st.level === 'stale') {
+        return '<div class="ap-field"><div class="ap-select-wrap">' +
+            '<select class="ap-select is-invalid" aria-label="' + esc(p.label) + '"><option selected>Z4</option>' +
+            '<option>X</option><option>Y</option><option>Z</option></select>' + ico('i-chevron-down') + '</div>' +
+            '<p class="ap-hint is-error">' + ico('i-error') + '<span>' + esc(st.text) + '</span></p></div>';
+      }
+      /* empty：已登记来源但清单为空（环境问题，用户自己能修）→ 禁用占位 + 一个「去配置」入口，
+         文案控制在两行内；详细解释留给「状态判据表」，不在每行重复。 */
+      if (st.level === 'empty') {
+        return '<div class="ap-field"><div class="ap-select-wrap has-empty">' +
+            '<div class="ap-select is-empty" role="textbox" aria-disabled="true" aria-label="' + esc(p.label) + '">' +
+            '暂无可用轴</div>' + ico('i-chevron-down') + '</div>' +
+            '<p class="ap-hint is-muted">' + ico('i-info') + '<span>' + esc(st.text) + '</span>' +
+            '<button type="button" class="ap-hint-action">' + esc(st.action) + '</button></p></div>';
+      }
+      /* bug：来源未登记 / 来源抛异常 —— 禁用占位 + 红框 + 红字 + 复制诊断。
+         文案必须与「空态」明显区分：标题行直接写明「候选来源缺失」，说明里带代码标识。 */
+      var bugLabel = st.code || '候选来源缺失';
+      return '<div class="ap-field"><div class="ap-select-wrap has-empty">' +
+          '<div class="ap-select is-empty is-bug" role="textbox" aria-disabled="true" aria-label="' + esc(p.label) + '">' +
+          bugLabel + '</div>' + ico('i-bug') + '</div>' +
+          '<p class="ap-hint is-error">' + ico('i-bug') + '<span>' + esc(st.text) + '</span>' +
+          '<button type="button" class="ap-hint-action is-danger">' + esc(st.action) + '</button></p></div>';
+    }
+
+    function portControlHtml(p, axisState) {
+      if (p.closed) return closedControlHtml(p, axisState);
+      if (!p.linkable) {
+        return '<div class="ap-field"><div class="ap-shell"><input class="ap-input" type="text" value="" ' +
+          'placeholder="不可手填 · 请点 🔗" aria-label="' + esc(p.label) + '" disabled></div>' +
+          '<p class="ap-hint is-info">' + ico('i-info') + '<span>该类型不能手填，请点 🔗 由上游提供</span></p></div>';
+      }
+      return '<div class="ap-field"><div class="ap-shell">' +
+          '<div class="ap-number-wrap"><input class="ap-input is-number" type="text" value="' + esc(p.number) +
+          '" aria-label="' + esc(p.label) + '">' + (p.unit ? '<span class="ap-unit">' + esc(p.unit) + '</span>' : '') + '</div>' +
+          '</div></div>';
+    }
+
+    function renderPorts(axisState, plainText) {
+      var html = '';
+      HOME.ports.forEach(function (p) {
+        var isBug = p.closed && (axisState === 'noentry' || axisState === 'silent');
+        html += '<div class="ap-row' + (isBug ? ' is-bug-row' : '') + '" data-key="' + esc(p.key) + '">';
+        html += '<div class="ap-row-main"><div class="ap-row-label-line"><span class="ap-row-label">' + esc(p.label) + '</span>';
+        if (p.required) html += '<span class="ap-required">必填</span>';
+        if (p.closed) html += '<span class="ap-closed">' + ico('i-lock') + '只可选</span>';
+        html += '</div><div class="ap-row-meta"><code class="ap-port-key">' + esc(p.key) + '</code>' + typeBadge(p.type, p.icon);
+        if (p.optional) html += '<span class="ap-optional">可选</span>';
+        html += '<span class="ap-row-help">' + esc(plainText && p.closed ? '普通文本参数 · 可手填' : p.help) + '</span></div></div>';
+        html += '<div class="ap-control">' + portControlHtml(p, plainText && p.closed ? 'ok' : axisState) + '</div>';
+        html += '<div class="ap-actions">';
+        if (p.linkable) {
+          html += '<button type="button" class="ap-icon-btn" title="链接上游变量" aria-label="链接上游变量">' + ico('i-link') + '</button>';
+        } else if (p.closed) {
+          html += '<span class="ap-lock" title="名字类：只能从框架清单里选，不挂绑定（R33）">' + ico('i-lock') + '</span>';
+        } else {
+          html += '<span class="ap-lock" title="该类型不可手填">' + ico('i-lock') + '</span>';
+        }
+        html += '</div></div>';
+      });
+      el.listPorts.innerHTML = html;
+      el.countPorts.textContent = String(HOME.ports.length);
+    }
+
+    function renderConfig(opts) {
+      var html = '';
+      HOME.config.forEach(function (c, i) {
+        html += '<div class="ap-row" data-key="' + esc(c.key) + '">';
+        html += '<div class="ap-row-main"><div class="ap-row-label-line"><span class="ap-row-label">' + esc(c.label) + '</span></div>';
+        html += '<div class="ap-row-meta"><code class="ap-port-key">' + esc(c.key) + '</code>' + typeBadge(c.type, c.icon);
+        html += '<span class="ap-row-help">' + esc(c.help) + '</span></div></div>';
+        html += '<div class="ap-control">';
+        if (c.type === '枚举') {
+          html += '<div class="ap-field"><div class="ap-select-wrap"><select class="ap-select" aria-label="' + esc(c.label) + '">';
+          c.options.forEach(function (o, k) { html += '<option' + (k === c.chosen ? ' selected' : '') + '>' + esc(o) + '</option>'; });
+          html += '</select>' + ico('i-chevron-down') + '</div></div>';
+        } else {
+          var isErr = opts.errorIndex === i;
+          var val = isErr ? opts.errorValue : c.number;
+          html += '<div class="ap-field"><div class="ap-shell' + (isErr ? ' is-error' : '') + '">' +
+            '<div class="ap-number-wrap"><input class="ap-input is-number" type="text" value="' + esc(val) + '" aria-label="' + esc(c.label) + '">' +
+            (c.unit ? '<span class="ap-unit">' + esc(c.unit) + '</span>' : '') + '</div></div>';
+          if (isErr) {
+            html += '<p class="ap-hint is-error" role="alert">' + ico('i-error') +
+              '<span><b>须为不小于 1000 的整数</b>，被拒原值：「' + esc(val) + '」<span class="ap-hint-sub">（已恢复上一次有效值 120000 ms）</span></span></p>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="ap-actions"><span class="ap-lock" title="纯常量：属于本步骤，不参与流程连线">' + ico('i-tag') + '</span></div>';
+        html += '</div>';
+      });
+
+      if (opts.showReadOnly) {
+        html += '<div class="ap-row" data-key="AxisMap">' +
+          '<div class="ap-row-main"><div class="ap-row-label-line"><span class="ap-row-label">轴映射表</span></div>' +
+          '<div class="ap-row-meta"><code class="ap-port-key">AxisMap</code>' + typeBadge('集合', 'i-tag') +
+          '<span class="ap-row-help">3 项 · 只在本插件自带视图里编辑</span></div></div>' +
+          '<div class="ap-control"><div class="ap-readonly" title="该类型暂不支持在此编辑">List&lt;AxisMapEntry&gt; · 3 项</div>' +
+          '<span class="ap-state-label">' + ico('i-info') + '该类型暂不支持在此编辑</span></div>' +
+          '<div class="ap-actions"><span class="ap-lock" title="只读">' + ico('i-lock') + '</span></div></div>';
+      }
+
+      el.listConfig.innerHTML = html;
+      el.countConfig.textContent = String(HOME.config.length + (opts.showReadOnly ? 1 : 0));
+    }
+
+    function setMetrics(bugs) {
+      var html = '<span class="ap-metric">输入 <b>3</b></span>' +
+                 '<span class="ap-metric">只可选 <b>1</b></span>' +
+                 '<span class="ap-metric">插件参数 <b>3</b></span>';
+      if (bugs > 0) html += '<span class="ap-metric is-bug">缺陷 <b>' + bugs + '</b></span>';
+      el.metrics.innerHTML = html;
+    }
+
+    function setStatus(kind, text, changes, disabled) {
+      el.statusChip.classList.remove('is-running', 'is-ok', 'is-err');
+      if (kind) el.statusChip.classList.add(kind);
+      el.statusText.textContent = text;
+      el.elapsed.textContent = changes;
+      el.confirm.disabled = !!disabled;
+      el.cancel.disabled = !!disabled;
+    }
+
+    function setCollapsed(section, on) {
+      section.classList.toggle('is-collapsed', on);
+      var body = section.querySelector('.ap-section-body');
+      if (body) body.hidden = on;
+      var head = section.querySelector('.ap-section-head');
+      if (head) head.setAttribute('aria-expanded', on ? 'false' : 'true');
+    }
+
+    var SCENE = {
+      ok:       { axis: 'ok',       sub: '通用参数面板 · 无自定义配置界面', status: ['',      '状态: 参数完整',                          '改动: 0 处'] },
+      nosource: { axis: 'nosource', sub: '轴清单为空 · 需配置运动卡',        status: ['',      '状态: 1 项在等配置（运动卡）',              '改动: 0 处'] },
+      noentry:  { axis: 'noentry',  sub: '候选来源未登记 · 程序缺陷',        status: ['is-err','状态: 1 个程序缺陷（候选来源未登记）', '改动: 0 处'] },
+      silent:   { axis: 'silent',   sub: '候选来源抛异常 · 程序缺陷',        status: ['is-err','状态: 1 个程序缺陷（来源抛异常）',       '改动: 0 处'] },
+      stale:    { axis: 'stale',    sub: '已保存的轴名不存在 · 请重选',      status: ['is-err','状态: 1 处需重新选择（轴不存在）',       '改动: 0 处'] },
+      invalid:  { axis: 'ok',       sub: '通用参数面板 · 无自定义配置界面',   status: ['is-err','状态: 有 1 处参数非法，无法确认',         '改动: 1 处'] },
+      readonly: { axis: 'ok',       sub: '通用参数面板 · 无自定义配置界面',   status: ['',      '状态: 1 项只读（不支持在此编辑）',            '改动: 0 处'] },
+      nonmotion:{ axis: 'ok',       sub: '普通文本参数 · 不属于框架清单',      status: ['',      '状态: 参数完整',                          '改动: 0 处'], plain: true },
+      w640:     { axis: 'ok',       sub: '通用参数面板 · 无自定义配置界面',   status: ['',      '状态: 参数完整',                          '改动: 0 处'] }
+    };
+
+    function applyScene(scene) {
+      el.win.dataset.scene = scene;
+      el.loading.hidden = true;
+      el.empty.hidden = true;
+      [el.secPorts, el.secConfig].forEach(function (s) { s.hidden = false; setCollapsed(s, false); });
+      el.portsNote.hidden = false;
+
+      if (scene === 'loading') {
+        el.loading.hidden = false;
+        el.loadingText.innerHTML = '<b>正在读取插件参数…</b>（<code>_plugin.Inputs</code> / <code>[StepConfig]</code> 反射 / <code>GetOptionItems</code>）';
+        renderPorts('ok', false); renderConfig({});
+        setMetrics(0);
+        setStatus('is-running', '状态: 加载中', '改动: 0 处', true);
+        return;
+      }
+      if (scene === 'empty') {
+        [el.secPorts, el.secConfig].forEach(function (s) { s.hidden = true; });
+        el.empty.hidden = false;
+        el.emptyTitle.textContent = '该步骤没有可编辑参数';
+        el.emptySub.textContent = '它没有输入端口，也没有 [StepConfig] 属性。确认 / 取消仍然可用；如需参数，请在插件类上声明端口或 [StepConfig] 后重建插件。';
+        setMetrics(0);
+        setStatus('', '状态: 无参数可编辑', '改动: 0 处', false);
+        return;
+      }
+
+      var def = SCENE[scene] || SCENE.ok;
+      var cfg = {};
+      var plain = !!def.plain;
+      if (scene === 'invalid') cfg = { errorIndex: 1, errorValue: '12a' };
+      if (scene === 'readonly') cfg = { showReadOnly: true };
+
+      el.stepSub.textContent = def.sub;
+      renderPorts(def.axis, plain);
+      renderConfig(cfg);
+
+      var bugs = (def.axis === 'noentry' || def.axis === 'silent') ? 1 : 0;
+      setMetrics(bugs);
+      /* 缺陷态不阻断「确认」——不改这个字段照样能跑；但页脚必须红着说清楚 */
+      setStatus(def.status[0], def.status[1], def.status[2], false);
+    }
+
+    /* ---------- 五态对照（R115） ---------- */
+    function buildStateMatrix() {
+      var host = document.createElement('div');
+      host.className = 'ap-notes';
+      host.style.marginTop = 'var(--ap-s3)';
+      host.innerHTML =
+        '<table class="ap-table"><caption>五态对照（默认 / 悬停 / 按下 / 聚焦 / 禁用）—— 聚焦必须可见</caption>' +
+        '<thead><tr><th>控件</th><th>默认</th><th>悬停</th><th>按下</th><th>聚焦</th><th>禁用</th></tr></thead><tbody>' +
+        '<tr><td>输入框 36</td><td><input class="ap-input" style="height:32px;line-height:32px" value="120000"/></td>' +
+        '<td><input class="ap-input is-fake-hover" style="height:32px;line-height:32px" value="120000"/></td>' +
+        '<td><input class="ap-input" style="height:32px;line-height:32px" value="120000"/></td>' +
+        '<td><input class="ap-input is-fake-focus" style="height:32px;line-height:32px" value="120000"/></td>' +
+        '<td><input class="ap-input" style="height:32px;line-height:32px" value="—" disabled/></td></tr>' +
+        '<tr><td>名字类下拉</td><td><div class="ap-select is-empty">暂无可用轴</div></td>' +
+        '<td><div class="ap-select is-empty">暂无可用轴</div></td>' +
+        '<td><div class="ap-select is-empty">暂无可用轴</div></td>' +
+        '<td><div class="ap-select is-empty is-fake-focus">暂无可用轴</div></td>' +
+        '<td><div class="ap-select is-empty">暂无可用轴（禁用）</div></td></tr>' +
+        '<tr><td>主按钮 32</td><td><button type="button" class="ap-btn ap-btn-primary">确认</button></td>' +
+        '<td><button type="button" class="ap-btn ap-btn-primary is-fake-hover">确认</button></td>' +
+        '<td><button type="button" class="ap-btn ap-btn-primary is-fake-active">确认</button></td>' +
+        '<td><button type="button" class="ap-btn ap-btn-primary is-fake-focus">确认</button></td>' +
+        '<td><button type="button" class="ap-btn ap-btn-primary" disabled>确认</button></td></tr>' +
+        '<tr><td>图标按钮 28</td><td><button type="button" class="ap-icon-btn">' + ico('i-link') + '</button></td>' +
+        '<td><button type="button" class="ap-icon-btn is-fake-hover">' + ico('i-link') + '</button></td>' +
+        '<td><button type="button" class="ap-icon-btn is-fake-active">' + ico('i-link') + '</button></td>' +
+        '<td><button type="button" class="ap-icon-btn is-fake-focus">' + ico('i-link') + '</button></td>' +
+        '<td><button type="button" class="ap-icon-btn" disabled>' + ico('i-link') + '</button></td></tr>' +
+        '</tbody></table>';
+      return host;
+    }
+
+    var extra = document.createElement('style');
+    extra.textContent =
+      '#ap-root .is-fake-hover.ap-input,#ap-root .is-fake-hover.ap-select{border-color:var(--ap-border-strong);}' +
+      '#ap-root .is-fake-hover.ap-btn{background:var(--ap-surface-3);border-color:var(--ap-border-strong);color:var(--ap-text);}' +
+      '#ap-root .is-fake-hover.ap-btn-primary{background:var(--ap-primary-strong);border-color:var(--ap-primary-strong);color:var(--ap-surface);}' +
+      '#ap-root .is-fake-hover.ap-icon-btn{background:var(--ap-surface-3);color:var(--ap-text);}' +
+      '#ap-root .is-fake-active.ap-btn{transform:translateY(1px);}' +
+      '#ap-root .is-fake-active.ap-icon-btn{background:var(--ap-border);transform:scale(.96);}' +
+      '#ap-root .is-fake-focus.ap-input{border-color:var(--ap-primary);box-shadow:var(--ap-focus-ring);}' +
+      '#ap-root .is-fake-focus.ap-btn,#ap-root .is-fake-focus.ap-icon-btn{outline:2px solid var(--ap-primary);outline-offset:2px;}' +
+      '#ap-root .ap-select.is-invalid{border-color:var(--ap-danger);box-shadow:none;}' +
+      '#ap-root .ap-select.is-fake-focus{outline:2px solid var(--ap-primary);outline-offset:2px;}';
+    document.head.appendChild(extra);
+
+    var matrix = buildStateMatrix();
+    matrix.hidden = true;
+    root.querySelector('#ap-copy').after(matrix);
+
+    /* ---------- 交互 ---------- */
+    var sceneBtns = [].slice.call(root.querySelectorAll('#ap-scene-seg [data-scene]'));
+    sceneBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        sceneBtns.forEach(function (x) { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        el.win.classList.toggle('is-wide', b.dataset.scene === 'w640');
+        applyScene(b.dataset.scene);
+      });
+    });
+    var widthBtns = [].slice.call(root.querySelectorAll('#ap-width-seg [data-width]'));
+    widthBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        widthBtns.forEach(function (x) { x.classList.toggle('is-on', x === b); x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        el.win.classList.toggle('is-wide', b.dataset.width === '640');
+      });
+    });
+    ['#ap-ports-head', '#ap-config-head'].forEach(function (sel) {
+      var head = root.querySelector(sel);
+      if (!head) return;
+      head.addEventListener('click', function () {
+        var sec = head.closest('.ap-section');
+        setCollapsed(sec, !sec.classList.contains('is-collapsed'));
+      });
+      head.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); head.click(); }
+      });
+    });
+    var statesBtn = root.querySelector('#ap-states-btn');
+    if (statesBtn) statesBtn.addEventListener('click', function () { matrix.hidden = !matrix.hidden; });
+
+    /* 场景直链 / data-scene 启动：全部逻辑挂 load 之后，
+       避免末尾把默认场景盖回去（v2.1 踩过：深链高亮对不上内容） */
+    function bootFromUrl() {
+      var pick = 'ok';
+      try {
+        pick = new URLSearchParams(location.search).get('s') ||
+               root.querySelector('#ap-window').getAttribute('data-scene') || 'ok';
+      } catch (e) { pick = 'ok'; }
+      var pickBtn = sceneBtns.filter(function (x) { return x.dataset.scene === pick; })[0];
+      if (pickBtn) pickBtn.click(); else applyScene('ok');
+    }
+    if (document.readyState === 'complete') bootFromUrl();
+    else window.addEventListener('load', bootFromUrl);
+  })();
+  </script>
+</div>
+</body>
+</html>

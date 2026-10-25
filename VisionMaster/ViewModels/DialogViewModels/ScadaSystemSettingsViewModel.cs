@@ -207,6 +207,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 GalleryEnabled = gallery.Enabled,
                 GalleryClearOnRun = gallery.RunStartMode == ImageGalleryRunStartMode.ClearAll,
                 GalleryKeepHistory = gallery.KeepFrameHistory,
+                GalleryKeepInjectedHistory = gallery.KeepInjectedHistory,
+                GalleryShowThumbnailStrip = gallery.ShowThumbnailStrip,
                 GalleryIncludeRealtime = gallery.IncludeRealtimePreviews,
                 GalleryCollectAllPorts = gallery.CollectAllOutputPorts,
                 GallerySaveOnAlarm = gallery.SaveFramesOnAlarm,
@@ -368,6 +370,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var oldGalleryRunStart = gallery.RunStartMode;
             var oldGalleryCollectAll = gallery.CollectAllOutputPorts;
             var oldGalleryHistory = gallery.KeepFrameHistory;
+            var oldGalleryInjectedHistory = gallery.KeepInjectedHistory;
+            var oldGalleryStrip = gallery.ShowThumbnailStrip;
             var oldGalleryRealtime = gallery.IncludeRealtimePreviews;
             var oldGallerySaveOnAlarm = gallery.SaveFramesOnAlarm;
             var oldAlarmFrameDays = config.AlarmFrameRetentionDays;
@@ -406,6 +410,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 parameterChanges.Add($"图集单流程上限：{oldGalleryPerFlow} → {galleryPerFlow} 张");
             if (Draft.GalleryKeepHistory != oldGalleryHistory)
                 parameterChanges.Add($"图集保留历史帧：{(oldGalleryHistory ? "是" : "否")} → {(Draft.GalleryKeepHistory ? "是" : "否")}");
+            if (Draft.GalleryKeepInjectedHistory != oldGalleryInjectedHistory)
+                parameterChanges.Add($"保留插件注入图的历史帧：{(oldGalleryInjectedHistory ? "是" : "否")} → {(Draft.GalleryKeepInjectedHistory ? "是" : "否")}");
+            if (Draft.GalleryShowThumbnailStrip != oldGalleryStrip)
+                parameterChanges.Add($"显示缩略图条：{(oldGalleryStrip ? "是" : "否")} → {(Draft.GalleryShowThumbnailStrip ? "是" : "否")}");
             if (Draft.GalleryIncludeRealtime != oldGalleryRealtime)
                 parameterChanges.Add($"图集收录实时预览：{(oldGalleryRealtime ? "是" : "否")} → {(Draft.GalleryIncludeRealtime ? "是" : "否")}");
             if (Draft.GallerySaveOnAlarm != oldGallerySaveOnAlarm)
@@ -488,9 +496,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (Draft.ParallelForceSequential != oldParallel.Item2)
                 parameterChanges.Add($"并行强制顺序总闸：{(oldParallel.Item2 ? "开" : "关")} → {(Draft.ParallelForceSequential ? "开" : "关")}");
 
+            // 收容开关翻转必须走 ApplySettingsNow：它要**当场重整已收下帧的槽位**
+            // （见 ImageCollectionService.ReslotInjectedFrames），只靠"下次采集自然生效"
+            // 会让界面停在"旧键那条 + 新键这条"两张并存的中间态。
             var galleryChanged = parameterChanges.Count > 0 && (
                 galleryTotal != oldGalleryTotal || galleryPerFlow != oldGalleryPerFlow
-                || alarmFrameDays != oldAlarmFrameDays || Draft.GalleryEnabled != oldGalleryEnabled);
+                || alarmFrameDays != oldAlarmFrameDays || Draft.GalleryEnabled != oldGalleryEnabled
+                || Draft.GalleryKeepInjectedHistory != oldGalleryInjectedHistory);
 
             if (windowChanges.Count == 0 && parameterChanges.Count == 0)
             {
@@ -523,6 +535,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             gallery.TotalLimit = galleryTotal;
             gallery.PerFlowLimit = galleryPerFlow;
             gallery.KeepFrameHistory = Draft.GalleryKeepHistory;
+            gallery.KeepInjectedHistory = Draft.GalleryKeepInjectedHistory;
+            gallery.ShowThumbnailStrip = Draft.GalleryShowThumbnailStrip;
             gallery.IncludeRealtimePreviews = Draft.GalleryIncludeRealtime;
             gallery.SaveFramesOnAlarm = Draft.GallerySaveOnAlarm;
 

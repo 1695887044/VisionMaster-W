@@ -4,23 +4,29 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:vm="clr-namespace:VisionMaster.ViewModels.DialogViewModels"
     Background="Transparent"
     MinWidth="1000"
     MinHeight="640">
 
     <!--
-        固定初始尺寸：Prism 的 DialogWindow 默认按内容自适应，而右侧 DataGrid 的星号列
-        在"无行"时会跟着窗口一起撑开——不钉死就出现"打开即近全屏、大片空白"。
-        给显式宽高 + SizeToContent=Manual，用户仍可拖拽放大（ResizeMode=CanResizeWithGrip）。
-        窗框走全仓统一的"无系统标题栏 + 自绘可拖动标题栏"（FlowCanvasChecks 的【窗框】两条）。
+        配方管理 · 按 docs/UI设计基线/recipe-manager（v1，2026-10-23）复刻。
+
+        三条与旧版的差别（对应基线 README §2 的 F1~F14）：
+        ① 未选中 / 空方案时**不渲染编辑器**（旧版摆出 6 个不可用控件）；
+        ② 权限与运行锁进命令谓词，按钮先灰掉并在 ToolTip 说清原因（R136①）；
+        ③ 表格读作「当前值 → 配方值」，差异行左侧 2px 琥珀标线、缺失行红标线。
+
+        颜色一律引令牌（R140）；本页不出现任何十六进制。
+        窗框沿用 V5.1 的自绘标题栏（无系统标题栏 + ui:WindowDragBehavior）。
     -->
     <prism:Dialog.WindowStyle>
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
-            <Setter Property="Width" Value="1100" />
-            <Setter Property="Height" Value="720" />
+            <Setter Property="Width" Value="1180" />
+            <Setter Property="Height" Value="760" />
             <Setter Property="MinWidth" Value="1000" />
             <Setter Property="MinHeight" Value="640" />
             <Setter Property="AllowsTransparency" Value="True" />
@@ -30,6 +36,435 @@
 
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+
+        <!--
+            状态 chip：圆点 + 文字（不靠颜色单独编码，色觉缺陷可用）。
+            五种语义档由 VM 的 RecipeChipKind 决定，模板只做判等映射。
+        -->
+        <Style x:Key="RecipeChip" TargetType="Border">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="CornerRadius" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+        </Style>
+
+        <Style x:Key="RecipeChipText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="RecipeChipDot" TargetType="Ellipse">
+            <Setter Property="Width" Value="6" />
+            <Setter Property="Height" Value="6" />
+            <Setter Property="Margin" Value="0,0,5,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+        </Style>
+
+        <!--  列表项：选中时左边缘 2px 主色标线（基线 §7.2 列表项）  -->
+        <Style x:Key="RecipeListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,2" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border
+                            x:Name="Bd"
+                            Padding="9,7"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            参数表行：差异行左侧 2px 琥珀标线、缺失行红标线。
+            用 Border.BorderThickness 画，不用 Margin+子元素 —— 后者会让行高跟着变。
+        -->
+        <Style x:Key="RecipeParameterRowStyle" TargetType="DataGridRow">
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Height" Value="36" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                </DataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsDifferent}" Value="True" />
+                        <Condition Binding="{Binding IsMissing}" Value="False" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBrush}" />
+                    <Setter Property="BorderThickness" Value="2,0,0,0" />
+                </MultiDataTrigger>
+                <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                        <Condition Binding="{Binding IsMissing}" Value="True" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                    <Setter Property="BorderThickness" Value="2,0,0,0" />
+                </MultiDataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="RecipeParameterCellStyle" TargetType="DataGridCell">
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,0,0,0" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="DataGridCell">
+                        <Border Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                VerticalAlignment="Center"
+                                SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RecipeColumnHeaderStyle" TargetType="DataGridColumnHeader">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="RecipeMonoText" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <!--  tabular-nums：数值列等宽对齐，扫读时小数点能排成一条线（基线 §5）  -->
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+        </Style>
+
+        <Style x:Key="RecipeMonoStrong" TargetType="TextBlock" BasedOn="{StaticResource RecipeMonoText}">
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+
+        <Style x:Key="RecipeCellStrong" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="RecipeCellText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!--  类型标签：小方圆角（不是胶囊——长类型名套胶囊会变成横椭圆，见 DialogTag 的注释）  -->
+        <Style x:Key="RecipeTypeTag" TargetType="Border">
+            <Setter Property="Padding" Value="6,1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="RecipeTypeTagText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas" />
+        </Style>
+
+        <!--  状态 chip 的五档（由 StatusKind 枚举键驱动）  -->
+        <Style x:Key="RecipeStatusChip" TargetType="Border" BasedOn="{StaticResource RecipeChip}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Warning">
+                    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Danger">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Success">
+                    <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Accent">
+                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="RecipeStatusChipText" TargetType="TextBlock" BasedOn="{StaticResource RecipeChipText}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Warning">
+                    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Danger">
+                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Success">
+                    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Accent">
+                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="RecipeStatusChipDot" TargetType="Ellipse" BasedOn="{StaticResource RecipeChipDot}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Warning">
+                    <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Danger">
+                    <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Success">
+                    <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="Accent">
+                    <Setter Property="Fill" Value="{StaticResource DialogAccentBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  小号按钮：工具栏与底栏用（30 高、12.5 号字）  -->
+        <Style x:Key="RecipeButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+        </Style>
+
+        <!--
+            弹层里的次级按钮（全选 / 清空 / 取消）：按设计基线 design-v2.html 的 .btn 画一遍。
+            为什么不能直接挂 RecipeButton：它只给了尺寸，背景与描边会落到**应用级 Fluent 隐式 Button 样式**上
+            （启动时 App.xaml 合并了 Fluent），真机表现为"灰底 + 粗描边 + 灰色写字"，跟旁边的蓝色主按钮
+            完全不是一个体系（2026-10-25 用户截图指出）。这里显式给 Dialog 令牌，不依赖任何隐式样式。
+            动效 150ms 与基线一致；禁用态 opacity .45 + 光标回箭头（照抄基线 .btn[aria-disabled]）。
+        -->
+        <Style x:Key="RecipeDialogButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            主按钮（创建配方）：基线 .btn-primary —— DialogAccentBrush 底 + 白字 + 无描边。
+            刻意**不复用** DialogPrimaryButton：它 BasedOn FluentButtonAccentStyle，指向 Fluent 的 #0078D4，
+            与青蓝体系（#0EA5E9）是两套蓝（基线 D1 已记录）。
+        -->
+        <Style x:Key="RecipePrimaryButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentDarkBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentDarkBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentTextBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RecipeIconButton" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bg"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  搜索框：带放大镜的输入（基线 .field）  -->
+        <Style x:Key="RecipeSearchBox" TargetType="TextBox">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="28,0,8,0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                            <Grid>
+                                <TextBlock
+                                    Margin="9,0,0,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    IsHitTestVisible="False"
+                                    Text="&#xf002;" />
+                                <ScrollViewer
+                                    x:Name="PART_ContentHost"
+                                    Margin="{TemplateBinding Padding}"
+                                    VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
 
     <Grid Margin="15">
@@ -38,360 +473,1398 @@
         <Border Style="{StaticResource DialogCardBorder}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="45" />
+                    <RowDefinition Height="44" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="64" />
                 </Grid.RowDefinitions>
 
-                <!--  自绘标题栏：无边框窗口靠它拖动（WindowStyle=None 后没有系统拖动区）  -->
+                <!--  ══════════ 标题栏（44） ══════════  -->
                 <Border
                     Grid.Row="0"
                     ui:WindowDragBehavior.IsWindowDraggable="True"
-                    Background="{StaticResource DialogRowAlternateBrush}"
+                    Background="{StaticResource DialogSurfaceBrush}"
                     BorderBrush="{StaticResource DialogBorderLightBrush}"
                     BorderThickness="0,0,0,1"
                     CornerRadius="12,12,0,0">
-                    <TextBlock
-                        Margin="16,0"
-                        VerticalAlignment="Center"
-                        Style="{StaticResource DialogCardTitle}"
-                        Text="配方管理" />
+                    <Grid Margin="18,0,8,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="配方管理" />
+
+                        <Ellipse
+                            Grid.Column="1"
+                            Width="3"
+                            Height="3"
+                            Margin="10,0"
+                            VerticalAlignment="Center"
+                            Fill="{StaticResource DialogTextMutedBrush}" />
+
+                        <TextBlock
+                            Grid.Column="2"
+                            MaxWidth="320"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="{Binding SolutionName}"
+                            TextTrimming="CharacterEllipsis"
+                            ToolTip="{Binding SolutionName}" />
+
+                        <!--  运行态 chip（停止 · 可应用 / 运行中 · 应用锁定）  -->
+                        <Border
+                            Grid.Column="4"
+                            ToolTip="{Binding FooterHint}">
+                            <Border.Style>
+                                <Style BasedOn="{StaticResource RecipeChip}" TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RunStateKind}" Value="Danger">
+                                            <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RunStateKind}" Value="Success">
+                                            <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse>
+                                    <Ellipse.Style>
+                                        <Style BasedOn="{StaticResource RecipeChipDot}" TargetType="Ellipse">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RunStateKind}" Value="Danger">
+                                                    <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RunStateKind}" Value="Success">
+                                                    <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <TextBlock Text="{Binding RunStateText}">
+                                    <TextBlock.Style>
+                                        <Style BasedOn="{StaticResource RecipeChipText}" TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RunStateKind}" Value="Danger">
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding RunStateKind}" Value="Success">
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  角色 chip  -->
+                        <Border
+                            Grid.Column="5"
+                            Margin="8,0,0,0"
+                            ToolTip="{Binding ActorName}">
+                            <Border.Style>
+                                <Style BasedOn="{StaticResource RecipeChip}" TargetType="Border">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RoleKind}" Value="Warning">
+                                            <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock Text="{Binding RoleText}">
+                                <TextBlock.Style>
+                                    <Style BasedOn="{StaticResource RecipeChipText}" TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RoleKind}" Value="Warning">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+
+                        <Button
+                            Grid.Column="6"
+                            Margin="8,0,0,0"
+                            Command="{Binding CloseCommand}"
+                            Content="&#xf00d;"
+                            Style="{StaticResource RecipeIconButton}"
+                            ToolTip="关闭（Esc）" />
+                    </Grid>
                 </Border>
 
-                <Grid Grid.Row="1" Margin="16">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="300" />
-            <ColumnDefinition Width="16" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
+                <!--  ══════════ 权限条（未登录时恒显；已登录时收起成"切换用户"） ══════════  -->
+                <!--
+                    ① bannerMode=True（未登录）：黄底警告条 + 「登录」按钮。
+                    ② bannerMode=False（已登录）：整条变中性底 + 右侧「admin（工程师）▾」，
+                       点它重新打开登录弹窗做"切换用户 / 登出"。
 
-        <!--  左：配方列表 + 从当前值捕获  -->
-        <Border Grid.Column="0" Style="{StaticResource DialogCardBorder}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="64" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <StackPanel
-                    Grid.Row="0"
-                    Margin="16,0"
-                    VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource DialogCardTitle}" Text="配方" />
-                    <TextBlock
-                        Margin="0,4,0,0"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="同一方案下按产品切换参数" />
-                </StackPanel>
-
-                <ListBox
+                    这条横带<b>始终占 38px</b>、不再整体隐藏。2026-10-24 之前是
+                    `Visibility="{Binding ShowPermissionBanner}"`（只有未登录才出现），
+                    已登录时整条消失 → 用户截图里"登录按钮不见了"，同时也失去了
+                    唯一能换用户的入口。现在改成"两副面孔、位置固定"，
+                    已有登录态也不会让上方标题栏和下方列表整体跳 38px。
+                -->
+                <Border
                     Grid.Row="1"
-                    Margin="8,0,8,8"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    ItemsSource="{Binding RecipeItems}"
-                    SelectedItem="{Binding SelectedItem}">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                            <Setter Property="Padding" Value="8,6" />
-                            <Setter Property="Margin" Value="0,0,0,2" />
-                            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                    Padding="16,0"
+                    BorderThickness="0,0,0,1"
+                    Height="38">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsLoggedIn}" Value="False">
+                                    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                    <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel>
+                    </Border.Style>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!--  图标：未登录是锁，已登录是人  -->
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Text="&#xf023;">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLoggedIn}" Value="True">
+                                            <Setter Property="Text" Value="&#xf007;" />
+                                            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--  文案：未登录讲权限门槛，已登录讲"你在干什么"  -->
+                        <TextBlock
+                            Grid.Column="1"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                    <Setter Property="Text" Value="当前未登录，只能查看配方。切换配方需要操作员，新建 / 编辑 / 删除需要工程师。" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLoggedIn}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                            <Setter Property="Text" Value="已登录。切换配方需要操作员，新建 / 编辑 / 删除需要工程师。" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--
+                            右侧按钮：未登录「登录」（主色）；已登录「admin（工程师）▾」（次要样式，可切换用户）。
+                            两边共用 LoginCommand —— 同一个出口、同一个弹窗，不另开一条命令。
+                        -->
+                        <Button
+                            Grid.Column="2"
+                            Height="26"
+                            Padding="12,0"
+                            Command="{Binding LoginCommand}"
+                            FontSize="12"
+                            ToolTip="{Binding LoginButtonToolTip}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource DialogPrimaryButton}">
+                                    <Setter Property="Content" Value="登录" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLoggedIn}" Value="True">
+                                            <Setter Property="Content" Value="{Binding LoginButtonText}" />
+                                            <Setter Property="Padding" Value="10,0" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!--  ══════════ 主体（左列表 + 右详情） ══════════  -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  ── 左：配方列表 ──  -->
+                    <Border
+                        Grid.Column="0"
+                        Background="{StaticResource DialogRowAlternateBrush}"
+                        BorderBrush="{StaticResource DialogBorderBrush}"
+                        BorderThickness="0,0,1,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--  列表头：标题 + 计数 + 搜索  -->
+                            <StackPanel Grid.Row="0" Margin="12,12,12,10">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock
+                                        FontSize="13"
                                         FontWeight="SemiBold"
                                         Foreground="{StaticResource DialogTextPrimaryBrush}"
-                                        Text="{Binding Name}"
-                                        TextTrimming="CharacterEllipsis" />
+                                        Text="配方" />
                                     <TextBlock
-                                        Margin="8,0,0,0"
-                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                        Text="{Binding Version}" />
-                                    <TextBlock
-                                        Margin="8,0,0,0"
-                                        Foreground="{StaticResource DialogAccentTextBrush}"
-                                        Text="{Binding ActiveText}" />
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding RecipeCountText}" />
                                 </StackPanel>
-                                <TextBlock
-                                    Margin="0,3,0,0"
-                                    FontSize="11"
-                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    Text="{Binding SubText}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
 
-                <StackPanel Grid.Row="2" Margin="12,0,12,12">
-                    <TextBlock
-                        Margin="0,0,0,6"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="从当前已确认参数捕获一份新配方" />
-                    <TextBlock
-                        Margin="0,0,0,3"
-                        FontSize="11"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="配方名称" />
-                    <TextBox
-                        Height="30"
-                        Margin="0,0,0,6"
-                        Style="{StaticResource DialogInput}"
-                        Text="{Binding NewRecipeName, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="配方名称（方案内唯一）" />
-                    <TextBlock
-                        Margin="0,0,0,3"
-                        FontSize="11"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="产品编码（可空）" />
-                    <TextBox
-                        Height="30"
-                        Margin="0,0,0,6"
-                        Style="{StaticResource DialogInput}"
-                        Text="{Binding NewRecipeCode, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="产品编码 / 工单号（可空）" />
-                    <TextBlock
-                        Margin="0,0,0,3"
-                        FontSize="11"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="备注（可空）" />
-                    <TextBox
-                        Height="30"
-                        Margin="0,0,0,8"
-                        Style="{StaticResource DialogInput}"
-                        Text="{Binding NewRecipeNotes, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="备注（可空）" />
-                    <Button
-                        Height="34"
-                        Command="{Binding CaptureCommand}"
-                        Content="捕获当前值"
-                        Style="{StaticResource DialogPrimaryButton}" />
-                    <Grid Margin="0,8,0,0">
+                                <TextBox
+                                    Margin="0,8,0,0"
+                                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="搜索名称 / 产品编码 / 备注">
+                                    <TextBox.Style>
+                                        <Style BasedOn="{StaticResource RecipeSearchBox}" TargetType="TextBox">
+                                            <Style.Triggers>
+                                                <!--  空方案时搜索没有意义（基线 §7.1 空态）  -->
+                                                <DataTrigger Binding="{Binding ShowEmptyState}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </StackPanel>
+
+                            <!--  配方列表  -->
+                            <ListBox
+                                Grid.Row="1"
+                                Margin="8,0,8,8"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource RecipeListItemStyle}"
+                                ItemsSource="{Binding RecipeItems}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                SelectedItem="{Binding SelectedItem}">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal">
+                                                <!--  生效中的绿点  -->
+                                                <Ellipse
+                                                    Width="6"
+                                                    Height="6"
+                                                    Margin="0,0,6,0"
+                                                    VerticalAlignment="Center"
+                                                    Fill="{StaticResource DialogSuccessBrush}"
+                                                    Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}}" />
+                                                <TextBlock
+                                                    FontSize="12.5"
+                                                    FontWeight="Medium"
+                                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                    Text="{Binding Name}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                                <Border
+                                                    Margin="6,0,0,0"
+                                                    Padding="6,0"
+                                                    Height="18"
+                                                    Background="{StaticResource DialogRowHoverBrush}"
+                                                    CornerRadius="9"
+                                                    VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        FontSize="11"
+                                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                        Text="{Binding Version}" />
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock
+                                                Margin="0,3,0,0"
+                                                FontSize="11.5"
+                                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                Text="{Binding MetaText}"
+                                                TextTrimming="CharacterEllipsis" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <!--
+                                列表底部：新建 / 导入 / 导出
+                                ⚠ 2026-10-24 去掉了原来那条「ShowEmptyState==True → Collapsed」：
+                                空方案时把整块收起来，等于把唯一的「新建配方」入口也收走了（用户反馈
+                                「点新建没反应」的直接原因之一）——右栏空态虽然也有一个入口，但左栏
+                                底部空着会让人以为这栏没有动作。现在恒显示，导入/导出的可用性照旧由命令判定。
+                            -->
+                            <StackPanel Grid.Row="2" Margin="12,0,12,12">
+
+                                <!--
+                                    新建：点开的是页面中央的新建配方弹层（v2），不再在原地展开卡片。
+                                    这里恒显示——v1 曾用 IsCapturing 把按钮换成卡片，卡片又被外层
+                                    ShowEmptyState 的条件藏掉，于是空方案时"点了什么都看不见"。
+                                -->
+                                <Button
+                                    Height="30"
+                                    Command="{Binding OpenCaptureCommand}"
+                                    Style="{StaticResource DialogSecondaryButton}"
+                                    ToolTip="{Binding EditBlockedReason}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="11"
+                                            Text="&#xf067;" />
+                                        <TextBlock VerticalAlignment="Center" Text="新建配方" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="8" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button
+                                        Grid.Column="0"
+                                        Height="30"
+                                        Command="{Binding ImportCommand}"
+                                        Content="导入"
+                                        Style="{StaticResource DialogSecondaryButton}"
+                                        ToolTip="{Binding EditBlockedReason}" />
+                                    <Button
+                                        Grid.Column="2"
+                                        Height="30"
+                                        Command="{Binding ExportCommand}"
+                                        Content="导出"
+                                        Style="{StaticResource DialogGhostButton}"
+                                        ToolTip="导出选中配方（.vmrecipe）" />
+                                </Grid>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!--  ── 右：详情 ──  -->
+                    <Grid Grid.Column="1">
+
+                        <!--  ① 空方案  -->
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxWidth="420"
+                            Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisibility}}">
+                            <Border
+                                Width="46"
+                                Height="46"
+                                HorizontalAlignment="Center"
+                                Background="{StaticResource DialogAccentSoftBrush}"
+                                BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="18"
+                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                    Text="&#xf0ca;" />
+                            </Border>
+                            <TextBlock
+                                Margin="0,12,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="这个方案还没有配方" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="配方保存同一方案下按产品切换的参数值。换型时一次写回，不用逐个步骤改参数。"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                            <StackPanel
+                                Margin="0,14,0,0"
+                                HorizontalAlignment="Center"
+                                Orientation="Horizontal">
+                                <Button
+                                    Height="30"
+                                    Command="{Binding OpenCaptureCommand}"
+                                    Style="{StaticResource DialogPrimaryButton}"
+                                    ToolTip="{Binding EditBlockedReason}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            Margin="0,0,6,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="11"
+                                            Text="&#xf067;" />
+                                        <TextBlock VerticalAlignment="Center" Text="从当前值新建" />
+                                    </StackPanel>
+                                </Button>
+                                <Button
+                                    Height="30"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ImportCommand}"
+                                    Content="导入 .vmrecipe"
+                                    Style="{StaticResource DialogSecondaryButton}"
+                                    ToolTip="{Binding EditBlockedReason}" />
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!--  ② 有配方但未选中  -->
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxWidth="400"
+                            Visibility="{Binding ShowNoSelectionState, Converter={StaticResource BoolToVisibility}}">
+                            <Border
+                                Width="46"
+                                Height="46"
+                                HorizontalAlignment="Center"
+                                Background="{StaticResource DialogAccentSoftBrush}"
+                                BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="18"
+                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                    Text="&#xf15c;" />
+                            </Border>
+                            <TextBlock
+                                Margin="0,12,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="选择一份配方" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="选中后这里显示「当前值 → 配方值」的逐条对照，应用前会先预检并给出差异摘要。"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!--  ③ 编辑器（选中才有）  -->
+                        <Grid Visibility="{Binding ShowEditor, Converter={StaticResource BoolToVisibility}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="36" />
+                            </Grid.RowDefinitions>
+
+                            <!--  详情头：名字 + 生效/版本 chip + 元信息 + 重命名/更多  -->
+                            <Grid Grid.Row="0" Margin="16,14,16,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <!--  名字（只读态）/ 就地编辑  -->
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            FontSize="16"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding SelectedTitle}"
+                                            TextTrimming="CharacterEllipsis"
+                                            Visibility="{Binding IsNameReadOnly, Converter={StaticResource BoolToVisibility}}" />
+
+                                        <TextBox
+                                            Width="240"
+                                            Height="28"
+                                            Padding="6,0"
+                                            VerticalContentAlignment="Center"
+                                            Background="{StaticResource DialogInputBackgroundBrush}"
+                                            BorderBrush="{StaticResource DialogAccentBrush}"
+                                            BorderThickness="1"
+                                            FontSize="15"
+                                            Text="{Binding EditNameText, UpdateSourceTrigger=PropertyChanged}"
+                                            Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBox.InputBindings>
+                                                <KeyBinding Key="Enter" Command="{Binding CommitRenameCommand}" />
+                                                <KeyBinding Key="Escape" Command="{Binding CancelRenameCommand}" />
+                                            </TextBox.InputBindings>
+                                        </TextBox>
+
+                                        <!--  生效中 chip  -->
+                                        <Border
+                                            Margin="8,0,0,0"
+                                            Visibility="{Binding SelectedIsActive, Converter={StaticResource BoolToVisibility}}">
+                                            <Border.Style>
+                                                <Style BasedOn="{StaticResource RecipeChip}" TargetType="Border">
+                                                    <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Ellipse>
+                                                    <Ellipse.Style>
+                                                        <Style BasedOn="{StaticResource RecipeChipDot}" TargetType="Ellipse">
+                                                            <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                                        </Style>
+                                                    </Ellipse.Style>
+                                                </Ellipse>
+                                                <TextBlock
+                                                    Foreground="{StaticResource DialogSuccessTextBrush}"
+                                                    Style="{StaticResource RecipeChipText}"
+                                                    Text="生效中" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!--  版本 chip  -->
+                                        <Border
+                                            Margin="6,0,0,0"
+                                            Style="{StaticResource RecipeChip}"
+                                            Visibility="{Binding IsNameReadOnly, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Style="{StaticResource RecipeChipText}" Text="{Binding SelectedVersion}" />
+                                        </Border>
+
+                                        <Button
+                                            Margin="4,0,0,0"
+                                            Command="{Binding CommitRenameCommand}"
+                                            Content="&#xf00c;"
+                                            Style="{StaticResource RecipeIconButton}"
+                                            ToolTip="提交改名（Enter）"
+                                            Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVisibility}}" />
+                                        <Button
+                                            Command="{Binding CancelRenameCommand}"
+                                            Content="&#xf00d;"
+                                            Style="{StaticResource RecipeIconButton}"
+                                            ToolTip="取消改名（Esc）"
+                                            Visibility="{Binding IsEditingName, Converter={StaticResource BoolToVisibility}}" />
+                                    </StackPanel>
+
+                                    <!--  元信息：编码 · N 条参数 · 最后应用  -->
+                                    <StackPanel Margin="0,5,0,0" Orientation="Horizontal">
+                                        <TextBlock
+                                            FontSize="11.5"
+                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                            Text="{Binding SelectedCodeText}" />
+                                        <Ellipse
+                                            Width="3"
+                                            Height="3"
+                                            Margin="6,0"
+                                            VerticalAlignment="Center"
+                                            Fill="{StaticResource DialogTextMutedBrush}" />
+                                        <TextBlock
+                                            FontSize="11.5"
+                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                            Text="{Binding SelectedMetaText}" />
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel
+                                    Grid.Column="1"
+                                    VerticalAlignment="Top"
+                                    Orientation="Horizontal">
+                                    <Button
+                                        Command="{Binding BeginRenameCommand}"
+                                        Content="&#xf044;"
+                                        Style="{StaticResource RecipeIconButton}"
+                                        ToolTip="重命名"
+                                        Visibility="{Binding IsNameReadOnly, Converter={StaticResource BoolToVisibility}}" />
+                                    <Button
+                                        Margin="2,0,0,0"
+                                        Command="{Binding ClearActiveCommand}"
+                                        Content="&#xf05e;"
+                                        Style="{StaticResource RecipeIconButton}"
+                                        ToolTip="取消生效标记（只解除绑定，不改参数值）" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!--  工具栏：候选下拉 + 添加 + 可添加数 + 删除选中 + 仅显示差异 + 查找参数  -->
+                            <Grid Grid.Row="1" Margin="16,0,16,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <ComboBox
+                                    Grid.Column="0"
+                                    Width="200"
+                                    Height="30"                                    DisplayMemberPath="DisplayName"
+                                    ItemsSource="{Binding Candidates}"
+                                    SelectedItem="{Binding SelectedCandidate}"
+                                    ToolTip="从当前可捕获的参数里挑一条加入配方">
+                                    <ComboBox.Style>
+                                        <Style BasedOn="{StaticResource DialogCombo}" TargetType="ComboBox">
+                                            <Style.Triggers>
+                                                <!--  没有候选时整条下拉收起（留一个空框等于让人点进去发现是空的）  -->
+                                                <DataTrigger Binding="{Binding HasCandidates}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.Style>
+                                </ComboBox>
+
+                                <Button
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding AddCandidateCommand}"
+                                    Content="添加参数"
+                                    Style="{StaticResource RecipeButton}"
+                                    ToolTip="{Binding EditBlockedReason}"
+                                    Visibility="{Binding HasCandidates, Converter={StaticResource BoolToVisibility}}" />
+
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11.5"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="{Binding CandidateCountText}" />
+
+                                <!--
+                                    全选 / 全不选：只看表格里此刻可见的行（"仅显示差异"或查找框过滤过之后）。
+                                    三态：全勾=true、全不勾=false、部分勾=null。1195 条一条条点谁都受不了，
+                                    但"勾了就全删"又太危险，所以必须让用户看清楚当前勾了多少（右边「删除选中(N)」）。
+                                -->
+                                <CheckBox
+                                    Grid.Column="3"
+                                    Margin="12,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Command="{Binding CheckAllCommand}"
+                                    Content="全选"
+                                    FontSize="12"
+                                    IsChecked="{Binding CheckAllState, Mode=OneWay}"
+                                    Style="{StaticResource DialogCheckBox}"
+                                    ToolTip="全选 / 全不选（只作用于表格里此刻可见的行）" />
+
+                                <Button
+                                    Grid.Column="3"
+                                    Margin="12,0,0,0"
+                                    Command="{Binding RemoveParameterCommand}"
+                                    Style="{StaticResource RecipeButton}"
+                                    ToolTip="删除勾选的参数（只改配方定义，不动当前参数值）">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border
+                                                x:Name="Bd"
+                                                Padding="{TemplateBinding Padding}"
+                                                Background="{StaticResource DialogDangerSubtleBrush}"
+                                                BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="6">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogDangerBorderBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Opacity" Value="0.45" />
+                                                    <Setter Property="Cursor" Value="Arrow" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <TextBlock FontSize="12.5" Foreground="{StaticResource DialogDangerTextBrush}">
+                                        <Run Text="删除选中" />
+                                        <Run Text="(" /><Run Text="{Binding CheckedCount, Mode=OneWay}" /><Run Text=")" />
+                                    </TextBlock>
+                                </Button>
+
+                                <!--  仅显示差异  -->
+                                <CheckBox
+                                    Grid.Column="5"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    Content="仅显示差异"
+                                    FontSize="12"
+                                    IsChecked="{Binding OnlyDifferences}"
+                                    Style="{StaticResource DialogCheckBox}" />
+
+                                <TextBox
+                                    Grid.Column="6"
+                                    Width="170"
+                                    Style="{StaticResource RecipeSearchBox}"
+                                    Text="{Binding ParameterFilter, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="查找参数（目标 / 参数名 / 值）" />
+                            </Grid>
+
+                            <!--  参数表  -->
+                            <Grid Grid.Row="2">
+                                <DataGrid
+                                    Margin="16,0,16,0"
+                                    AutoGenerateColumns="False"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    CanUserAddRows="False"
+                                    CanUserDeleteRows="False"
+                                    CanUserReorderColumns="False"
+                                    CanUserResizeRows="False"
+                                    CellStyle="{StaticResource RecipeParameterCellStyle}"
+                                    ColumnHeaderStyle="{StaticResource RecipeColumnHeaderStyle}"
+                                    GridLinesVisibility="Horizontal"
+                                    HeadersVisibility="Column"
+                                    HorizontalGridLinesBrush="{StaticResource DialogBorderLightBrush}"
+                                    IsReadOnly="True"
+                                    ItemsSource="{Binding ParametersView}"
+                                    MouseLeftButtonUp="OnParameterRowClicked"
+                                    RowStyle="{StaticResource RecipeParameterRowStyle}"
+                                    SelectionMode="Single"
+                                    SelectionUnit="FullRow">
+                                    <DataGrid.Columns>
+                                        <DataGridTemplateColumn Width="34" Header="">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <CheckBox
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        IsChecked="{Binding IsChecked, UpdateSourceTrigger=PropertyChanged}"
+                                                        Style="{StaticResource DialogCheckBox}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn
+                                            Width="1.5*"
+                                            Header="目标"
+                                            SortMemberPath="Target">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Text="{Binding Target}"
+                                                        ToolTip="{Binding Target}">
+                                                        <TextBlock.Style>
+                                                            <Style BasedOn="{StaticResource RecipeCellStrong}" TargetType="TextBlock">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn
+                                            Width="2.2*"
+                                            Header="参数"
+                                            SortMemberPath="Key">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource RecipeCellStrong}"
+                                                        Text="{Binding Key}"
+                                                        ToolTip="{Binding Key}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn
+                                            Width="0.9*"
+                                            Header="类型"
+                                            SortMemberPath="DeclaredType">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource RecipeTypeTag}">
+                                                        <TextBlock Style="{StaticResource RecipeTypeTagText}" Text="{Binding DeclaredType}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn
+                                            Width="1.5*"
+                                            Header="当前值"
+                                            SortMemberPath="CurrentValue">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        HorizontalAlignment="Right"
+                                                        Style="{StaticResource RecipeMonoText}"
+                                                        Text="{Binding CurrentValue}"
+                                                        ToolTip="{Binding CurrentValue}" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn Width="40" Header="→">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="12"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text="→" />
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn
+                                            Width="1.5*"
+                                            Header="配方值"
+                                            SortMemberPath="RecipeValue">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <!-- 双击进入编辑；不可改时悬停说明原因，别让用户对着灰字猜 -->
+                                                    <Grid Background="Transparent" MouseLeftButtonDown="OnValueCellClicked">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Right"
+                                                            Visibility="{Binding CanEditValue, Converter={StaticResource BoolToVisibility}, ConverterParameter=Inverse}"
+                                                            Style="{StaticResource RecipeMonoStrong}"
+                                                            Text="{Binding RecipeValue}"
+                                                            ToolTip="{Binding RecipeValue}" />
+                                                        <TextBox
+                                                            Height="24"
+                                                            Margin="0,0,-4,0"
+                                                            HorizontalAlignment="Stretch"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Style="{StaticResource DialogInput}"
+                                                            Text="{Binding RecipeValue, UpdateSourceTrigger=LostFocus}"
+                                                            ToolTip="{Binding ValueEditBlockedReason}"
+                                                            Visibility="{Binding CanEditValue, Converter={StaticResource BoolToVisibility}}"
+                                                            KeyDown="OnValueBoxKeyDown"
+                                                            LostKeyboardFocus="OnValueBoxLostFocus" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+
+                                        <DataGridTemplateColumn Width="104" Header="状态">
+                                            <DataGridTemplateColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource RecipeStatusChip}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <Ellipse Style="{StaticResource RecipeStatusChipDot}" />
+                                                            <TextBlock
+                                                                Style="{StaticResource RecipeStatusChipText}"
+                                                                Text="{Binding StatusText}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </DataGridTemplateColumn.CellTemplate>
+                                        </DataGridTemplateColumn>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+
+                                <!--  表内空态：配方没有参数 / 过滤后为空  -->
+                                <TextBlock
+                                    Margin="16"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    TextAlignment="Center"
+                                    TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ParametersIsEmpty}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Text" Value="这份配方还没有参数。用上方的下拉挑一条，点「添加参数」。" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ParametersFilteredEmpty}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Setter Property="Text" Value="没有符合当前筛选条件的参数。" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+
+                            <!--  汇总条（36）  -->
+                            <Border
+                                Grid.Row="3"
+                                Padding="16,0"
+                                Background="{StaticResource DialogRowAlternateBrush}"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,1,0,1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding SummaryCountText}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}">
+                                        <Run Text="修改 " /><Run FontWeight="SemiBold" Text="{Binding SummaryModified, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}">
+                                        <Run Text="不变 " /><Run FontWeight="SemiBold" Text="{Binding SummaryUnchanged, Mode=OneWay}" />
+                                    </TextBlock>
+                                    <TextBlock
+                                        Grid.Column="3"
+                                        Margin="12,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogDangerTextBrush}"
+                                        Text="{Binding SummaryMissingText}" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Grid>
+
+                <!--  ══════════ 底栏（64） ══════════  -->
+                <Border
+                    Grid.Row="3"
+                    Padding="16,0"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,12,12">
+                    <Grid>
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="8" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+
+                        <!--
+                            删除配方：幽灵红（基线 §7.2 btn-danger-ghost）。
+                            不用实心红 DialogDangerButton：实心红与主按钮同级，
+                            会让"删整份配方"看起来和"应用配方"一样是该做的事。
+                        -->
                         <Button
                             Grid.Column="0"
                             Height="30"
-                            Command="{Binding ImportCommand}"
-                            Content="导入"
-                            Style="{StaticResource DialogSecondaryButton}" />
+                            Padding="10,0"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Command="{Binding DeleteCommand}"
+                            Cursor="Hand"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            ToolTip="只删除配方定义，不改当前参数值"
+                            Visibility="{Binding ShowEditor, Converter={StaticResource BoolToVisibility}}">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border
+                                        x:Name="Bd"
+                                        Padding="{TemplateBinding Padding}"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Opacity" Value="0.45" />
+                                            <Setter Property="Cursor" Value="Arrow" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,6,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogDangerTextBrush}"
+                                    Text="&#xf2ed;" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="12.5"
+                                    Foreground="{StaticResource DialogDangerTextBrush}"
+                                    Text="删除配方" />
+                            </StackPanel>
+                        </Button>
+
+                        <!--  状态行 + 提示（运行中换成琥珀警告）  -->
+                        <StackPanel
+                            Grid.Column="1"
+                            Margin="12,0,12,0"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                FontSize="11.5"
+                                Text="{Binding FooterHint}"
+                                TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding FooterHintIsWarning}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBlock
+                                Margin="0,2,0,0"
+                                FontSize="11.5"
+                                Text="{Binding StatusText}"
+                                TextTrimming="CharacterEllipsis"
+                                Visibility="{Binding HasStatus, Converter={StaticResource BoolToVisibility}}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StatusIsError}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
                         <Button
                             Grid.Column="2"
-                            Height="30"
-                            Command="{Binding ExportCommand}"
-                            Content="导出"
-                            Style="{StaticResource DialogGhostButton}" />
-                    </Grid>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!--  右：参数对照 + 动作  -->
-        <Border Grid.Column="2" Style="{StaticResource DialogCardBorder}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="64" />
-                    <!--  行 1 = 参数工具栏（候选 + 添加/删除），行 2 = 表格本体。
-                          高度必须与 Grid.Row 同步：工具栏吃 Auto，表格吃 *；
-                          写反的症状是"工具栏被拉成一整屏、表格挤到底部"。  -->
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="56" />
-                </Grid.RowDefinitions>
-
-                <StackPanel
-                    Grid.Row="0"
-                    Margin="16,0"
-                    VerticalAlignment="Center">
-                    <TextBlock Style="{StaticResource DialogCardTitle}" Text="{Binding SelectedTitle}" />
-                    <TextBlock
-                        Margin="0,4,0,0"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="{Binding SelectedSubTitle}" />
-                </StackPanel>
-
-                <DataGrid
-                    Grid.Row="2"
-                    Margin="12,8,12,8"
-                    AutoGenerateColumns="False"
-                    CanUserAddRows="False"
-                    CanUserDeleteRows="False"
-                    CanUserReorderColumns="False"
-                    CanUserResizeRows="False"
-                    GridLinesVisibility="None"
-                    HeadersVisibility="Column"
-                    IsReadOnly="True"
-                    ItemsSource="{Binding Parameters}"
-                    SelectedItem="{Binding SelectedParameter}"
-                    SelectionMode="Single"
-                    Style="{StaticResource DialogDataGrid}">
-                    <DataGrid.ColumnHeaderStyle>
-                        <Style BasedOn="{StaticResource DialogDataGridColumnHeader}" TargetType="DataGridColumnHeader">
-                            <Setter Property="Height" Value="38" />
-                            <Setter Property="Padding" Value="10,0,0,0" />
-                            <Setter Property="FontSize" Value="11" />
-                        </Style>
-                    </DataGrid.ColumnHeaderStyle>
-                    <DataGrid.RowStyle>
-                        <Style BasedOn="{StaticResource DialogDataGridRow}" TargetType="DataGridRow">
-                            <Setter Property="MinHeight" Value="34" />
-                            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
-                        </Style>
-                    </DataGrid.RowStyle>
-                    <DataGrid.CellStyle>
-                        <Style BasedOn="{StaticResource DialogDataGridCell}" TargetType="DataGridCell">
-                            <Setter Property="Padding" Value="10,0,0,0" />
-                        </Style>
-                    </DataGrid.CellStyle>
-                    <DataGrid.Columns>
-                        <DataGridTextColumn
-                            Width="1.1*"
-                            Binding="{Binding Target}"
-                            Header="目标" />
-                        <DataGridTextColumn
-                            Width="1.1*"
-                            Binding="{Binding Key}"
-                            Header="参数" />
-                        <DataGridTextColumn
-                            Width="1.3*"
-                            Binding="{Binding DeclaredType}"
-                            Header="类型" />
-                        <DataGridTextColumn
-                            Width="1.1*"
-                            Binding="{Binding RecipeValue}"
-                            Header="配方值" />
-                        <DataGridTextColumn
-                            Width="1.1*"
-                            Binding="{Binding CurrentValue}"
-                            Header="当前值" />
-                        <DataGridTextColumn
-                            Width="80"
-                            Binding="{Binding Status}"
-                            Header="状态" />
-                    </DataGrid.Columns>
-                </DataGrid>
-
-                <Grid Grid.Row="1" Margin="16,8,16,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <ComboBox
-                        Height="30"
-                        DisplayMemberPath="DisplayName"
-                        ItemsSource="{Binding Candidates}"
-                        SelectedItem="{Binding SelectedCandidate}"
-                        Style="{StaticResource DialogCombo}" />
-                    <Button
-                        Grid.Column="1"
-                        Height="30"
-                        Margin="8,0,0,0"
-                        Command="{Binding AddCandidateCommand}"
-                        Content="添加参数"
-                        Style="{StaticResource DialogSecondaryButton}" />
-                    <Button
-                        Grid.Column="2"
-                        Height="30"
-                        Margin="8,0,0,0"
-                        Command="{Binding RemoveParameterCommand}"
-                        Content="删除参数"
-                        Style="{StaticResource DialogDangerButton}" />
-                </Grid>
-
-                <Grid Grid.Row="3" Margin="16,0,16,8">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <TextBox
-                        Height="30"
-                        Style="{StaticResource DialogInput}"
-                        Text="{Binding RenameName, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="选中配方的新名称" />
-                    <Button
-                        Grid.Column="1"
-                        Height="30"
-                        Margin="8,0,0,0"
-                        Command="{Binding RenameCommand}"
-                        Content="重命名"
-                        Style="{StaticResource DialogSecondaryButton}" />
-                    <Button
-                        Grid.Column="2"
-                        Height="30"
-                        Margin="8,0,0,0"
-                        Command="{Binding ClearActiveCommand}"
-                        Content="清除生效"
-                        Style="{StaticResource DialogGhostButton}" />
-                </Grid>
-
-                <StackPanel Grid.Row="4" Margin="16,0,16,6">
-                    <TextBlock
-                        FontSize="11"
-                        Foreground="{StaticResource DialogTextSecondaryBrush}"
-                        Text="{Binding RunLockText}"
-                        TextWrapping="Wrap" />
-                    <TextBlock
-                        Margin="0,4,0,0"
-                        Foreground="{Binding StatusBrush}"
-                        Text="{Binding StatusText}"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-
-                <Grid Grid.Row="5" Margin="16,0">
-                    <StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
-                        <Button
                             Height="34"
-                            Margin="0,0,8,0"
-                            Command="{Binding ApplyCommand}"
-                            Content="应用"
-                            IsDefault="True"
-                            Style="{StaticResource DialogPrimaryButton}" />
-                        <Button
-                            Height="34"
-                            Command="{Binding ApplyAndSaveCommand}"
-                            Content="应用并保存"
-                            Style="{StaticResource DialogSecondaryButton}" />
-                    </StackPanel>
-                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                        <Button
-                            Height="34"
-                            Margin="0,0,8,0"
-                            Command="{Binding DeleteCommand}"
-                            Content="删除"
-                            Style="{StaticResource DialogDangerButton}" />
-                        <Button
-                            Height="34"
+                            Padding="16,0"
                             Command="{Binding CloseCommand}"
                             Content="关闭"
-                            IsCancel="True"
-                            Style="{StaticResource DialogGhostButton}" />
-                    </StackPanel>
-                </Grid>
+                            FontSize="12.5"
+                            Style="{StaticResource DialogSecondaryButton}" />
 
-                <!--  应用确认：差异摘要 + 逐条对照，确认前不写任何值  -->
+                        <Button
+                            Grid.Column="3"
+                            Height="34"
+                            Margin="8,0,0,0"
+                            Padding="16,0"
+                            Command="{Binding ApplyAndSaveCommand}"
+                            Content="应用并保存"
+                            FontSize="12.5"
+                            Style="{StaticResource DialogSecondaryButton}"
+                            ToolTip="{Binding ApplyBlockedReason}" />
+
+                        <Button
+                            Grid.Column="4"
+                            Height="34"
+                            Margin="8,0,0,0"
+                            Padding="16,0"
+                            Command="{Binding ApplyCommand}"
+                            Content="应用配方"
+                            FontSize="12.5"
+                            FontWeight="SemiBold"
+                            Style="{StaticResource DialogPrimaryButton}"
+                            ToolTip="{Binding ApplyBlockedReason}" />
+                    </Grid>
+                </Border>
+
+                <!--  ══════════ 应用确认层（遮罩 + 卡片） ══════════  -->
                 <Border
-                    Grid.RowSpan="6"
+                    Grid.RowSpan="4"
                     Background="{StaticResource DialogScrimBrush}"
                     Visibility="{Binding IsConfirmingApply, Converter={StaticResource BoolToVisibility}}">
                     <Border
-                        MaxWidth="780"
-                        MaxHeight="560"
-                        Padding="20"
+                        Width="720"
+                        MaxHeight="566"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
-                        Style="{StaticResource DialogCardBorder}">
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        CornerRadius="10">
+                        <Border.Effect>
+                            <DropShadowEffect
+                                BlurRadius="24"
+                                Direction="270"
+                                Opacity="0.28"
+                                ShadowDepth="6"
+                                Color="Black" />
+                        </Border.Effect>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Margin="20,18,20,12">
+                                <TextBlock
+                                    FontSize="16"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                    Text="{Binding PreviewTitle}" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="整单应用：预检不通过时一条都不写入；失败会逆序回滚。"
+                                    TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <ScrollViewer
+                                Grid.Row="1"
+                                Margin="20,0,20,0"
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <StackPanel>
+                                    <!--  计数行  -->
+                                    <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                                        <TextBlock
+                                            FontSize="12"
+                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                            Text="{Binding PreviewCountText}" />
+                                        <TextBlock
+                                            Margin="12,0,0,0"
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogDangerTextBrush}"
+                                            Text="{Binding PreviewErrorsText}" />
+                                    </StackPanel>
+
+                                    <!--  具名错误块  -->
+                                    <Border
+                                        Margin="0,0,0,10"
+                                        Padding="10,8"
+                                        Background="{StaticResource DialogDangerSubtleBrush}"
+                                        BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PreviewHasError}" Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock
+                                                Margin="0,1,8,0"
+                                                VerticalAlignment="Top"
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="12"
+                                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                                Text="&#xf071;" />
+                                            <TextBlock
+                                                MaxWidth="600"
+                                                FontSize="12"
+                                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                                Text="{Binding PreviewErrorText}"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!--  逐条差异表  -->
+                                    <Border
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6">
+                                        <DataGrid
+                                            MaxHeight="320"
+                                            AutoGenerateColumns="False"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            CanUserAddRows="False"
+                                            CanUserDeleteRows="False"
+                                            CanUserReorderColumns="False"
+                                            CellStyle="{StaticResource RecipeParameterCellStyle}"
+                                            ColumnHeaderStyle="{StaticResource RecipeColumnHeaderStyle}"
+                                            GridLinesVisibility="Horizontal"
+                                            HeadersVisibility="Column"
+                                            HorizontalGridLinesBrush="{StaticResource DialogBorderLightBrush}"
+                                            IsReadOnly="True"
+                                            ItemsSource="{Binding PreviewItems}"
+                                            RowStyle="{StaticResource RecipeParameterRowStyle}"
+                                            SelectionMode="Single">
+                                            <DataGrid.Columns>
+                                                <DataGridTemplateColumn Width="1.2*" Header="目标">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Style="{StaticResource RecipeCellStrong}" Text="{Binding Target}" />
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Width="1.6*" Header="参数">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Style="{StaticResource RecipeCellText}" Text="{Binding Key}" />
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Width="1.2*" Header="当前值">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock
+                                                                HorizontalAlignment="Right"
+                                                                Style="{StaticResource RecipeMonoText}"
+                                                                Text="{Binding Current}" />
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Width="1.2*" Header="配方值">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock
+                                                                HorizontalAlignment="Right"
+                                                                Style="{StaticResource RecipeMonoStrong}"
+                                                                Text="{Binding Recipe}" />
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                                <DataGridTemplateColumn Width="104" Header="状态">
+                                                    <DataGridTemplateColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <Border Style="{StaticResource RecipeStatusChip}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <Ellipse Style="{StaticResource RecipeStatusChipDot}" />
+                                                                    <TextBlock
+                                                                        Style="{StaticResource RecipeStatusChipText}"
+                                                                        Text="{Binding StatusText}" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </DataGridTemplateColumn.CellTemplate>
+                                                </DataGridTemplateColumn>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Border
+                                Grid.Row="2"
+                                Margin="0,14,0,0"
+                                Padding="20,14,20,16"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,1,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Text="{Binding PreviewFooterNote}"
+                                        TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PreviewCanApply}" Value="False">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <Button
+                                        Grid.Column="1"
+                                        Height="34"
+                                        Padding="16,0"
+                                        Command="{Binding CancelPreviewCommand}"
+                                        Content="取消"
+                                        FontSize="12.5"
+                                        IsCancel="True"
+                                        Style="{StaticResource DialogSecondaryButton}" />
+
+                                    <Button
+                                        Grid.Column="2"
+                                        Height="34"
+                                        Margin="8,0,0,0"
+                                        Padding="16,0"
+                                        Command="{Binding ConfirmApplyCommand}"
+                                        Content="确认应用"
+                                        FontSize="12.5"
+                                        FontWeight="SemiBold"
+                                        Style="{StaticResource DialogPrimaryButton}"
+                                        ToolTip="预检有错误时整单拒绝" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Border>
+
+                <!--  ══════════ 新建配方弹层（v2：命名 + 手动勾选候选参数） ══════════
+                      为什么是弹层而不是左栏那张内联卡片：空方案时左栏底部整块是收起的，
+                      IsCapturing 打开的表单会被父级一起吞掉——点了"从当前值新建"什么都看不见。
+                      这里照应用确认层的同一套遮罩 + 卡片范式，天然不受左栏可见性影响。  -->
+                <Border
+                    Grid.RowSpan="4"
+                    Background="{StaticResource DialogScrimBrush}"
+                    Visibility="{Binding IsCreatingRecipe, Converter={StaticResource BoolToVisibility}}">
+                    <Border
+                        Width="860"
+                        Height="640"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        CornerRadius="10">
+                        <Border.Effect>
+                            <DropShadowEffect
+                                BlurRadius="24"
+                                Direction="270"
+                                Opacity="0.28"
+                                ShadowDepth="6"
+                                Color="Black" />
+                        </Border.Effect>
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
@@ -399,77 +1872,446 @@
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock
-                                Grid.Row="0"
-                                Style="{StaticResource DialogCardTitle}"
-                                Text="确认应用配方" />
-                            <TextBlock
-                                Grid.Row="1"
-                                Margin="0,6,0,8"
-                                Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                Text="{Binding PreviewSummary}"
-                                TextWrapping="Wrap" />
-                            <DataGrid
-                                Grid.Row="2"
-                                MaxHeight="320"
-                                AutoGenerateColumns="False"
-                                CanUserAddRows="False"
-                                CanUserDeleteRows="False"
-                                CanUserReorderColumns="False"
-                                GridLinesVisibility="None"
-                                HeadersVisibility="Column"
-                                IsReadOnly="True"
-                                ItemsSource="{Binding PreviewItems}"
-                                SelectionMode="Single"
-                                Style="{StaticResource DialogDataGrid}">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn
-                                        Width="1.1*"
-                                        Binding="{Binding Target}"
-                                        Header="目标" />
-                                    <DataGridTextColumn
-                                        Width="1.1*"
-                                        Binding="{Binding Key}"
-                                        Header="参数" />
-                                    <DataGridTextColumn
-                                        Width="1.2*"
-                                        Binding="{Binding Current}"
-                                        Header="当前值" />
-                                    <DataGridTextColumn
-                                        Width="1.2*"
-                                        Binding="{Binding Recipe}"
-                                        Header="配方值" />
-                                    <DataGridTextColumn
-                                        Width="80"
-                                        Binding="{Binding StatusText}"
-                                        Header="状态" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            <StackPanel
+
+                            <!--  标题  -->
+                            <Grid Grid.Row="0" Margin="24,20,24,4">
+                                <StackPanel>
+                                    <TextBlock
+                                        FontSize="16"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="新建配方" />
+                                    <TextBlock
+                                        Margin="0,4,0,0"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="给配方起个名字，再勾上换型时要一起切换的参数。没勾的参数不会被存进来。" />
+                                </StackPanel>
+                                <Button
+                                    Width="28"
+                                    Height="28"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Command="{Binding CancelCreateCommand}"
+                                    Content="&#xf00d;"
+                                    FontSize="13"
+                                    Style="{StaticResource RecipeIconButton}"
+                                    ToolTip="取消（Esc）" />
+                            </Grid>
+
+                            <!--  基本信息：名称 / 编码 / 备注  -->
+                            <Grid Grid.Row="1" Margin="24,12,24,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="16" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Margin="0,0,0,6"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="配方名称" />
+                                <TextBox
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    Height="32"
+                                    Padding="10,0"
+                                    VerticalContentAlignment="Center"
+                                    FontSize="12.5"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding NewRecipeName, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="必填；同一方案下不能重名" />
+
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="2"
+                                    Margin="0,0,0,6"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="编码（可选）" />
+                                <TextBox
+                                    Grid.Row="1"
+                                    Grid.Column="2"
+                                    Height="32"
+                                    Padding="10,0"
+                                    VerticalContentAlignment="Center"
+                                    FontSize="12.5"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding NewRecipeCode, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="给 MES / 报表对账用，可留空" />
+
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Margin="0,12,0,6"
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="备注（可选）" />
+                                <TextBox
+                                    Grid.Row="3"
+                                    Grid.Column="0"
+                                    Grid.ColumnSpan="3"
+                                    Height="32"
+                                    Padding="10,0"
+                                    VerticalContentAlignment="Center"
+                                    FontSize="12.5"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding NewRecipeNotes, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="这个配方对应哪个产品、什么时候用" />
+                            </Grid>
+
+                            <!--  勾选区  -->
+                            <Grid Grid.Row="2" Margin="24,16,24,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0" Margin="0,0,0,8">
+                                    <TextBlock
+                                        FontSize="13"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="选择要存进配方的参数" />
+                                    <TextBlock
+                                        Margin="0,1,0,0"
+                                        HorizontalAlignment="Right"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding CaptureCountText}" />
+                                </Grid>
+
+                                <!--  工具条：搜索 + 筛选 + 全选/清空  -->
+                                <Grid Grid.Row="1" Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox
+                                        Grid.Column="0"
+                                        Height="30"
+                                        Padding="10,0"
+                                        VerticalContentAlignment="Center"
+                                        FontSize="12.5"
+                                        Style="{StaticResource RecipeSearchBox}"
+                                        Text="{Binding CaptureSearchText, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="按步骤名 / 参数名筛选" />
+
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <ComboBox
+                                            Width="104"
+                                            Height="30"
+                                            VerticalContentAlignment="Center"
+                                            FontSize="12.5"
+                                            SelectedIndex="{Binding CaptureFilterIndex}">
+                                            <ComboBoxItem Content="全部" />
+                                            <ComboBoxItem Content="只看已勾" />
+                                            <ComboBoxItem Content="只看可勾" />
+                                        </ComboBox>
+                                        <Button
+                                            Height="30"
+                                            Margin="8,0,0,0"
+                                            Padding="12,0"
+                                            Command="{Binding CheckAllCaptureCommand}"
+                                            Content="全选"
+                                            FontSize="12.5"
+                                            Style="{StaticResource RecipeDialogButton}"
+                                            ToolTip="只勾当前筛选后看得见的那些" />
+                                        <Button
+                                            Height="30"
+                                            Margin="8,0,0,0"
+                                            Padding="12,0"
+                                            Command="{Binding ClearCaptureChecksCommand}"
+                                            Content="清空"
+                                            FontSize="12.5"
+                                            Style="{StaticResource RecipeDialogButton}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!--  候选表  -->
+                                <Border
+                                    Grid.Row="2"
+                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <Border
+                                            Grid.Row="0"
+                                            Background="{StaticResource DialogRowAlternateBrush}"
+                                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            CornerRadius="6,6,0,0">
+                                            <Grid Height="32">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="34" />
+                                                    <ColumnDefinition Width="18*" />
+                                                    <ColumnDefinition Width="26*" />
+                                                    <ColumnDefinition Width="10*" />
+                                                    <ColumnDefinition Width="18*" />
+                                                    <ColumnDefinition Width="20*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    Margin="0,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="目标" />
+                                                <TextBlock
+                                                    Grid.Column="2"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="参数" />
+                                                <TextBlock
+                                                    Grid.Column="3"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="类型" />
+                                                <TextBlock
+                                                    Grid.Column="4"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="当前值" />
+                                                <TextBlock
+                                                    Grid.Column="5"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="11.5"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                    Text="说明" />
+                                            </Grid>
+                                        </Border>
+
+                                        <ListBox
+                                            Grid.Row="1"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            ItemsSource="{Binding CaptureCandidatesView}"
+                                            ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0" />
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <Border
+                                                                    Background="{TemplateBinding Background}"
+                                                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                                    BorderThickness="0,0,0,1">
+                                                                    <ContentPresenter />
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                        </Trigger>
+                                                        <DataTrigger Binding="{Binding IsChecked}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <!--  外层管"分组标题 + 参数行"两行，高度必须 Auto：定了 32 就把第二行裁掉了  -->
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="32" />
+                                                        </Grid.RowDefinitions>
+
+                                                        <!--
+                                                            分组标题：只在"这个目标是当前可见序列里的第一条"时画。
+                                                            IsGroupStart 由 RefreshCaptureGroupFlags 按筛选后的可见序列算，
+                                                            所以搜索/「只看已勾」下不会出现空标题的组。
+                                                        -->
+                                                        <Border
+                                                            Grid.Row="0"
+                                                            Grid.ColumnSpan="6"
+                                                            Margin="0,0,0,0"
+                                                            Background="{StaticResource DialogRowAlternateBrush}"
+                                                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                            BorderThickness="0,0,0,1"
+                                                            Visibility="{Binding IsGroupStart, Converter={StaticResource BoolToVisibility}}">
+                                                            <StackPanel
+                                                                Margin="10,6,10,6"
+                                                                Orientation="Horizontal">
+                                                                <TextBlock
+                                                                    Margin="0,0,6,0"
+                                                                    VerticalAlignment="Center"
+                                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                                    FontSize="10"
+                                                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                                                    Text="&#xf0da;" />
+                                                                <TextBlock
+                                                                    VerticalAlignment="Center"
+                                                                    FontSize="11.5"
+                                                                    FontWeight="SemiBold"
+                                                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                                    Text="{Binding GroupName}"
+                                                                    TextTrimming="CharacterEllipsis" />
+                                                            </StackPanel>
+                                                        </Border>
+
+                                                        <Grid
+                                                            Grid.Row="1"
+                                                            Grid.ColumnSpan="6">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="34" />
+                                                                <ColumnDefinition Width="18*" />
+                                                                <ColumnDefinition Width="26*" />
+                                                                <ColumnDefinition Width="10*" />
+                                                                <ColumnDefinition Width="18*" />
+                                                                <ColumnDefinition Width="20*" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                        <!--  整格可点：CheckBox 只是视觉，点击落到行上更好按  -->
+                                                        <Border
+                                                            Grid.Column="0"
+                                                            Background="Transparent"
+                                                            MouseLeftButtonUp="OnCaptureCheckCellClicked">
+                                                            <CheckBox
+                                                                HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"
+                                                                IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                                                                IsEnabled="{Binding IsCheckedEnabled}"
+                                                                ToolTip="{Binding DisabledReason}" />
+                                                        </Border>
+
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12.5"
+                                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                            Text="{Binding TargetText}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="2"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="12.5"
+                                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                            Text="{Binding KeyText}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="3"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11.5"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="{Binding TypeText}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="4"
+                                                            FontSize="12"
+                                                            VerticalAlignment="Center"
+                                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                            Style="{StaticResource RecipeMonoText}"
+                                                            Text="{Binding CurrentValue}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock
+                                                            Grid.Column="5"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11.5"
+                                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                                            Text="{Binding DisabledReason}"
+                                                            TextTrimming="CharacterEllipsis" />
+                                                            </Grid>
+                                                        </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+
+                                        <!--  没有可捕获参数  -->
+                                        <TextBlock
+                                            Grid.Row="1"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="12.5"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="这个方案里还没有可捕获的参数。请先在流程里配好步骤参数或本地变量。"
+                                            TextAlignment="Center"
+                                            Visibility="{Binding ShowCaptureNoCandidates, Converter={StaticResource BoolToVisibility}}" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+
+                            <!--  底栏  -->
+                            <Border
                                 Grid.Row="3"
-                                Margin="0,12,0,0"
-                                HorizontalAlignment="Right"
-                                Orientation="Horizontal">
-                                <Button
-                                    Height="34"
-                                    Margin="0,0,8,0"
-                                    Command="{Binding ConfirmApplyCommand}"
-                                    Content="确认应用"
-                                    IsDefault="True"
-                                    Style="{StaticResource DialogPrimaryButton}" />
-                                <Button
-                                    Height="34"
-                                    Command="{Binding CancelPreviewCommand}"
-                                    Content="取消"
-                                    IsCancel="True"
-                                    Style="{StaticResource DialogGhostButton}" />
-                            </StackPanel>
+                                Height="64"
+                                Background="{StaticResource DialogRowAlternateBrush}"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,1,0,0"
+                                CornerRadius="0,0,10,10">
+                                <Grid Margin="24,0">
+                                    <TextBlock
+                                        MaxWidth="440"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding CaptureSelectionHint}"
+                                        TextWrapping="Wrap" />
+                                    <StackPanel
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <Button
+                                            Height="34"
+                                            Padding="16,0"
+                                            Command="{Binding CancelCreateCommand}"
+                                            Content="取消"
+                                            FontSize="12.5"
+                                            Style="{StaticResource RecipeDialogButton}" />
+                                        <Button
+                                            Height="34"
+                                            Margin="8,0,0,0"
+                                            Padding="16,0"
+                                            Command="{Binding CreateRecipeCommand}"
+                                            Content="{Binding CreateRecipeButtonText}"
+                                            FontSize="12.5"
+                                            FontWeight="SemiBold"
+                                            Style="{StaticResource RecipePrimaryButton}"
+                                            ToolTip="{Binding CreateRecipeBlockedReason, TargetNullValue=存的是当前值快照；之后值变了不会自动同步}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </Grid>
                     </Border>
                 </Border>
-                </Grid>
-            </Border>
-                </Grid>
             </Grid>
         </Border>
     </Grid>

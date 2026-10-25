@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>流程画布 · 选中聚焦引线 v7（只读连线版 · 需求定稿）</title>
+<style>
+  /* 颜色令牌：值取自 UI/Controls/Themes/Colors.xaml（映射见 README §15.1），设计稿内 hex 只出现在 :root */
+  :root{
+    --bg:#F7F9FC; --grid:#E8EDF5;
+    --card:#FFFFFF; --card-bd:#C9D2DE; --ink:#0F172A; --ink2:#475569; --ink3:#94A3B8;
+    --link:#3B82F6; --run:#3B82F6; --fail:#EF4444; --order:#94A3B8;
+    --accent:#3B82F6; --accent-soft:#EFF6FF;
+    --frame-bd:#A5C0E8; --frame-hd:#EEF4FF;
+    --lane-bd:rgba(120,160,235,.20); --lane-ink:#5A6C99;
+    --line:#E2E8F0; --panel:#FFFFFF;
+    --warn-bg:#FFF7E6; --warn-bd:#F3D19E; --warn-ink:#8A5A00;
+    --bad-bg:#FFF7F7; --bad-bd:#FECACA; --bad-ink:#B91C1C;
+    --row-hover-bd:#BFDBFE; --row-on-bd:#93C5FD; --mute:#64748B;
+    /* 新增：全局变量虚线（代码里没有紫色系令牌，落 WPF 时须在 Colors.xaml 新增，见 README §15.4） */
+    --global:#7C3AED; --global-soft:#F5F3FF; --global-bd:#DDD6FE;
+    /* 新增：方向徽标（入向/出向） */
+    --dir-in:#0E7490; --dir-in-bg:#ECFEFF; --dir-in-bd:#A5F3FC;
+    --node-ext:#FBCFE8; --node-ext-bd:#DB2777;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap}
+  header b{font-size:13px}
+  .tag{font-size:11px;color:var(--ink3);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  .tag.v{color:var(--link);border-color:var(--row-hover-bd);background:var(--accent-soft)}
+  .spacer{flex:1}
+  .tbar{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink2)}
+  .tbar label{display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none}
+  .tbar input{margin:0}
+  .legend{display:flex;align-items:center;gap:10px;padding-left:10px;border-left:1px solid var(--line)}
+  .legend .lg{display:flex;align-items:center;gap:4px}
+  .legend i{display:inline-block;width:22px;height:0;border-top-style:solid}
+  .legend .l-data{border-color:var(--link);border-top-width:2px}
+  .legend .l-out{border-color:var(--accent);border-top-width:2px}
+  .legend .l-gvar{border-color:var(--global);border-top-width:1.5px;border-top-style:dashed}
+  .legend .l-order{border-color:var(--order);border-top-width:1.2px;border-top-style:dashed}
+  .legend .l-illegal{border-color:var(--fail);border-top-width:1.5px;border-top-style:dashed}
+  .legend .l-var{width:auto;height:auto;border:1px solid var(--global-bd);background:var(--global-soft);
+    color:var(--global);border-radius:999px;padding:0 6px;font-size:10.5px;line-height:15px;font-weight:600}
+  button{font:inherit;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:var(--panel);
+    cursor:pointer;color:var(--ink2)}
+  button:hover{border-color:var(--row-hover-bd);color:var(--ink)}
+  button.on{border-color:var(--row-hover-bd);background:var(--accent-soft);color:var(--link);font-weight:600}
+
+  main{flex:1;display:flex;flex-direction:column;min-height:0}
+  #stage{position:relative;flex:1;min-height:0}
+  canvas{display:block;width:100%;height:100%}
+  .hud{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font-size:11px;color:var(--ink3);line-height:1.75;white-space:pre;pointer-events:none}
+  .hud b{color:var(--ink)}
+  /* 只读提示：画布右上角，替代原拖线手势 */
+  .ro{position:absolute;right:12px;top:12px;display:flex;align-items:center;gap:6px;
+    background:rgba(255,255,255,.94);border:1px solid var(--line);border-radius:8px;padding:6px 10px;
+    font-size:11.5px;color:var(--ink3);pointer-events:none}
+  .ro b{color:var(--ink2);font-weight:600}
+
+  .cbar{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:6px 12px;flex-wrap:wrap;
+    background:var(--panel);border-top:1px solid var(--line);font-size:11.5px;color:var(--ink3)}
+  .pill{display:flex;align-items:center;gap:6px;padding:1px 8px;border:1px solid var(--line);border-radius:999px}
+  .pill.warn{background:var(--warn-bg);border-color:var(--warn-bd);color:var(--warn-ink)}
+  .pill.gv{background:var(--global-soft);border-color:var(--global-bd);color:var(--global)}
+  .pill.bad{background:var(--bad-bg);border-color:var(--bad-bd);color:var(--bad-ink)}
+  .pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.75}
+  .cbar .right{margin-left:auto}
+
+  #legendPane{flex:0 0 auto;max-height:178px;display:flex;flex-direction:column;
+    background:var(--panel);border-top:1px solid var(--line)}
+  .lp-hd{display:flex;align-items:baseline;gap:10px;padding:8px 12px 6px;flex-wrap:wrap}
+  .lp-hd .t{font-weight:600;font-size:12.5px}
+  .lp-hd .s{font-size:11.5px;color:var(--ink3)}
+  .grid{display:grid;gap:6px;padding:0 12px 10px;overflow:auto;
+    grid-template-columns:repeat(auto-fill,minmax(310px,1fr))}
+  .row{display:flex;gap:8px;padding:6px 8px;border-radius:7px;border:1px solid var(--line);
+    background:var(--panel);min-width:0}
+  .row:hover{border-color:var(--row-hover-bd);background:var(--accent-soft)}
+  .row.on{border-color:var(--row-on-bd);background:var(--accent-soft)}
+  .row.illegal{border-color:var(--bad-bd);background:var(--bad-bg)}
+  .row.gv{border-color:var(--global-bd);background:var(--global-soft)}
+  .num{flex:0 0 auto;width:18px;height:18px;border-radius:50%;background:var(--link);color:var(--panel);
+    font:600 10.5px/18px "Segoe UI",sans-serif;text-align:center}
+  .num.out{background:var(--accent);box-shadow:inset 0 0 0 1px var(--row-on-bd)}
+  .num.bad{background:var(--fail)}
+  .num.gv{background:var(--global)}
+  .txt{min-width:0;flex:1}
+  .txt .a{font-size:12px;font-weight:600;color:var(--ink);word-break:break-all}
+  .txt .b{font-size:11px;color:var(--ink3);margin-top:1px;word-break:break-all}
+  .txt .b.bad{color:var(--bad-ink)}
+  .txt .b.gv{color:var(--global)}
+  .txt .mute{font-weight:400;color:var(--mute)}
+  .dir{flex:0 0 auto;align-self:flex-start;font-size:10px;font-weight:600;border-radius:4px;padding:1px 5px;
+    border:1px solid var(--order);color:var(--ink3)}
+  .dir.in{border-color:var(--dir-in-bd);background:var(--dir-in-bg);color:var(--dir-in)}
+  .empty{padding:10px 12px 14px;color:var(--ink3);font-size:12px;line-height:1.85}
+  .empty b{color:var(--ink2)}
+  .tip{display:flex;gap:16px;flex-wrap:wrap}
+  .tip div{flex:1 1 250px;min-width:0}
+  footer{display:flex;gap:14px;padding:6px 14px;background:var(--panel);border-top:1px solid var(--line);
+    font-size:11px;color:var(--ink3);flex:0 0 auto}
+  footer .right{margin-left:auto;text-align:right}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <b>流程画布</b>
+    <span class="tag v">v7 · 连线只读 · 选中聚焦</span>
+    <span class="tag">拖动绑定已移除</span>
+    <span class="spacer"></span>
+    <div class="tbar">
+      <label><input type="checkbox" id="chkFocus" checked />选中聚焦连线</label>
+      <label><input type="checkbox" id="chkOrder" checked />顺序链</label>
+      <label><input type="checkbox" id="chkVar" checked />全局变量节点</label>
+      <label><input type="checkbox" id="chkAll" />非法线以外全显（对照用）</label>
+      <span class="legend" title="与连线模板同源">
+        <span class="lg"><i class="l-data"></i>入向</span>
+        <span class="lg"><i class="l-out"></i>出向</span>
+        <span class="lg"><i class="l-gvar"></i>全局变量</span>
+        <span class="lg"><i class="l-order"></i>顺序</span>
+        <span class="lg"><i class="l-illegal"></i>非法</span>
+      </span>
+    </div>
+    <span class="spacer"></span>
+    <button id="btnDemo">重建演示图</button>
+    <button id="btnClear">清除选中</button>
+  </header>
+
+  <main>
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud"></div>
+      <div class="ro" id="robar">只读：连线不可拖建 · 双击算子改绑定</div>
+    </div>
+
+    <div class="cbar">
+      <span class="pill" id="stMode">未选中</span>
+      <span class="pill" id="stIn">入向 0</span>
+      <span class="pill" id="stOut">出向 0</span>
+      <span class="pill gv" id="stGv" hidden><span class="dot"></span>全局变量 0</span>
+      <span class="pill bad" id="stBad" hidden><span class="dot"></span>非法 0</span>
+      <span class="right" id="stFrame">—</span>
+    </div>
+
+    <section id="legendPane">
+      <div class="lp-hd">
+        <span class="t" id="lpTitle">连线明细</span>
+        <span class="s" id="lpSub">未选中：只显示执行顺序（灰虚线），不画数据引线</span>
+      </div>
+      <div id="lpBody"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Web 稿仅作设计媒介，不进入构建（AGENTS.md R126）</span>
+    <span class="right">尺寸常量取自 FlowLayoutStore.cs / Colors.xaml：Node 156×58 · RowGap 28 · ColumnGap 24 · LanePadding 14 · FrameHeader 46 · FramePadding 16 · EdgeAnchorInset 12</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ===== 令牌（值见 README §15.1 映射表；画布内 hex 只在这里） ===== */
+const C = {
+  bg:"#F7F9FC", grid:"#E8EDF5",
+  card:"#FFFFFF", cardBd:"#C9D2DE", ink:"#0F172A", ink2:"#475569", ink3:"#94A3B8",
+  link:"#3B82F6", run:"#3B82F6", fail:"#EF4444", order:"#94A3B8",
+  accent:"#3B82F6", accentSoft:"#EFF6FF",
+  frameBd:"#A5C0E8", frameHd:"#EEF4FF",
+  laneBd:"rgba(120,160,235,.20)", laneInk:"#5A6C99",
+  gvar:"#7C3AED", gvarSoft:"#F5F3FF", gvarBd:"#DDD6FE",
+  badgeBg:"#FFFFFF", badgeBd:"#DBEAFE", badgeInk:"#1D4ED8",
+  nodeExtBg:"#FDF2F8", nodeExtBd:"#FBCFE8", nodeExtInk:"#BE185D",
+  badBg:"#FFF7F7",
+};
+const NODE_W=156, NODE_H=58, ROW_GAP=28, COL_GAP=24;
+const FRAME_PAD=16, FRAME_HEADER=46, LANE_PAD=14, LANE_HEADER=28;
+const EDGE_INSET=12;            // FlowCanvasViewModel.EdgeAnchorInset
+const SLOT_STEP=16, SLOT_NEAR=26;
+// 全局变量小节点（设计新增件）
+const GV_W=104, GV_H=34, GV_GAP_X=104, GV_GAP_Y=8;
+
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let DPR=1;
+
+/* ===== 模型 =====
+   step  : 算子卡片
+   group : 容器（泳道框）
+   ref   : 一条绑定 {to, port, from|null, fromPort, global|null, illegal, reason}
+   编号：入向 ① 起、出向 A 起（明细行 ←→ 画布徽标一一对应） */
+let seq=1;
+const mk=o=>Object.assign(o,{id:"n"+(seq++)});
+const step=(t,s,o)=>mk(Object.assign({kind:"step",title:t,sub:s||"延时",state:"idle",disabled:false},o||{}));
+const group=(t,lanes)=>mk({kind:"group",title:t,lanes});
+
+let root=[], spine=[], refs=[], byId=new Map(), pos=new Map(), gvSlots=new Map();
+let selected=null, hoveredRow=null;
+const ui={focus:true, order:true, vars:true, all:false};
+
+function buildDemo(){
+  seq=1; spine=[]; refs=[]; gvSlots=new Map();
+  const acq  = step("图像采集_0","图像采集");
+  const pre  = step("图像预处理_0","图像预处理");
+  const mtc  = step("模板匹配_0","模板匹配");
+  const ok   = step("通过_1","延时");
+  const rec  = step("记录_1","变量赋值");
+  const err  = step("异常_1","延时",{disabled:true});
+  const g1   = group("判断_1",[
+    {id:"laneA",title:"If(1>0)",steps:[ok,rec]},
+    {id:"laneB",title:"Else",steps:[err]},
+  ]);
+  const geo  = step("几何查找_0","几何查找",{state:"running"});
+  const lp   = step("循环体_2","延时");
+  const sum  = step("累计_2","变量赋值",{state:"failed"});
+  const g2   = group("循环_2",[{id:"laneC",title:"循环体",steps:[lp,sum]}]);
+  const rep  = step("结果汇总_0","结果显示");
+  const fin  = step("OK","延时");
+  root=[acq,pre,mtc,g1,geo,g2,rep,fin];
+
+  const chain=[acq,pre,mtc,g1,geo,g2,rep,fin];
+  for(let i=1;i<chain.length;i++) spine.push({from:chain[i-1].id,to:chain[i].id});
+  spine.push({from:ok.id,to:rec.id});
+  spine.push({from:lp.id,to:sum.id});
+
+  // 入向 + 出向都能被选中算子覆盖到：
+  //   记录_1  ← 模板匹配_0.Score / 图像采集_0.Image + 全局变量 Global.DelayMs
+  //   记录_1  → 结果汇总_0.Items（出向）
+  //   累计_2  ← 几何查找_0.Result（非法：生产方在循环容器内，晚于容器本身）
+  refs=[
+    { to:pre.id,  port:"SrcImage",  from:acq.id, fromPort:"Image" },
+    { to:mtc.id,  port:"SrcImage",  from:pre.id, fromPort:"Image" },
+    { to:rec.id,  port:"Score",     from:mtc.id, fromPort:"Score" },
+    { to:rec.id,  port:"SrcImage",  from:acq.id, fromPort:"Image" },
+    { to:rec.id,  port:"DelayMs",   from:null,   global:"Global.DelayMs" },
+    { to:rec.id,  port:"Retry",     from:null,   global:"Global.Retry" },
+    { to:geo.id,  port:"SrcImage",  from:pre.id, fromPort:"Image" },
+    { to:sum.id,  port:"Result",    from:geo.id, fromPort:"Result", illegal:true,
+      reason:"生产方在循环容器内，晚于容器本身" },
+    { to:rep.id,  port:"Items",     from:rec.id, fromPort:"Value" },
+    { to:rep.id,  port:"SrcImage",  from:sum.id, fromPort:"Image" },
+    { to:fin.id,  port:"Template",  from:null,   global:"Global.TemplatePath" },
+  ];
+  layout(); selected=null; hoveredRow=null;
+  refreshSide(); markDirty();
+}
+
+/* ===== 布局（与现有画布同构：容器内泳道横排、泳道内卡片纵排） ===== */
+function layout(){
+  pos=new Map(); byId=new Map();
+  function place(steps,depth,y0){
+    let y=y0;
+    for(const s of steps){
+      const x=48+depth*(NODE_W+COL_GAP);
+      if(s.kind==="group"){
+        const gx=x, gy=y, innerX=gx+FRAME_PAD, innerY=gy+FRAME_HEADER+FRAME_PAD;
+        let laneX=innerX, maxBottom=innerY; const lanes=[];
+        for(const lane of s.lanes){
+          let ly=innerY+LANE_HEADER+LANE_PAD; const lx=laneX;
+          let colW=0;
+          for(const st of lane.steps){
+            pos.set(st.id,{x:lx+LANE_PAD,y:ly,w:NODE_W,h:NODE_H}); byId.set(st.id,st);
+            ly+=NODE_H+ROW_GAP; colW=Math.max(colW,NODE_W);
+          }
+          const laneH=Math.max(NODE_H+LANE_HEADER+LANE_PAD*2+8, ly-innerY-NODE_H+18);
+          lanes.push({id:lane.id,title:lane.title,x:lx,y:innerY,w:colW+LANE_PAD*2,h:laneH});
+          maxBottom=Math.max(maxBottom,innerY+laneH);
+          laneX=lx+colW+LANE_PAD*2+COL_GAP;
+        }
+        const gw=Math.max(...lanes.map(l=>l.x+l.w))+FRAME_PAD-gx;
+        const gh=maxBottom-gy+FRAME_PAD;
+        pos.set(s.id,{x:gx,y:gy,w:gw,h:gh,lanes}); byId.set(s.id,s);
+        y=gy+gh+ROW_GAP+16;
+      }else{
+        pos.set(s.id,{x,y,w:NODE_W,h:NODE_H}); byId.set(s.id,s);
+        y+=NODE_H+ROW_GAP;
+      }
+    }
+    return y;
+  }
+  place(root,0,48);
+  computeGvSlots();
+  fit();
+}
+
+/* 全局变量小节点：挂在「消费算子」右侧一列，一个变量名一个节点，纵向复用槽位 */
+function computeGvSlots(){
+  const owners=new Map();   // ownerId -> [varName...]
+  refs.filter(r=>!r.from).forEach(r=>{
+    const a=owners.get(r.to)||[]; if(!a.includes(r.global)) a.push(r.global); owners.set(r.to,a);
+  });
+  gvSlots=new Map();
+  const used=[];
+  for(const [owner,vars] of owners){
+    const p=pos.get(owner); if(!p) continue;
+    vars.forEach((v,i)=>{
+      const key=owner+"|"+v;
+      const x=p.x+p.w+GV_GAP_X;
+      let y=p.y+i*(GV_H+GV_GAP_Y);
+      // 与已放置的槽位错开（简单纵向避让，一次扫描足够）
+      let guard=0;
+      while(used.some(u=>Math.abs(u.x-x)<8 && y<u.y+GV_H+4 && u.y<y+GV_H+4) && guard++<24) y+=GV_H+GV_GAP_Y;
+      used.push({x,y});
+      gvSlots.set(key,{x,y,w:GV_W,h:GV_H,label:v,owner});
+    });
+  }
+}
+const gvKey=(owner,name)=>owner+"|"+name;
+
+/* ===== 取景 ===== */
+const view={x:0,y:0,z:1};
+function contentBounds(pred){
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+  for(const [id,p] of pos){
+    if(pred && !pred(id,p)) continue;
+    x1=Math.min(x1,p.x);y1=Math.min(y1,p.y);x2=Math.max(x2,p.x+p.w);y2=Math.max(y2,p.y+p.h);
+  }
+  for(const s of gvSlots.values()){
+    x1=Math.min(x1,s.x);y1=Math.min(y1,s.y);x2=Math.max(x2,s.x+s.w);y2=Math.max(y2,s.y+s.h);
+  }
+  return isFinite(x1)?{x:x1,y:y1,w:x2-x1,h:y2-y1}:null;
+}
+function fit(){
+  const b=contentBounds(id=>byId.get(id) && byId.get(id).kind!=="group");
+  if(!b) return;
+  const W=cv.clientWidth||1200,H=cv.clientHeight||640;
+  const z=Math.min((W-120)/b.w,(H-150)/b.h);
+  view.z=Math.max(0.28,Math.min(0.86,z));
+  view.x=W/2-(b.x+b.w/2)*view.z;
+  view.y=Math.max(56,H/2-(b.y+b.h/2)*view.z);
+}
+const X=v=>v*view.z+view.x, Y=v=>v*view.z+view.y;
+
+/* ===== 选中的三组引用 =====
+   inList  ：入向（r.to === 选中）
+   outList ：出向（r.from === 选中）
+   varList ：出向里生产方是全局变量的（"选中算子 → 全局变量节点"的紫色虚线）
+   容器（kind==="group"）被选中：三组都为空（用户拍板"选中容器不画"） */
+function listsOf(id){
+  const n=id?byId.get(id):null;
+  if(!id||!n||n.kind==="group") return {inList:[],outList:[],varList:[]};
+  const inList=refs.filter(r=>r.to===id && !!r.from).map(r=>wrap(r,"in",null));
+  const outList=refs.filter(r=>r.from===id && !!r.to).map(r=>wrap(r,"out",r.to));
+  // 全局变量/常量：没有生产算子（from 为空），绑在消费算子身上，画成紫色虚线到"全局变量"小节点
+  const varList=refs.filter(r=>r.to===id && !r.from).map(r=>wrap(r,"var",null));
+  return {inList,outList,varList};
+}
+function wrap(r,dir,peer){
+  const src=r.from?byId.get(r.from):null, tgt=byId.get(r.to);
+  // 统一读法：值从哪来（「下游.端口 ← 我.我的端口」），出向行在 allRows 里被 outLabel 覆写
+  const label = dir==="out"
+    ? `${src?src.title:"?"}.${r.fromPort} → ${tgt?tgt.title:"?"}.${r.port}`
+    : `${r.port} ← ${src?src.title+"."+r.fromPort:"?"}`;
+  return {dir, raw:r, peer, label,
+    srcTitle: src?src.title:"（缺失的上游）",
+    dstTitle: tgt?tgt.title:"（缺失的算子）",
+    illegal: !!r.illegal, reason:r.reason||""};
+}
+// 出向明细行改成「下游.端口 ← 我.我的端口」，与入向同一读法（值从哪来）
+function outLabel(r){
+  const me=byId.get(r.from), down=byId.get(r.to);
+  return `${down?down.title+"."+r.port:"?"} ← ${me?me.title+"."+r.fromPort:""}`;
+}
+function allRows(id){
+  const L=listsOf(id);
+  const inRows=L.inList.map((it,i)=>({...it, num:i+1}));
+  const outRows=L.outList.map(it=>({...it, label:outLabel(it.raw), num:0}));
+  outRows.forEach((it,i)=>{ it.num=i+1; });
+  const varRows=L.varList.map(it=>({...it,
+    label:`${(byId.get(it.raw.from)||{}).title}.${it.raw.fromPort} → ${it.raw.global}`,
+    num:0}));
+  varRows.forEach((it,i)=>{ it.num=i+1; });
+  return {inRows,outRows,varRows};
+}
+
+/* ===== 绘图基元 ===== */
+function rr(c,x,y,w,h,r){
+  const k=Math.max(0,Math.min(r,w/2,h/2));
+  c.beginPath();c.moveTo(x+k,y);c.arcTo(x+w,y,x+w,y+h,k);c.arcTo(x+w,y+h,x,y+h,k);
+  c.arcTo(x,y+h,x,y,k);c.arcTo(x,y,x+w,y,k);c.closePath();
+}
+function drawSpine(){
+  if(!ui.order) return;
+  ctx.save();
+  ctx.strokeStyle=C.order; ctx.lineWidth=Math.max(1,1.2*view.z); ctx.setLineDash([2.5*view.z,2.5*view.z]);
+  for(const l of spine){
+    const a=pos.get(l.from), b=pos.get(l.to); if(!a||!b) continue;
+    const sx0=a.x+a.w/2, sy0=a.y+a.h, tx0=b.x+b.w/2, ty0=b.y;
+    ctx.beginPath(); ctx.moveTo(X(sx0),Y(sy0));
+    if(Math.abs(sx0-tx0)<2){ ctx.lineTo(X(tx0),Y(ty0)); }
+    else { const my=(sy0+ty0)/2; ctx.lineTo(X(sx0),Y(my)); ctx.lineTo(X(tx0),Y(my)); ctx.lineTo(X(tx0),Y(ty0)); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* 水平 S 形引线：源右缘 → 目标左缘（目标在左时走镜像） */
+function drawWire(fromP,toP,opt){
+  const sy=fromP.y+fromP.h/2, ty=toP.y+toP.h/2;
+  const right = toP.x >= fromP.x;
+  const sx0 = right ? fromP.x+fromP.w : fromP.x;
+  const tx0 = right ? toP.x : toP.x+toP.w;
+  const mx=(sx0+tx0)/2;
+  ctx.strokeStyle=opt.color;
+  ctx.lineWidth=Math.max(1,(opt.width||1.6)*Math.min(1.35,view.z+0.35));
+  ctx.setLineDash(opt.dash?opt.dash.map(d=>d*view.z):[]);
+  ctx.beginPath(); ctx.moveTo(X(sx0),Y(sy));
+  ctx.bezierCurveTo(X(mx),Y(sy),X(mx),Y(ty),X(tx0),Y(ty));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  return {sx:sx0,sy,tx:tx0,ty,right};
+}
+function arrow(tx,ty,right,color){
+  const s=Math.max(3,5.5*Math.min(1.2,view.z));
+  const dx=right?s:-s;
+  ctx.beginPath();
+  ctx.moveTo(X(tx),Y(ty));
+  ctx.lineTo(X(tx)-dx,Y(ty)-s*0.62);
+  ctx.lineTo(X(tx)-dx,Y(ty)+s*0.62);
+  ctx.closePath(); ctx.fillStyle=color; ctx.fill();
+}
+function drawBadge(gx,gy,text,color,ring){
+  const r=Math.max(7,9*Math.min(1.1,view.z));
+  ctx.save();
+  ctx.beginPath(); ctx.arc(X(gx),Y(gy),r,0,Math.PI*2);
+  ctx.fillStyle=color; ctx.fill();
+  if(ring){ ctx.strokeStyle=C.badgeBg; ctx.lineWidth=Math.max(1,1.6*view.z); ctx.stroke(); }
+  ctx.fillStyle=C.badgeBg;
+  ctx.font=`600 ${Math.round(r*1.05)}px "Segoe UI",sans-serif`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(text,X(gx),Y(gy));
+  ctx.restore();
+}
+function drawChip(gx,gy,text,opt){
+  if(view.z<0.45) return;
+  ctx.save();
+  ctx.font=`${Math.max(9,10.5*Math.min(1.05,view.z))}px "Segoe UI","Microsoft YaHei",sans-serif`;
+  const w=ctx.measureText(text).width+14, h=18;
+  const x=X(gx), y=Y(gy);
+  rr(ctx,x,y,w,h,4);
+  ctx.fillStyle=C.badgeBg; ctx.fill();
+  ctx.strokeStyle=opt.bd||C.badgeBd; ctx.lineWidth=opt.strong?1.4:1; ctx.stroke();
+  ctx.fillStyle=opt.ink||C.badgeInk;
+  ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.fillText(text,x+7,y+h/2+0.5);
+  ctx.restore();
+}
+
+/* 非法线：始终显示（不受选中影响，用户拍板"保留常显"） */
+function drawIllegal(){
+  const bad=refs.filter(r=>r.illegal && r.from);
+  let n=0;
+  bad.forEach(r=>{
+    const a=pos.get(r.from), b=pos.get(r.to); if(!a||!b) return;
+    n++;
+    ctx.save();
+    const g=drawWire(a,b,{color:C.fail,width:1.6,dash:[4,3]});
+    arrow(g.tx,g.ty,g.right,C.fail);
+    const me=byId.get(r.from), you=byId.get(r.to);
+    if(view.z>=0.5) drawChip(g.tx+10,g.ty-26,`⚠ ${you.title+"."+r.port} ← ${me.title+"."+r.fromPort}`,
+      {bd:C.fail,ink:C.fail,strong:true});
+    ctx.restore();
+  });
+  return n;
+}
+
+/* 选中聚焦：入向 + 出向 + 全局变量，全部从选中算子出发 */
+function drawFocused(){
+  if(!selected) return {n:0};
+  const {inRows,outRows,varRows}=allRows(selected);
+  const me=pos.get(selected);
+  if(!me) return {n:0};
+  let n=0;
+
+  // 入向：源 → 我（蓝实线，徽标 ① ② …）
+  inRows.forEach((it,gi)=>{
+    const src=pos.get(it.raw.from); if(!src) return;
+    n++;
+    const hovered = hoveredRow===("in:"+gi);
+    const dim = hoveredRow!=null && !hovered;
+    ctx.save(); ctx.globalAlpha = dim?0.25:1;
+    const g=drawWire(src,me,{color:C.link,width:hovered?2.8:1.6});
+    arrow(g.tx,g.ty,g.right,C.link);
+    drawBadge(g.tx-g.right*0-(g.right?14:-14), (g.sy+g.ty)/2, String(it.num), C.link, true);
+    if(hovered && view.z>=0.45) drawChip(g.tx+8, g.ty-24, it.label, {strong:true});
+    ctx.restore();
+  });
+
+  // 出向：我 → 下游（同色，徽标 A B …，用字母区分方向）
+  outRows.forEach((it,gi)=>{
+    const dst=pos.get(it.raw.to); if(!dst) return;
+    n++;
+    const hovered = hoveredRow===("out:"+gi);
+    const dim = hoveredRow!=null && !hovered;
+    ctx.save(); ctx.globalAlpha = dim?0.25:1;
+    const g=drawWire(me,dst,{color:C.link,width:hovered?2.8:1.6});
+    arrow(g.tx,g.ty,g.right,C.link);
+    drawBadge(g.right?g.tx+18:g.tx-18,(g.sy+g.ty)/2, LETTER(gi), C.link, true);
+    if(hovered && view.z>=0.45) drawChip(g.tx+8, g.ty-24, it.label, {strong:true});
+    ctx.restore();
+  });
+
+  // 全局变量：我 → 变量小节点（紫色虚线，徽标 G1 G2 …）
+  if(ui.vars){
+    varRows.forEach((it,gi)=>{
+      const slot=gvSlots.get(gvKey(it.raw.to,it.raw.global)) || gvSlots.get(gvKey(selected,it.raw.global));
+      if(!slot) return;
+      n++;
+      const hovered = hoveredRow===("var:"+gi);
+      const dim = hoveredRow!=null && !hovered;
+      ctx.save(); ctx.globalAlpha = dim?0.25:1;
+      const g=drawWire(me,slot,{color:C.gvar,width:hovered?2.6:1.5,dash:[4,3]});
+      arrow(g.tx,g.ty,g.right,C.gvar);
+      drawBadge(g.right?g.tx+18:g.tx-18,(g.sy+g.ty)/2, "G"+(gi+1), C.gvar, true);
+      if(hovered && view.z>=0.45) drawChip(g.tx+8, g.ty-24, it.label, {bd:C.gvarBd,ink:C.gvar,strong:true});
+      ctx.restore();
+    });
+  }
+  return {n,inRows,outRows,varRows};
+}
+const LETTER=i=>String.fromCharCode(65+i);
+
+/* 对照用：全显（现状 ×N 聚合），只在勾选时开 */
+function drawAllLinks(){
+  const map=new Map();
+  refs.filter(r=>r.from).forEach(r=>{
+    const k=r.from+"→"+r.to;
+    let g=map.get(k); if(!g){ g={src:r.from,to:r.to,items:[],illegal:false}; map.set(k,g); }
+    g.items.push(r); if(r.illegal) g.illegal=true;
+  });
+  let n=0;
+  for(const g of map.values()){
+    const a=pos.get(g.src), b=pos.get(g.to); if(!a||!b) continue;
+    n++;
+    const w=drawWire(a,b,{color:g.illegal?C.fail:C.link,width:1.4,dash:g.illegal?[4,3]:null});
+    if(view.z>=0.5){
+      const txt=g.items.length>1?("×"+g.items.length):`${g.items[0].port} ← ${byId.get(g.src).title}`;
+      drawChip((w.sx+w.tx)/2,(w.sy+w.ty)/2,txt,{bd:g.illegal?C.fail:C.badgeBd,ink:g.illegal?C.fail:undefined});
+    }
+  }
+  return n;
+}
+
+/* 全局变量小节点（紫色圆角标签） */
+function drawGvNodes(){
+  if(!ui.vars) return;
+  for(const s of gvSlots.values()){
+    const x=X(s.x),y=Y(s.y),w=s.w*view.z,h=s.h*view.z;
+    rr(ctx,x,y,w,h,8*Math.min(1,view.z));
+    ctx.fillStyle=C.gvarSoft; ctx.fill();
+    ctx.strokeStyle=C.gvarBd; ctx.lineWidth=Math.max(1,1.2*view.z); ctx.stroke();
+    // 左侧色条
+    rr(ctx,x,y,Math.max(2,3*view.z),h,2);
+    ctx.fillStyle=C.gvar; ctx.fill();
+    if(view.z>=0.45){
+      ctx.fillStyle=C.gvar;
+      ctx.font=`600 ${Math.max(8,9.5*view.z)}px Consolas,"Segoe UI",monospace`;
+      ctx.textAlign="left"; ctx.textBaseline="middle";
+      const nm=s.label.replace(/^Global\./,"");
+      ctx.fillText(nm.length>13?nm.slice(0,12)+"…":nm, x+9*Math.max(.7,view.z), y+h/2-3*view.z);
+      ctx.fillStyle=C.ink3;
+      ctx.font=`${Math.max(7,8*view.z)}px "Segoe UI",sans-serif`;
+      ctx.fillText("全局变量", x+9*Math.max(.7,view.z), y+h/2+8*view.z);
+    }
+  }
+}
+
+/* ===== 主渲染 ===== */
+let dirtyFlag=true,lastFrame=0;
+function markDirty(){ dirtyFlag=true; }
+
+function render(){
+  const t0=performance.now();
+  const W=cv.clientWidth,H=cv.clientHeight;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  // 网格点（与 FlowCanvasGridDotBrush 的 24px tile 同构）
+  if(view.z>=0.35){
+    const st=24*view.z;
+    if(st>=7){ ctx.fillStyle=C.grid; const ox=view.x%st,oy=view.y%st;
+      for(let x=ox;x<W;x+=st) for(let y=oy;y<H;y+=st) ctx.fillRect(x,y,1,1); }
+  }
+
+  const vis={x:(0-view.x)/view.z-100,y:(0-view.y)/view.z-100,w:W/view.z+200,h:H/view.z+200};
+  const inView=p=>!(p.x+p.w<vis.x||p.x>vis.x+vis.w||p.y+p.h<vis.y||p.y>vis.y+vis.h);
+
+  // 容器 / 泳道
+  for(const [id,p] of pos){
+    const n=byId.get(id);
+    if(!n||n.kind!=="group"||!inView(p)) continue;
+    rr(ctx,X(p.x),Y(p.y),p.w*view.z,p.h*view.z,12*view.z);
+    ctx.fillStyle="rgba(165,192,232,.10)"; ctx.fill();
+    ctx.strokeStyle=C.frameBd; ctx.lineWidth=Math.max(1,1.5*view.z); ctx.stroke();
+    const hh=Math.min(FRAME_HEADER,p.h)*view.z;
+    if(hh>2){ rr(ctx,X(p.x),Y(p.y),p.w*view.z,hh,12*view.z); ctx.fillStyle=C.frameHd; ctx.fill(); }
+    if(view.z>=0.45){
+      ctx.fillStyle=C.ink; ctx.font=`600 ${12.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline="middle"; ctx.fillText(n.title,X(p.x+12),Y(p.y)+hh/2);
+    }
+    for(const lane of p.lanes){
+      if(!inView(lane)) continue;
+      rr(ctx,X(lane.x),Y(lane.y),lane.w*view.z,lane.h*view.z,8*view.z);
+      ctx.fillStyle="rgba(59,130,246,.05)"; ctx.fill();
+      ctx.strokeStyle=C.laneBd; ctx.lineWidth=Math.max(1,1*view.z); ctx.stroke();
+      if(view.z>=0.45){
+        ctx.fillStyle=C.laneInk; ctx.font=`600 ${Math.max(8,9.5*view.z)}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline="top"; ctx.fillText(lane.title,X(lane.x+8),Y(lane.y+7));
+      }
+    }
+  }
+
+  drawSpine();
+
+  // 焦点集合：选中算子 + 它的入向来源 + 出向下游 + 全局变量小节点
+  const focusing = !!(selected && ui.focus && byId.get(selected) && byId.get(selected).kind==="step");
+  const focusSet=new Set();
+  if(focusing){
+    const {inRows,outRows,varRows}=allRows(selected);
+    focusSet.add(selected);
+    inRows.forEach(it=>focusSet.add(it.raw.from));
+    outRows.forEach(it=>focusSet.add(it.raw.to));
+    varRows.forEach(it=>focusSet.add(gvKey(it.raw.to,it.raw.global)));
+  }
+
+  // 卡片
+  let drawn=0;
+  for(const [id,p] of pos){
+    const n=byId.get(id);
+    if(!n||n.kind==="group"||!inView(p)) continue;
+    drawn++;
+    const x=X(p.x),y=Y(p.y),w=p.w*view.z,h=p.h*view.z;
+    ctx.save();
+    if(n.disabled) ctx.globalAlpha=0.45;
+    if(focusing && !focusSet.has(id)) ctx.globalAlpha*=0.32;
+
+    rr(ctx,x,y,w,h,10*view.z);
+    ctx.fillStyle=n.state==="failed"?C.badBg:C.card; ctx.fill();
+    const isTgt=focusing && id===selected;
+    ctx.strokeStyle = isTgt?C.accent:(n.state==="failed"?C.fail:(n.state==="running"?C.run:C.cardBd));
+    ctx.lineWidth=Math.max(1,(isTgt?2:1)*view.z); ctx.stroke();
+
+    // 关联节点：淡蓝环（来源与下游都给，形状区分不了就用同一枚）
+    const isPeer = focusing && !isTgt && focusSet.has(id);
+    if(isPeer){
+      rr(ctx,x-3,y-3,w+6,h+6,12*view.z);
+      ctx.strokeStyle="rgba(59,130,246,.30)"; ctx.lineWidth=3*view.z; ctx.stroke();
+    }
+    if(view.z>=0.45){
+      ctx.fillStyle=C.ink;
+      ctx.font=`600 ${14*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textAlign="left"; ctx.textBaseline="alphabetic";
+      ctx.fillText(n.title,x+10*view.z,y+h*0.46);
+      ctx.fillStyle=C.ink3; ctx.font=`${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.fillText(n.sub+(n.disabled?"（已禁用）":""),x+10*view.z,y+h*0.46+13*view.z);
+    }
+    // 旧的外链角标：v7 已改成紫色虚线 + 小节点，这里不再画（保留位置说明）
+    ctx.restore();
+  }
+
+  drawGvNodes();
+
+  const bad=drawIllegal();
+  let nLinks=0, rows={inRows:[],outRows:[],varRows:[]};
+  if(focusing){
+    const r=drawFocused();
+    nLinks=r.n||0;
+    rows={inRows:r.inRows||[],outRows:r.outRows||[],varRows:r.varRows||[]};
+  } else if(ui.all){
+    nLinks=drawAllLinks();
+  }
+
+  lastFrame=performance.now()-t0;
+
+  // HUD
+  const hud=document.getElementById("hud");
+  if(selected && byId.get(selected)){
+    const n=byId.get(selected);
+    if(n.kind==="group"){
+      hud.innerHTML=`已选中容器 <b>${n.title}</b>\n容器不画数据引线（只看内部算子选中态）\n`
+        + `非法线 <b>${bad}</b> 根（始终显示） · 一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`;
+    }else{
+      hud.innerHTML=`已选中 <b>${n.title}</b>\n`
+        + `入向 <b>${rows.inRows.length}</b> · 出向 <b>${rows.outRows.length}</b> · 全局变量 <b>${rows.varRows.length}</b>\n`
+        + `引线 <b>${nLinks}</b> 根 · 非法常显 <b>${bad}</b> 根\n`
+        + `一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`;
+    }
+  }else{
+    hud.innerHTML=`未选中 · 只画顺序链（灰虚线）与非法线\n`
+      + `节点 <b>${drawn}</b> · 非法 <b>${bad}</b> 根 · 一帧 <b>${lastFrame.toFixed(1)}</b> ms\n`
+      + `点任意算子查看它的入向 / 出向连线`;
+  }
+
+  // 底部状态条
+  const sel=selected?byId.get(selected):null;
+  document.getElementById("stMode").textContent = sel ? ("选中："+sel.title+(sel.kind==="group"?"（容器）":"")) : "未选中";
+  document.getElementById("stIn").textContent  = `入向 ${rows.inRows.length}`;
+  document.getElementById("stOut").textContent = `出向 ${rows.outRows.length}`;
+  const gvPill=document.getElementById("stGv"), badPill=document.getElementById("stBad");
+  if(rows.varRows.length>0){ gvPill.hidden=false; gvPill.innerHTML=`<span class="dot"></span>全局变量 ${rows.varRows.length}`; }
+  else gvPill.hidden=true;
+  if(bad>0){ badPill.hidden=false; badPill.innerHTML=`<span class="dot"></span>非法 ${bad}（常显）`; }
+  else badPill.hidden=true;
+  document.getElementById("stFrame").textContent = `一帧 ${lastFrame.toFixed(1)} ms`;
+
+  dirtyFlag=false;
+}
+
+/* ===== 底部明细面板（落点：属性面板上方，按列自适应） ===== */
+function refreshSide(){
+  const title=document.getElementById("lpTitle"), sub=document.getElementById("lpSub"),
+        box=document.getElementById("lpBody");
+  if(!selected){
+    title.textContent="连线明细";
+    sub.textContent="未选中：只显示执行顺序（灰虚线），不画数据引线";
+    box.innerHTML=`<div class="empty"><div class="tip">
+      <div><b>画布只读</b><br>两端连接点与拖线手势已移除；新增/修改绑定走双击算子打开的数据绑定弹窗。</div>
+      <div><b>选中一个算子</b><br>同时显示它的<em>入向</em>（① 起）与 <em>出向</em>（A 起）引线；其余算子压到 32%。多选只认最后点到的那个。</div>
+      <div><b>选中容器 / 空白</b><br>容器（泳道框）被选中时不画任何数据引线；点空白取消选中。非法线始终显示。</div>
+    </div></div>`;
+    return;
+  }
+  const n=byId.get(selected);
+  if(n.kind==="group"){
+    title.textContent=`选中：${n.title}（容器）`;
+    sub.textContent="容器不画数据引线；请选中容器内的具体算子";
+    box.innerHTML=`<div class="empty">容器只是布局分组。选中它不会画任何引线——要看数据流向，请直接点里面的算子。</div>`;
+    return;
+  }
+  const {inRows,outRows,varRows}=allRows(selected);
+  const total=inRows.length+outRows.length+varRows.length;
+  title.textContent=`选中：${n.title}`;
+  sub.textContent=`入向 ${inRows.length} · 出向 ${outRows.length} · 全局变量 ${varRows.length} · 合计 ${total} 条`;
+  if(!total){
+    box.innerHTML=`<div class="empty">该算子没有任何数据绑定（只受执行顺序约束）。双击它可打开数据绑定弹窗添加。</div>`;
+    return;
+  }
+  const rowHtml=(it,kind)=>{
+    const cls = it.illegal ? "row illegal" : (kind==="var" ? "row gv" : "row");
+    const numCls = it.illegal ? "num bad" : (kind==="in" ? "num" : (kind==="out" ? "num out" : "num gv"));
+    const numTxt = kind==="in" ? it.num : (kind==="out" ? LETTER(it.num-1) : ("G"+it.num));
+    const sub2 = it.illegal
+      ? `<div class="b bad">⚠ ${escapeHtml(it.reason)}</div>`
+      : (kind==="in" ? `<div class="b">来源：${escapeHtml(it.srcTitle)}</div>`
+      : (kind==="out" ? `<div class="b">去向：${escapeHtml(it.dstTitle)}</div>`
+      : `<div class="b gv">全局变量：${escapeHtml(it.raw.global)} · 紫色虚线连到变量节点</div>`));
+    return `<div class="${cls}" data-k="${kind}" data-i="${it.num-1}">
+      <div class="${numCls}">${numTxt}</div>
+      <div class="txt"><div class="a">${escapeHtml(it.label)}</div>${sub2}</div>
+      <div class="dir ${kind==="in"?"in":""}">${kind==="in"?"入":(kind==="out"?"出":"变量")}</div>
+    </div>`;
+  };
+  box.innerHTML=`<div class="grid">${inRows.map(r=>rowHtml(r,"in")).join("")}`
+    + `${outRows.map(r=>rowHtml(r,"out")).join("")}`
+    + `${varRows.map(r=>rowHtml(r,"var")).join("")}</div>`;
+  box.querySelectorAll(".row[data-k]").forEach(el=>{
+    el.addEventListener("mouseenter",()=>{ hoveredRow=el.dataset.k+":"+el.dataset.i; markDirty(); });
+    el.addEventListener("mouseleave",()=>{ hoveredRow=null; markDirty(); });
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ===== 交互：只读（无拖线） ===== */
+let drag=null;
+const P=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
+function hit(p){
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  // 先命中算子/容器：容器取面积最小的那个（内层优先）
+  let best=null,bestArea=Infinity;
+  for(const [id,b] of pos){
+    const n=byId.get(id); if(!n) continue;
+    if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h){
+      const area=b.w*b.h;
+      if(!best || (n.kind==="step" && byId.get(best).kind!=="step") || area<bestArea){ best=id; bestArea=area; }
+    }
+  }
+  return best;
+}
+cv.addEventListener("mousedown",e=>{
+  const p=P(e);
+  if(e.button===1||e.altKey){ drag={x:p.x,y:p.y}; return; }
+  const id=hit(p);
+  if(id!==selected){ selected=id; hoveredRow=null; refreshSide(); }
+  markDirty();
+});
+window.addEventListener("mousemove",e=>{
+  if(!drag) return;
+  const p=P(e);
+  view.x+=p.x-drag.x; view.y+=p.y-drag.y; drag.x=p.x; drag.y=p.y; markDirty();
+});
+window.addEventListener("mouseup",()=>drag=null);
+cv.addEventListener("wheel",e=>{
+  e.preventDefault(); const p=P(e);
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  view.z=Math.max(0.15,Math.min(2.2,view.z*Math.exp(-e.deltaY*0.0015)));
+  view.x=p.x-wx*view.z; view.y=p.y-wy*view.z; markDirty();
+},{passive:false});
+
+document.getElementById("btnClear").onclick=()=>{ selected=null; hoveredRow=null; refreshSide(); markDirty(); };
+document.getElementById("btnDemo").onclick=()=>{ buildDemo(); };
+document.getElementById("chkFocus").onchange=e=>{ ui.focus=e.target.checked; markDirty(); };
+document.getElementById("chkOrder").onchange=e=>{ ui.order=e.target.checked; markDirty(); };
+document.getElementById("chkVar").onchange=e=>{ ui.vars=e.target.checked; markDirty(); };
+document.getElementById("chkAll").onchange=e=>{ ui.all=e.target.checked; markDirty(); };
+
+/* ===== 启动 ===== */
+function resize(){
+  const r=cv.getBoundingClientRect();
+  DPR=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(r.width*DPR));
+  cv.height=Math.max(1,Math.round(r.height*DPR));
+  markDirty();
+}
+window.addEventListener("resize",resize);
+function loop(){ if(dirtyFlag){ try{ render(); }catch(err){ window.__err=String(err); dirtyFlag=false; } } requestAnimationFrame(loop); }
+
+resize(); buildDemo(); loop();
+
+// 演示：默认选中"记录_1"（入向 2 + 出向 1 + 全局变量 2）
+// ?sel=累计_2 看非法线；?sel=判断_1 看"选中容器不画"
+setTimeout(()=>{
+  const want=new URLSearchParams(location.search).get("sel") || "记录_1";
+  const t=[...byId.values()].find(n=>n.title===want);
+  if(t){ selected=t.id; refreshSide(); markDirty(); }
+},250);
+
+})();
+</script>
+</body>
+</html>

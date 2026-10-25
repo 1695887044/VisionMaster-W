@@ -106,6 +106,7 @@ namespace VisionMaster.Helpers
 
             // 数据
             ["Hmi.DataGrid"] = "\uf0ce",    // table
+            ["Hmi.RecipePanel"] = "\uf0ca", // list（与顶栏配方入口同一枚图标）
         };
 
         /// <summary>图元类型键的专属图标；没登记的图元回落分类图标，再回落兜底。</summary>

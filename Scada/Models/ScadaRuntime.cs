@@ -32,8 +32,9 @@ namespace VisionMaster.Scada
     /// - <b>线程</b>：只在 UI 线程上用，不做加锁。加锁在这里换不来任何东西，只会把
     ///   "从后台线程 Start"这个真 bug 掩盖成偶发行为。
     /// </summary>
-    public class ScadaRuntime : BindableBase, IScadaNavigator
+    public class ScadaRuntime : BindableBase, IScadaNavigator, IScadaSubPageHost
     {
+        private readonly HashSet<ScadaPage> _activeSubPages = new();
         /// <summary>
         /// 页栈深度上限。超过就从<b>栈底</b>丢最老的一页。
         ///
@@ -250,6 +251,20 @@ namespace VisionMaster.Scada
         /// 判定口径（未登录算操作员、高角色含低角色、非法值一律拒绝）只有一份实现，
         /// 在 <see cref="ScadaRoleExtensions.Allows"/>。
         /// </summary>
+        /// <summary>子页开始显示：登记为“当前可见对象”，让子页里的图元事件能通过宿主判断</summary>
+        public void Enter(ScadaPage page)
+        {
+            if (page != null)
+                _activeSubPages.Add(page);
+        }
+
+        /// <summary>子页不再显示：撤登记（重复调用是空操作）</summary>
+        public void Exit(ScadaPage page)
+        {
+            if (page != null)
+                _activeSubPages.Remove(page);
+        }
+
         public int RaiseElementEvent(ScadaElement? element, ScadaEventType eventType)
         {
             if (!_running || element == null)
@@ -261,10 +276,13 @@ namespace VisionMaster.Scada
             var inPage = CurrentPage != null
                 && ReferenceEquals(CurrentPage.FindElement(element.ElementId), element);
 
-            if (!inPopup && !inPage)
+            var inSubPage = _activeSubPages.Any(page =>
+                ReferenceEquals(page.FindElement(element.ElementId), element));
+
+            if (!inPopup && !inPage && !inSubPage)
                 return 0;
 
-            // 模态弹窗：背景页上的控件不可命中（视觉上有遮罩，逻辑上也必须挡住——
+            // 模态弹窗：背景页/子页上的控件不可命中（视觉上有遮罩，逻辑上也必须挡住——
             // 否则遮罩挡得住鼠标、挡不住快捷键/脚本派发的事件）。非模态允许两边都点。
             if (!inPopup && _currentPopup is { PopupModal: true })
                 return 0;
@@ -411,6 +429,7 @@ namespace VisionMaster.Scada
                 BroadcastPageHooks(leaving, ScadaEventType.Unloaded);
 
             CurrentPage = null;
+            _activeSubPages.Clear();
             RaiseBasePagesChanged();
             _pageStack.Clear();
             RaisePropertyChanged(nameof(CanGoBack));

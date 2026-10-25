@@ -877,6 +877,55 @@
                     </Grid>
                 </DataTemplate>
 
+                <DataTemplate x:Key="EditStateList">
+                    <!--  方案级文本列表：选择器 + 管理…；空选项 = 继续用旧 Options  -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ComboBox
+                            Grid.Column="0"
+                            DisplayMemberPath="Name"
+                            ItemsSource="{Binding Options}"
+                            SelectedValue="{Binding Value, Mode=TwoWay}"
+                            SelectedValuePath="Value"
+                            Style="{StaticResource ScadaCombo}"
+                            ToolTip="{Binding ErrorText}" />
+
+                        <Button
+                            Grid.Column="1"
+                            Margin="6,0,0,0"
+                            Padding="8,2"
+                            Background="{StaticResource ScadaSurfaceBrush}"
+                            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                            BorderThickness="1"
+                            Command="{Binding ManageCommand}"
+                            Content="管理…"
+                            Cursor="Hand"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaTextBrush}">
+                            <Button.Resources>
+                                <Style TargetType="Border">
+                                    <Setter Property="CornerRadius" Value="3" />
+                                </Style>
+                            </Button.Resources>
+                        </Button>
+                    </Grid>
+                </DataTemplate>
+
+                <DataTemplate x:Key="EditPage">
+                    <!--  方案内画面选择器：候选来自当前文档的可导航页；空 = 未选择  -->
+                    <ComboBox
+                        DisplayMemberPath="Name"
+                        ItemsSource="{Binding Options}"
+                        SelectedValue="{Binding Value, Mode=TwoWay}"
+                        SelectedValuePath="Value"
+                        Style="{StaticResource ScadaCombo}"
+                        ToolTip="{Binding ErrorText}" />
+                </DataTemplate>
+
                 <Style x:Key="RowEditorHost" TargetType="ContentControl">
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding Kind}" Value="Text">
@@ -917,6 +966,12 @@
                         <!--  列定义：摘要 + 「选择列…」（与候选轴同一形态）  -->
                         <DataTrigger Binding="{Binding Kind}" Value="ColumnList">
                             <Setter Property="ContentTemplate" Value="{StaticResource EditColumnList}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="StateList">
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditStateList}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Kind}" Value="Page">
+                            <Setter Property="ContentTemplate" Value="{StaticResource EditPage}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>

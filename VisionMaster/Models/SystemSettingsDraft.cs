@@ -82,6 +82,8 @@ namespace VisionMaster.Models
         private bool _galleryEnabled = true;
         private bool _galleryClearOnRun;
         private bool _galleryKeepHistory;
+        private bool _galleryKeepInjectedHistory;
+        private bool _galleryShowThumbnailStrip = true;
         private bool _galleryIncludeRealtime = true;
         private bool _galleryCollectAllPorts;
         private bool _gallerySaveOnAlarm;
@@ -290,6 +292,34 @@ namespace VisionMaster.Models
         {
             get => _galleryKeepHistory;
             set => SetProperty(ref _galleryKeepHistory, value);
+        }
+
+        /// <summary>插件注入的图是否保留历史帧（"收容"）</summary>
+        [SuperDisplay(
+            Name = "保留插件注入图的历史帧",
+            Group = new[] { GroupGallery },
+            GroupOrder = "3",
+            Order = 3,
+            Description = "不勾选（默认）= 每个窗口只显示该流程最新一张，内存 = 窗口数 × 1 张；"
+                        + "勾选 = 每张都留下，可回看历史，但循环运行时内存与列表会持续增长")]
+        public bool GalleryKeepInjectedHistory
+        {
+            get => _galleryKeepInjectedHistory;
+            set => SetProperty(ref _galleryKeepInjectedHistory, value);
+        }
+
+        /// <summary>是否显示画布下方缩略图条</summary>
+        [SuperDisplay(
+            Name = "显示缩略图条",
+            Group = new[] { GroupGallery },
+            GroupOrder = "3",
+            Order = 4,
+            Description = "仅在「保留插件注入图的历史帧」打开时生效：关掉可把下方条子占的高度全让给大图"
+                        + "（多格布局下差别明显）")]
+        public bool GalleryShowThumbnailStrip
+        {
+            get => _galleryShowThumbnailStrip;
+            set => SetProperty(ref _galleryShowThumbnailStrip, value);
         }
 
         /// <summary>是否收录插件实时预览发布的图</summary>

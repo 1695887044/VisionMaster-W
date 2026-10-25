@@ -63,6 +63,7 @@ namespace ScadaChecks
             SystemVariableChecks();
             SystemDeviceCatalogChecks();
             AxisCommandChecks();
+            AxisJogModeChecks();
             AxisPointTableChecks();
             AxisConsoleMergeChecks();
             AxisOptionsSummaryChecks();
@@ -1105,6 +1106,167 @@ namespace ScadaChecks
             panel.Refresh();
             Check("[AX9] 重新打开后操作区恢复",
                 panel.CommandsVisibility == Visibility.Visible, $"{panel.CommandsVisibility}");
+
+            panel.RuntimeContext = null;
+        }
+
+        // ==================================================================
+        //  [AX-12] 点动模式：连续 / 单步（档位 0~50mm，运动中只锁点动两键）
+        // ==================================================================
+        private static void AxisJogModeChecks()
+        {
+            Guid x = Guid.NewGuid();
+            var element = ElementRegistry.CreateElement("Hmi.AxisPanel");
+            element.SetProperty(ScadaAxisOptionsCodec.Key,
+                ScadaAxisOptionsCodec.Format(new[] { new ScadaAxisRef(x, "X") }));
+
+            var panel = (AxisPanelElement)ElementRegistry.CreateControl(element);
+            panel.Refresh();
+
+            var source = new FakeAxisSource();
+            source.Add(x, "X", "卡A", enabled: true, available: true,
+                Sample(128.48, 0, enabled: true, alarm: false, moving: false));
+
+            var commands = new FakeAxisCommandSink();
+            var doc = new ScadaDocument();
+            var engine = new ScadaAlarmEngine(doc, new FakeValueSource());
+            var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
+            panel.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands);
+
+            int before = commands.CallCount;
+
+            Check("[AX12] 默认是连续点动模式",
+                panel.JogMode == ScadaJogMode.Continuous && panel.IsContinuousJog && !panel.IsStepJog,
+                $"mode={panel.JogMode} cont={panel.IsContinuousJog} step={panel.IsStepJog}");
+
+            Check("[AX12] 连续模式下档位框只读且不显示数值",
+                !panel.IsStepFieldEditable && panel.JogStepText.Length > 0,
+                $"editable={panel.IsStepFieldEditable} text={panel.JogStepText}");
+
+            // ① 连续模式：按住发 JogStart(±JogVelocity)，档位不影响速度
+            element.SetProperty("JogVelocity", "12.5");
+            panel.Refresh();
+            before = commands.CallCount;
+            bool ok = panel.StartJog(1);
+            Check("[AX12] 连续模式点动发 JogStart，速度取「点动速度」",
+                ok && commands.LastCommand == ScadaAxisCommandKind.JogStart
+                && Math.Abs((commands.LastValue ?? 0) - 12.5) < 1e-9,
+                $"{commands.LastCommand} / {commands.LastValue}");
+
+            panel.EndJog();
+            Check("[AX12] 松手发 JogStop",
+                commands.LastCommand == ScadaAxisCommandKind.JogStop, $"{commands.LastCommand}");
+            before = commands.CallCount;
+
+            // ② 单步模式：一次 TryMove(当前位置 ± 档位)，不发 JogStart
+            element.SetProperty("JogMode", "Step");
+            element.SetProperty("JogStepMm", "3");
+            panel.Refresh();
+            Check("[AX12] 切到单步模式后档位框可编辑并显示 3.00",
+                panel.IsStepJog && panel.IsStepFieldEditable && panel.JogStepText == "3.00",
+                $"step={panel.IsStepJog} editable={panel.IsStepFieldEditable} text={panel.JogStepText}");
+
+            ok = panel.StartJog(1);
+            Check("[AX12] 单步点动走定位出口，目标是「当前位置 + 档位」",
+                ok && Math.Abs((commands.LastMoveTarget ?? 0) - (128.48 + 3)) < 1e-6,
+                $"ok={ok} target={commands.LastMoveTarget}");
+
+            Check("[AX12] 单步点动不再额外发 JogStart 或 JogStop（它本身就是一条完整定位）",
+                commands.LastCommand != ScadaAxisCommandKind.JogStart
+                && commands.LastCommand != ScadaAxisCommandKind.JogStop,
+                $"{commands.LastCommand}");
+
+            ok = panel.StartJog(-1);
+            Check("[AX12] 反向单步的目标是「当前位置 - 档位」",
+                ok && Math.Abs((commands.LastMoveTarget ?? 0) - (128.48 - 3)) < 1e-6,
+                $"target={commands.LastMoveTarget}");
+
+            // ③ 档位边界
+            element.SetProperty("JogStepMm", "0");
+            panel.Refresh();
+            before = commands.CallCount;
+            ok = panel.StartJog(1);
+            Check("[AX12] 档位为 0 时单步点动拒绝并说清原因",
+                !ok && commands.CallCount == before && panel.CommandMessage.Contains("步长"),
+                $"ok={ok} calls={commands.CallCount - before} msg={panel.CommandMessage}");
+
+            element.SetProperty("JogStepMm", "62.5");
+            panel.Refresh();
+            before = commands.CallCount;
+            ok = panel.StartJog(1);
+            Check("[AX12] 档位超出 0~50 时拒绝（不静默按 50 走）",
+                !ok && commands.CallCount == before && panel.CommandMessage.Contains("50"),
+                $"ok={ok} msg={panel.CommandMessage}");
+
+            element.SetProperty("JogStepMm", "50");
+            panel.Refresh();
+            before = commands.CallCount;
+            ok = panel.StartJog(1);
+            Check("[AX12] 档位 50 是合法上界，可以下发",
+                ok && Math.Abs((commands.LastMoveTarget ?? 0) - (128.48 + 50)) < 1e-6,
+                $"ok={ok} target={commands.LastMoveTarget}");
+
+            // ④ 运动中只锁点动两键
+            element.SetProperty("JogStepMm", "1");
+            source.Update(x, Sample(129.48, 20, enabled: true, alarm: false, moving: true));
+            panel.Refresh();
+
+            // 前提先立住：没进「运动中」状态，下面的锁断言就没有意义（R38：跳过型断言必须能被反证）
+            Check("[AX12] 前提：快照标记运动中后控件进入 IsMoving",
+                panel.IsMoving,
+                $"isMoving={panel.IsMoving} canJog={panel.CanJog}");
+
+            before = commands.CallCount;
+            ok = panel.StartJog(1);
+            Check("[AX12] 运动指令执行中点动被锁，且不发任何命令",
+                !ok && commands.CallCount == before && panel.CommandMessage.Contains("运动"),
+                $"refused={!ok} callsDelta={commands.CallCount - before} msg={panel.CommandMessage}");
+
+            Check("[AX12] 运动中 CanJog 关闭但 CanOperate 仍为真（只锁点动，不锁整块操作区）",
+                !panel.CanJog && panel.CanOperate,
+                $"canJog={panel.CanJog} canOperate={panel.CanOperate}");
+
+            Check("[AX12] 运动中显示橙色提示条",
+                panel.MovingBannerVisibility == Visibility.Visible,
+                $"{panel.MovingBannerVisibility}");
+
+            Check("[AX12] 运动中 CanJog 关闭但 CanOperate 仍为真（只锁点动，不锁整块操作区）",
+                !panel.CanJog && panel.CanOperate,
+                $"canJog={panel.CanJog} canOperate={panel.CanOperate}");
+
+            Check("[AX12] 运动中显示橙色提示条",
+                panel.MovingBannerVisibility == Visibility.Visible,
+                $"{panel.MovingBannerVisibility}");
+
+            // ⑤ 反向：运动中「停止」与「清报警」仍然可发
+            before = commands.CallCount;
+            ok = panel.TryExecuteCommand(ScadaAxisCommandKind.Stop);
+            Check("[AX12] 反向：运动中「停止」仍可发（安全动作不被运动锁挡住）",
+                ok && commands.LastCommand == ScadaAxisCommandKind.Stop,
+                $"ok={ok} {commands.LastCommand}");
+
+            ok = panel.TryExecuteCommand(ScadaAxisCommandKind.ClearAlarm);
+            Check("[AX12] 反向：运动中「清报警」仍可发",
+                ok && commands.LastCommand == ScadaAxisCommandKind.ClearAlarm,
+                $"ok={ok} {commands.LastCommand}");
+
+            // 反向收尾：把 moving 清掉，同一个点动键必须能发出去。
+            // 没有这一条，「被锁」可能只是别的门禁在挡——那就证明不了锁的是「运动」。
+            source.Update(x, Sample(129.48, 0, enabled: true, alarm: false, moving: false));
+            panel.Refresh();
+            before = commands.CallCount;
+            ok = panel.StartJog(1);
+            Check("[AX12] 反向：不动之后同一个点动键必须能发出去（证明上面的锁是运动锁而不是别的门禁）",
+                ok && commands.CallCount > before && panel.CanJog && panel.MovingBannerVisibility == Visibility.Collapsed,
+                $"accepted={ok} callsDelta={commands.CallCount - before} canJog={panel.CanJog} banner={panel.MovingBannerVisibility}");
+
+            // ⑥ 档位归一：非法值夹回并量化到 0.1
+            Check("[AX12] 档位归一化：负数夹到 0、超限夹到 50、量化到 0.1",
+                Math.Abs(AxisPanelElement.NormalizeJogStep(-3)) < 1e-9
+                && Math.Abs(AxisPanelElement.NormalizeJogStep(62.5) - 50) < 1e-9
+                && Math.Abs(AxisPanelElement.NormalizeJogStep(3.14159) - 3.1) < 1e-9,
+                $"{AxisPanelElement.NormalizeJogStep(-3)} / {AxisPanelElement.NormalizeJogStep(62.5)} / {AxisPanelElement.NormalizeJogStep(3.14159)}");
 
             panel.RuntimeContext = null;
         }

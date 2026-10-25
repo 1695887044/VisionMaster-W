@@ -504,6 +504,10 @@ namespace FlowCanvasChecks
                 fake.Connect();
                 EnableAxis(fake, 0);
 
+                // 白盒：这条断言拷的是"底层报警位还在 → 不放行"。
+                // 不给底层的报警说明，轮询会把状态说明改写成"轴报警"，前置那条断言
+                // 于是拿不到"命令失败后进入安全停机"的证据（2026-10-25 实测两红）。
+                fake.AlarmMessage = "模拟：报警未清除";
                 fake.FailMove = true;
                 using (var failing = Move(0, 10))
                 {
@@ -1349,6 +1353,9 @@ namespace FlowCanvasChecks
             /// <summary>轮询时是否上报报警（= 底层真实报警位）</summary>
             public volatile bool ReportAlarm;
 
+            /// <summary>上报报警时的报警说明（留空则基类按"轴报警"兜底）</summary>
+            public volatile string AlarmMessage = string.Empty;
+
             /// <summary>
             /// 轮询时上报的使能位。默认 true（既有 S7 断言的前提）；
             /// P1-A 的「Home 不要求已使能」用例把它置 false，用来证明门禁只看 Moving。
@@ -1386,7 +1393,7 @@ namespace FlowCanvasChecks
                     Enabled = ReportEnabled,
                     InPosition = true,
                     Alarm = ReportAlarm,
-                    AlarmMessage = ReportAlarm ? "模拟：报警未清除" : string.Empty,
+                    AlarmMessage = ReportAlarm ? AlarmMessage : string.Empty,
                 });
             }
 

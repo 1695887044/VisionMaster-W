@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 3,
+  "updated": "2026-10-24",
+  "note": "docs/ top-level whitelist + second-level whitelist + orphan-scan policy (single source of truth for tools/audit_docs.ps1). New top-level docs/ entries must be registered here. B3 (2026-10-24) collapsed rootFiles from 24 to 1: every reference doc moved into a topic directory, only 项目全景说明.md stays at the root as the entry point. Phase B2 = report only; phase B6 wires the audit into tools/run_gates.ps1 as fail-closed. B4 (2026-10-24) added docs/README.md as the docs hub (registered in rootFiles) and tools/gen_docs_index.ps1 which generates INDEX.md for every journal dir. B7 (2026-10-24) moved the 23 plugin doc directories under docs/代码/<domain>/ : top-level dirs 42 -> 19, and the second level of docs/代码/ is now pinned by codeDirs so a new plugin doc directory cannot appear unnoticed.",
+  "topDirs": [
+    "AI协作",
+    "AI操作计划",
+    "SCADA运行态Web客户端",
+    "UI样式参考",
+    "UI设计基线",
+    "code-changes",
+    "meetings",
+    "performance",
+    "代码",
+    "基础设施",
+    "实施计划",
+    "工具集",
+    "工程纪律",
+    "归档",
+    "数据记录",
+    "方案设计",
+    "架构文档",
+    "通信协议矩阵",
+    "问题汇总"
+  ],
+  "rootFiles": [
+    "README.md",
+    "项目全景说明.md"
+  ],
+  "codeDirs": {
+    "note": "Second-level whitelist for docs/代码/. Domain -> allowed plugin doc directories. Any directory under docs/代码/<domain>/ not listed here is a TOP violation. A file directly under docs/代码/ or under a domain directory with no plugin subdir is also a violation.",
+    "domains": {
+      "采图": [
+        "图像采集",
+        "图像预处理",
+        "图像赋值",
+        "图像脚本"
+      ],
+      "视觉算子": [
+        "创建ROI",
+        "卡尺测量",
+        "模板匹配",
+        "颜色检查",
+        "缺陷检测",
+        "胶路检测",
+        "码读取",
+        "OCR",
+        "目标检测",
+        "深度学习",
+        "几何工具"
+      ],
+      "标定变换": [
+        "标定插件",
+        "坐标变换插件"
+      ],
+      "运动通讯": [
+        "运动控制"
+      ],
+      "结果与报表": [
+        "结果显示",
+        "结果上报",
+        "Excel报表",
+        "C#脚本"
+      ],
+      "产线仿真": [
+        "产线仿真3D"
+      ]
+    }
+  },
+  "orphanPolicy": {
+    "note": "Two class of .md live under docs/: REFERENCE docs (design/architecture/guide - must be reachable from some README) and JOURNAL docs (dated change records, meeting minutes, perf runs - indexed by date, not by README link). ORPHAN is only meaningful for REFERENCE docs. Journal directories are exempt; reference directories are NOT.",
+    "journalDirs": [
+      "code-changes",
+      "meetings",
+      "performance",
+      "归档"
+    ],
+    "journalFilePatterns": [
+      "^\\d{4}-\\d{2}-\\d{2}-",
+      "^\\d{4}-\\d{2}-"
+    ],
+    "why": "2026-10-24 first run reported ORPHAN=386 of which 392 files were code-changes entries alone. Counting journal entries as orphans makes the metric useless (never actionable) and hides the real signal: reference docs nobody can find."
+  },
+  "readmePolicy": {
+    "note": "NOREADME applies to directories that are meant to be navigated. Journal dirs get a generated INDEX file instead of a hand-written README - tracked as a separate phase (B4).",
+    "exemptDirs": [
+      "code-changes",
+      "meetings",
+      "performance"
+    ],
+    "why": "A README is a human-written map. For 392 dated entries the correct artifact is a generated index (B4), not a README that will rot on the next commit."
+  },
+  "_phaseNotes": {
+    "B2": "Whitelist reflects the CURRENT state so the audit reports only genuine drift.",
+    "B3": "DONE 2026-10-24. Root files 24 -> 1 (only 项目全景说明.md). Moved: handoffs -> 架构文档/交接报告/, baselines -> 架构文档/基线/, design docs -> 工程纪律 + 基础设施, protocol matrix -> 通信协议矩阵/, variable mgmt -> 数据记录/. Retired docs/ProjectOverview.md (tombstone at 架构文档/ProjectOverview-退役说明.md).",
+    "B4": "DONE 2026-10-24. tools/gen_docs_index.ps1 generates an INDEX.md per journal dir (code-changes/meetings/performance). Re-run after adding entries; the generator is idempotent and date-descending. INDEX.md is NOT a README: the orphan scan still requires a journal ENTRY to be reachable, so a journal entry that nobody links is still reported.",
+    "B6": "Flip audit_docs.ps1 from report-only to fail-closed by calling it from tools/run_gates.ps1.",
+    "B7": "DONE 2026-10-24. 23 plugin doc directories moved under docs/代码/<domain>/ (6 domains covering all 39 plugin projects); 38 dated change records moved from those directories into code-changes/YYYY-MM/ (journal dirs are orphan-exempt, so bundling them there is the intended home). schemaVersion 2 -> 3 adds codeDirs. Set FORCE_TOP=1 style drift is not wanted: to add a plugin doc directory, register it under the matching domain first."
+  }
+}

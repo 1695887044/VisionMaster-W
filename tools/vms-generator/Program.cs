@@ -57,8 +57,36 @@ internal static partial class Program
     const string IMG_QR = @"D:\C#\VM\Image\images\datacode\qrcode\qr_workpiece_01.png";
     const string DIR_CALIPER = @"D:\C#\VM\Image\卡尺测试";
 
-    static void Main()
+    static void Main(string[] args)
     {
+        // 压测方案生成（--stress）：只在显式传参时跑，无参行为与历史完全一致
+        if (args.Length > 0 && string.Equals(args[0], "--stress", StringComparison.OrdinalIgnoreCase))
+        {
+            RunStress(args);
+            return;
+        }
+
+        // 以下三套走「一个方案一个文件夹」布局（见 Program.CcgSolutionFolder.cs）：
+        //   解决方案\<方案名>\<方案名>.vms + Image\ Alarms\ History\ Logs\
+        // 图片一律用方案内相对路径 Image\xxx.png，生成时把样图复制进方案自己的 Image\。
+        if (args.Length > 0 && string.Equals(args[0], "--ccg-bga", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteFolderSolution(BuildCcgBgaInspectSolution(), "CCG-BGA焊球全检");
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "--ccg-pack", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteFolderSolution(BuildCcgPackLineSolution(), "CCG-包装线全检追溯");
+            return;
+        }
+
+        if (args.Length > 0 && string.Equals(args[0], "--ccg-measure", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteFolderSolution(BuildCcgMeasureStationSolution(), "CCG-精密尺寸测量站");
+            return;
+        }
+
         WriteSolution(BuildSolution(), @"D:\C#\VM\解决方案\综合检测线.vms");
         WriteSolution(BuildTestSolution(), @"D:\C#\VM\解决方案\综合测试台.vms");
         WriteSolution(BuildAssemblySolution(), @"D:\C#\VM\解决方案\柔性装配线.vms");

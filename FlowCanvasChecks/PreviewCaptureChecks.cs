@@ -27,6 +27,9 @@ namespace FlowCanvasChecks
         private sealed class PreviewPublisherStub : VisionPluginBase
         {
             public override void RunAlgorithm(IExecutionContext context) { }
+
+            /// <summary>声明窗口号（[StepConfig] 属性形态：普通 int，不进端口表）</summary>
+            public int DisplayViewIndex { get; set; } = 1;
         }
 
         public static void Run()
@@ -84,6 +87,118 @@ namespace FlowCanvasChecks
             }
 
             Check("清理后钩子已摘除（不影响后续用例）", ImagePreviewCaptureHub.Current == null, "");
+
+            RunHarvestWindowChecks(settings);
+        }
+
+        /// <summary>
+        /// 兜底采集（<c>CollectAllOutputPorts</c>）的**窗口归属**。
+        ///
+        /// 缺陷原貌：<c>Harvest</c> 把所有输出端口的图一律塞进窗口 1。单流程时看不出来
+        /// （反正只有一条流程在发），但多流程各占一个窗口的现场，一开这个开关就会让
+        /// 第 1 格被所有流程的图轮番刷满、其余各格永远空着——而那正是"打开兜底反而更乱"。
+        ///
+        /// 修法：读插件自己声明的 <c>DisplayViewIndex</c>（两种声明形态都要认，见
+        /// <c>ImageCollectionService.ReadDisplayViewIndex</c>），读不到才回落窗口 1。
+        /// 这里直接用真插件实例跑一遍 Harvest，钉住"声明几号就进几号格"。
+        /// </summary>
+        private static void RunHarvestWindowChecks(VisionMaster.Services.AppSettingsService settings)
+        {
+            Section("[HW] 兜底采集：窗口号取插件声明值（不是一律塞窗口 1）");
+
+            var gallery = settings.Current.ImageGallery;
+            bool savedEnabled = gallery.Enabled;
+            bool savedCollectAll = gallery.CollectAllOutputPorts;
+            bool savedRealTime = gallery.IncludeRealtimePreviews;
+
+            var svc = new VisionMaster.Services.ImageCollectionService(settings, null!);
+            try
+            {
+                gallery.Enabled = true;
+                gallery.CollectAllOutputPorts = true;
+                gallery.IncludeRealtimePreviews = false;   // 只测兜底路径，别让注入帧混进来
+
+                // 造一个"窗口号声明为 5"的插件，挂一张图到它的输出端口上
+                var plugin = new HarvestStub { InstanceName = "兜底断言.窗口5", DisplayViewIndex = 5 };
+                using var img = new HImage("byte", 16, 12);
+                plugin.Image.Value = img;
+
+                // Harvest 是私有方法，直接反射调它（不经引擎回调：兜底采集的判据是
+                // "遍历 PluginLookup 的输出端口"，把这一步单独钉住即可）
+                var session = new VisionMaster.Models.FlowSession { FlowName = "兜底流程" };
+                var session2 = new VisionMaster.Models.FlowSession { FlowName = "兜底流程2" };
+                try
+                {
+                    session.ExecutionEngine = new VisionMaster.Models.CompiledFlow(
+                        new List<VisionMaster.Models.CompiledNode>(),
+                        new Dictionary<Guid, IVisionPlugin> { [Guid.NewGuid()] = plugin },
+                        new Dictionary<Guid, VisionMaster.Models.CompiledNode>(),
+                        new Dictionary<Guid, List<Guid>>());
+
+                    var harvest = typeof(VisionMaster.Services.ImageCollectionService)
+                        .GetMethod("Harvest", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+                    var frames = (List<Core.Halcon.Models.ImageFrame>)harvest.Invoke(svc, new object[] { session, gallery })!;
+
+                    var picked = frames.FirstOrDefault();
+                    Check("[HW] 插件声明窗口 5 → 兜底帧归窗口 5（不是窗口 1）",
+                        picked != null && picked.ViewIndex == 5,
+                        picked == null ? "(没有产出帧)" : $"ViewIndex={picked.ViewIndex}");
+
+                    // 反向：没声明窗口号的插件（属性不存在）必须回落窗口 1，不能归到 0 而丢掉
+                    var plain = new HarvestNoWindowStub { InstanceName = "兜底断言.未声明" };
+                    using var img2 = new HImage("byte", 16, 12);
+                    plain.Image.Value = img2;
+
+                    session2.ExecutionEngine = new VisionMaster.Models.CompiledFlow(
+                        new List<VisionMaster.Models.CompiledNode>(),
+                        new Dictionary<Guid, IVisionPlugin> { [Guid.NewGuid()] = plain },
+                        new Dictionary<Guid, VisionMaster.Models.CompiledNode>(),
+                        new Dictionary<Guid, List<Guid>>());
+
+                    var frames2 = (List<Core.Halcon.Models.ImageFrame>)harvest.Invoke(svc, new object[] { session2, gallery })!;
+                    var picked2 = frames2.FirstOrDefault();
+                    Check("[HW] 未声明窗口号 → 回落窗口 1（不落 0、不丢图）",
+                        picked2 != null && picked2.ViewIndex == 1,
+                        picked2 == null ? "(没有产出帧)" : $"ViewIndex={picked2.ViewIndex}");
+
+                    foreach (var f in frames.Concat(frames2)) f.Dispose();
+                }
+                finally
+                {
+                    // FlowSession 持有 CancellationTokenSource / SemaphoreSlim，且 Dispose 会连带释放
+                    // PluginLookup 里的插件实例——断言里必须自己收，泄漏会一直攒到进程退出。
+                    session.Dispose();
+                    session2.Dispose();
+                }
+            }
+            finally
+            {
+                gallery.Enabled = savedEnabled;
+                gallery.CollectAllOutputPorts = savedCollectAll;
+                gallery.IncludeRealtimePreviews = savedRealTime;
+                svc.Clear();
+                ImagePreviewCaptureHub.Current = null;
+            }
+        }
+
+        /// <summary>兜底采集用：带 <c>DisplayViewIndex</c> 输出的桩插件。
+        /// 属性形态与真插件一致（<c>[StepConfig] int</c> 是普通属性、不进端口表，
+        /// 所以窗口号只能由宿主反射读取——见 ReadDisplayViewIndex）。</summary>
+        private sealed class HarvestStub : VisionPluginBase
+        {
+            public int DisplayViewIndex { get; set; } = 1;
+
+            public Core.Interfaces.OutputPort<HImage> Image { get; } = new("Image", "图像");
+
+            public override void RunAlgorithm(IExecutionContext context) { }
+        }
+
+        /// <summary>兜底采集用：**不声明**窗口号的桩插件（判"回落窗口 1"）</summary>
+        private sealed class HarvestNoWindowStub : VisionPluginBase
+        {
+            public Core.Interfaces.OutputPort<HImage> Image { get; } = new("Image", "图像");
+
+            public override void RunAlgorithm(IExecutionContext context) { }
         }
     }
 }

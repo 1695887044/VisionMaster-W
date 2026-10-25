@@ -1,20 +1,20 @@
 {
   "schema": "vm-plan/1",
   "id": "solution-create-and-save",
-  "title": "新建方案并保存到指定路径（组合任务）",
-  "version": "1.0.0",
+  "title": "新建方案并保存到父目录（组合任务）",
+  "version": "1.1.0",
   "risk": "low",
-  "description": "组合示例：先调用 solution-new，再调用 solution-save。上层任务只关心「新建并落盘」这个结果，不重复写两次菜单路径。",
+  "description": "先调用 solution-new，再调用 solution-save-as。落点是 <parent_dir>/<方案名>/<方案名>.vms：方案名里的非法字符会被替换成下划线，断言时用净化后的名字。",
   "params": {
     "solution_name": {
       "type": "string",
       "required": true,
       "example": "Demo_20261023"
     },
-    "save_path": {
+    "parent_dir": {
       "type": "string",
       "required": true,
-      "example": "D:\\C#\\VM\\解决方案\\Demo_20261023.vms"
+      "example": "D:\\VMSolutions"
     }
   },
   "preconditions": [
@@ -33,8 +33,11 @@
     {
       "n": 2,
       "do": "call",
-      "plan": "solution-save",
-      "args": { "save_path": "${save_path}" },
+      "plan": "solution-save-as",
+      "args": {
+        "parent_dir": "${parent_dir}",
+        "expected_vms": "${parent_dir}\\${solution_name}\\${solution_name}.vms"
+      },
       "expect": { "window": "app.main", "state": "visible" },
       "timeout_ms": 40000
     },
@@ -42,12 +45,12 @@
       "n": 3,
       "do": "assert",
       "assert": "file_exists",
-      "path": "${save_path}",
+      "path": "${parent_dir}\\${solution_name}\\${solution_name}.vms",
       "timeout_ms": 5000
     }
   ],
   "postconditions": [
-    { "assert": "file_exists", "path": "${save_path}", "timeout_ms": 5000 }
+    { "assert": "file_exists", "path": "${parent_dir}\\${solution_name}\\${solution_name}.vms", "timeout_ms": 5000 }
   ],
   "on_fail": "stop_and_report",
   "tags": ["solution", "create", "save", "composite"]

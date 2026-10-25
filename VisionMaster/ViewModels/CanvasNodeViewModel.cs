@@ -60,6 +60,11 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(DisableMenuHeader));
             }
 
+            // 断点标记：右键菜单的勾选态绑 IsBreakpoint（与流程栏 IsBreakpointSet 同口径）。
+            // 菜单是共享实例，不转发这条通知的话勾选态会停在上一次打开的节点上。
+            if (e.PropertyName == nameof(StepModel.IsBreakpoint))
+                RaisePropertyChanged(nameof(IsBreakpoint));
+
             // 注释在配置界面/流程栏编辑，画布节点下方的注释行要即时跟随
             if (e.PropertyName == nameof(StepModel.Description))
             {
@@ -507,6 +512,33 @@ namespace VisionMaster.ViewModels
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
+        // ------------------------------------------------------------------
+        //  右键菜单「分支结构」分组的可见性（画布与流程栏同一套判据）
+        //
+        //  此前加分支只能回流程栏点：画布节点菜单里根本没有这一类项。三个判据与
+        //  ProcessViewModel.IsIfNodeSelected / IsCaseNodeSelected / IsParallelNodeSelected
+        //  逐条同口径——分支能不能加，取决于容器类型，与"当前选中项"无关（画布菜单的
+        //  DataContext 就是被点的那个节点，不存在命令靶错位）。
+        // ------------------------------------------------------------------
+
+        /// <summary>If 类容器（含 While 子类）：可加 ElseIf / Else 分支</summary>
+        public bool IsIfLikeNode => Model is ConditionStep { } condition && condition.IsIfLike;
+
+        /// <summary>分支匹配容器：可加 Case 分支</summary>
+        public bool IsCaseNode => Model is CaseStep;
+
+        /// <summary>并行分组：可加并行分支</summary>
+        public bool IsParallelNode => Model is ParallelStep;
+
+        /// <summary>任意容器节点（右键菜单里"分支结构"那一段的分隔线据此显隐）</summary>
+        public bool IsContainerNode => Kind == CanvasNodeKind.Container;
+
+        /// <summary>
+        /// 右键菜单里有没有"分支结构"项（分隔线据此显隐）。
+        /// 不是所有容器都能加分支：While/For 只有一个循环体，加分支没有语义。
+        /// </summary>
+        public bool HasBranchMenuItems => IsIfLikeNode || IsCaseNode || IsParallelNode;
+
         // ---- 泳道头：分支徽标 / 名称 / 计数 / 类型配色 / 底部说明条 ----
 
         /// <summary>泳道父容器类型（模板触发器按它选 soft/border/badge/text 四色）</summary>
@@ -881,9 +913,38 @@ namespace VisionMaster.ViewModels
 
         public DelegateCommand? CopyCommand { get; set; }
 
+        /// <summary>
+        /// 重命名（右键菜单，与流程栏「重命名」同一弹窗与同一门禁）。
+        /// 2026-10-24 补：画布此前没有这两个入口，同一个步骤在流程栏能改名字/注释、在画布不能。
+        /// </summary>
+        public DelegateCommand? RenameCommand { get; set; }
+
+        /// <summary>编辑注释（右键菜单，与流程栏「编辑注释」同一弹窗）</summary>
+        public DelegateCommand? EditCommentCommand { get; set; }
+
+        /// <summary>
+        /// 分支结构动作（右键菜单「添加分支 / 添加 ElseIf / 添加 Else / 添加 Case」）：
+        /// 与流程栏 AddParallelBranchCommand / ModuleActionCommand(AddElseIf|AddElse|AddCase)
+        /// 走**同一批处理器**，主 VM 在 GetOrCreateNode 时注入（参数就是本节点的 Model）。
+        /// 刻意不在画布侧另写一份判型/上限/确认逻辑——两处各写一份必然漂移。
+        /// </summary>
+        public DelegateCommand? AddBranchCommand { get; set; }
+
+        /// <summary>If 容器追加 ElseIf 分支（与流程栏 ModuleCommandAction.AddElseIf 同一处理器）</summary>
+        public DelegateCommand? AddElseIfBranchCommand { get; set; }
+
+        /// <summary>If 容器补兜底 Else 分支（与流程栏 ModuleCommandAction.AddElse 同一处理器）</summary>
+        public DelegateCommand? AddElseBranchCommand { get; set; }
+
+        /// <summary>分支匹配容器追加 Case 分支（与流程栏 ModuleCommandAction.AddCase 同一处理器）</summary>
+        public DelegateCommand? AddCaseBranchCommand { get; set; }
+
         /// <summary>断点菜单项可见性：只有普通步骤可挂断点（容器/泳道不参与，与 ToggleBreakpoint 的闸门同口径）</summary>
         public Visibility BreakpointMenuVisibility
             => Kind == CanvasNodeKind.Step ? Visibility.Visible : Visibility.Collapsed;
+
+        /// <summary>断点勾选态（右键菜单 IsChecked；随 Model.IsBreakpoint 变化转发通知）</summary>
+        public bool IsBreakpoint => Model?.IsBreakpoint == true;
 
         /// <summary>禁用菜单项文案（随 Model.IsDisEnable 动态翻转）</summary>
         public string DisableMenuHeader => Model?.IsDisEnable == true ? "启用" : "禁用";

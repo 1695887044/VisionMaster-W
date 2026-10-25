@@ -1,0 +1,60 @@
+{
+  "schema": "vm-plan/1",
+  "id": "step-delete",
+  "title": "删除一个步骤",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "流程树右键删除没有二次确认；删错了用画布 Ctrl+Z 撤销。",
+  "params": {
+    "step_name": {
+      "type": "string",
+      "required": true,
+      "example": "临时步骤"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "process.step_row",
+      "target_name": "${step_name}",
+      "expect": {
+        "element": "process.context.delete",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "process.context.delete"
+    },
+    {
+      "n": 3,
+      "do": "assert",
+      "assert": "element_absent",
+      "target": "process.step_row",
+      "name_contains": "${step_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_absent",
+      "target": "process.step_row",
+      "name_contains": "${step_name}"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["step", "delete"]
+}

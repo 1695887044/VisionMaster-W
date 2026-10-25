@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>工业 HMI 四方案完整界面 · Web 设计基线 v1</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+      #E9EEF5;
+    color:#0F172A;
+    font-family:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    font-size:13px;line-height:1.5;padding:28px 28px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{font-family:inherit;}
+  a{color:inherit;}
+
+  /* ---------- 页头 ---------- */
+  .page-head{max-width:1560px;margin:0 auto 16px;}
+  .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#0369A1;margin-bottom:8px;}
+  .eyebrow::before{content:"";width:18px;height:2px;border-radius:1px;background:#0EA5E9;}
+  .page-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:#E0F2FE;color:#0369A1;font-size:11px;font-weight:700;}
+  .page-head .meta{margin:8px 0 0;color:#475569;font-size:13px;max-width:1180px;line-height:1.65;}
+  .page-head .meta b{color:#0F172A;font-weight:600;}
+  .page-head .meta code{font-family:"Cascadia Mono","Consolas",monospace;font-size:11.5px;padding:1px 5px;border:1px solid #E2E8F0;border-radius:4px;background:rgba(255,255,255,.72);white-space:nowrap;}
+  .meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+  .meta-chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid #E2E8F0;border-radius:12px;background:rgba(255,255,255,.72);color:#475569;font-size:11px;}
+  .meta-chip strong{color:#0F172A;font-weight:600;margin-right:3px;}
+
+  /* ---------- 页签 ---------- */
+  .tabs{max-width:1560px;margin:0 auto 10px;display:flex;gap:6px;flex-wrap:wrap;padding:7px;background:rgba(255,255,255,.72);border:1px solid #E2E8F0;border-radius:10px;}
+  .tabs .tab-group{display:inline-flex;gap:4px;align-items:center;padding-right:8px;border-right:1px solid #E2E8F0;}
+  .tabs .tab-group:last-child{border-right:0;padding-right:0;}
+  .tabs .tab-label{font-size:10px;font-weight:700;color:#94A3B8;letter-spacing:.08em;padding:0 4px;}
+  .tabs button{appearance:none;border:1px solid transparent;background:transparent;color:#475569;height:28px;padding:0 10px;border-radius:7px;font-size:11px;cursor:pointer;}
+  .tabs button:hover{background:#F1F5F9;}
+  .tabs button.is-on{background:#0F172A;color:#fff;border-color:#0F172A;font-weight:600;}
+  .tabs .tab-badge{display:inline-flex;align-items:center;justify-content:center;height:15px;padding:0 5px;margin-left:5px;border-radius:4px;background:rgba(255,255,255,.18);font-size:8.5px;font-weight:700;}
+
+  /* ---------- 模板区块 ---------- */
+  .template{display:none;max-width:1560px;margin:0 auto;}
+  .template.is-on{display:block;}
+  .tpl-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:2px 0 0;}
+  .tpl-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;}
+  .tpl-head h2 span{color:#0EA5E9;font-family:"Cascadia Mono","Consolas",monospace;font-size:13px;margin-right:6px;}
+  .tpl-head p{margin:4px 0 0;color:#475569;font-size:11.5px;max-width:980px;}
+  .tpl-meta{display:flex;gap:6px;flex-wrap:wrap;}
+  .tpl-meta span{display:inline-flex;align-items:center;height:22px;padding:0 8px;border:1px solid #E2E8F0;border-radius:6px;background:#fff;color:#475569;font-size:10px;}
+  .tpl-meta b{color:#0F172A;font-weight:600;margin-right:3px;}
+
+  /* ---------- 1920 × 1080 运行画面 ---------- */
+  .screen{
+    position:relative;width:1920px;height:1080px;flex:none;margin:14px 0 0;overflow:hidden;
+    border-radius:12px;box-shadow:0 18px 50px rgba(15,23,42,.18);
+    background:var(--c-bg);color:var(--c-text);
+    font-size:12px;line-height:1.45;transform-origin:top left;
+    --c-bg:#0E1318; --c-surface:#151C23; --c-surface-2:#1B242D; --c-surface-3:#222D38;
+    --c-border:#2A3745; --c-border-2:#3A4A5C; --c-outline:#526274;
+    --c-text:#E6EEF7; --c-text-2:#A9B7C6; --c-text-3:#7C8A99;
+    --c-accent:#38BDF8; --c-accent-2:#0EA5E9; --c-accent-strong:#0284C7;
+    --c-success:#22C55E; --c-success-fill:#15803D; --c-success-soft:rgba(34,197,94,.14);
+    --c-warning:#F59E0B; --c-warning-fill:#B45309; --c-warning-soft:rgba(245,158,11,.14);
+    --c-danger:#EF4444; --c-danger-fill:#B91C1C; --c-danger-soft:rgba(239,68,68,.14);
+    --c-info:#3B82F6; --c-off:#64748B; --c-track:#26313D;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+  }
+  .screen *{box-sizing:border-box;}
+
+  /* 顶栏 A */
+  .topbar{height:72px;display:flex;align-items:center;gap:12px;padding:0 20px;background:#0B1015;border-bottom:1px solid var(--c-border);}
+  .brand{display:flex;align-items:center;gap:10px;flex:none;}
+  .logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#0EA5E9,#0284C7);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;letter-spacing:.04em;}
+  .brand b{display:block;font-size:14px;font-weight:600;line-height:1.2;}
+  .brand small{display:block;font-size:9.5px;color:var(--c-text-3);line-height:1.3;}
+  .status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;font-size:10.5px;font-weight:600;white-space:nowrap;}
+  .status-chip i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+  .status-chip.run{background:rgba(34,197,94,.14);color:#86EFAC;border:1px solid rgba(34,197,94,.3);}
+  .status-chip.warn{background:rgba(245,158,11,.14);color:#FCD34D;border:1px solid rgba(245,158,11,.32);}
+  .status-chip.bad{background:rgba(239,68,68,.14);color:#FCA5A5;border:1px solid rgba(239,68,68,.32);}
+  .mode-pill{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-text-2);font-family:var(--mono);font-size:10px;white-space:nowrap;}
+  .spacer{flex:1;}
+  .top-stat{display:flex;flex-direction:column;gap:1px;padding:0 12px;border-left:1px solid var(--c-border);white-space:nowrap;}
+  .top-stat span{font-size:9px;color:var(--c-text-3);}
+  .top-stat b{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--c-text);}
+  .alarm-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.32);color:#FCA5A5;font-size:10px;font-weight:600;white-space:nowrap;cursor:pointer;}
+  .alarm-chip.warning{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.3);color:#FCD34D;}
+  .alarm-chip i{width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;}
+  .user{display:flex;flex-direction:column;gap:1px;padding-left:12px;border-left:1px solid var(--c-border);white-space:nowrap;}
+  .user span{font-size:9px;color:var(--c-text-3);}
+  .user b{font-size:11px;font-weight:600;color:var(--c-text-2);}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--c-text-2);white-space:nowrap;}
+
+  /* 外壳 B/C/D */
+  .shell{display:flex;height:976px;}
+  .nav{width:208px;flex:none;background:#111820;border-right:1px solid var(--c-border);padding:12px 8px;display:flex;flex-direction:column;gap:3px;}
+  .nav-item{display:flex;align-items:center;gap:9px;height:36px;padding:0 11px;border-radius:6px;color:var(--c-text-3);font-size:12px;white-space:nowrap;cursor:pointer;}
+  .nav-item .ico{width:17px;text-align:center;font-size:13px;color:var(--c-text-3);flex:none;font-style:normal;}
+  .nav-item.active{background:var(--c-surface-2);color:var(--c-text);box-shadow:inset 2px 0 0 var(--c-accent);}
+  .nav-item.active .ico{color:var(--c-accent);}
+  .nav-badge{display:inline-flex;align-items:center;justify-content:center;height:16px;min-width:16px;padding:0 4px;margin-left:auto;border-radius:4px;background:rgba(239,68,68,.2);color:#FCA5A5;font-size:9px;font-weight:700;}
+  .nav-sep{height:1px;background:var(--c-border);margin:9px 6px;}
+  .nav-foot{margin-top:auto;padding:10px 8px 4px;border-top:1px solid var(--c-border);}
+  .conn{display:flex;align-items:center;gap:6px;font-size:10px;color:#86EFAC;}
+  .conn i{width:6px;height:6px;border-radius:50%;background:#22C55E;box-shadow:0 0 6px rgba(34,197,94,.8);}
+  .conn-sub{font-size:9px;color:var(--c-text-3);margin-top:3px;padding-left:12px;}
+  .main{flex:1;min-width:0;padding:16px;display:flex;flex-direction:column;gap:13px;overflow:hidden;}
+  .rail{width:340px;flex:none;background:#111820;border-left:1px solid var(--c-border);padding:14px;display:flex;flex-direction:column;gap:13px;overflow:hidden;}
+
+  /* 底栏 E */
+  .bottombar{height:32px;display:flex;align-items:center;gap:18px;padding:0 20px;background:#0B1015;border-top:1px solid var(--c-border);font-size:10px;color:var(--c-text-3);}
+  .bottombar .dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#22C55E;margin-right:5px;vertical-align:1px;}
+
+  /* 卡片 */
+  .card{background:var(--c-surface);border:1px solid var(--c-border);border-radius:8px;padding:13px;display:flex;flex-direction:column;min-height:0;overflow:hidden;position:relative;}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:9px;flex:none;}
+  .card-head b{display:block;font-size:12.5px;font-weight:600;color:var(--c-text);line-height:1.3;}
+  .card-head span{display:block;font-size:9.5px;color:var(--c-text-3);margin-top:1px;line-height:1.35;}
+  .card-head .chip{flex:none;}
+  .card-link{font-size:9.5px;color:var(--c-accent);cursor:pointer;white-space:nowrap;}
+  .chip{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);color:var(--c-text-2);font-size:9px;font-weight:600;white-space:nowrap;}
+  .chip.ok{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.3);color:#86EFAC;}
+  .chip.warn{background:rgba(245,158,11,.13);border-color:rgba(245,158,11,.3);color:#FCD34D;}
+  .chip.danger{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.32);color:#FCA5A5;}
+  .chip.cand{background:#FFF7ED;border-color:#FED7AA;color:#9A3412;}
+  .legend-inline{display:flex;align-items:center;gap:10px;font-size:9px;color:var(--c-text-3);flex-wrap:wrap;}
+  .legend-inline span{display:inline-flex;align-items:center;gap:4px;}
+  .legend-inline i{width:7px;height:7px;border-radius:50%;display:inline-block;}
+  .legend-inline i.run{background:var(--c-success);}
+  .legend-inline i.stop{background:var(--c-off);}
+  .legend-inline i.alarm{background:var(--c-danger);}
+
+  /* 右栏 */
+  .alarm-card{height:236px;flex:none;}
+  .alarm-list{display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+  .alarm-row{display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;gap:7px;align-items:center;padding:6px 8px;border-radius:5px;background:var(--c-surface-2);border-left:3px solid var(--c-off);font-size:9.5px;color:var(--c-text-2);}
+  .alarm-row.critical{border-left-color:var(--c-danger);}
+  .alarm-row.warning{border-left-color:var(--c-warning);}
+  .alarm-row.info{border-left-color:var(--c-info);}
+  .alarm-row .sev{font-size:9px;font-weight:700;}
+  .alarm-row.critical .sev{color:#FCA5A5;}
+  .alarm-row.warning .sev{color:#FCD34D;}
+  .alarm-row.info .sev{color:#93C5FD;}
+  .alarm-row .time{font-family:var(--mono);font-size:9px;color:var(--c-text-3);}
+  .alarm-row .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .alarm-row .state{font-size:8.5px;color:var(--c-text-3);}
+  .kpi-card{height:206px;flex:none;}
+  .kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;flex:1;}
+  .kpi{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+  .kpi span{font-size:9px;color:var(--c-text-3);}
+  .kpi b{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--c-text);line-height:1.25;}
+  .kpi b small{font-size:11px;font-weight:500;color:var(--c-text-3);margin-left:2px;}
+  .kpi em{font-style:normal;font-size:8.5px;color:#86EFAC;}
+
+  /* 通用小件 */
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:24px;padding:0 9px;border-radius:4px;border:1px solid var(--c-border-2);background:var(--c-surface-2);color:var(--c-text-2);font-size:9px;white-space:nowrap;cursor:pointer;}
+  .btn.primary{background:var(--c-accent-2);border-color:var(--c-accent-2);color:#fff;font-weight:600;}
+  .btn.danger{background:rgba(239,68,68,.14);border-color:rgba(239,68,68,.38);color:#FCA5A5;font-weight:600;}
+  .btn.ok{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.34);color:#86EFAC;font-weight:600;}
+  .row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:6px 0;border-bottom:1px dashed var(--c-border);font-size:10px;color:var(--c-text-3);}
+  .detail-row:last-child{border-bottom:0;}
+  .detail-row b{font-family:var(--mono);font-size:10px;color:var(--c-text);font-weight:500;text-align:right;}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1;}
+  .stat{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:8px 9px;display:flex;flex-direction:column;justify-content:center;min-height:0;}
+  .stat span{font-size:8.5px;color:var(--c-text-3);}
+  .stat b{font-family:var(--mono);font-size:17px;font-weight:600;color:var(--c-text);line-height:1.2;}
+  .stat b.danger{color:#FCA5A5;}
+  .stat b.warn{color:#FCD34D;}
+  .progress{height:6px;border-radius:999px;background:var(--c-track);overflow:hidden;}
+  .progress i{display:block;height:100%;border-radius:999px;background:var(--c-accent);}
+  .progress i.ok{background:var(--c-success);}
+  .progress i.warn{background:var(--c-warning);}
+  svg.stage{width:100%;height:100%;display:block;}
+  .image-stage{flex:1;min-height:0;background:#0B1015;border:1px solid var(--c-border);border-radius:6px;overflow:hidden;position:relative;}
+  .image-stage img{width:100%;height:100%;object-fit:contain;display:block;background:#0B1015;}
+  .stage-tag{position:absolute;left:8px;top:7px;display:inline-flex;align-items:center;gap:5px;height:18px;padding:0 6px;border-radius:4px;background:rgba(11,16,21,.78);border:1px solid var(--c-border-2);font-size:8.5px;color:var(--c-text-2);}
+  .stage-tag i{width:5px;height:5px;border-radius:50%;background:var(--c-accent);}
+  .placeholder-note{position:absolute;inset:auto 8px 8px auto;font-size:8px;color:var(--c-warning);background:rgba(11,16,21,.8);border:1px solid rgba(245,158,11,.32);border-radius:4px;padding:2px 5px;}
+  .data-table{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .data-row{display:grid;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border);font-size:9.5px;color:var(--c-text-2);}
+  .data-row.head{color:var(--c-text-3);font-size:8.5px;border-bottom:1px solid var(--c-border-2);}
+  .data-row:last-child{border-bottom:0;}
+  .data-row .mono{font-family:var(--mono);}
+  .data-row .ng{color:#FCA5A5;font-weight:600;}
+  .data-row .ok{color:#86EFAC;font-weight:600;}
+  .data-row .warn{color:#FCD34D;font-weight:600;}
+  .field{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px dashed var(--c-border);font-size:9.5px;color:var(--c-text-3);}
+  .field:last-child{border-bottom:0;}
+  .field b{font-family:var(--mono);font-size:9.5px;color:var(--c-text);font-weight:500;}
+  .input-mock{display:inline-flex;align-items:center;justify-content:flex-end;height:24px;min-width:96px;padding:0 8px;border-radius:4px;border:1px solid var(--c-border-2);background:#0B1015;font-family:var(--mono);font-size:9.5px;color:var(--c-accent);}
+  .select-mock{display:inline-flex;align-items:center;justify-content:space-between;gap:10px;height:24px;min-width:126px;padding:0 8px;border-radius:4px;border:1px solid var(--c-border-2);background:var(--c-surface-2);font-size:9.5px;color:var(--c-text);}
+  .select-mock i{font-style:normal;color:var(--c-text-3);font-size:8px;}
+  .switch-mock{display:inline-flex;align-items:center;width:38px;height:20px;border-radius:999px;background:var(--c-success-fill);padding:2px;justify-content:flex-end;}
+  .switch-mock i{width:16px;height:16px;border-radius:50%;background:#fff;}
+  .switch-mock.off{background:var(--c-track);justify-content:flex-start;}
+  .lamp{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--c-off);}
+  .lamp.on{background:var(--c-success);box-shadow:0 0 6px rgba(34,197,94,.75);}
+  .lamp.warn{background:var(--c-warning);box-shadow:0 0 6px rgba(245,158,11,.75);}
+  .lamp.bad{background:var(--c-danger);box-shadow:0 0 6px rgba(239,68,68,.75);}
+  .steps{display:flex;align-items:flex-start;gap:0;margin-top:10px;}
+  .step{display:flex;flex-direction:column;align-items:center;gap:5px;flex:none;width:74px;}
+  .step i{width:28px;height:28px;border-radius:50%;border:1px solid var(--c-border-2);background:var(--c-surface-2);display:flex;align-items:center;justify-content:center;font-style:normal;font-size:10px;color:var(--c-text-3);}
+  .step span{font-size:9px;color:var(--c-text-3);white-space:nowrap;}
+  .step.done i{background:var(--c-success-fill);border-color:var(--c-success);color:#fff;font-weight:700;}
+  .step.on i{background:var(--c-accent);border-color:var(--c-accent);color:#04121b;font-weight:700;box-shadow:0 0 0 4px rgba(56,189,248,.14);}
+  .step.on span{color:var(--c-text);font-weight:600;}
+  .step-line{flex:1;height:1px;background:var(--c-border-2);margin-top:14px;min-width:16px;}
+  .step-line.on{background:var(--c-success);}
+  .result-badge{display:flex;align-items:center;justify-content:center;height:84px;border-radius:8px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:#86EFAC;font-family:var(--mono);font-size:32px;font-weight:700;letter-spacing:.06em;}
+  .result-badge.ng{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.3);color:#FCA5A5;}
+  .result-badge.recheck{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.32);color:#FCD34D;}
+  .sn-card{background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:6px;padding:9px 11px;}
+  .sn-card span{display:block;font-size:8.5px;color:var(--c-text-3);}
+  .sn-card b{display:block;font-family:var(--mono);font-size:17px;font-weight:600;color:var(--c-accent);letter-spacing:.02em;}
+  .sn-card small{display:block;font-size:8.5px;color:var(--c-text-3);margin-top:2px;}
+  .tag-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;}
+  .tag-list span{display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:#F1F5F9;border:1px solid #E2E8F0;color:#475569;font-family:"Cascadia Mono","Consolas",monospace;font-size:9px;white-space:nowrap;}
+  .tag-list span.cand{background:#FFF7ED;border-color:#FED7AA;color:#9A3412;}
+
+  /* ---------- 说明区 ---------- */
+  .notes{max-width:1560px;margin:16px auto 0;display:grid;grid-template-columns:1.1fr .9fr;gap:14px;}
+  .note-card{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px 16px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+  .note-card h3{margin:0 0 8px;font-size:12.5px;font-weight:600;color:#0F172A;}
+  .note-card h3:not(:first-child){margin-top:14px;}
+  .note-card p{margin:0 0 8px;font-size:11px;line-height:1.7;color:#475569;}
+  .note-card ul,.note-card ol{margin:0 0 8px;padding-left:18px;font-size:11px;line-height:1.75;color:#475569;}
+  .note-card li{margin:0 0 3px;}
+  .note-card code{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;padding:1px 4px;border:1px solid #E2E8F0;border-radius:3px;background:#F8FAFC;white-space:nowrap;}
+  .zone-table{width:100%;border-collapse:collapse;font-size:10.5px;color:#475569;}
+  .zone-table td{padding:5px 6px;border-bottom:1px solid #EEF2F7;vertical-align:top;line-height:1.55;}
+  .zone-table td:first-child{width:26px;font-family:"Cascadia Mono","Consolas",monospace;font-weight:700;color:#0284C7;white-space:nowrap;}
+  .zone-table tr:last-child td{border-bottom:0;}
+
+  /* ---------- 截图模式 ---------- */
+  body.shot{padding:0;background:#0E1318;}
+  body.shot .page-head,body.shot .tabs,body.shot .tpl-head,body.shot .notes,body.shot .page-notes,body.shot .shotbar{display:none !important;}
+  body.shot .template{max-width:none;}
+  body.shot .screen{margin:0;border:0;border-radius:0;box-shadow:none;}
+
+  /* 多界面 */
+  .screen-page{display:none;}
+  .screen-page.is-on{display:block;}
+  .page-notes{max-width:1560px;margin:12px auto 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+  .page-notes .note-card{padding:12px 14px;}
+  .page-notes .note-card h3{font-size:12px;}
+  .page-notes .note-card p,.page-notes .note-card li{font-size:10.5px;}
+  [data-nav]{cursor:pointer;}
+  .shotbar{max-width:1560px;margin:8px auto 0;font-size:10.5px;color:#64748B;}
+  .shotbar code{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;padding:1px 5px;border:1px solid #E2E8F0;border-radius:4px;background:#fff;}
+/* ===== 方案 D · 运动控制专用（复用同一套 --c-* 令牌，不新增颜色） ===== */
+
+/* 3D 机构示意 */
+.mstage{position:relative;flex:1;min-height:0;border-radius:6px;background:radial-gradient(120% 120% at 18% 6%,#1A2632 0%,#0C1227 62%,#080D12 100%);border:1px solid var(--c-border);overflow:hidden;}
+.mstage svg{position:absolute;inset:0;width:100%;height:100%;}
+.mstage .gantry{stroke:#3E5063;stroke-width:13;stroke-linecap:round;fill:none;}
+.mstage .gantry-hi{stroke:#52647A;stroke-width:13;stroke-linecap:round;fill:none;}
+.mstage .slide{stroke:#7DD3FC;stroke-width:3.5;fill:none;}
+.mstage .carry{fill:#1E2A36;stroke:#5C7590;stroke-width:1.6;}
+.mstage .held{fill:rgba(56,189,248,.10);stroke:#38BDF8;stroke-width:1.8;stroke-dasharray:7 5;animation:mheld 2.4s linear infinite;}
+.mstage .amb{stroke:rgba(34,197,94,.55);stroke-width:1.4;stroke-dasharray:5 4;fill:none;}
+.mstage .wkc{fill:rgba(56,189,248,.06);stroke:rgba(56,189,248,.35);stroke-width:1.2;}
+.mstage .axislab{fill:#38BDF8;font-family:var(--mono);font-size:11px;letter-spacing:.4px;}
+.mstage .dimlab{fill:#94A3B8;font-family:var(--mono);font-size:9.5px;}
+.mstage .hintlab{fill:#64748B;font-size:10px;}
+.mstage .trail{fill:none;stroke:#F59E0B;stroke-width:1.6;stroke-dasharray:9 6;animation:mtrail 3.2s linear infinite;}
+.mstage .ghost{fill:none;stroke:rgba(148,163,184,.35);stroke-width:1.2;stroke-dasharray:4 4;}
+.mstage .probe{fill:none;stroke:#22C55E;stroke-width:1.8;}
+@keyframes mheld{to{stroke-dashoffset:-24;}}
+@keyframes mtrail{to{stroke-dashoffset:-30;}}
+.mstage-badge{position:absolute;left:10px;top:9px;display:flex;gap:6px;font-family:var(--mono);font-size:8.5px;color:var(--c-text-2);}
+.mstage-badge span{background:rgba(11,17,22,.82);border:1px solid var(--c-border);border-radius:4px;padding:2px 6px;}
+.mstage-legend{position:absolute;right:10px;bottom:9px;display:flex;gap:10px;font-size:8.5px;color:var(--c-text-3);background:rgba(11,17,22,.82);border:1px solid var(--c-border);border-radius:5px;padding:4px 8px;}
+.mstage-legend i{display:inline-block;width:7px;height:7px;border-radius:2px;margin-right:4px;}
+
+/* 轴卡片（四列） */
+.axis-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
+.at{background:var(--c-surface);border:1px solid var(--c-border);border-radius:7px;padding:9px 10px;display:flex;flex-direction:column;gap:5px;}
+.at.mv{border-color:var(--c-accent);box-shadow:0 0 0 1px rgba(56,189,248,.22) inset;}
+.at.al{border-color:var(--c-danger);}
+.at-hd{display:flex;align-items:center;justify-content:space-between;font-size:9.5px;}
+.at-hd b{font-size:10px;letter-spacing:.3px;}
+.at-hd .st{font-family:var(--mono);font-size:8px;padding:1px 5px;border-radius:999px;background:var(--c-success-soft);color:#86EFAC;border:1px solid rgba(34,197,94,.35);}
+.at-hd .st.mv{background:rgba(56,189,248,.14);color:#7DD3FC;border-color:rgba(56,189,248,.4);}
+.at-hd .st.al{background:var(--c-danger-soft);color:#FCA5A5;border-color:rgba(239,68,68,.4);}
+.at-pos{display:flex;align-items:baseline;gap:4px;font-family:var(--mono);font-size:23px;line-height:1.05;color:var(--c-text);}
+.at-pos em{font-style:normal;font-size:9.5px;color:var(--c-text-3);}
+.at-bar{position:relative;height:5px;border-radius:999px;background:var(--c-track);overflow:hidden;}
+.at-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,#0EA5E9,#38BDF8);}
+.at-bar u{position:absolute;top:-2px;bottom:-2px;width:2px;background:rgba(239,68,68,.75);}
+.at-foot{display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--c-text-3);}
+
+/* 点动盘 3×3 */
+.jogpad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;}
+.jogbtn{position:relative;height:52px;border-radius:8px;background:linear-gradient(180deg,var(--c-surface-2),var(--c-surface));border:1px solid var(--c-border-2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:10px;color:var(--c-text);cursor:pointer;user-select:none;}
+.jogbtn small{font-family:var(--mono);font-size:7.5px;color:var(--c-text-3);letter-spacing:.3px;}
+.jogbtn.press{background:linear-gradient(180deg,rgba(56,189,248,.24),rgba(56,189,248,.10));border-color:var(--c-accent);box-shadow:0 0 0 3px rgba(56,189,248,.18);}
+.jogbtn.hold{border-style:dashed;}
+.jogbtn.stop{background:linear-gradient(180deg,rgba(239,68,68,.22),rgba(239,68,68,.08));border-color:rgba(239,68,68,.55);color:#FCA5A5;}
+.jogbtn.center{background:var(--c-surface-3);border-style:dashed;font-family:var(--mono);font-size:9px;color:var(--c-text-3);}
+
+/* 轴选择器 */
+.axsel{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.axsel span{height:26px;border-radius:6px;background:var(--c-surface-2);border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:9px;color:var(--c-text-2);cursor:pointer;}
+.axsel span.on{background:rgba(56,189,248,.16);border-color:var(--c-accent);color:#7DD3FC;}
+
+/* 点位表 / 参数表 */
+.pt-table,.pm-table,.axs-table{width:100%;border-collapse:collapse;font-size:9px;}
+.pt-table th,.pm-table th,.axs-table th{font-weight:500;color:var(--c-text-3);font-size:8.5px;text-align:left;padding:5px 7px;background:rgba(34,45,56,.5);border-bottom:1px solid var(--c-border);}
+.pt-table td,.pm-table td,.axs-table td{padding:5px 7px;border-bottom:1px solid rgba(42,55,69,.6);color:var(--c-text-2);font-family:var(--mono);font-size:8.5px;}
+.pt-table td.nm,.axs-table td.n{font-family:inherit;font-size:9px;color:var(--c-text);}
+.pt-table tr.on td{background:rgba(56,189,248,.09);color:#BAE6FD;}
+.pt-table td.go{font-family:inherit;color:#7DD3FC;cursor:pointer;}
+.pm-table td.k{font-family:inherit;color:var(--c-text-3);width:28%;}
+.pm-table td.v{text-align:right;}
+.pm-table td.v.hl{color:#7DD3FC;}
+
+/* 位图（DI/DO） */
+.bits{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;}
+.bits i{height:15px;border-radius:3px;background:var(--c-track);border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;color:var(--c-text-3);font-style:normal;}
+.bits i.on{background:var(--c-success-soft);border-color:rgba(34,197,94,.5);color:#86EFAC;}
+.bits i.al{background:var(--c-danger-soft);border-color:rgba(239,68,68,.5);color:#FCA5A5;}
+
+/* 轴控台 */
+.console-wrap{display:grid;grid-template-columns:322px minmax(0,1fr);gap:12px;flex:1;min-height:0;}
+.axis-console{background:var(--c-surface);border:1px solid var(--c-border-2);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:8px;}
+.axtabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.axtabs span{height:22px;border-radius:5px;background:var(--c-surface-2);border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8.5px;color:var(--c-text-2);}
+.axtabs span.on{background:rgba(56,189,248,.16);border-color:var(--c-accent);color:#7DD3FC;}
+.axbig{font-family:var(--mono);font-size:29px;line-height:1;color:var(--c-text);display:flex;align-items:baseline;gap:5px;}
+.axbig em{font-style:normal;font-size:10px;color:var(--c-text-3);}
+.axlamps{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
+.axlamps i{height:20px;border-radius:4px;background:var(--c-track);border:1px solid var(--c-border);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:7px;font-style:normal;color:var(--c-text-3);}
+.axlamps i.on{background:var(--c-success-soft);border-color:rgba(34,197,94,.5);color:#86EFAC;}
+.axlamps i.warn{background:var(--c-warning-soft);border-color:rgba(245,158,11,.5);color:#FCD34D;}
+.axlamps i.bad{background:var(--c-danger-soft);border-color:rgba(239,68,68,.5);color:#FCA5A5;}
+.axgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.axgrid span{height:28px;border-radius:6px;background:linear-gradient(180deg,var(--c-surface-2),var(--c-surface));border:1px solid var(--c-border-2);display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--c-text);}
+.axgrid span.on{background:rgba(56,189,248,.16);border-color:var(--c-accent);color:#7DD3FC;}
+.axgrid span.stop{background:rgba(239,68,68,.18);border-color:rgba(239,68,68,.5);color:#FCA5A5;}
+.axkv{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:8.5px;}
+.axkv div{display:flex;justify-content:space-between;color:var(--c-text-3);}
+.axkv b{font-family:var(--mono);color:var(--c-text);font-weight:500;}
+
+/* IO 行 / 回零步 / 伺服状态 */
+.io-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 10px;}
+.io-item{display:flex;align-items:center;gap:6px;font-size:9px;color:var(--c-text-2);}
+.io-item i{width:7px;height:7px;border-radius:50%;background:var(--c-off);flex:none;}
+.io-item i.on{background:var(--c-success);box-shadow:0 0 6px rgba(34,197,94,.6);}
+.io-item i.bad{background:var(--c-danger);box-shadow:0 0 6px rgba(239,68,68,.6);}
+.io-item span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.io-item b{font-family:var(--mono);font-size:8.5px;color:var(--c-text);}
+.homestep{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;background:var(--c-surface-2);border:1px solid var(--c-border);font-size:9px;color:var(--c-text-2);}
+.homestep i{width:17px;height:17px;border-radius:50%;background:var(--c-track);border:1px solid var(--c-border-2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:8px;font-style:normal;color:var(--c-text-3);flex:none;}
+.homestep small{margin-left:auto;font-family:var(--mono);font-size:8px;color:var(--c-text-3);}
+.homestep.done{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.08);}
+.homestep.done i{background:var(--c-success-fill);border-color:var(--c-success);color:#fff;}
+.homestep.on{border-color:var(--c-accent);background:rgba(56,189,248,.10);}
+.homestep.on i{background:var(--c-accent-strong);border-color:var(--c-accent);color:#fff;box-shadow:0 0 0 3px rgba(56,189,248,.18);}
+
+/* 波形 / 轴状态表 / 安全条 */
+.wave-card{background:#0B1116;border:1px solid var(--c-border);border-radius:6px;padding:6px 8px;position:relative;}
+.wave-card svg{width:100%;height:100%;display:block;}
+.wave-card .grid{stroke:#1B2632;stroke-width:1;}
+.wave-card .zl{stroke:#7F1D1D;stroke-width:1;stroke-dasharray:5 4;}
+.wave-card .c1{fill:none;stroke:#38BDF8;stroke-width:1.8;}
+.wave-card .c2{fill:none;stroke:#F59E0B;stroke-width:1.8;}
+.wave-card .c3{fill:none;stroke:#22C55E;stroke-width:1.6;stroke-dasharray:4 4;}
+.wave-card .axl{fill:#64748B;font-family:var(--mono);font-size:8px;}
+.wave-legend{display:flex;gap:12px;font-size:8px;color:var(--c-text-3);margin-top:4px;}
+.wave-legend i{display:inline-block;width:9px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle;}
+.axs-table td.d{font-family:inherit;}
+.axs-table td.d::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--c-off);margin-right:5px;vertical-align:middle;}
+.axs-table td.d.mv::before{background:var(--c-accent);box-shadow:0 0 6px rgba(56,189,248,.7);}
+.axs-table td.d.al::before{background:var(--c-danger);box-shadow:0 0 6px rgba(239,68,68,.7);}
+.axs-table td.d.off::before{background:var(--c-text-3);}
+.safe-strip{display:flex;align-items:center;gap:7px;padding:6px 9px;border-radius:6px;background:var(--c-warning-soft);border:1px solid rgba(245,158,11,.35);font-size:9px;color:#FCD34D;}
+.safe-strip.ok{background:var(--c-success-soft);border-color:rgba(34,197,94,.35);color:#86EFAC;}
+.safe-strip.bad{background:var(--c-danger-soft);border-color:rgba(239,68,68,.35);color:#FCA5A5;}
+
+/* 数字键盘 / 目标输入 / 急停 */
+.numpad{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;}
+.numpad span{height:30px;border-radius:6px;background:linear-gradient(180deg,var(--c-surface-2),var(--c-surface));border:1px solid var(--c-border-2);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;color:var(--c-text);cursor:pointer;}
+.numpad span.acc{background:rgba(56,189,248,.16);border-color:rgba(56,189,248,.45);color:#7DD3FC;}
+.numpad span.neg{color:#FCA5A5;}
+.numpad span.wide{grid-column:span 2;}
+.tgt{display:flex;flex-direction:column;gap:3px;}
+.tgt label{font-size:8.5px;color:var(--c-text-3);}
+.tgt .box{height:28px;border-radius:6px;background:#0B1116;border:1px solid var(--c-border-2);display:flex;align-items:center;justify-content:flex-end;padding:0 8px;font-family:var(--mono);font-size:13px;color:#BAE6FD;}
+.tgt em{font-style:normal;font-size:8px;color:var(--c-text-3);margin-left:5px;}
+.estopbar{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+
+/* 传动链 */
+.drive-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.drive{background:var(--c-surface);border:1px solid var(--c-border);border-radius:7px;padding:8px 9px;display:flex;flex-direction:column;gap:4px;}
+.drive b{font-size:9.5px;}
+.drive .vals{font-family:var(--mono);font-size:8px;color:var(--c-text-3);display:flex;flex-direction:column;gap:2px;}
+.drive .vals span{display:flex;justify-content:space-between;}
+.drive .vals em{font-style:normal;color:var(--c-text-2);}
+
+/* 节拍时间轴 */
+.tl{position:relative;height:26px;border-radius:5px;background:var(--c-track);overflow:hidden;margin-top:6px;}
+.tl .seg{position:absolute;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#06121A;font-family:var(--mono);letter-spacing:.2px;}
+.tl .seg.a{background:#38BDF8;}
+.tl .seg.b{background:#22C55E;}
+.tl .seg.c{background:#F59E0B;}
+.tl .seg.d{background:#64748B;color:#E6EEF7;}
+.tl .cursor{position:absolute;top:-2px;bottom:-2px;width:2px;background:#EF4444;}
+.tl-ruler{display:flex;justify-content:space-between;font-family:var(--mono);font-size:7.5px;color:var(--c-text-3);margin-top:3px;}
+
+/* 说明区（评审视图） */
+.shotbar{max-width:1920px;margin:0 auto 14px;padding:9px 14px;border-radius:8px;background:#0E1318;border:1px solid #2A3745;color:#A9B7C6;font-size:12px;font-family:var(--mono);}
+.shotbar b{color:#38BDF8;}
+.page-notes{max-width:1920px;margin:18px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+.note-card{background:#fff;border:1px solid #D8E0EA;border-radius:10px;padding:14px 16px;}
+.note-card h3{margin:0 0 8px;font-size:13px;color:#0F172A;}
+.note-card ul{margin:0;padding-left:16px;color:#475569;font-size:12px;line-height:1.75;}
+.note-card code{font-family:var(--mono);font-size:11px;background:#EEF2F7;padding:1px 4px;border-radius:3px;}
+
+/* ============ 方案 D · 轴控件（AxisPanelElement）像素级复刻样式 ============ */
+/* 一个控件类三个预设：AxisPanel 280x280 / AxisConsole 320x470 / AxisPointTable 340x300 */
+/* 令牌取自 AxisPanelElement 默认值：Accent #FFFF6161 / Alarm #FFE03A2B / Off #FF2A2D31 / Muted #FF9A9A9D */
+.axp{--ax-accent:#FF6161;--ax-alarm:#E03A2B;--ax-off:#2A2D31;--ax-muted:#9A9A9D;--ax-surface:#1E2228;--ax-border:#33383F;
+  display:flex;flex-direction:column;background:var(--ax-surface);border:1px solid var(--ax-border);border-radius:8px;
+  font-size:11px;color:var(--c-text);overflow:hidden;position:relative}
+.axp-hd{display:flex;align-items:center;gap:6px;padding:7px 9px 5px}
+.axp-hd .nm{font-size:11px;font-weight:700;white-space:nowrap}
+.axp-combo{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;border-radius:4px;
+  background:#252A31;border:1px solid var(--ax-border);font-size:10.5px;color:var(--c-text-2);overflow:hidden}
+.axp-combo b{color:var(--c-text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.axp-combo .car{margin-left:auto;color:var(--ax-muted);font-size:9px}
+.axp-empty{padding:14px 9px;font-size:10px;color:var(--ax-muted)}
+.axp-pos{display:flex;align-items:baseline;justify-content:center;gap:5px;padding:2px 9px 4px}
+.axp-pos b{font-family:var(--mono);font-size:30px;line-height:1;font-weight:600;color:var(--ax-accent);letter-spacing:-.5px}
+.axp-pos em{font-style:normal;font-size:10.5px;color:var(--ax-muted)}
+.axp-lamps{display:grid;grid-template-columns:repeat(4,1fr);gap:3px 4px;padding:0 9px 5px}
+.axp-lamp{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--ax-muted);line-height:1.2}
+.axp-lamp i{width:8px;height:8px;flex:none;border-radius:50%;background:var(--ax-off);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.axp-lamp i.on{background:var(--ax-accent);box-shadow:0 0 5px rgba(255,97,97,.55)}
+.axp-lamp i.on.g{background:#22C55E;box-shadow:0 0 5px rgba(34,197,94,.55)}
+.axp-lamp i.al{background:var(--ax-alarm);box-shadow:0 0 5px rgba(224,58,43,.6)}
+.axp-lamp.on{color:var(--c-text-2)}
+.axp-vel{display:flex;align-items:center;gap:5px;padding:0 9px 6px;font-size:10px;color:var(--c-text-2)}
+.axp-vel b{font-family:var(--mono);font-weight:600;color:var(--c-text)}
+.axp-vel em{font-style:normal;color:var(--ax-muted);font-size:9px}
+.axp-vel .st{margin-left:auto;padding:1px 5px;border-radius:3px;background:#2B3138;color:var(--ax-muted);font-size:9px}
+.axp-cmds{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:0 9px}
+.axp-btn{height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:10px;
+  background:#2B3138;border:1px solid #3B424B;color:var(--c-text-2);white-space:nowrap}
+.axp-btn.hot{background:rgba(255,97,97,.14);border-color:rgba(255,97,97,.5);color:#FFB4B4}
+.axp-btn.danger{background:rgba(224,58,43,.16);border-color:rgba(224,58,43,.55);color:#FFB4B4}
+.axp-btn.dim{opacity:.45}
+.axp-msg{padding:5px 9px 6px;font-size:9px;color:var(--ax-alarm);min-height:14px}
+.axp-msg.ok{color:#86EFAC}
+.axp-points{padding:0 9px 8px}
+.axp-ph{display:grid;grid-template-columns:1fr 52px 52px 66px;gap:2px;padding:0 3px 2px;font-size:9px;font-weight:600;color:var(--ax-muted)}
+.axp-ph span:nth-child(2),.axp-ph span:nth-child(3){text-align:right}
+.axp-ph span:last-child{text-align:center}
+.axp-prow{display:grid;grid-template-columns:1fr 52px 52px 66px;gap:2px;align-items:center;
+  padding:2px 3px;border-radius:3px;font-size:10px;min-height:24px}
+.axp-prow:nth-child(odd){background:rgba(255,255,255,.025)}
+.axp-prow .cap{font-weight:600;color:var(--c-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.axp-prow .pv{text-align:right;font-family:var(--mono);color:var(--c-text)}
+.axp-prow .ps{height:18px;display:flex;align-items:center;justify-content:flex-end;padding:0 3px;border-radius:3px;
+  background:#252A31;border:1px solid #3B424B;font-family:var(--mono);font-size:9.5px;color:var(--c-text-2)}
+.axp-prow .po{display:flex;gap:2px;justify-content:flex-end}
+.axp-prow .po span{height:18px;padding:0 4px;display:flex;align-items:center;border-radius:3px;font-size:9px;
+  background:#2B3138;border:1px solid #3B424B;color:var(--c-text-2)}
+.axp-prow .po span.off{opacity:.35}
+.axp-prow.sel{background:rgba(255,97,97,.08);box-shadow:inset 2px 0 0 var(--ax-accent)}
+.axp-foot{display:flex;align-items:center;gap:6px;padding:6px 9px;border-top:1px solid var(--ax-border);
+  font-size:9px;color:var(--ax-muted);margin-top:auto}
+.axp-foot .tag{margin-left:auto;padding:1px 5px;border-radius:3px;background:#2B3138;color:var(--c-text-3);font-size:8.5px}
+.axp-dims{position:absolute;top:4px;right:6px;font-family:var(--mono);font-size:8px;color:var(--ax-muted);opacity:.75}
+.axp-nopoints .axp-points{display:none}
+.axp-only-points .axp-hd,.axp-only-points .axp-pos,.axp-only-points .axp-lamps,
+.axp-only-points .axp-vel,.axp-only-points .axp-cmds,.axp-only-points .axp-msg{display:none}
+/* 候选（控件当前没有的能力）：橙色虚线，明确「不是已实现」 */
+.axp-gap{display:flex;align-items:flex-start;gap:6px;margin:0 9px 8px;padding:5px 7px;border-radius:4px;
+  border:1px dashed rgba(245,158,11,.55);background:rgba(245,158,11,.08);font-size:9px;color:#FCD34D;line-height:1.35}
+.axp-gap b{font-weight:700;color:#FDE68A}
+.axp-gap i{font-style:normal;flex:none;padding:0 4px;border-radius:2px;background:rgba(245,158,11,.2);color:#FDE68A}
+/* 轴控件展示台：真实尺寸框 */
+.axp-stage{display:flex;gap:14px;align-items:flex-start}
+.axp-slot{display:flex;flex-direction:column;gap:5px}
+.axp-slot > .cap{font-size:9px;color:var(--c-text-3);font-family:var(--mono)}
+.axp-slot > .cap b{color:#93C5FD;font-weight:600}
+
+
+/* ============ v4 · 轴控件新增「步进点动」的像素级复刻（JogStepMm + ShowStepSelector） ============ */
+/* 位置在 AxisPanelElement 模板 RootGrid 的 Row3（速度行）与 Row4（操作按钮）之间，插入一行 `.axp-jog`。 */
+/* 只在 ShowStepSelector=true 且 ShowCommands=true 时出现；关掉后版面与 v3 完全一致（零回归）。 */
+
+/* 一行两块：① 步距分段选择 ② 点动速度 · 倍率显示 */
+.axp-jog{display:flex;align-items:center;gap:6px;padding:0 9px 6px;font-size:9px;color:var(--ax-muted)}
+.axp-jog .lbl{flex:none;font-size:9px;color:var(--ax-muted);letter-spacing:.2px}
+.axp-jog .sep{flex:none;width:1px;height:12px;background:var(--ax-border)}
+
+/* 步距分段：5 档，选中档珊瑚红底（与位置大字同色，一眼看出「当前步距」） */
+.axp-steps{display:flex;flex:none;border:1px solid #3B424B;border-radius:4px;overflow:hidden;background:#252A31}
+.axp-steps span{height:20px;min-width:34px;padding:0 5px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:9.5px;color:var(--c-text-2);border-right:1px solid #3B424B;cursor:default}
+.axp-steps span:last-child{border-right:0}
+.axp-steps span.on{background:rgba(255,97,97,.22);color:#FFC9C9;font-weight:700;
+  box-shadow:inset 0 0 0 1px rgba(255,97,97,.55)}
+.axp-steps span.dim{opacity:.45}
+
+/* 速度与倍率：速度是只读显示（真值来自 JogVelocityMmPerS），倍率是派生显示（×2 = 20 mm/s） */
+.axp-rate{display:flex;align-items:baseline;gap:4px;min-width:0;overflow:hidden}
+.axp-rate b{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--c-text)}
+.axp-rate em{font-style:normal;font-size:8.5px;color:var(--ax-muted)}
+.axp-rate .x{margin-left:2px;padding:0 4px;border-radius:3px;background:rgba(255,97,97,.14);
+  color:#FFB4B4;font-family:var(--mono);font-size:9px;font-weight:700}
+.axp-jog .eff{margin-left:auto;flex:none;font-family:var(--mono);font-size:9px;color:var(--c-text-3)}
+
+/* 步进点动按钮：与「点动 ▶」同色，但带下档小标（点一下走一格 vs 按住走） */
+.axp-btn .sub{font-size:8px;color:var(--ax-muted);margin-left:3px}
+.axp-btn.step{position:relative}
+.axp-btn.step::after{content:"";position:absolute;left:4px;right:4px;bottom:2px;height:1px;
+  background:repeating-linear-gradient(90deg,currentColor 0 2px,transparent 2px 4px);opacity:.45}
+
+/* 属性面板里的两个新键（画在设计稿里，说明"改哪儿"） */
+.axp-prop{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:9.5px;color:var(--c-text-2);
+  border-bottom:1px dashed rgba(148,163,184,.14)}
+.axp-prop:last-child{border-bottom:0}
+.axp-prop .k{flex:none;width:118px;font-family:var(--mono);font-size:9px;color:#93C5FD}
+.axp-prop .v{flex:1;min-width:0;font-family:var(--mono);font-size:9px;color:var(--c-text)}
+.axp-prop .v em{font-style:normal;color:var(--ax-muted)}
+.axp-prop .tag{flex:none;padding:0 4px;border-radius:2px;font-size:8px;background:rgba(56,189,248,.16);color:#7DD3FC}
+.axp-prop .tag.new{background:rgba(34,197,94,.16);color:#86EFAC}
+.axp-prop .tag.def{background:#2B3138;color:var(--c-text-3)}
+
+/* 三态对照小卡（用于并排展示 关/开/单轴） */
+.axp-trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.axp-trio .col{display:flex;flex-direction:column;gap:6px}
+.axp-trio .cap{font-size:9px;color:var(--c-text-3);font-family:var(--mono);line-height:1.5}
+.axp-trio .cap b{color:#93C5FD;font-weight:600}
+.axp-trio .cap i{font-style:normal;color:#86EFAC}
+
+/* 交互说明表 */
+.axp-iom{width:100%;border-collapse:collapse;font-size:9.5px}
+.axp-iom th{text-align:left;padding:4px 6px;color:var(--c-text-3);font-weight:600;font-size:9px;
+  border-bottom:1px solid var(--c-border);background:rgba(255,255,255,.02)}
+.axp-iom td{padding:4px 6px;border-bottom:1px solid rgba(148,163,184,.1);color:var(--c-text-2);vertical-align:top}
+.axp-iom td:first-child{color:var(--c-text);font-family:var(--mono);font-size:9px;white-space:nowrap}
+.axp-iom td.ok{color:#86EFAC}
+.axp-iom td.no{color:#FCA5A5}
+.axp-iom tr:last-child td{border-bottom:0}
+
+
+
+/* ===== v6 点动模式：模式 + 可输入档位（0~50 mm，0.1 步进），运动中禁用 ===== */
+.axp-jogmode{display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;margin-bottom:6px}
+.axp-jogmode .lbl{font-size:10px;color:var(--ax-muted);flex:0 0 auto}
+.axp-jogmode .modes{display:flex;gap:3px;flex:0 0 auto}
+.axp-jogmode .modes b{display:inline-flex;align-items:center;justify-content:center;height:22px;padding:0 8px;border-radius:4px;border:1px solid #33383F;background:#22252A;color:#C8CDD4;font-size:10px;font-weight:500;cursor:pointer}
+.axp-jogmode .modes b.on{background:rgba(255,97,97,.22);border-color:#FF6161;color:#FFD9D9;font-weight:600}
+.axp-jogmode .stepbox{display:flex;align-items:center;gap:2px;margin-left:2px;opacity:.4}
+.axp-jogmode .stepbox.on{opacity:1}
+.axp-jogmode .stepbox input{width:52px;height:20px;box-sizing:border-box;padding:0 4px;border-radius:4px;border:1px solid #FF6161;background:#1A1D22;color:#FFD9D9;font-family:var(--mono);font-size:10px;text-align:right;outline:none}
+.axp-jogmode .stepbox .unit{font-size:9px;color:var(--ax-muted)}
+.axp-jogmode .stepbox .spin{display:flex;flex-direction:column;gap:1px}
+.axp-jogmode .stepbox .spin i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:9px;border-radius:2px;background:#2A2E34;color:#C8CDD4;font-size:7px;font-style:normal;cursor:pointer;line-height:1}
+.axp-jogmode .now{margin-left:auto;font-family:var(--mono);font-size:10px;color:#FF8E8E;white-space:nowrap}
+.axp-jogmode .now em{font-style:normal;color:var(--ax-muted);font-size:9px;margin-right:3px}
+.axp-jogmode .now.cont{color:#7FD8A0}
+.axp-jogmode.busy .modes b,.axp-jogmode.busy .stepbox{opacity:.35}
+/* 运动中：只给一行提示，不再压占按钮区（行高由 .axp-busybar 自己吃） */
+.axp-busybar{display:flex;align-items:center;gap:6px;height:16px;padding:0 12px;margin:-4px 0 4px;font-size:9px;color:#F5B84A;overflow:hidden;white-space:nowrap}
+.axp-busybar i{width:6px;height:6px;border-radius:50%;background:#F5B84A;font-style:normal;flex:0 0 auto}
+.axp-btn .jmode{display:block;font-size:8px;line-height:1;letter-spacing:.2px;color:#9AA1AB;font-weight:400;margin-top:1px}
+.axp-btn.sm .jmode{color:#FFB0B0}
+/* v6 对照卡：四张卡统一高度；busybar 占的空间从按钮上方让出来，卡片不出滚动条 */
+.axp-trio{align-items:stretch}
+.axp-trio .axp{height:330px !important;overflow:hidden;padding-bottom:0}
+.axp-trio .axp .axp-cmds{margin-top:0}
+.axp-trio .axp .axp-foot{margin-top:auto;padding-top:4px}
+/* ③ 卡有 busybar，比其它三张少一行点动行高度，靠收紧 cmds 上间距补齐 */
+.axp-trio .axp .axp-busybar + .axp-cmds{margin-top:-2px}
+</style>
+</head>
+<body class="shot">
+<section class="template is-on" id="app-v6" data-app-section="v6">
+        <div class="tpl-head">
+      <section class="screen-page is-on" id="v6" data-page="v6">
+          <h2><span>V6-01</span>轴控件「点动模式」定稿：连续/单步 + 输入框档位 0~50 mm（0.1）+ 运动中只锁点动</h2>
+          <p>按你三条裁定改：①档位换成可输入数值框，精度 0.1 mm、范围 0~50 mm；②单步按「当前位置 ± 档位」算目标；③运动指令执行中一律禁止点动（连续与单步都禁）。仍然只有一个额外属性 <code>JogMode</code>，档位是它的参数。</p>
+          <div class="tpl-meta"><span>对应图元 <code>Hmi.AxisConsole</code> / <code>Hmi.AxisPanel</code></span><span>证据 <code>evidence/27-axis-jogmode-v6.png</code></span></div>
+        </div>
+
+        <div class="screen">
+          <div class="topbar">
+            <div class="brand"><span class="logo">VM</span><b>轴控件 · 点动模式定稿</b><small>JogMode + 档位输入 0~50 mm</small></div>
+            <span class="status-chip run">● 已就绪</span>
+            <span class="mode-pill">MANUAL · 手动</span>
+            <span class="spacer"></span>
+            <div class="top-stat"><small>新增属性</small><b>1 个枚举</b></div>
+            <div class="top-stat"><small>档位精度</small><b>0.1 mm</b></div>
+            <div class="top-stat"><small>档位上限</small><b>50 mm</b></div>
+            <span class="alarm-chip warning">待实现</span>
+            <div class="user"><span class="dot"></span>李工</div>
+            <div class="clock">17:02:44</div>
+          </div>
+
+          <div class="shell">
+            <div class="nav">
+              <div class="nav-item"><i class="ico">▤</i>运动总览</div>
+              <div class="nav-item active"><i class="ico">⇅</i>点动与回零</div>
+              <div class="nav-item"><i class="ico">⚙</i>轴参数</div>
+              <div class="nav-item"><i class="ico">▣</i>视觉监控</div>
+              <div class="nav-item"><i class="ico">▦</i>数据追溯</div>
+              <div class="nav-item"><i class="ico">⚠</i>报警中心<span class="nav-badge">2</span></div>
+              <div class="nav-item"><i class="ico">≡</i>工艺参数</div>
+              <div class="nav-sep"></div>
+              <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+              <div class="nav-foot"><div class="conn">● ZMotion VPLC532R 在线</div><div class="conn-sub">四轴 · 点动看门狗 300 ms</div></div>
+            </div>
+
+            <div class="main">
+              <div class="card">
+                <div class="card-head"><b>四种样子 · 同一颗控件</b><span>模式决定这一行怎么长；档位只在「单步」下可编辑</span><span class="chip ok" style="margin-left:auto">回到默认</span></div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding-top:4px">
+
+                  <!-- ① 连续 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>① 连续点动</b><span>按住走、松开停（现状不变）</span></div>
+                    <div class="axp" style="width:100%;height:308px">
+                      <div class="axp-hd"><span class="nm">AXIS-X 横梁</span><span class="axp-combo">AXIS-X ▾</span></div>
+                      <div class="axp-pos"><b>128.480</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i class="on"></i>到位</span><span><i></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>0.0</b><em>mm/s</em><span class="st">已到位</span></div>
+
+                      <div class="axp-jogmode">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b class="on">连续</b><b>单步</b></span>
+                        <span class="stepbox"><input value="1.0" readonly><span class="spin"><i>▲</i><i>▼</i></span><span class="unit">mm</span></span>
+                        <span class="now cont"><em>按住</em>JogVelocity</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot">◀ 点动</span><span class="axp-btn hot">点动 ▶</span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg"></div>
+                      <div class="axp-foot"><span class="tag">档位框灰=不生效</span><span class="tag">按钮无角标</span></div>
+                    </div>
+                  </div>
+
+                  <!-- ② 单步 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>② 单步 · 档位 1.0 mm</b><span>点一下走一格（当前 ± 档位）</span></div>
+                    <div class="axp" style="width:100%;height:308px">
+                      <div class="axp-hd"><span class="nm">AXIS-X 横梁</span><span class="axp-combo">AXIS-X ▾</span></div>
+                      <div class="axp-pos"><b>129.480</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i class="on"></i>到位</span><span><i></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>0.0</b><em>mm/s</em><span class="st">已到位 · 第 1 步</span></div>
+
+                      <div class="axp-jogmode">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b>连续</b><b class="on">单步</b></span>
+                        <span class="stepbox on"><input value="1.0" readonly><span class="spin"><i>▲</i><i>▼</i></span><span class="unit">mm</span></span>
+                        <span class="now">−3 格 · 3.000</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot sm">◀ 点动<span class="jmode">−1.0</span></span><span class="axp-btn hot sm">点动 ▶<span class="jmode">+1.0</span></span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg ok">点动 +1.0 mm 已到位 · 目标 129.480</div>
+                      <div class="axp-foot"><span class="tag">框可编辑 0.1 步进</span><span class="tag">角标=档位</span></div>
+                    </div>
+                  </div>
+
+                  <!-- ③ 运动中：只锁点动（连续与单步都锁），停止/清报警/失能仍可点 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>③ 运动中 · 只锁两个点动键</b><span>其余按钮照常可点</span></div>
+                    <div class="axp" style="width:100%;height:308px">
+                      <div class="axp-hd"><span class="nm">AXIS-X 横梁</span><span class="axp-combo">AXIS-X ▾</span></div>
+                      <div class="axp-pos"><b>133.912</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i></i>到位</span><span><i class="on"></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>118.4</b><em>mm/s</em><span class="st">执行中 · 定位 P003</span></div>
+
+                      <div class="axp-jogmode busy">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b>连续</b><b class="on">单步</b></span>
+                        <span class="stepbox on"><input value="1.0" readonly><span class="spin"><i>▲</i><i>▼</i></span><span class="unit">mm</span></span>
+                        <span class="now">运动锁</span>
+                      </div>
+                      <div class="axp-busybar"><i></i>运动中 · 两个点动键已锁（到位或停止后自动放开）；停止、清报警不受影响</div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn dim">◀ 点动</span><span class="axp-btn dim">点动 ▶</span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg"></div>
+                      <div class="axp-foot"><span class="tag">只灰点动两键</span><span class="tag">CanJog = CanOperate &amp;&amp; !IsMoving</span></div>
+                    </div>
+                  </div>
+
+                  <!-- ④ 紧凑预设 + 档位越界 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>④ 紧凑预设 · 档位越界</b><span>280×280，超 50 只灰点动两键</span></div>
+                    <div class="axp nopoints" style="width:100%;height:308px">
+                      <div class="axp-hd"><span class="nm">AXIS-Z 升降</span><span class="axp-combo">AXIS-Z ▾</span></div>
+                      <div class="axp-pos"><b>−12.500</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i class="on"></i>到位</span><span><i></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>0.0</b><em>mm/s</em><span class="st">已到位</span></div>
+
+                      <div class="axp-jogmode">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b>连续</b><b class="on">单步</b></span>
+                        <span class="stepbox on"><input value="62.5" readonly style="border-color:#E03A2B;color:#FFB4AB"><span class="spin"><i>▲</i><i>▼</i></span><span class="unit">mm</span></span>
+                        <span class="now" style="color:#E03A2B">超出 50</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn dim">◀ 点动</span><span class="axp-btn dim">点动 ▶</span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg">档位「62.5」超出 0~50 mm，请改到范围内</div>
+                      <div class="axp-foot"><span class="tag">Panel 预设</span><span class="tag">越界不发命令</span></div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:12px">
+                <div class="card">
+                  <div class="card-head"><b>属性 · 只多一个枚举</b><span>FlatPropertyGrid · 分组「操作」</span></div>
+                  <table class="pm-table" style="width:100%">
+                    <tr><td class="k">显示操作按钮</td><td class="v">True</td><td style="width:74px"><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">点动速度</td><td class="v">10 mm/s</td><td><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">操作二次确认</td><td class="v">True</td><td><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">点动模式</td><td class="v hl">单步（JogMode = Step）</td><td><span class="tag new">新增</span></td></tr>
+                    <tr><td class="k">点动档位</td><td class="v hl">1.0 mm（0~50，步进 0.1）</td><td><span class="tag new">新增</span></td></tr>
+                    <tr><td class="k">显示点位</td><td class="v">True</td><td><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">点位可见行数</td><td class="v">6</td><td><span class="tag def">既有</span></td></tr>
+                  </table>
+                  <div class="axp-note">两枚新属性的分工：<b>JogMode</b> 是模式（连续/单步），<b>JogStepMm</b> 是档位数值（0~50，0.1）。连续模式下档位框变灰不可编辑、也不参与任何计算；单步模式下才可改。存盘只存枚举名与数值，旧方案缺键时按 <b>Continuous + 1.0</b> 兜底，行为与现在一致。</div>
+                </div>
+
+                <div class="card">
+                  <div class="card-head"><b>行为口径（含运动锁）</b><span>什么时候能动、什么时候不能</span></div>
+                  <table class="axp-iom" style="width:100%">
+                    <tr><th style="width:88px">条件</th><th>结果</th></tr>
+                    <tr><td class="ok">连续 · 静止</td><td>按下 JogStart(±JogVelocity)，松手 JogStop（三路：松键/移出/失去捕获）</td></tr>
+                    <tr><td class="ok">单步 · 静止</td><td>按一次 → 目标 = 当前位置 ± 档位，走完即停；不按则不动</td></tr>
+                    <tr><td class="no">运动中</td><td><b>只锁两个点动键</b>（连续与单步都锁）：点动键灰、档位框只读、顶部橙字「运动中 · 点动已锁」；<b>停止 / 清报警 / 失能 / 回零照常可点</b></td></tr>
+                    <tr><td class="no">档位 0 / &gt;50</td><td>单步按钮灰，给出「档位须在 0~50 mm」；越界立即红框，不等发命令</td></tr>
+                    <tr><td class="no">未使能 / 未回零 / 有报警</td><td>沿用动作表同一套门禁，原因直接上屏，不静默</td></tr>
+                  </table>
+                  <div class="axp-note">为什么运动中也禁止「连续点动」：<b>连续点动本质是「按住就一直走」，与正在执行的定位/回零是两条命令抢同一根轴</b>——谁后到谁改写速度，先到的可能永远到不了位，日志还会显示两条都"成功"。所以在 <code>CheckCanRun</code> 里加一条运动锁（读轴快照的 Moving），比让操作员记"这轴正忙着别按"可靠。</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head"><b>落点与约束</b><span>改的是哪几行</span></div>
+                <table class="axp-iom" style="width:100%">
+                  <tr><th style="width:132px">约定</th><th style="width:470px">取值 / 规则</th><th>为什么</th></tr>
+                  <tr><td>插入位置</td><td><code>RootGrid</code> 的 Row3（速度行）与 Row4（命令按钮区）之间，新增一行 <code>.axp-jogmode</code>（+ 运动中多一行 <code>.axp-busybar</code>）</td><td>模式与档位是点动的参数，紧贴点动按钮上方，读序＝「模式 → 档位 → 按钮」</td></tr>
+                  <tr><td>行高 / 尺寸</td><td>点动行 28 px；Console 470 → <b>500</b>，AxisPanel 280 → <b>310</b>；带 busybar 时再加 22 px（仅运行时）</td><td>22 px 输入框 + 上下留白，保证触摸可点</td></tr>
+                  <tr><td>档位输入</td><td>可输入数值，<b>0.0 ~ 50.0 mm</b>，步进 <b>0.1</b>；▲▼ 单次 ±0.1；失焦提交</td><td>按你的口径；0.1 与位置大字的三位小数不冲突</td></tr>
+                  <tr><td>越界处理</td><td>立即红框 + <span style="color:#E03A2B">红字</span>，并回滚到上一个有效值；不发命令</td><td>把错误停在"输入那一刻"，而不是按下去才发现</td></tr>
+                  <tr><td>单步目标</td><td><code>target = 当前位置 ± JogStepMm</code>，走 <code>TryMove</code>（与点位「定位」同一路径）</td><td>软限位/使能/回零/忙 判据只有一份</td></tr>
+                  <tr><td>连点累计</td><td>每次都以<b>最新位置</b>为基准（不排队、不预叠），点到哪算哪</td><td>轴在动就不是「点一下走一格」了，排队的语义会让操作员算不清</td></tr>
+                  <tr><td>运动锁</td><td>只作用两个点动键：<code>CanJog = CanOperate &amp;&amp; !IsMoving</code>（点位「示教/定位」按钮同样绑它）；<code>CanOperate</code> 继续绑外层容器；<b>停止 / 清报警 / 失能 / 回零不绑 CanJog</b></td><td>运动中两条点动命令会抢同一根轴；而停与清报警是安全/显示动作，回零不参与点动参数</td></tr>
+                  <tr><td>停止优先级</td><td>停止成功后立刻解锁；<code>EndJogForAxis</code>（切轴停旧轴）保持不过权限门禁</td><td>沿用 v3 已有的安全语义</td></tr>
+                  <tr><td>按钮角标</td><td>单步时两键角标显示 <code>−1.0 / +1.0</code>（随档位变）；连续不显示</td><td>不用低头看输入框也知道走多少</td></tr>
+                </table>
+              </div>
+            </div>
+
+            <div class="rail">
+              <div class="card">
+                <div class="card-head"><b>改动边界</b><span>三个文件</span><span class="chip ok" style="margin-left:auto">2 属性</span></div>
+                <div class="axp-kv"><span>AxisPanelElement.cs</span><b>+1 枚举 + 1 数值 + 运动锁</b></div>
+                <div class="axp-kv"><span>Themes/AxisPanelElement.xaml</span><b>+1 行 + 2 段样式</b></div>
+                <div class="axp-kv"><span>BuiltInElements.cs</span><b>两个预设默认高度</b></div>
+                <div class="axp-kv"><span>ScadaChecks</span><b>+5 断言</b></div>
+                <div class="axp-kv"><span>其它图元</span><b>0 影响</b></div>
+                <div class="axp-note">枚举 <code>ScadaJogMode { Continuous, Step }</code>；键 <code>JogMode</code> / <code>JogStepMm</code>（Number，Min 0，Max 50，步进 0.1）。单步走 <code>IScadaAxisCommandSink.TryMove(axisId, target, JogVelocityMmPerS)</code>——这个接口已经存在，<b>不需要给命令枚举加新成员</b>。</div>
+              </div>
+
+              <div class="card">
+                <div class="card-head"><b>断言（ScadaChecks）</b><span>5 条</span><span class="chip warn" style="margin-left:auto">可测</span></div>
+                <div class="axp-note">① 连续模式：按下 → 收到 JogStart(value=+10)，松手 → JogStop（反面：档位填 5 不影响速度）<br>② 单步 +1.0：按一次 → <b>恰好一次</b> TryMove，target = 当前位置+1.0；不松手也不重复发<br>③ 运动中（快照 Moving=true）：<b>两个点动键禁用、零命令</b>，顶部橙字给原因；<code>CanJog=false</code> 而 <code>CanOperate=true</code><br>④ 档位 0 / 62.5：只灰点动两键、零命令；填入 50.0 边界值可发<br>⑤ 运动中「停止」「清报警」「失能」「回零」<b>仍为 enabled</b>，且「停止」点击必须发出 Stop（反向钉住"别把安全动作锁掉"）</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bottombar">
+            <span>设计稿 v6 · 轴控件点动模式定稿</span>
+            <span>预览数据为示例值</span>
+            <span class="spacer"></span>
+            <span>hmi-console · 2026-10-24</span>
+          </div>
+        </div>
+        </section>
+      </section>
+</body>
+</html>

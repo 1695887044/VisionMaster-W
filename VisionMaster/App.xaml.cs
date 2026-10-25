@@ -323,6 +323,20 @@ namespace VisionMaster
                     System.Diagnostics.Debug.WriteLine($"[方案加载] 步骤图标补全失败（已忽略）：{ex.Message}");
                 }
             };
+            // 画布重建耗时日志：只对 >=80 步的流程打一行，量的是"点完流程到界面重新响应"。
+            // 走 ILogService（不进弹泡）：真机卡顿排查靠的是日志文件，不是 3 秒就消的气泡。
+            // lambda 在重建时执行，那时容器已就绪；故障时静默（日志本身不能影响画布）。
+            FlowCanvasViewModel.PerfLog = message =>
+            {
+                try
+                {
+                    Container.Resolve<ILogService>().Info(message);
+                }
+                catch
+                {
+                    // 容器未就绪/日志服务缺失：丢掉这一行，不影响画布
+                }
+            };
             // 收图服务放在最后：它初始化时要解析 IRuntimeManager / IFlowEngine / FlowCompiler，
             // 这几个都由上面的引擎模块注册，顺序错了 Initialize 会解析不到
             _modules.Add(new HttpImageServerModule());
@@ -515,6 +529,9 @@ namespace VisionMaster
             // （而且不报错）。这里显式传进去，"接上审计"这件事在注册处一眼可见。
             // 执行前二次确认（P0）：全局一份。窗口路径允许弹框，headless 监控会把它临时置为不可交互。
             containerRegistry.RegisterSingleton<IScadaConfirmationService>(c => new ScadaConfirmationService());
+            // 动作表「播放声音」的声音出口：与报警声音服务分开（报警声音跟严重度/静音策略走）。
+            // 单例：SystemSoundPlayer 内部只有一个 SoundPlayer，重复实例会让两次播放互相打断。
+            containerRegistry.RegisterSingleton<IScadaSoundPlayer>(c => new SystemSoundPlayer());
             containerRegistry.RegisterSingleton<IScadaActionDispatcher>(c => new ScadaActionDispatcher(
                 c.Resolve<ILogService>(),
                 c.Resolve<IScadaValueSource>(),
@@ -530,7 +547,9 @@ namespace VisionMaster
                 // 配方应用出口：必须显式接上 RecipeService，否则 SCADA 的「应用配方」会永远
                 // 记一行“未接入配方服务”（而且不报错）。配方服务在下方注册；工厂是惰性解析，
                 // 首次用到分发器时它已经就绪。
-                c.Resolve<RecipeService>()));
+                c.Resolve<RecipeService>(),
+                // 播放声音出口：显式接上，否则动作表里配了「播放声音」只会记“未接入”。
+                c.Resolve<IScadaSoundPlayer>()));
             // 运行态的切页出口：分发器是长命单例，运行态会话是每次点"运行"现建、关窗口即废，
             // 中间得有人记住"此刻活着的是哪一个会话"。宿主 Start 时 Attach、关窗口收尾时摘掉。
             // 也必须是单例：两份实例各记一个会话，动作落到哪一份上就变成了随机。
@@ -786,7 +805,11 @@ namespace VisionMaster
                     Container.Resolve<IWorkspaceManager>(),
                     Container.Resolve<IScadaVariablePicker>(),
                     Container.Resolve<ScadaAuditWriter>(),
-                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName));
+                    () => Container.Resolve<ScadaAccessPolicy>().CurrentUserName,
+                    // 运行态信号：标题栏「运行中」胶囊与底栏琥珀提示都靠它。
+                    // 用 IFlowRunState.AnyFlowRunning，不用 ScadaMonitoringHost.IsActive——
+                    // 后者是方案级监控开关，不是"流程真的在跑"。
+                    Container.Resolve<IFlowRunState>()));
             // 权限体系的两个弹窗（S12）。注册名与调用点逐字一致：
             // "ScadaLoginView" ← ShellViewModel.OnSystemAction(SystemAction.UserLogin) + 状态栏点击
             // "ScadaUserManagerView" ← ScadaLoginViewModel.OnOpenUserManager（登录弹窗里的「用户管理」）

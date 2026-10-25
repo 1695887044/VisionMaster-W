@@ -138,7 +138,12 @@ namespace VisionMaster.Services
                 }
 
                 var json = await File.ReadAllTextAsync(filePath);
-                var solution = JsonConvert.DeserializeObject<SolutionModel>(json, _jsonSettings);
+
+                // 反序列化是纯 CPU 活：3542 步 / 3.9 MB 的方案在 UI 线程上要 1~2 秒，打开时就是白卡。
+                // 只把**解析**挪到后台线程；后面的迁移钩子仍在原上下文（它们会经 DI 拿插件表，
+                // 不保证线程安全）。这里刻意不加 ConfigureAwait(false)——续体必须回 UI 线程。
+                var solution = await Task.Run(
+                    () => JsonConvert.DeserializeObject<SolutionModel>(json, _jsonSettings));
 
                 if (solution == null)
                 {

@@ -34,9 +34,20 @@ namespace ScadaChecks
         {
             // 2026-10-22：ChartTrend（Value 帧）、ImageView（/img）、Axis 三键（axis 消息）、
             // DataGrid（grid 消息 + IScadaRuntimeDataProvider）全部实现；例外清单为空。
-            // 保留空数组是为了让 [WR2]/[WR3] 的反向断言继续生效（只许变短）。
-            // 注意：Hmi.AxisPointTable 是 ShowInToolbox=false 的兼容别名，不在"工具箱图元"集合里，
-            // 因此不列入本闸；老页面里出现它时客户端仍按未知类型画占位盒（已知偏差）。
+            // 2026-10-25 P1：StateView / SubPage 按用户决定“先不同步 Web，最后统一”，
+            // 桌面端先落地；Web 渲染器在统一批次补，补完把这两项删掉。
+            "Hmi.StateView",
+            "Hmi.SubPage",
+            // 2026-10-25 批次 C：多边形 / 贝塞尔 / 动态画线 / GIF 同一批决定——Web 统一批次再补。
+            // 这四项与上面两项在“Web 运行态统一同步”那批一起清零，届时 [WR3] 的上限要同步收回。
+            "Hmi.Polygon",
+            "Hmi.Bezier",
+            "Hmi.DynamicLine",
+            "Hmi.Gif",
+            // 2026-10-25 批次 D：位表与两个监视预设（同一控件、三个 TypeKey），Web 统一批次再补。
+            "Hmi.BitTable",
+            "Hmi.IoMonitor",
+            "Hmi.VariableMonitor",
         };
 
         /// <summary>接线一行：<c>WebRendererCoverageChecks.Run();</c>（放在 RenderCatalogChecks 之后）</summary>
@@ -108,8 +119,8 @@ namespace ScadaChecks
                     ? $"例外 {exceptions.Count} 项全部仍然缺失且仍在注册表"
                     : "过期例外：" + string.Join("、", staleExceptions));
 
-            Check("[WR3] 例外清单只许变短（当前上限 0）",
-                KnownMissingWebRenderers.Length <= 0,
+            Check("[WR3] 例外清单只许变短（当前上限 9：StateView / SubPage + 批次 C 四件 + 批次 D 三件，Web 统一批次清零）",
+                KnownMissingWebRenderers.Length <= 9,
                 $"例外清单 {KnownMissingWebRenderers.Length} 项：" + string.Join("、", KnownMissingWebRenderers));
 
             Check("[WR4] 例外清单每项都仍是已注册图元（防止改名后例外悬空）",

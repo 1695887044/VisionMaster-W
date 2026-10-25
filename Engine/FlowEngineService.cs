@@ -199,6 +199,31 @@ namespace VisionMaster.Services
         private static string StartLockKey(FlowSession session) => $"FlowSession:{session.SessionID}";
 
         /// <summary>
+        /// 【唯一的执行上下文装配点】把本服务持有的全部运行期能力面一次装进上下文。
+        ///
+        /// 为什么必须单点：连续执行、单次执行、并行分支三条路径以前各自写一份对象初始化器，
+        /// 结果单次执行那份漏了 <c>Database</c>（2026-10-24 评审团 C1）——同一个流程
+        /// "连续跑能查库、单次跑必报没有接入数据库服务"，且没有任何断言盯着"注入清单是否齐全"。
+        /// 三份清单靠人眼对齐，迟早再漏一项；收成一个方法后，"漏注入"在编译期就不可能发生。
+        ///
+        /// 能力面的逐项写回由 <see cref="ExecutionContext.Create"/> 按
+        /// <see cref="ExecutionContext.RuntimeCapabilities"/> 反射完成：新增任何能力属性，
+        /// 只要登记进清单并在这里的 <see cref="ExecutionContextCapabilitySource"/> 上加一行即可；
+        /// 忘了加会让装配抛异常，不会静默回落成空实现。
+        /// 守门：FlowCanvasChecks 的 EngineContextWiringChecks（清单反射比对 + 三入口真跑取证）。
+        /// </summary>
+        private ExecutionContext CreateExecutionContext(FlowSession session, CancellationToken token) =>
+            ExecutionContext.Create(_logService, session, _workspaceManager, token,
+                new ExecutionContextCapabilitySource
+                {
+                    Cameras = _cameras,
+                    Motions = _motions,
+                    FlowInvoker = FlowInvoker,
+                    Comms = _comms,
+                    Database = _database
+                });
+
+        /// <summary>
         /// 原子地占用会话的执行权
         ///
         /// 为什么不能沿用 if (session.IsRunning) return; 紧接 session.IsRunning = true;：
@@ -430,14 +455,9 @@ namespace VisionMaster.Services
                             $"flow:{session.FlowName}/{session.SessionID:N}",
                             owner => _writeLeases?.ReleaseAll(owner));
 
-                        var context = new ExecutionContext(_logService, session, _workspaceManager, token)
-                        {
-                            Cameras = _cameras,
-                            Motions = _motions,
-                            FlowInvoker = FlowInvoker,
-                            Comms = _comms,
-                            Database = _database
-                        };
+                        // 上下文装配走 CreateExecutionContext 单点——连续/单次/并行分支三处同一份清单，
+                        // 不再各自手写对象初始化器（2026-10-24 评审团 C1：单次路径曾漏 Database）。
+                        var context = CreateExecutionContext(session, token);
                         // 这一轮开始即广播（画布据此清空/覆盖上一轮的图，见 FlowRunStarted 的注释）
                         NotifyFlowRunStarted(session);
 
@@ -613,13 +633,9 @@ namespace VisionMaster.Services
                         $"flow:{session.FlowName}/{session.SessionID:N}",
                         owner => _writeLeases?.ReleaseAll(owner));
 
-                    var context = new ExecutionContext(_logService, session, _workspaceManager, token)
-                    {
-                        Cameras = _cameras,
-                        Motions = _motions,
-                        FlowInvoker = FlowInvoker,
-                        Comms = _comms
-                    };
+                    // 上下文装配单点（同一份清单）：本路径此前漏了 Database，
+                    // 「数据库查询/执行/写行」三步在单次执行下必然报"没有接入数据库服务"（评审团 C1）。
+                    var context = CreateExecutionContext(session, token);
                     // 与连续运行同一语义：一轮开始/结束各广播一次
                     NotifyFlowRunStarted(session);
 

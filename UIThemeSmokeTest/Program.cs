@@ -984,13 +984,15 @@ namespace UIThemeSmokeTest
             Check("模板部件齐全（工具条已去掉）", missingParts.Count == 0,
                 missingParts.Count == 0 ? "5 个部件全部命中" : "缺：" + string.Join(",", missingParts));
 
-            // 工具条去掉后，清空/导出必须仍有入口（代码里建的右键菜单）
+            // 工具条去掉后，清空/导出必须仍有入口（代码里建的右键菜单）。
+            // 2026-10-08 菜单补过"钉住当前帧 / 对比模式 / 锁定跟随"三项（默认模板没有工具条，
+            // 不补这三项那几个 DP 就无 UI 入口可达）——判据因此从"恰好 3 项"改成
+            // "清空与两项导出都在"，菜单再加项不会误报，而"清空/导出被删掉"仍然会红。
+            var menuHeaders = gallery.ContextMenu?.Items.OfType<System.Windows.Controls.MenuItem>()
+                                   .Select(m => m.Header?.ToString() ?? "").ToList() ?? new List<string>();
             Check("右键菜单有清空/导出入口",
-                gallery.ContextMenu != null
-                && gallery.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Count() == 3,
-                gallery.ContextMenu == null
-                    ? "(没有右键菜单)"
-                    : string.Join(" / ", gallery.ContextMenu.Items.OfType<System.Windows.Controls.MenuItem>().Select(m => m.Header?.ToString())));
+                menuHeaders.Any(h => h.Contains("清空画布")) && menuHeaders.Count(h => h.Contains("导出")) == 2,
+                menuHeaders.Count == 0 ? "(没有右键菜单)" : string.Join(" / ", menuHeaders));
 
             Check("工具条部件确实已移除",
                 gallery.Template?.FindName("PART_ExportAll", gallery) == null
@@ -1230,8 +1232,239 @@ namespace UIThemeSmokeTest
                 pane.FilteredFrames.Count == 4,
                 $"实际 {pane.FilteredFrames.Count} 张，窗口号=[{string.Join(",", pane.FilteredFrames.Select(f => f.ViewIndex))}]");
 
+            RunInjectedRetentionChecks(Check);
+            RunStripCollapseChecks(Check);
+            RunStripMenuToggleChecks(Check);
+
             Console.WriteLine(failures == 0 ? "=== 图集控件冒烟：全部通过 ===" : $"### 图集控件冒烟：{failures} 项失败");
             return failures == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 插件注入帧的"收容"开关（<see cref="Core.Models.ImageGallerySettings.KeepInjectedHistory"/>）：
+        /// 默认关 = 每个（流程，窗口号）只留最新一张。
+        ///
+        /// 为什么必须钉：关掉收容时槽位键变成"流程+窗口号"，靠 <c>InsertOrReplace</c> 的覆盖分支
+        /// 顶掉旧帧并释放；这条路径一旦退化回"每帧一条"，内存会从"窗口数 × 1 张"悄悄涨回
+        /// "每流程 50 张"——而界面上完全看不出差别（每格显示的都还是最新那张），
+        /// 只有内存和缩略图条会慢慢涨起来。属于典型的"静态看不出来、又不会报错"的一类。
+        /// </summary>
+        private static void RunInjectedRetentionChecks(Action<string, bool, string> Check)
+        {
+            var settings = new VisionMaster.Services.AppSettingsService();
+            var cfg = settings.Current.ImageGallery;
+            bool savedEnabled = cfg.Enabled, savedRealtime = cfg.IncludeRealtimePreviews;
+            bool savedRetention = cfg.KeepInjectedHistory;
+            int savedTotal = cfg.TotalLimit, savedPerFlow = cfg.PerFlowLimit;
+
+            try
+            {
+                cfg.Enabled = true;
+                cfg.IncludeRealtimePreviews = true;
+                cfg.TotalLimit = 0;          // 断言里不要被上限裁剪干扰
+                cfg.PerFlowLimit = 0;
+
+                var svc = new VisionMaster.Services.ImageCollectionService(settings, null!);
+                try
+                {
+                    HImage MakeImg()
+                    {
+                        HOperatorSet.GenImageConst(out HObject proto, "byte", 8, 8);
+                        var img = new HImage(proto);
+                        proto.Dispose();
+                        return img;
+                    }
+
+                    void Publish(int viewIndex)
+                    {
+                        using var img = MakeImg();
+                        svc.Capture(new Core.Events.ImageDisplayEvent<HalconDotNet.HImage>
+                        {
+                            ViewIndex = viewIndex,
+                            Image = img,
+                            PluginName = "收容断言.发布方"
+                        });
+                    }
+
+                    // ---- ① 收容关（默认）：同窗口连发三张 → 只留最后一张 ----
+                    cfg.KeepInjectedHistory = false;
+                    Publish(1); Publish(1); Publish(1);
+                    Check("[RT] 收容关：同一窗口连发 3 张只留 1 张",
+                        svc.Count == 1, $"帧数={svc.Count}");
+
+                    // ---- ② 收容关：不同窗口各留各的（不是全局只留一张） ----
+                    Publish(2); Publish(3);
+                    Check("[RT] 收容关：3 个窗口各留 1 张（共 3 张）",
+                        svc.Count == 3,
+                        $"帧数={svc.Count}，窗口号=[{string.Join(",", svc.Frames.Select(f => f.ViewIndex))}]");
+
+                    // ---- ③ 收容开：同窗口连发三张 → 三张都在（可回看历史） ----
+                    cfg.KeepInjectedHistory = true;
+                    svc.Clear();
+                    Publish(1); Publish(1); Publish(1);
+                    Check("[RT] 收容开：同一窗口连发 3 张留 3 张（历史可回看）",
+                        svc.Count == 3, $"帧数={svc.Count}");
+
+                    // ---- ④ 收容开：注入帧才有缩略图（条子要有内容可显示） ----
+                    Check("[RT] 收容开：注入帧生成缩略图",
+                        svc.Frames.All(f => f.Thumbnail != null),
+                        $"有缩略图 {svc.Frames.Count(f => f.Thumbnail != null)}/{svc.Count}");
+
+                    // ---- ⑤ 收容关：缩略图照旧生成（打开收容后条子要能显示这些已收下的帧） ----
+                    cfg.KeepInjectedHistory = false;
+                    svc.Clear();
+                    Publish(1);
+                    Check("[RT] 收容关：注入帧仍生成缩略图（打开收容后条子不会全是占位）",
+                        svc.Count == 1 && svc.Frames[0].Thumbnail != null,
+                        $"帧数={svc.Count}，缩略图={(svc.Frames.FirstOrDefault()?.Thumbnail == null ? "null" : "有")}");
+
+                    // ---- ⑥ 开关切换当场收敛：收容开→关，已收下的历史必须收敛成一张 ----
+                    cfg.KeepInjectedHistory = true;
+                    svc.Clear();
+                    Publish(1); Publish(1); Publish(1);
+                    var beforeSwitch = svc.Count;
+                    cfg.KeepInjectedHistory = false;
+                    svc.ApplySettingsNow();
+                    Check("[RT] 收容「开→关」当场收敛（3 张 → 1 张，不必等下一帧）",
+                        beforeSwitch == 3 && svc.Count == 1,
+                        $"切换前={beforeSwitch} 切换后={svc.Count}");
+
+                    // ---- ⑦ 反向：收容关→开不会把已有那张挤掉 ----
+                    cfg.KeepInjectedHistory = true;
+                    svc.ApplySettingsNow();
+                    Check("[RT] 收容「关→开」保留已有帧（不误删）",
+                        svc.Count == 1, $"帧数={svc.Count}");
+
+                    // ---- ⑧ 收容开时再发一张：不能与已有那张合并（各自一条） ----
+                    Publish(1);
+                    Check("[RT] 收容开：新帧独立成条，不被旧帧合并掉",
+                        svc.Count == 2, $"帧数={svc.Count}");
+                }
+                finally
+                {
+                    svc.Clear();
+                    Core.Events.ImagePreviewCaptureHub.Current = null;   // 不把钩子留给后续用例
+                }
+            }
+            finally
+            {
+                cfg.Enabled = savedEnabled;
+                cfg.IncludeRealtimePreviews = savedRealtime;
+                cfg.KeepInjectedHistory = savedRetention;
+                cfg.TotalLimit = savedTotal;
+                cfg.PerFlowLimit = savedPerFlow;
+            }
+        }
+
+        /// <summary>
+        /// 缩略图条开关：关掉时**行高必须折成 0**，大图实际拿回那段高度。
+        ///
+        /// 为什么不能用"元素 Visibility 够不够"当判据：模板里那一行是固定 112px 的
+        /// <c>RowDefinition</c>，只藏元素的话行定义照样占位，大图一点也不会变大——
+        /// 而界面上"条子不见了"看起来像是生效了，正是最容易误判的地方。所以这里量高度差。
+        /// </summary>
+        private static void RunStripCollapseChecks(Action<string, bool, string> Check)
+        {
+            var gallery = new ImageGallery { ShowThumbnailStrip = true };
+            var host = new Border { Width = 600, Height = 500, Child = gallery };
+
+            void Layout()
+            {
+                host.Measure(new Size(600, 500));
+                host.Arrange(new Rect(0, 0, 600, 500));
+                host.UpdateLayout();
+                host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            }
+
+            Layout();
+            var big = gallery.Template?.FindName("PART_Big", gallery) as FrameworkElement;
+            var list = gallery.Template?.FindName("PART_List", gallery) as FrameworkElement;
+            var splitter = gallery.Template?.FindName("PART_StripSplitter", gallery) as FrameworkElement;
+
+            if (big == null || list == null || splitter == null)
+            {
+                Check("[RT] 缩略图条：模板件齐全（PART_Big/List/StripSplitter）", false,
+                    $"big={big != null} list={list != null} splitter={splitter != null}");
+                return;
+            }
+
+            double bigWithStrip = big.ActualHeight;
+
+            gallery.ShowThumbnailStrip = false;
+            Layout();
+            double bigNoStrip = big.ActualHeight;
+
+            Check("[RT] 缩略图条关闭后大图确实变高（行高折 0，不是只藏元素）",
+                bigNoStrip > bigWithStrip + 60,
+                $"有条子={bigWithStrip:F0} 无条子={bigNoStrip:F0} 差={bigNoStrip - bigWithStrip:F0}");
+
+            Check("[RT] 缩略图条关闭后条子本身高度为 0",
+                list.ActualHeight <= 0.5 && splitter.ActualHeight <= 0.5,
+                $"list={list.ActualHeight:F1} splitter={splitter.ActualHeight:F1}");
+
+            gallery.ShowThumbnailStrip = true;
+            Layout();
+            Check("[RT] 打开缩略图条后恢复（可来回切换）",
+                Math.Abs(big.ActualHeight - bigWithStrip) < 1.5 && list.ActualHeight > 60,
+                $"大图={big.ActualHeight:F0}（原 {bigWithStrip:F0}）list={list.ActualHeight:F0}");
+        }
+
+        /// <summary>
+        /// 右键菜单里的「显示缩略图条」：点了要**立刻生效**并**通知宿主落盘**。
+        ///
+        /// 为什么两条都要钉：
+        /// · 只改 DP 不发事件 → 当次有效、重启后回弹（用户每次开机都得再点一遍）；
+        /// · 只发事件不改 DP → 要等宿主回调才动，宿主没接（或抛了）就是"点了没反应"。
+        /// 控件不认识配置服务（分层），所以它只能做到"翻自己的 DP + 发事件"这两件事，
+        /// 落盘归宿主——这里正是钉住这条分工。
+        /// </summary>
+        private static void RunStripMenuToggleChecks(Action<string, bool, string> Check)
+        {
+            var gallery = new ImageGallery { SupportsFrameHistory = true, ShowThumbnailStrip = true };
+
+            // 菜单在 OnApplyTemplate 里建；本进程只看公开面（EnsureContextMenuForTest 是
+            // Core.Halcon 的 internal，仅对 FlowCanvasChecks 可见）。放进宿主量一遍模板即可。
+            var host = new Border { Width = 400, Height = 300, Child = gallery };
+            host.Measure(new Size(400, 300));
+            host.Arrange(new Rect(0, 0, 400, 300));
+            host.UpdateLayout();
+            host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+            var strip = gallery.ContextMenu?.Items.OfType<System.Windows.Controls.MenuItem>()
+                .FirstOrDefault(m => (m.Header?.ToString() ?? "").Contains("显示缩略图条"));
+
+            if (strip == null)
+            {
+                Check("[RT] 菜单里有「显示缩略图条」", false,
+                    gallery.ContextMenu == null ? "(没有右键菜单)" : "(菜单里没有该项)");
+                return;
+            }
+            Check("[RT] 菜单里有「显示缩略图条」", true, strip.Header?.ToString() ?? "");
+
+            int requests = 0;
+            gallery.ThumbnailStripToggleRequested += (_, __) => requests++;
+
+            // 模拟用户点一下可勾选菜单项：WPF 的 MenuItem 在 OnClick 里先翻 IsChecked 再触发 Click。
+            // RaiseEvent 必须用 **MenuItem.ClickEvent**——用 ButtonBase.ClickEvent 是另一条路由，
+            // 处理器收不到（第一次写就用错了，表现是"点了完全没反应"，正是本节要防的形态）。
+            void ClickToggle(bool check)
+            {
+                strip.IsChecked = check;
+                strip.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.MenuItem.ClickEvent));
+            }
+
+            ClickToggle(false);
+
+            Check("[RT] 菜单切换后本格立即生效（不等宿主回调）",
+                !gallery.ShowThumbnailStrip, $"ShowThumbnailStrip={gallery.ShowThumbnailStrip}");
+            Check("[RT] 菜单切换后发出落盘请求（宿主负责写配置）",
+                requests == 1, $"请求次数={requests}");
+
+            // 再点回来：开关是双向的，不能只关不开
+            ClickToggle(true);
+            Check("[RT] 菜单可以再打开（双向切换）",
+                gallery.ShowThumbnailStrip && requests == 2,
+                $"ShowThumbnailStrip={gallery.ShowThumbnailStrip} 请求次数={requests}");
         }
 
         /// <summary>按 Tag 在可视树里找元素（模板内元素用 FindName 不稳定，按可视树找最可靠）</summary>
@@ -2230,10 +2463,20 @@ namespace UIThemeSmokeTest
                     linkStyle.Success && !linkStyle.Groups["body"].Value.Contains("ContextMenu"),
                     linkStyle.Success ? linkStyle.Groups["t"].Value : "没找到连线显式 Style");
 
-                var linkMenu = Regex.Match(text, @"<(?<t>nodify:\w+Connection)\.ContextMenu>");
-                Check("连线模板挂着每实例右键菜单 + 顺序链 Opening 拦截（编辑绑定/解绑入口）",
-                    linkMenu.Success && text.Contains("ContextMenuOpening=\"OnConnectionContextMenuOpening\""),
-                    linkMenu.Success ? linkMenu.Groups["t"].Value : "没找到连线内联菜单");
+                // 连线菜单的两种合法挂载形态（2026-10-24 起两种都存在，判据必须都认）：
+                //  ① 属性元素 `<nodify:StepConnection.ContextMenu>…`（模板内联，每实例一份）；
+                //  ② 命名资源 + `ContextMenu="{StaticResource …}"`（共享一份，2026-10-24 为
+                //     "3542 步压测下约 8.5 万个菜单对象"改成这种）。
+                // 要守的本质是"连线右键能开、且顺序链有 Opening 拦截"，与用哪种写法无关——
+                // 写死成①会让一次纯内存优化被判成"右键失灵事故回潮"（假红）。
+                // 仍然守住的两种真事故：菜单根本没挂上；Opening 拦截被删（顺序链会弹出无意义菜单）。
+                bool hasInlineMenu = Regex.IsMatch(text, @"<(?<t>nodify:\w+Connection)\.ContextMenu>");
+                bool hasSharedMenu = Regex.IsMatch(
+                    text, @"<(?<t>nodify:\w+Connection)\b[^>]*\bContextMenu=""\{StaticResource\s+\w+\}""");
+                bool hasOpeningGuard = text.Contains("ContextMenuOpening=\"OnConnectionContextMenuOpening\"");
+                Check("连线模板挂着右键菜单（内联或静态资源皆可）+ 顺序链 Opening 拦截（编辑绑定/解绑入口）",
+                    (hasInlineMenu || hasSharedMenu) && hasOpeningGuard,
+                    $"内联={hasInlineMenu} 共享资源={hasSharedMenu} Opening守卫={hasOpeningGuard}");
 
                 int fillCount = Regex.Matches(text, @"Property\s*=\s*""Fill""").Count;
                 Check("连线样式与触发器都配了 Fill（箭头由 Fill 填充，漏配=空芯箭头）",

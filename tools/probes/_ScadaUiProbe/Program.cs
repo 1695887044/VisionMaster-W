@@ -317,6 +317,24 @@ namespace ScadaUiProbe
                 };
                 canvas.Style = (Style)theme[typeof(ScadaCanvas)];
 
+                // 方案图片（Hmi.Picture 的 SourcePath）在真机上由宿主注入解析器；探针没有宿主，
+                // 这里按"方案目录 + Image\ 相对路径"补一个，好让带图图元在证据图里真的出像素。
+                // 解析不到返回 null → 控件回退占位，与真机"图丢了"的表现一致。
+                string solutionDir = Path.GetDirectoryName(Path.GetFullPath(path))!;
+                canvas.ImageAssetResolver = rel =>
+                {
+                    if (string.IsNullOrWhiteSpace(rel)) return null;
+                    var full = Path.IsPathRooted(rel) ? rel : Path.Combine(solutionDir, rel);
+                    if (!File.Exists(full)) return null;
+                    var bmp = new BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = BitmapCacheOption.OnLoad;
+                    bmp.UriSource = new Uri(full, UriKind.Absolute);
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    return bmp;
+                };
+
                 // 放屏幕外：HwndHost/渲染目标照常建立，但不会在桌面上闪。
                 var window = new Window
                 {

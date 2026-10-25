@@ -1,0 +1,48 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        位表 / I/O 监视：外框 + 标题 + 格子容器。
+        格子由控件代码建（见 BitTableElement.Rebuild）：格子数随位数变，且值变化只改文字与底色。
+        两块互斥显示不写 Visibility 初值：本环境下 ControlTemplate.Triggers 里的 DataTrigger 不触发
+        （见 ImageViewElement 的同一条注释），初值会压过代码设置。
+    -->
+    <Style TargetType="{x:Type local:BitTableElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:BitTableElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}"
+                        Padding="4">
+                        <DockPanel>
+                            <TextBlock
+                                x:Name="PART_Title"
+                                DockPanel.Dock="Top"
+                                Margin="2,0,2,4"
+                                FontFamily="{TemplateBinding FontFamily}"
+                                FontSize="{TemplateBinding FontSize}"
+                                FontWeight="SemiBold"
+                                Foreground="{TemplateBinding Foreground}"
+                                Text="{TemplateBinding Text}"
+                                TextTrimming="CharacterEllipsis" />
+
+                            <UniformGrid x:Name="PART_Cells" Columns="8" />
+                        </DockPanel>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

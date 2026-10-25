@@ -1,0 +1,93 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-set-default",
+  "title": "把清单里的某个方案设为默认启动",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "只改 StartupSolutionPath，不会立刻加载；同样要点「确认」才写入 AppConfig.json。",
+  "params": {
+    "solution_name": {
+      "type": "string",
+      "required": true,
+      "example": "产线A"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.file",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.file",
+      "expect": {
+        "element": "app.menu.file.list",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.file.list",
+      "expect": {
+        "window": "dialog.solution_list",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.solution_list.row",
+      "target_name": "${solution_name}"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.solution_list.set_default"
+    },
+    {
+      "n": 6,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.solution_list.default_badge",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 7,
+      "do": "click",
+      "target": "dialog.solution_list.confirm",
+      "expect": {
+        "window": "dialog.solution_list",
+        "state": "closed"
+      },
+      "timeout_ms": 10000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_exists",
+      "target": "dialog.solution_list.default_badge"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "startup"]
+}

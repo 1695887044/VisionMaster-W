@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>流程画布 · 选中聚焦引线 v5（设计方案）</title>
+<style>
+  :root{
+    --bg:#F7F9FC; --grid:#E8EDF5;
+    --card:#FFFFFF; --card-bd:#C9D2DE; --ink:#0F172A; --ink3:#94A3B8; --ink2:#475569;
+    --run:#2563EB; --fail:#EF4444; --accent:#2563EB; --accent-soft:#EFF6FF;
+    --frame-bd:#A5C0E8; --frame-hd:#EEF4FF;
+    --lane-bd:rgba(75,130,246,.18); --lane-ink:#5A6C99;
+    --link:#3B82F6; --order:#94A3B8; --global:#7C3AED;
+    --line:#E2E8F0; --panel:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  header b{font-size:13px}
+  .tag{font-size:11px;color:var(--ink3);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  .spacer{flex:1}
+  button{font:inherit;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer;color:var(--ink2)}
+  button:hover{border-color:#B9C6D8}
+
+  main{flex:1;display:flex;min-height:0}
+  #stage{position:relative;flex:1;min-width:0}
+  canvas{display:block;width:100%;height:100%}
+  .hud{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font-size:11px;color:var(--ink3);line-height:1.7;white-space:pre;pointer-events:none}
+  .hud b{color:var(--ink)}
+
+  #side{width:320px;flex:0 0 auto;background:var(--panel);border-left:1px solid var(--line);
+    display:flex;flex-direction:column;min-height:0}
+  .side-hd{padding:12px 14px 8px;border-bottom:1px solid var(--line)}
+  .side-hd .t{font-weight:600;font-size:13px}
+  .side-hd .s{font-size:11.5px;color:var(--ink3);margin-top:2px}
+  .list{overflow:auto;padding:8px}
+  .row{display:flex;gap:10px;padding:9px 10px;border-radius:8px;cursor:default;border:1px solid transparent}
+  .row:hover{background:var(--accent-soft);border-color:#DBEAFE}
+  .row.on{background:var(--accent-soft);border-color:#BFDBFE}
+  .num{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;
+    font:600 11px/20px "Segoe UI",sans-serif;text-align:center}
+  .row.g .num{background:var(--global)}
+  .txt{min-width:0}
+  .txt .a{font-size:12px;font-weight:600;color:var(--ink);word-break:break-all}
+  .txt .b{font-size:11px;color:var(--ink3);margin-top:2px;word-break:break-all}
+  .empty{padding:24px 14px;color:var(--ink3);font-size:12px;line-height:1.9}
+  .empty b{color:var(--ink2)}
+  footer{display:flex;gap:14px;padding:6px 14px;background:var(--panel);border-top:1px solid var(--line);
+    font-size:11px;color:var(--ink3)}
+  footer .right{margin-left:auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <b>流程画布</b>
+    <span class="tag">v5 · 选中后聚焦引线 · 设计方案</span>
+    <span class="spacer"></span>
+    <button id="btnDemo">重建演示图</button>
+    <button id="btnClear">清除选中</button>
+  </header>
+
+  <main>
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud"></div>
+    </div>
+    <aside id="side">
+      <div class="side-hd">
+        <div class="t" id="sideTitle">未选中算子</div>
+        <div class="s" id="sideSub">选中任意算子后，只显示与它相关的引线</div>
+      </div>
+      <div class="list" id="sideList">
+        <div class="empty">
+          <b>默认状态</b><br>
+          画布只显示执行顺序（灰色虚线脊柱），不画任何数据引线。<br><br>
+          <b>选中一个算子</b><br>
+          只显示指向它的数据引线：每条线单独走线、带编号，并在右侧列出
+          「输入端口 ← 源算子.输出端口」。<br><br>
+          <b>悬停右侧条目</b><br>
+          对应的那一条线加粗高亮，其余变淡。
+        </div>
+      </div>
+    </aside>
+  </main>
+
+  <footer>
+    <span id="stMode">未选中</span>
+    <span id="stLinks">—</span>
+    <span id="stFrame">—</span>
+    <span class="right">Web 稿仅作设计媒介，不进入构建（AGENTS.md R126）</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ===== 令牌与尺寸：与现有画布一致 ===== */
+const C = {
+  bg:"#F7F9FC", grid:"#E8EDF5",
+  card:"#FFFFFF", cardBd:"#C9D2DE", ink:"#0F172A", ink3:"#94A3B8",
+  run:"#2563EB", fail:"#EF4444",
+  frameBd:"#A5C0E8", frameHd:"#EEF4FF",
+  laneBd:"rgba(75,130,246,.18)", laneInk:"#5A6C99",
+  link:"#3B82F6", order:"#94A3B8", global:"#7C3AED",
+  accent:"#2563EB", accentSoft:"#EFF6FF",
+};
+const NODE_W=156, NODE_H=58, ROW_GAP=28, COL_GAP=64;
+const FRAME_PAD=16, FRAME_HEADER=46, LANE_PAD=14, LANE_HEADER=28;
+
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let DPR=1;
+
+/* ===== 数据模型 =====
+   一条引用 = { to: 目标步骤 id, port: 目标输入端口, from: 源步骤 id|null,
+                fromPort: 源输出端口, global: 全局变量名|null } */
+let seq=1;
+const mk=o=>Object.assign(o,{id:"n"+(seq++)});
+const step=(t,s,o)=>mk(Object.assign({kind:"step",title:t,sub:s||"延时",state:"idle",disabled:false},o||{}));
+const group=(t,lanes)=>mk({kind:"group",title:t,lanes});
+let root=[], spine=[], refs=[], byId=new Map(), pos=new Map();
+let selected=null, hoveredRow=null;
+
+function buildDemo(){
+  seq=1; spine=[]; refs=[];
+  const acq  = step("图像采集_0","图像采集");
+  const pre  = step("图像预处理_0","图像预处理");
+  const mtc  = step("模板匹配_0","模板匹配");
+  const ok   = step("通过_1","延时");
+  const rec  = step("记录_1","变量赋值");
+  const err  = step("异常_1","延时",{disabled:true});
+  const g1   = group("判断_1",[
+    {id:"laneA",title:"If(1>0)",steps:[ok,rec]},
+    {id:"laneB",title:"Else",steps:[err]},
+  ]);
+  const geo  = step("几何查找_0","几何查找",{state:"running"});
+  const lp   = step("循环体_2","延时");
+  const sum  = step("累计_2","变量赋值",{state:"failed"});
+  const g2   = group("循环_2",[{id:"laneC",title:"循环体",steps:[lp,sum]}]);
+  const rep  = step("结果汇总_0","结果显示");
+  const fin  = step("OK","延时");
+  root=[acq,pre,mtc,g1,geo,g2,rep,fin];
+
+  const chain=[acq,pre,mtc,g1,geo,g2,rep,fin];
+  for(let i=1;i<chain.length;i++) spine.push({from:chain[i-1].id,to:chain[i].id});
+  spine.push({from:ok.id,to:rec.id});
+  spine.push({from:lp.id,to:sum.id});
+
+  // 数据引用：让"记录_1"有 3 条入边（两个算子 + 一个全局变量），用来演示分流与标注
+  refs=[
+    { to:pre.id,  port:"SrcImage",  from:acq.id, fromPort:"Image" },
+    { to:mtc.id,  port:"SrcImage",  from:pre.id, fromPort:"Image" },
+    { to:rec.id,  port:"Score",     from:mtc.id, fromPort:"Score" },
+    { to:rec.id,  port:"SrcImage",  from:acq.id, fromPort:"Image" },
+    { to:rec.id,  port:"DelayMs",   from:null,   global:"Global.DelayMs" },
+    { to:geo.id,  port:"SrcImage",  from:pre.id, fromPort:"Image" },
+    { to:sum.id,  port:"Value",     from:geo.id, fromPort:"Result" },
+    { to:rep.id,  port:"Items",     from:sum.id, fromPort:"Value" },
+  ];
+  layout(); selected=null; refreshSide(); dirty();
+}
+
+/* ===== 布局（与现有画布同构） ===== */
+function layout(){
+  pos=new Map(); byId=new Map();
+  function place(steps,depth,y0){
+    let y=y0;
+    for(const s of steps){
+      const x=48+depth*(NODE_W+COL_GAP);
+      if(s.kind==="group"){
+        const gx=x, gy=y, innerX=gx+FRAME_PAD, innerY=gy+FRAME_HEADER+FRAME_PAD;
+        let laneX=innerX, maxBottom=innerY; const lanes=[];
+        for(const lane of s.lanes){
+          let ly=innerY+LANE_HEADER+LANE_PAD; const lx=laneX;
+          for(const st of lane.steps){
+            pos.set(st.id,{x:lx+LANE_PAD,y:ly,w:NODE_W,h:NODE_H}); byId.set(st.id,st);
+            ly+=NODE_H+ROW_GAP;
+          }
+          const laneH=Math.max(NODE_H+LANE_HEADER+LANE_PAD*2+8, ly-innerY);
+          lanes.push({id:lane.id,title:lane.title,x:lx,y:innerY,w:NODE_W+LANE_PAD*2,h:laneH});
+          maxBottom=Math.max(maxBottom,innerY+laneH);
+          laneX=lx+NODE_W+LANE_PAD*2+COL_GAP;
+        }
+        const gw=Math.max(...lanes.map(l=>l.x+l.w))+FRAME_PAD-gx;
+        const gh=maxBottom-gy+FRAME_PAD;
+        pos.set(s.id,{x:gx,y:gy,w:gw,h:gh,lanes}); byId.set(s.id,s);
+        y=gy+gh+ROW_GAP+16;
+      }else{
+        pos.set(s.id,{x,y,w:NODE_W,h:NODE_H}); byId.set(s.id,s);
+        y+=NODE_H+ROW_GAP;
+      }
+    }
+    return y;
+  }
+  place(root,0,48);
+  fit();
+}
+
+const view={x:0,y:0,z:1};
+function contentBounds(){
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+  for(const p of pos.values()){x1=Math.min(x1,p.x);y1=Math.min(y1,p.y);x2=Math.max(x2,p.x+p.w);y2=Math.max(y2,p.y+p.h);}
+  return isFinite(x1)?{x:x1,y:y1,w:x2-x1,h:y2-y1}:null;
+}
+function fit(){
+  const b=contentBounds(); if(!b) return;
+  const W=cv.clientWidth,H=cv.clientHeight;
+  // 侧栏占掉 320px，这里必须按**剩余宽度**算，否则右侧容器会被裁掉
+  const zFit=Math.min((W-90)/b.w,(H-130)/b.h);
+  if(pos.size<=60){
+    // 演示图：只按**宽度**适配（纵向允许滚动），保证卡片文字可读
+    view.z=Math.max(0.35,Math.min(0.8,(W-90)/b.w));
+    view.x=W/2-(b.x+b.w/2)*view.z;
+    view.y=80-b.y*view.z;
+    return;
+  }
+  view.z=Math.max(0.25,Math.min(0.85,zFit));
+  view.x=W/2-(b.x+b.w/2)*view.z;
+  view.y=H/2-(b.y+b.h/2)*view.z;
+}
+const X=v=>v*view.z+view.x, Y=v=>v*view.z+view.y;
+
+/* ===== 选中 → 引线列表（含编号、标签、走线槽位） ===== */
+function refsOf(id){
+  return refs.filter(r=>r.to===id).map((r,i)=>{
+    const src = r.from ? byId.get(r.from) : null;
+    const srcTitle = src ? src.title : ("全局变量 " + r.global);
+    const portFrom = src ? (src.title + "." + r.fromPort) : r.global;
+    return {
+      index:i,
+      raw:r,
+      isGlobal: !src,
+      srcTitle,
+      // 标签：目标端口 ← 源算子.输出端口
+      label: `${r.port} ← ${portFrom}`,
+      full: `${srcTitle} 的 ${portFrom} → ${byId.get(id).title} 的 ${r.port}`,
+    };
+  });
+}
+
+/* ===== 绘制 ===== */
+let dirtyFlag=true,lastFrame=0;
+const dirty=()=>dirtyFlag=true;
+
+function rr(c,x,y,w,h,r){
+  const k=Math.max(0,Math.min(r,w/2,h/2));
+  c.beginPath();c.moveTo(x+k,y);c.arcTo(x+w,y,x+w,y+h,k);c.arcTo(x+w,y+h,x,y+h,k);
+  c.arcTo(x,y+h,x,y,k);c.arcTo(x,y,x+w,y,k);c.closePath();
+}
+
+function drawSpine(){
+  ctx.save();
+  ctx.strokeStyle=C.order; ctx.lineWidth=1.2; ctx.setLineDash([4,4]);
+  for(const l of spine){
+    const a=pos.get(l.from), b=pos.get(l.to); if(!a||!b) continue;
+    const sx0=a.x+a.w/2, sy0=a.y+a.h, tx0=b.x+b.w/2, ty0=b.y;
+    ctx.beginPath(); ctx.moveTo(X(sx0),Y(sy0));
+    if(Math.abs(sx0-tx0)<2) ctx.lineTo(X(tx0),Y(ty0));
+    else { const my=(sy0+ty0)/2; ctx.lineTo(X(sx0),Y(my)); ctx.lineTo(X(tx0),Y(my)); ctx.lineTo(X(tx0),Y(ty0)); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawFocusLinks(){
+  if(!selected) return [];
+  const list=refsOf(selected);
+  const tgt=pos.get(selected);
+  if(!tgt) return list;
+  const n=list.length;
+
+  // 目标左缘的入口：按序号均分，保证每条线进入点不同
+  const entryY = i => tgt.y + tgt.h*(i+1)/(n+1);
+
+  // 同源分流：同一源节点出去的多条线，在源右缘也要错开
+  const perSrc=new Map();
+  list.forEach(it=>{ if(!it.isGlobal){ const k=it.raw.from; perSrc.set(k,(perSrc.get(k)||0)+1); } });
+  const srcSeen=new Map();
+
+  list.forEach((it,i)=>{
+    const ty=entryY(i);
+    const isHover = hoveredRow===i;
+
+    ctx.save();
+    ctx.strokeStyle = it.isGlobal ? C.global : C.accent;
+    ctx.lineWidth = isHover ? 2.6 : 1.8;
+    ctx.setLineDash(it.isGlobal ? [6,4] : []);
+    ctx.globalAlpha = (hoveredRow==null || isHover) ? 1 : 0.25;
+
+    let sx0, sy0;
+    if(it.isGlobal){
+      // 全局变量：从画布左侧"变量栏"位置进入，视觉上与算子间连线区分
+      sx0 = 8;
+      sy0 = ty;
+      ctx.beginPath();
+      ctx.moveTo(X(sx0),Y(sy0));
+      ctx.lineTo(X(tgt.x-26-i*0),Y(ty));
+      ctx.stroke();
+    } else {
+      const src=pos.get(it.raw.from);
+      const k=it.raw.from;
+      const idx=srcSeen.get(k)||0; srcSeen.set(k,idx+1);
+      const cnt=perSrc.get(k)||1;
+      sx0=src.x+src.w;
+      sy0=src.y+src.h*(idx+1)/(cnt+1);
+
+      // 槽位：每条线一个独立的竖直通道，保证不重叠
+      const slotX = tgt.x - 26 - i*16;
+      const r=6;
+      const dir = ty>=sy0?1:-1;
+      ctx.beginPath();
+      ctx.moveTo(X(sx0),Y(sy0));
+      ctx.lineTo(X(slotX-r),Y(sy0));
+      ctx.quadraticCurveTo(X(slotX),Y(sy0),X(slotX),Y(sy0+dir*r));
+      ctx.lineTo(X(slotX),Y(ty-dir*r));
+      ctx.quadraticCurveTo(X(slotX),Y(ty),X(slotX+r),Y(ty));
+      ctx.lineTo(X(tgt.x),Y(ty));
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    // 编号徽标：落在该条线自己的竖直通道中点（每条线通道不同，徽标天然不重叠）
+    const badgeX = it.isGlobal ? (tgt.x-58) : (tgt.x-26-i*16);
+    const badgeY = it.isGlobal ? ty : (ty + sy0)/2;
+
+    ctx.beginPath();
+    ctx.moveTo(X(tgt.x),Y(ty));
+    ctx.lineTo(X(tgt.x)-6,Y(ty)-3.5);
+    ctx.lineTo(X(tgt.x)-6,Y(ty)+3.5);
+    ctx.closePath(); ctx.fillStyle=ctx.strokeStyle; ctx.fill();
+
+    // 标签：默认只画编号徽标（保证不重叠）；**悬停右侧图例行时**才在线上展开文字标签。
+    // 这样"多条线汇聚"时画布永远不会出现文字互相压盖，完整文字始终在右侧图例里。
+    drawBadge(badgeX, badgeY, String(i+1), it.isGlobal, isHover);
+    if(isHover || n===1) drawLabel(badgeX+14, badgeY, it.label, it.isGlobal, isHover, i);
+
+    ctx.restore();
+  });
+
+  return list;
+}
+
+function drawBadge(gx,gy,text,isGlobal,hover){
+  const r=9*Math.min(1,view.z);
+  ctx.save();
+  ctx.beginPath(); ctx.arc(X(gx),Y(gy),r,0,Math.PI*2);
+  ctx.fillStyle=isGlobal?C.global:C.accent; ctx.fill();
+  ctx.fillStyle="#fff"; ctx.font=`600 ${10*Math.min(1,view.z)}px "Segoe UI",sans-serif`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(text,X(gx),Y(gy));
+  ctx.restore();
+}
+
+function drawLabel(gx,gy,text,isGlobal,hover,i){
+  if(view.z<0.5) return;             // 太小不画字，避免糊成一团
+  ctx.save();
+  ctx.font=`${10.5*Math.min(1.1,view.z)}px "Segoe UI","Microsoft YaHei",sans-serif`;
+  const w=ctx.measureText(text).width+14, h=17;
+  // 纵向错开：相邻标签交替上下，避免多条线汇聚时文字重叠
+  const dy=(i%2===0)? -h-4 : 4;
+  const x=X(gx), y=Y(gy)+dy;
+  rr(ctx,x,y,w,h,4);
+  ctx.fillStyle="#FFFFFF"; ctx.fill();
+  ctx.strokeStyle=isGlobal?"#DDD6FE":(hover?"#93C5FD":"#DBEAFE");
+  ctx.lineWidth=hover?1.4:1; ctx.stroke();
+  ctx.fillStyle=isGlobal?C.global:"#1D4ED8";
+  ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.fillText(text,x+7,y+h/2+0.5);
+  ctx.restore();
+}
+
+function render(){
+  const t0=performance.now();
+  const W=cv.clientWidth,H=cv.clientHeight;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  if(view.z>=0.35){
+    const st=24*view.z;
+    if(st>=7){ ctx.fillStyle=C.grid; const ox=view.x%st,oy=view.y%st;
+      for(let x=ox;x<W;x+=st) for(let y=oy;y<H;y+=st) ctx.fillRect(x,y,1,1); }
+  }
+
+  const vis={x:(0-view.x)/view.z-80,y:(0-view.y)/view.z-80,w:W/view.z+160,h:H/view.z+160};
+  const inView=p=>!(p.x+p.w<vis.x||p.x>vis.x+vis.w||p.y+p.h<vis.y||p.y>vis.y+vis.h);
+
+  // 容器 / 泳道
+  for(const [id,p] of pos){
+    const n=byId.get(id);
+    if(!n||n.kind!=="group"||!inView(p)) continue;
+    rr(ctx,X(p.x),Y(p.y),p.w*view.z,p.h*view.z,12*view.z);
+    ctx.fillStyle="rgba(165,192,232,.10)"; ctx.fill();
+    ctx.strokeStyle=C.frameBd; ctx.lineWidth=Math.max(1,1.5*view.z); ctx.stroke();
+    const hh=Math.min(FRAME_HEADER,p.h)*view.z;
+    if(hh>2){ rr(ctx,X(p.x),Y(p.y),p.w*view.z,hh,12*view.z); ctx.fillStyle=C.frameHd; ctx.fill(); }
+    if(view.z>=0.45){ ctx.fillStyle=C.ink; ctx.font=`600 ${12.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline="middle"; ctx.fillText(n.title,X(p.x+12),Y(p.y)+hh/2); }
+    for(const lane of p.lanes){
+      if(!inView(lane)) continue;
+      rr(ctx,X(lane.x),Y(lane.y),lane.w*view.z,lane.h*view.z,8*view.z);
+      ctx.fillStyle="rgba(59,130,246,.05)"; ctx.fill();
+      ctx.strokeStyle=C.laneBd; ctx.lineWidth=Math.max(1,1*view.z); ctx.stroke();
+      if(view.z>=0.45){ ctx.fillStyle=C.laneInk; ctx.font=`600 ${9.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline="top"; ctx.fillText(lane.title,X(lane.x+8),Y(lane.y+7)); }
+    }
+  }
+
+  // 顺序脊柱（永远画，很淡）
+  drawSpine();
+
+  // 选中态：先算相关集合，用于压暗其它节点
+  const focusSet=new Set();
+  if(selected){ focusSet.add(selected); refsOf(selected).forEach(it=>{ if(it.raw.from) focusSet.add(it.raw.from); }); }
+
+  // 卡片
+  let drawn=0;
+  for(const [id,p] of pos){
+    const n=byId.get(id);
+    if(!n||n.kind==="group"||!inView(p)) continue;
+    drawn++;
+    const x=X(p.x),y=Y(p.y),w=p.w*view.z,h=p.h*view.z;
+    ctx.save();
+    if(n.disabled) ctx.globalAlpha=0.45;
+    if(selected && !focusSet.has(id)) ctx.globalAlpha*=0.35;
+
+    rr(ctx,x,y,w,h,10*view.z);
+    ctx.fillStyle=n.state==="failed"?"#FFF7F7":C.card; ctx.fill();
+    const isTgt = id===selected;
+    const isSrc = selected && !isTgt && refsOf(selected).some(it=>it.raw.from===id);
+    ctx.strokeStyle = isTgt?C.accent:(n.state==="failed"?C.fail:(n.state==="running"?C.run:C.cardBd));
+    ctx.lineWidth=Math.max(1,(isTgt?2:1)*view.z); ctx.stroke();
+
+    // 源节点：加一圈淡色环，表示"这条线的来源"
+    if(isSrc){
+      rr(ctx,x-3,y-3,w+6,h+6,12*view.z);
+      ctx.strokeStyle="rgba(37,99,235,.28)"; ctx.lineWidth=3*view.z; ctx.stroke();
+    }
+
+    if(view.z>=0.45){
+      ctx.fillStyle=C.ink; ctx.font=`600 ${14*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline="alphabetic"; ctx.fillText(n.title,x+10*view.z,y+h*0.45);
+      ctx.fillStyle=C.ink3; ctx.font=`${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.fillText(n.sub,x+10*view.z,y+h*0.45+13*view.z);
+    }
+    ctx.restore();
+  }
+
+  const list=drawFocusLinks();
+  lastFrame=performance.now()-t0;
+
+  const nSel=list.length;
+  document.getElementById("hud").innerHTML = selected
+    ? `已选中 <b>${byId.get(selected).title}</b> · 引用 <b>${nSel}</b> 条\n`
+    + `只显示与它相关的引线；其余节点压暗\n`
+    + `一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`
+    : `未选中 · 只显示执行顺序（灰虚线）\n节点 <b>${drawn}</b> · 缩放 ${view.z.toFixed(2)}×\n`
+    + `一帧 <b>${lastFrame.toFixed(1)}</b> ms`;
+  document.getElementById("stMode").textContent = selected ? ("选中：" + byId.get(selected).title) : "未选中";
+  document.getElementById("stLinks").textContent = selected ? `引用 ${nSel}` : "引用 0";
+  document.getElementById("stFrame").textContent = `一帧 ${lastFrame.toFixed(1)} ms`;
+
+  dirtyFlag=false;
+}
+
+/* ===== 右侧图例 ===== */
+function refreshSide(){
+  const title=document.getElementById("sideTitle"), sub=document.getElementById("sideSub"), box=document.getElementById("sideList");
+  if(!selected){
+    title.textContent="未选中算子";
+    sub.textContent="选中任意算子后，只显示与它相关的引线";
+    box.innerHTML=`<div class="empty"><b>默认状态</b><br>画布只显示执行顺序（灰色虚线脊柱），不画任何数据引线。<br><br>
+      <b>选中一个算子</b><br>只显示指向它的数据引线：每条线单独走线、带编号，并在右侧列出「输入端口 ← 源算子.输出端口」。<br><br>
+      <b>悬停右侧条目</b><br>对应的那一条线加粗高亮，其余变淡。</div>`;
+    return;
+  }
+  const n=byId.get(selected);
+  const list=refsOf(selected);
+  title.textContent = `选中：${n.title}`;
+  sub.textContent = `${list.length} 条入向引用`;
+  if(!list.length){ box.innerHTML=`<div class="empty">该算子没有任何数据引用（只受执行顺序约束）。</div>`; return; }
+
+  box.innerHTML = list.map(it=>`
+    <div class="row ${it.isGlobal?'g':''}" data-i="${it.index}">
+      <div class="num">${it.index+1}</div>
+      <div class="txt">
+        <div class="a">${escapeHtml(it.label)}</div>
+        <div class="b">${escapeHtml(it.isGlobal ? ('来源：' + it.raw.global) : ('来源：' + it.srcTitle))}</div>
+      </div>
+    </div>`).join("");
+
+  box.querySelectorAll(".row").forEach(el=>{
+    el.addEventListener("mouseenter",()=>{ hoveredRow=+el.dataset.i; dirty(); });
+    el.addEventListener("mouseleave",()=>{ hoveredRow=null; dirty(); });
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* ===== 交互 ===== */
+let drag=null;
+const P=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
+function hit(p){
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  let best=null;
+  for(const [id,b] of pos){ const n=byId.get(id); if(!n||n.kind==="group") continue;
+    if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h) best=id; }
+  return best;
+}
+cv.addEventListener("mousedown",e=>{
+  const p=P(e);
+  if(e.button===1||e.altKey){ drag={x:p.x,y:p.y}; return; }
+  const id=hit(p);
+  if(id!==selected){ selected=id; hoveredRow=null; refreshSide(); }
+  dirty();
+});
+window.addEventListener("mousemove",e=>{
+  if(!drag) return;
+  const p=P(e);
+  view.x+=p.x-drag.x; view.y+=p.y-drag.y; drag.x=p.x; drag.y=p.y; dirty();
+});
+window.addEventListener("mouseup",()=>drag=null);
+cv.addEventListener("wheel",e=>{
+  e.preventDefault(); const p=P(e);
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  view.z=Math.max(0.15,Math.min(2.2,view.z*Math.exp(-e.deltaY*0.0015)));
+  view.x=p.x-wx*view.z; view.y=p.y-wy*view.z; dirty();
+},{passive:false});
+
+document.getElementById("btnClear").onclick=()=>{ selected=null; hoveredRow=null; refreshSide(); dirty(); };
+document.getElementById("btnDemo").onclick=()=>{ buildDemo(); };
+
+/* ===== 启动 ===== */
+function resize(){
+  const r=cv.getBoundingClientRect();
+  DPR=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(r.width*DPR));
+  cv.height=Math.max(1,Math.round(r.height*DPR));
+  dirty();
+}
+window.addEventListener("resize",resize);
+function loop(){ if(dirtyFlag){ try{render();}catch(err){window.__err=String(err);dirtyFlag=false;} } requestAnimationFrame(loop); }
+
+resize(); buildDemo(); loop();
+
+// 演示：打开就选中"记录_1"，直接展示三条引线分流的效果
+setTimeout(()=>{
+  const rec=[...byId.values()].find(n=>n.title==="记录_1");
+  if(rec){ selected=rec.id; refreshSide(); dirty(); }
+}, 300);
+
+})();
+</script>
+</body>
+</html>

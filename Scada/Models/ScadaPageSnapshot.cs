@@ -111,6 +111,34 @@ namespace VisionMaster.Scada.Snapshots
 
         /// <summary>本页全部图元（含容器子图元），按 <see cref="ScadaElementSnapshot.ZIndex"/> 升序</summary>
         public IReadOnlyList<ScadaElementSnapshot> Elements { get; init; } = System.Array.Empty<ScadaElementSnapshot>();
+
+        /// <summary>
+        /// 方案级文本列表（ComboBox 按 <c>StateListId</c> 解析）。
+        /// 每张页面快照都带同一份；Web 渲染器从当前页快照取即可。
+        /// </summary>
+        public IReadOnlyList<ScadaStateListSnapshot> StateLists { get; init; } =
+            System.Array.Empty<ScadaStateListSnapshot>();
+    }
+
+    /// <summary>文本列表快照（只读 DTO；与桌面 ScadaStateList 解耦）</summary>
+    public sealed class ScadaStateListSnapshot
+    {
+        public string StateListId { get; init; } = string.Empty;
+
+        public string Name { get; init; } = string.Empty;
+
+        public string DefaultText { get; init; } = "—";
+
+        public IReadOnlyList<ScadaStateEntrySnapshot> Entries { get; init; } =
+            System.Array.Empty<ScadaStateEntrySnapshot>();
+    }
+
+    /// <summary>文本列表条目快照</summary>
+    public sealed class ScadaStateEntrySnapshot
+    {
+        public int Value { get; init; }
+
+        public string Text { get; init; } = string.Empty;
     }
 
     /// <summary>

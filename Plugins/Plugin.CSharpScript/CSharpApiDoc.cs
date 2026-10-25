@@ -31,7 +31,7 @@ namespace Plugin.CSharpScript
             {
                 Name = "GetInput",
                 Signature = "object Context.GetInput(string name)",
-                Summary = "按名取输入变量的值（类型为连线值或手填值），名字需与左侧输入变量表一致。",
+                Summary = "按名取输入变量的值（类型为连线值或手填值），名字需与左侧输入变量表一致；名字不存在时返回 null 并记一条 Warn。",
                 Insert = "GetInput(\u0001\"name\"\u0001)",
             },
             new ApiMember
@@ -73,7 +73,7 @@ namespace Plugin.CSharpScript
             {
                 Name = "SetOutput",
                 Signature = "void Context.SetOutput(string name, object value)",
-                Summary = "写输出变量（传给下游连线的端口），名字需与右侧输出变量表一致。",
+                Summary = "写输出变量（传给下游连线的端口），名字需与右侧输出变量表一致；名字不存在时忽略并记一条 Warn。",
                 Insert = "SetOutput(\u0001\"name\"\u0001, \u0001value\u0001)",
             },
             new ApiMember
@@ -94,7 +94,7 @@ namespace Plugin.CSharpScript
             {
                 Name = "Vars",
                 Signature = "IDictionary<string, object> Context.Vars",
-                Summary = "运行期变量池整体（只读遍历用），本次流程运行内共享。",
+                Summary = "运行期变量池的只读视图（写它会抛 NotSupportedException；要写请用 SetVar）。本次流程运行内共享。",
             },
             new ApiMember
             {
@@ -140,6 +140,19 @@ namespace Plugin.CSharpScript
             },
             new ApiMember
             {
+                Name = "CancellationToken",
+                Signature = "CancellationToken Context.CancellationToken",
+                Summary = "本次执行的取消令牌（停止/急停）；长循环里定期检查 IsCancellationRequested。",
+            },
+            new ApiMember
+            {
+                Name = "ThrowIfCancellationRequested",
+                Signature = "void Context.ThrowIfCancellationRequested()",
+                Summary = "已请求停止时抛 OperationCanceledException；宿主按「已取消」处理（灰行），不算执行失败。",
+                Insert = "ThrowIfCancellationRequested()",
+            },
+            new ApiMember
+            {
                 Name = "Fail",
                 Signature = "void Context.Fail(string message)",
                 Summary = "主动让本步骤失败（脚本正常返回后宿主置 Success=false 并带原因）；建议 Fail 后立即 return。",
@@ -155,7 +168,8 @@ namespace Plugin.CSharpScript
             "true", "false", "null", "using", "switch", "case",
             "break", "continue", "try", "catch", "finally", "throw",
             "void", "static", "public", "private", "this",
-            "HImage", "HObject", "HRegion", "HXld", "HTuple",
+            // Halcon 类型名必须是**真实 CLR 类型**：轮廓是 HXLDCont，枚举名 HXld 编译不过（CS0246）
+            "HImage", "HObject", "HRegion", "HXLDCont", "HTuple",
             "Math", "Console", "List", "Dictionary", "Stopwatch",
         };
 

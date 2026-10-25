@@ -31,14 +31,25 @@ namespace FlowCanvasChecks
         public static readonly ManualResetEventSlim Reached = new(false);
         public static readonly ManualResetEventSlim Proceed = new(false);
 
+        /// <summary>
+        /// 两个分支各自"进闸门"的计数（2026-10-24 补）。
+        /// 单个 Reached 只能证明"有一个分支到了"，而 FlowContainerChecks 的 E23 断言要求
+        /// "两条分支胶囊同时 IsRunning=true"——只等一个 Reached 时，先到的分支可能还在
+        /// RunSequence 的收尾段没置 IsRunning，后到的分支已置好，采样窗口就是抖的（实测 1/4 轮红）。
+        /// 判据改为 count==2 才能确定两个分支体都在闸门里等。
+        /// </summary>
+        public static int ArrivedCount;
+
         public static void Reset()
         {
             Reached.Reset();
             Proceed.Reset();
+            Interlocked.Exchange(ref ArrivedCount, 0);
         }
 
         public override void RunAlgorithm(IExecutionContext context)
         {
+            Interlocked.Increment(ref ArrivedCount);
             Reached.Set();
             // 兜 5 秒 + 令牌步进（协作取消范式：被取消时提前退出，不拖 join）
             var sw = System.Diagnostics.Stopwatch.StartNew();

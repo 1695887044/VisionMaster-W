@@ -1,0 +1,36 @@
+{
+  "intro": [
+    "ZCode 桌面版退役后留下的工作状态（2026-10-24 归档）。",
+    "",
+    "## 为什么下线",
+    "",
+    "仓库同时被 DSH 与 ZCode 两个客户端操作时，`.zcode\\` 下攒了 ZCode 自己的会话计划与工作流草稿。",
+    "ZCode 退役后 DSH 从不读这些目录；它们既不是文档也不参与构建。有阅读价值的那部分（实施计划、审核清单、交接说明）",
+    "已经整理进 `docs\\`，本目录只剩工具私有状态，归档是为了\"删了还能拿回来\"。"
+  ],
+  "movedHeading": "移入清单",
+  "colSource": "原路径",
+  "colNote": "说明",
+  "noteMd": "ZCode 会话计划（待办大纲，已执行或已废弃）",
+  "noteTs": "工作流草稿（未运行的编排定义）",
+  "noteOther": "详见文件首行",
+  "deletedHeading": "直接删除（未归档）",
+  "deletedIntro": [
+    "下列文件文件头自带 `safe to delete once the run has settled`，是工作流运行器每次启动前生成的一次性脚本，已删除："
+  ],
+  "keptHeading": "原地保留（不在此目录）",
+  "kept": [
+    "`.zcode\\skills\\vm-property-grid\\SKILL.md` — `AGENTS.md` R106 与 skill 附录直接点名引用，移走会断链。",
+    "`.zcode\\skills\\wpf-ui-debug\\SKILL.md` — 同上。",
+    "`.zcode\\workflow-runs\\.gitignore`、`.zcode\\workflow-drafts\\.gitignore` — 工具生成，留着以免工具复活时工作区变脏。"
+  ],
+  "restoreHeading": "怎么恢复",
+  "restoreBody": [
+    "按上表把文件搬回 `.zcode\\plans\\` 或 `.zcode\\workflow-drafts\\` 即可。本目录不参与构建、不进 `VisionMaster.sln`、",
+    "不会被任何脚本读取。"
+  ],
+  "deleteHeading": "何时可彻底删除",
+  "deleteBody": [
+    "确认不再启动 ZCode 客户端、`.zcode\\` 也不再被任何工具写入之后，可整目录删除。"
+  ]
+}

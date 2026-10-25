@@ -357,6 +357,7 @@ namespace VisionMaster.Scada
             Guid templateId = default,
             int templateIndex = -1,
             int templateRevision = 0,
+            IReadOnlyList<string>? templateStrictRoots = null,
             Guid? groupIdOverride = null,
             int? startZ = null,
             Guid? layerIdOverride = null)
@@ -439,7 +440,7 @@ namespace VisionMaster.Scada
                     // 也不该被严格写守卫拦下。构造与编辑是两件事，这是那条分界线。
                     var element = ScadaChangeScope.Detached(
                         () => Build(page, snapshot, offsetX, offsetY, z, groupId, parentId,
-                            templateId, templateIndex, templateRevision, layerIdOverride));
+                            templateId, templateIndex, templateRevision, templateStrictRoots, layerIdOverride));
 
                     if (page.TryAddElement(element, out _))
                     {
@@ -510,6 +511,7 @@ namespace VisionMaster.Scada
             Guid templateId,
             int templateIndex,
             int templateRevision,
+            IReadOnlyList<string>? templateStrictRoots,
             Guid? layerIdOverride)
         {
             // ElementId 刻意不赋值：字段初值就是 Guid.NewGuid()，正是"重编身份"想要的语义。
@@ -533,6 +535,7 @@ namespace VisionMaster.Scada
                 TemplateId = templateId,
                 TemplateIndex = templateIndex,
                 TemplateRevision = templateRevision,
+                TemplateStrictRoots = templateStrictRoots?.ToList(),
             };
 
             foreach (var pair in snapshot.Properties)

@@ -235,6 +235,34 @@ namespace VisionMaster.Models
         /// <summary>是否把插件主动发布的实时预览（<c>ImageDisplayEvent</c>）也收进图集</summary>
         public bool IncludeRealtimePreviews { get; set; } = true;
 
+        /// <summary>
+        /// 是否保留插件注入图的历史帧（"收容"）。
+        ///
+        /// <b>默认 <c>false</c> = 每个（流程，窗口号）只留最新一张</b>，新图当场替换并释放旧图。
+        /// 打开后每一帧都单独占一条（列表可回看历史），代价是内存与缩略图条都随运行时长增长。
+        ///
+        /// 为什么默认关
+        /// ---------
+        /// 插件注入帧走的是"唯一槽位键"（每帧一条，永不合并），循环运行几十秒就能顶到
+        /// <see cref="PerFlowLimit"/>。一张 500 万像素彩图副本约 15MB，三条流程各占一个窗口
+        /// 就是 150 张、约 2.25GB（总上限 300 张时最多 4.5GB），而现场要看的其实只是
+        /// "每个窗口最后那一张"。默认关 = 内存 = 窗口数 × 1 张。
+        ///
+        /// 与其它开关的关系
+        /// ---------
+        /// · <see cref="Enabled"/> = 采集总闸（关了一帧都不收）；
+        /// · 本开关 = 收进来之后"留一张还是留一串"；
+        /// · <see cref="KeepFrameHistory"/> 只管**兜底采集**的"输出端口"帧（按步骤/端口占槽的那类），
+        ///   两条互不覆盖。
+        /// </summary>
+        public bool KeepInjectedHistory { get; set; } = false;
+
+        /// <summary>
+        /// 缩略图条是否显示（仅"收容"打开时有历史可看；关掉时每格只有一张图，条子无内容）。
+        /// 默认 <c>true</c>：与既有界面一致，不改变老用户的观感。
+        /// </summary>
+        public bool ShowThumbnailStrip { get; set; } = true;
+
         /// <summary>缩略图最长边像素（越小内存越省；建议 96~200）</summary>
         public int ThumbnailMaxSize { get; set; } = DefaultThumbnailMaxSize;
 

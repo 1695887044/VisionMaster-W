@@ -1,0 +1,28 @@
+/* ===== v6 点动模式：模式 + 可输入档位（0~50 mm，0.1 步进），运动中禁用 ===== */
+.axp-jogmode{display:flex;align-items:center;gap:6px;height:28px;padding:0 12px;margin-bottom:6px}
+.axp-jogmode .lbl{font-size:10px;color:var(--ax-muted);flex:0 0 auto}
+.axp-jogmode .modes{display:flex;gap:3px;flex:0 0 auto}
+.axp-jogmode .modes b{display:inline-flex;align-items:center;justify-content:center;height:22px;padding:0 8px;border-radius:4px;border:1px solid #33383F;background:#22252A;color:#C8CDD4;font-size:10px;font-weight:500;cursor:pointer}
+.axp-jogmode .modes b.on{background:rgba(255,97,97,.22);border-color:#FF6161;color:#FFD9D9;font-weight:600}
+.axp-jogmode .stepbox{display:flex;align-items:center;gap:2px;margin-left:2px;opacity:.4}
+.axp-jogmode .stepbox.on{opacity:1}
+.axp-jogmode .stepbox input{width:52px;height:20px;box-sizing:border-box;padding:0 4px;border-radius:4px;border:1px solid #FF6161;background:#1A1D22;color:#FFD9D9;font-family:var(--mono);font-size:10px;text-align:right;outline:none}
+.axp-jogmode .stepbox .unit{font-size:9px;color:var(--ax-muted)}
+.axp-jogmode .stepbox .spin{display:flex;flex-direction:column;gap:1px}
+.axp-jogmode .stepbox .spin i{display:inline-flex;align-items:center;justify-content:center;width:14px;height:9px;border-radius:2px;background:#2A2E34;color:#C8CDD4;font-size:7px;font-style:normal;cursor:pointer;line-height:1}
+.axp-jogmode .now{margin-left:auto;font-family:var(--mono);font-size:10px;color:#FF8E8E;white-space:nowrap}
+.axp-jogmode .now em{font-style:normal;color:var(--ax-muted);font-size:9px;margin-right:3px}
+.axp-jogmode .now.cont{color:#7FD8A0}
+.axp-jogmode.busy .modes b,.axp-jogmode.busy .stepbox{opacity:.35}
+/* 运动中：只给一行提示，不再压占按钮区（行高由 .axp-busybar 自己吃） */
+.axp-busybar{display:flex;align-items:center;gap:6px;height:16px;padding:0 12px;margin:-4px 0 4px;font-size:9px;color:#F5B84A;overflow:hidden;white-space:nowrap}
+.axp-busybar i{width:6px;height:6px;border-radius:50%;background:#F5B84A;font-style:normal;flex:0 0 auto}
+.axp-btn .jmode{display:block;font-size:8px;line-height:1;letter-spacing:.2px;color:#9AA1AB;font-weight:400;margin-top:1px}
+.axp-btn.sm .jmode{color:#FFB0B0}
+/* v6 对照卡：四张卡统一高度；busybar 占的空间从按钮上方让出来，卡片不出滚动条 */
+.axp-trio{align-items:stretch}
+.axp-trio .axp{height:330px !important;overflow:hidden;padding-bottom:0}
+.axp-trio .axp .axp-cmds{margin-top:0}
+.axp-trio .axp .axp-foot{margin-top:auto;padding-top:4px}
+/* ③ 卡有 busybar，比其它三张少一行点动行高度，靠收紧 cmds 上间距补齐 */
+.axp-trio .axp .axp-busybar + .axp-cmds{margin-top:-2px}

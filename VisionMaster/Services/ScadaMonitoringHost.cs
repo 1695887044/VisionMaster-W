@@ -194,7 +194,8 @@ namespace VisionMaster.Services
                 _confirmations,
                 _values,
                 _priorAlarms,
-                history);
+                history,
+                document.StateLists);
 
             _active = true;
 

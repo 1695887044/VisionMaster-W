@@ -82,6 +82,21 @@ namespace VisionMaster.Scada.Controls
         /// 这一类是"设计期选进方案的文件"。面板给缩略图 + 选择/清除，不让用户手打路径。
         /// </summary>
         ImageFile,
+
+        /// <summary>
+        /// 方案级文本列表（值是 <c>StateListId</c> 的字符串形式）。
+        ///
+        /// 面板给"列表选择器 + 管理…"：候选来自方案文档，不是手打；与
+        /// <see cref="AxisList"/> / <see cref="ColumnList"/> 同一形态——值是稳定 Id，
+        /// 显示名从文档现取，列表改名后选择器不会停在旧名字上。
+        /// </summary>
+        StateList,
+
+        /// <summary>
+        /// 方案内的一张画面（值是 <c>PageId</c> 的字符串形式）。
+        /// 面板给画面选择器：候选来自当前文档的可导航页，不手打；SubPage 用。
+        /// </summary>
+        Page,
     }
 
     /// <summary>

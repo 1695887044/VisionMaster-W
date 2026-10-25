@@ -56,6 +56,49 @@
             <Setter Property="Foreground" Value="{StaticResource ScadaRunMutedTextBrush}" />
         </Style>
 
+        <!--  底条上的取景入口：运行态滚轮不缩放（见 ScadaCanvas.OnMouseWheel），
+              画面被中键平移挪开之后，这里是唯一的"一键回到整幅"入口。
+              做成按钮而不是纯文字：现场没人会去点一行看起来只是状态的字。  -->
+        <Style x:Key="FitButton" TargetType="Button">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="16,0,0,0" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaRunMutedTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{StaticResource ScadaRunControlBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunControlHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaRunControlBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!--  停止运行：唯一出口，所以做成实心红色块，一眼能看到  -->
         <Style TargetType="Button" x:Key="StopButton">
             <Setter Property="Height" Value="26" />
@@ -530,11 +573,12 @@
                         Margin="16,0,0,0"
                         Style="{StaticResource MutedText}"
                         Text="视口 —" />
-                    <TextBlock
-                        x:Name="FitText"
-                        Margin="16,0,0,0"
-                        Style="{StaticResource MutedText}"
-                        Text="适配 —" />
+                    <Button
+                        x:Name="FitButton"
+                        Click="OnFitClick"
+                        Content="适配 —"
+                        Style="{StaticResource FitButton}"
+                        ToolTip="适应窗口：整幅画面等比放进视口（运行态滚轮不缩放，用中键可平移）" />
                     <!--  当前操作者 + 角色（S12）。  -->
                     <!--  运行窗口有无边框最大化形态，那时主界面状态栏整条都被盖住——  -->
                     <!--  权限不够被拦下时（"需要「工程师」权限，当前是「操作员」"），  -->

@@ -32,7 +32,8 @@ namespace Core.Interfaces
             string? description,
             Type type,
             Func<object?> getValue,
-            Action<object?> setValue)
+            Action<object?> setValue,
+            StepConfigOptionKind? optionsKind = null)
         {
             Name = name;
             DisplayName = string.IsNullOrWhiteSpace(displayName) ? name : displayName!;
@@ -40,6 +41,7 @@ namespace Core.Interfaces
             Type = type;
             _getValue = getValue;
             _setValue = setValue;
+            OptionsKind = optionsKind;
 
             IsBoolean = type == typeof(bool) || type == typeof(bool?);
 
@@ -67,6 +69,17 @@ namespace Core.Interfaces
 
         /// <summary>枚举候选（仅枚举类型非 null）；值 = 成员名，显示 = 中文名</summary>
         public IReadOnlyList<StepConfigOption>? Options { get; }
+
+        /// <summary>
+        /// 运行期候选来源（仅标了 <see cref="StepConfigOptionsAttribute"/> 的非枚举参数非 null）。
+        ///
+        /// 【为什么放在描述符上】此前只有 PropertyGrid 的 OptionSourceGenerator 会读这个特性，
+        /// 而 **AutoPortConfigView（框架通用参数面板）读不到** —— 于是同一份 [StepConfig] 属性
+        /// 在属性面板里是下拉、在步骤参数面板里却退化成可自由输入的文本框（v3 修的就是这个分叉）。
+        /// 候选本身**不在这里取**：它随方案变化，必须在渲染/刷新那一刻现取（见 StepConfigOptionSource），
+        /// 所以这里只携带"类别"，不携带列表。
+        /// </summary>
+        public StepConfigOptionKind? OptionsKind { get; }
 
         /// <summary>是否布尔（面板渲染成 CheckBox）</summary>
         public bool IsBoolean { get; }

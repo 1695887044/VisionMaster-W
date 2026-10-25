@@ -40,6 +40,8 @@ namespace VisionMaster.Scada
         private double? _step;
         private double? _min;
         private double? _max;
+        private int? _bitIndex;
+        private string _soundKind = "Info";
         private bool _onlyIfPreviousSucceeded;
 
         /// <summary>动作类型（决定下面哪几组字段有意义）</summary>
@@ -55,6 +57,8 @@ namespace VisionMaster.Scada
                     // IsMotionAction 由 Type 算出来：不广播的话，动作行上那块"轴 + 目标 + 速度"
                     // 的编辑区要等整块重建才出现/消失（用户改完类型看着像没生效）。
                     RaisePropertyChanged(nameof(IsMotionAction));
+                    // IsBitAction 同理：位操作那块"变量 + 位号"编辑区靠它切显隐。
+                    RaisePropertyChanged(nameof(IsBitAction));
                 }
             }
         }
@@ -340,6 +344,16 @@ namespace VisionMaster.Scada
             or ScadaActionType.MotionJogStart or ScadaActionType.MotionJogStop;
 
         /// <summary>
+        /// 这条动作是不是位操作族（置位 / 复位 / 取反）。给动作行模板一个布尔位去切
+        /// "变量 + 位号"那块编辑区——理由与 <see cref="IsMotionAction"/> 逐字相同：
+        /// 三个 <c>DataTrigger</c> 写在一处既容易漏（加第四种位操作就要记得补一行）
+        /// 又看不出意图，而"哪些类型算位操作"这份知识只该存在一处。
+        /// 执行侧 <c>ScadaActionDispatcher</c> 的 switch 与这里是同一份清单。
+        /// </summary>
+        public bool IsBitAction => Type is
+            ScadaActionType.SetBit or ScadaActionType.ResetBit or ScadaActionType.ToggleBit;
+
+        /// <summary>
         /// 定位目标（mm）：绝对定位=目标点；相对定位=增量（可为负）；点动=方向（正/负号，见 <see cref="Describe"/>）。
         ///
         /// 为什么是 <c>double?</c> 而不是 <c>double</c>：属性面板要把"没填"与"填了 0"分开——
@@ -408,6 +422,46 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 位号（<see cref="ScadaActionType.SetBit"/> / ResetBit / ToggleBit）。
+        ///
+        /// 两种语义，由 <c>null</c> 分开：
+        /// - <c>null</c> = <b>Bool 变量整体写</b>（置位=true / 复位=false / 取反=!当前值）；
+        /// - <c>0..31</c> = <b>整型变量里的位号</b>（读-改-写那一位，其余位不动）。
+        ///
+        /// 为什么用可空而不像数组下标那样用 <c>-1</c> 表达"整体"：
+        /// 这里的"没填"就是界面上那个输入框空着，而空输入框在 WPF 里天然落 <c>null</c>；
+        /// 拿 <c>-1</c> 当哨兵的话，用户手打一个 -1 就与"留空"混成同一件事，
+        /// 而执行侧本来该把 -1 当越界拒绝并说清原因。
+        ///
+        /// 为什么不在这里夹到 0..31：位宽是变量类型的属性（byte 只有 0~7），
+        /// 模型层看不到变量类型；越界由执行侧当场判并给出带类型名的原因，
+        /// 这里悄悄夹一下只会把"配错了"变成"配对了但改的是另一位"。
+        /// </summary>
+        public int? BitIndex
+        {
+            get => _bitIndex;
+            set
+            {
+                if (SetProperty(ref _bitIndex, value))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>
+        /// 播放声音的档位（<see cref="ScadaActionType.PlaySound"/>）：Info / Warning / Critical。
+        /// 存字符串而不是枚举，与动作类型同一条落盘纪律：坏值不抛，执行侧按 Info 兜底并说明。
+        /// </summary>
+        public string SoundKind
+        {
+            get => _soundKind;
+            set
+            {
+                if (SetProperty(ref _soundKind, string.IsNullOrWhiteSpace(value) ? "Info" : value.Trim()))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>
         /// 本动作的关键参数（属性面板上"这一行右边要显示的短文本"）。
         /// 单独开一个只读属性，是为了让界面不必各自去 switch 一遍动作类型——
         /// 那份 switch 与 <see cref="Describe"/> 是同一份知识，只该存在一处。
@@ -418,6 +472,13 @@ namespace VisionMaster.Scada
             ScadaActionType.WriteVariable => $"{ToReference().DisplayText} := {_value}",
             ScadaActionType.Increment => $"{ToReference().DisplayText} +{_step ?? 1d}",
             ScadaActionType.Decrement => $"{ToReference().DisplayText} -{_step ?? 1d}",
+            // 位操作的行内摘要：目标 + 那一位 + 结果（← 1 / ← 0 / ← 取反）。
+            // 位号为空时不缀那个点（"ControlWord. ← 1" 是个读不通的串）：
+            // 空的语义就是 Bool 整体写，写法与「写变量」一致；整型漏填位号由执行侧当场拒绝并说明。
+            ScadaActionType.SetBit => BitDetail("1"),
+            ScadaActionType.ResetBit => BitDetail("0"),
+            ScadaActionType.ToggleBit => BitDetail("取反"),
+            ScadaActionType.PlaySound => _soundKind,
             ScadaActionType.Navigate => _targetPageName ?? string.Empty,
             ScadaActionType.NavigateBack => string.Empty,
             ScadaActionType.OpenPopup => _targetPageName ?? string.Empty,
@@ -572,6 +633,13 @@ namespace VisionMaster.Scada
             ScadaActionType.Decrement => _variableId == Guid.Empty && string.IsNullOrEmpty(_variableName)
                 ? "减量（未选变量）"
                 : $"减量 {ToReference().DisplayText} -{_step ?? 1d}",
+            // 位操作三条：未选变量与另外三种同款措辞；位号为空时把"按 Bool 整体写"这件事说在日志里——
+            // 日志与审计是事后唯一能查的东西，只写 "置位 运行中 ← 1" 会让"这条到底是整体写还是改某一位"
+            // 变得无从判断（整型漏填位号时执行侧会拒绝，那一档的措辞在 dispatcher 里）。
+            ScadaActionType.SetBit => DescribeBit("置位", "1"),
+            ScadaActionType.ResetBit => DescribeBit("复位", "0"),
+            ScadaActionType.ToggleBit => DescribeBit("取反", "取反"),
+            ScadaActionType.PlaySound => $"播放声音（{_soundKind}）",
             ScadaActionType.Navigate => _targetPageId == Guid.Empty && string.IsNullOrEmpty(_targetPageName)
                 ? "切换画面（未选画面）"
                 : $"切换画面 → {_targetPageName}",
@@ -631,6 +699,39 @@ namespace VisionMaster.Scada
                 : $"点动结束 {AxisLabel}",
             _ => Type.DisplayName(),
         };
+
+        /// <summary>
+        /// 位操作的行内摘要：<c>ControlWord.3 ← 1</c> / <c>运行中 ← 1</c>（位号为空 = Bool 整体写）。
+        /// 与 <see cref="Describe"/> 用同一个 <see cref="BitTarget"/>，两处不会一处带点、一处不带。
+        /// </summary>
+        private string BitDetail(string value) => $"{BitTarget} ← {value}";
+
+        /// <summary>
+        /// 位操作的日志/审计措辞：<c>置位 ControlWord.3 ← 1</c>。
+        /// 三种"没说清"的状态各给一句中文，不留半截串：
+        /// 未选变量 → <c>置位（未选变量）</c>；位号为空 → 补一句"按 Bool 整体写"。
+        /// </summary>
+        private string DescribeBit(string verb, string value)
+        {
+            if (!HasVariable)
+                return $"{verb}（未选变量）";
+
+            return _bitIndex.HasValue
+                ? $"{verb} {BitTarget} ← {value}"
+                : $"{verb} {BitTarget} ← {value}（未填位号，按 Bool 整体写）";
+        }
+
+        /// <summary>
+        /// 位操作的目标写法：有名字就写名字（<see cref="ScadaVariableRef.DisplayText"/> 已含数组下标），
+        /// 有位号再缀 <c>.位号</c>。
+        ///
+        /// 位号用 <c>.3</c> 而不是 <c>[3]</c>：方括号在变量引用里已经是"数组元素"的意思
+        /// （<see cref="ScadaVariableRef.IsArrayElement"/>），同一行里两种方括号会让人以为
+        /// <c>Control[2].3</c> 是"数组第 2 个元素的第 3 位"以外的什么东西。
+        /// </summary>
+        private string BitTarget => _bitIndex.HasValue
+            ? $"{ToReference().DisplayText}.{_bitIndex.Value}"
+            : ToReference().DisplayText;
 
         /// <summary>
         /// 行内摘要里那根轴的写法：

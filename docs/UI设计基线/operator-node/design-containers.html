@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>逻辑容器 + 泳道 · 1:1 视觉稿（对照 ContainerNodeTemplate / LaneNodeTemplate）</title>
+<style>
+  @font-face{
+    font-family:"FA6Pro";
+    src:url("../../../UI/Controls/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf") format("opentype");
+    font-weight:900;
+  }
+  :root{
+    --bg:#F7F9FC; --ink:#0F172A; --sub:#94A3B8; --line:#E2E8F0; --panel:#FFFFFF;
+    --frame-bd:#A5C0E8; --frame-hd:#EEF4FF;
+    --fail:#EF4444; --fail-bg:#FEF2F2; --fail-bd:#FECACA; --fail-ink:#B91C1C;
+    --run:#2563EB; --warn:#E6A23C;
+    --order-bg:#0F172A;
+    --lane-tint:rgba(59,130,246,.059); --lane-bd:rgba(75,130,246,.149); --lane-hd:rgba(255,255,255,.702);
+    --lane-ink:#5A6C99;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1240px;margin:0 auto;padding:20px 24px 60px}
+  h1{font-size:16px;margin:0 0 4px}
+  .sub{color:#64748B;font-size:12px;margin-bottom:18px}
+  h2{font-size:13.5px;margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .note{font-size:11.5px;color:#64748B;line-height:1.9;margin:8px 0 0}
+  code{background:#F1F5F9;border:1px solid var(--line);border-radius:4px;padding:0 4px;
+    font:11px ui-monospace,Consolas,monospace;color:#334155}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px;
+    display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start}
+  .cell{display:flex;flex-direction:column;gap:10px}
+  .cap{font-size:11px;color:#64748B}
+
+  /* ===== 容器框：FrameHeaderHeight 46 / 圆角 12 / 描边 1.5 / 内边距 16 ===== */
+  .cwrap{position:relative}
+  .frame{
+    position:absolute;inset:0;border:1.5px solid var(--t-bd);border-radius:12px;
+    background:#FFFFFF;overflow:hidden;
+  }
+  .header{
+    height:46px;display:flex;align-items:center;gap:0;
+    padding:0 6px 0 9px;
+    background:linear-gradient(to right, var(--t-hd) 0%, #FFFFFF 76%);
+    border-bottom:1px solid var(--t-bd);
+    border-radius:10px 10px 0 0;
+  }
+  .typebar{width:4px;height:26px;border-radius:2px;background:var(--t-accent);margin-right:6px;flex:0 0 auto}
+  .typebadge{
+    height:20px;padding:0 5px;border-radius:5px;background:var(--t-accent);color:#fff;
+    font-family:Consolas,ui-monospace,monospace;font-size:9px;font-weight:700;line-height:20px;
+    margin-right:6px;flex:0 0 auto;letter-spacing:.4px;
+  }
+  .ctitle{
+    font-size:12.5px;font-weight:600;color:var(--ink);flex:1 1 auto;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .cond{
+    height:20px;max-width:190px;padding:0 5px;border-radius:5px;background:#FFFFFF;
+    border:1px solid var(--t-bd);color:var(--t-ink);
+    font-family:Consolas,ui-monospace,monospace;font-size:9px;line-height:18px;
+    margin-left:4px;flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+    align-self:center;
+  }
+  .meta{
+    font-family:Consolas,ui-monospace,monospace;font-size:8.5px;color:var(--sub);
+    margin:0 4px 0 6px;flex:0 0 auto;white-space:nowrap;
+  }
+  .cdot{width:7px;height:7px;border-radius:50%;background:#A8ABB2;margin-right:28px;flex:0 0 auto}
+
+  .body{position:absolute;left:16px;right:16px;top:62px;bottom:16px;display:flex;gap:24px}
+
+  /* ===== 泳道：圆角 8 / 头带 28 ===== */
+  .lane{
+    border:1px solid var(--lane-bd);border-radius:8px;background:var(--lane-tint);
+    display:flex;flex-direction:column;min-width:0;flex:1 1 0;overflow:hidden;
+  }
+  .lanehead{
+    height:28px;display:flex;align-items:center;padding:0 8px;
+    background:var(--lane-hd);border-bottom:1px solid var(--lane-bd);border-radius:7px 7px 0 0;
+  }
+  .branchbadge{
+    height:16px;padding:0 5px;border-radius:4px;background:var(--sub);color:#fff;
+    font-family:Consolas,ui-monospace,monospace;font-size:8px;font-weight:700;line-height:16px;flex:0 0 auto;
+  }
+  .lanename{
+    margin-left:6px;font-size:9.5px;font-weight:600;color:var(--lane-ink);
+    flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .lanecount{margin-left:6px;font-family:Consolas,ui-monospace,monospace;font-size:8.5px;color:var(--sub);flex:0 0 auto}
+  .lanebody{flex:1 1 auto;padding:14px;position:relative}
+
+  /* 卡片占位（真实卡片见 design.html） */
+  .ghost{width:156px;height:58px;border:1px solid #C9D2DE;border-radius:10px;background:#fff}
+  .ghost + .ghost{margin-top:28px}
+  .emptytip{margin:10px 6px;font-size:9px;color:var(--sub);line-height:1.6}
+  .lanenote{
+    position:absolute;left:10px;right:10px;bottom:9px;height:22px;border-radius:6px;
+    background:#FFFBEB;border:1px solid #FDE68A;color:#B45309;
+    font-family:Consolas,ui-monospace,monospace;font-size:9px;line-height:20px;text-align:center;
+  }
+
+  /* 并行汇合条：22 高、底距 6 */
+  .joinbar{
+    position:absolute;left:12px;right:12px;bottom:6px;height:22px;border-radius:6px;
+    background:#F0F9FF;border:1px solid #BAE6FD;color:#0369A1;
+    display:flex;align-items:center;justify-content:center;gap:6px;
+    font-family:Consolas,ui-monospace,monospace;font-size:9px;
+  }
+  .joinbar .fa{font-family:"FA6Pro",sans-serif;font-size:10px}
+
+  /* 折叠钮 18×18 / 序号 24×18 */
+  .collapse{
+    position:absolute;top:14px;right:6px;width:18px;height:18px;border-radius:5px;
+    background:#FFFFFF;border:1px solid #C9D2DE;color:#475569;
+    display:flex;align-items:center;justify-content:center;
+    font-family:"FA6Pro",sans-serif;font-size:10px;
+  }
+  .corder{
+    position:absolute;top:-9px;left:-9px;width:24px;height:18px;border-radius:5px;
+    background:var(--order-bg);color:#fff;text-align:center;
+    font-family:Consolas,ui-monospace,monospace;font-size:9px;font-weight:700;line-height:18px;
+  }
+  /* 折叠态角标 */
+  .collapsed-badge{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    height:18px;padding:0 7px;border-radius:9px;background:#EEF2FF;border:1px solid #C7D2FE;
+    color:#4338CA;font-family:Consolas,ui-monospace,monospace;font-size:9px;line-height:16px;
+  }
+
+  /* 状态修饰 */
+  .st-fail .frame{border-color:var(--fail);background:var(--fail-bg)}
+  .st-fail .header{background:var(--fail-bg);border-bottom-color:var(--fail-bd)}
+  .st-fail .ctitle{color:var(--fail-ink)}
+  .st-fail .typebar,.st-fail .typebadge{background:var(--fail)}
+  .st-fail .cond{border-color:var(--fail-bd);color:var(--fail-ink)}
+  .st-sel .frame{border-color:var(--run);border-width:2px;box-shadow:0 0 0 2px rgba(37,99,235,.18)}
+  .st-dis{opacity:.45}
+
+  table{border-collapse:collapse;width:100%;font-size:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#F8FAFC;font-weight:600;color:#334155;font-size:11.5px}
+  tr:last-child td{border-bottom:0}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.08);
+    vertical-align:-2px;margin-right:6px}
+  .types{display:flex;flex-wrap:wrap;gap:10px}
+  .type{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;font-size:11.5px}
+  .chip{height:20px;padding:0 6px;border-radius:5px;color:#fff;font-family:Consolas,monospace;
+    font-size:9px;font-weight:700;line-height:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>逻辑容器 + 泳道 · 1:1 视觉稿</h1>
+  <div class="sub">
+    数值取自 <code>FlowCanvasView.xaml</code> 的 <code>ContainerNodeTemplate</code>（:762-1108）与
+    <code>LaneNodeTemplate</code>（:1111-），配色取自 <code>Colors.xaml</code> 的 <code>Logic*</code> 五组令牌。
+    容器框尺寸由子孙外接框算出，本页用示意尺寸。
+  </div>
+
+  <h2>一、五种逻辑容器（If / Case / While / For / Parallel）</h2>
+  <div class="stage" id="types"></div>
+
+  <h2>二、容器状态</h2>
+  <div class="stage" id="states"></div>
+
+  <h2>三、泳道细节</h2>
+  <div class="stage" id="lanes"></div>
+
+  <h2>四、规格表</h2>
+  <table>
+    <tr><th style="width:170px">元素</th><th style="width:330px">数值</th><th>来源</th></tr>
+    <tr><td>容器框</td><td>圆角 12 · 描边 <b>1.5px</b> · 底 <span class="sw" style="background:#FFFFFF"></span>#FFFFFF · 描边色按类型（见 §五）</td><td><code>ContainerFrame</code></td></tr>
+    <tr><td>组头</td><td>高 <b>46</b> · 左右内距 9/6 · 底边 1px · 圆角 10 10 0 0 · 背景 = 类型色 → 白 76% 的横向渐变</td><td><code>ContainerHeader</code> + <code>Logic*HeaderBrush</code></td></tr>
+    <tr><td>类型色条</td><td>4×26 · 圆角 2 · 距右 6</td><td><code>ContainerTypeBar</code></td></tr>
+    <tr><td>类型徽标</td><td>高 20 · 内距 5 · 圆角 5 · Consolas 9 Bold 白字 · IF / CASE / WHILE / FOR / PAR</td><td><code>TypeBadgeBorder</code>；文案见 <code>CanvasNodeViewModel.TypeBadge</code>（:444-455）</td></tr>
+    <tr><td>容器标题</td><td>12.5 SemiBold `#0F172A` · 省略号</td><td><code>ContainerHeaderText</code></td></tr>
+    <tr><td>条件胶囊</td><td>高 20 · 内距 5 · 圆角 5 · 最大宽 <b>190</b> · 白底 + 类型色描边 · Consolas 9 类型色字 · 左距 4</td><td><code>ContainerCondBorder/Text</code>；文案 <code>ContainerSummary</code></td></tr>
+    <tr><td>统计文字</td><td>Consolas 8.5 `#94A3B8` · 左距 6 右距 4 · 「N 分支 · M 算子」/「缺条件」</td><td><code>ContainerMetaLabel</code>；<code>ContainerMetaText</code>（:498-501）</td></tr>
+    <tr><td>状态点</td><td>7×7 · 距右 28（给折叠钮让位）· 五态色；条件缺失恒红</td><td><code>ContainerStatusDot</code> + <code>ContainerStatusDotStyle</code></td></tr>
+    <tr><td>折叠钮</td><td>18×18 · 圆角 5 · 右上 (6,14) · 白底 + <span class="sw" style="background:#C9D2DE"></span>#C9D2DE 边 · 字形 10px <span class="sw" style="background:#475569"></span>#475569（展开 f078 / 折叠 f077）</td><td><code>ContainerCollapseToggle</code>；<code>CollapseGlyph</code>（:644）</td></tr>
+    <tr><td>序号角标</td><td><b>24×18</b> · 圆角 5 · 左上 (−9,−9) · 底 `#0F172A` · Consolas 9 Bold 白字</td><td><code>ContainerOrderBadge</code></td></tr>
+    <tr><td>并行汇合条</td><td>高 22 · 左右 12 / 底 6 · 圆角 6 · 底 `#F0F9FF` · 边 `#BAE6FD` · 字 `#0369A1` · FA f126 10px + Consolas 9「汇合 · N 分支」</td><td><code>JoinBar</code>；<code>JoinBarText</code>（:504-507）</td></tr>
+    <tr><td>失败态</td><td>框边 `#EF4444` · 框底/组头 `#FEF2F2` · 组头边 `#FECACA` · 标题 `#B91C1C` · 色条与徽标 `#EF4444` · 胶囊边 `#FECACA` / 字 `#B91C1C`</td><td><code>State=Failed</code> 触发器（:1076-1086）</td></tr>
+    <tr><td>条件缺失</td><td>与失败态<b>同一套红</b>，meta 显示「缺条件」</td><td><code>HasMissingCondition</code> 触发器（:1089-1099）</td></tr>
+    <tr><td>选中态</td><td>框边 `#2563EB` · <b>2px</b></td><td><code>IsSelected</code> 触发器（:1102-1105）</td></tr>
+    <tr><td>禁用态</td><td>整节点 `Opacity 0.45`</td><td><code>ContainerNodeRoot</code> 样式（:765-773）</td></tr>
+    <tr><td>泳道</td><td>圆角 8 · 边 1px <code>#264B82F6</code> · 底 <code>#0F3B82F6</code>（alpha 15/255 与 38/255 的蓝）</td><td><code>LaneRoot</code>；<code>FlowCanvasLaneTintBrush/BorderBrush</code></td></tr>
+    <tr><td>泳道头</td><td>高 <b>28</b> · 内距 8 · 底边 1px · 圆角 7 7 0 0 · 底 <code>#B3FFFFFF</code></td><td><code>LaneHeader</code></td></tr>
+    <tr><td>分支徽标</td><td>高 16 · 内距 5 · 圆角 4 · 底 `#94A3B8` · Consolas 8 Bold 白字</td><td><code>LaneBadge</code>；<code>BranchBadge</code>（:556）</td></tr>
+    <tr><td>分支名</td><td>9.5 SemiBold `#5A6C99` · 左距 6 · 省略号</td><td><code>LaneNameText</code></td></tr>
+    <tr><td>分支计数</td><td>Consolas 8.5 `#94A3B8` · 「N 算子」</td><td><code>LaneCountText</code>（:614）</td></tr>
+    <tr><td>空分支提示</td><td>9px `#94A3B8` · 内距 10,6 · 文案「（空分支，可从流程栏添加步骤）」</td><td><code>IsLaneEmpty</code> 触发器（:1181-1198）</td></tr>
+    <tr><td>泳道说明条</td><td>高 22 · 左右 10 / 底 9 · Consolas 9 · While/For 专用（条件或次数）</td><td><code>LaneNote</code>；<code>LaneNoteText</code>（:617-）</td></tr>
+  </table>
+
+  <h2>五、五种类型的配色（边框 / 渐变起点 / 文字 / 色条）</h2>
+  <div class="types" id="palette"></div>
+  <p class="note">
+    组头渐变 = 起点色 → <b>白色（76% 处）</b>，方向从左到右；类型徽标与色条用「主色」，条件胶囊文字用「文字色」。
+  </p>
+
+  <h2>六、说明</h2>
+  <p class="note">
+    ① 容器框的宽高<b>不是常量</b>：由子孙外接框算出（<code>ComputeContainerGeometry</code>），本页只是示意。
+    折叠后框体缩成卡片大小，组头保留，右侧显示「N 步」角标。<br>
+    ② 与 <code>design.html</code>（叶子算子卡）配套使用：两者合起来才是画布的完整视觉基准。<br>
+    ③ 打开方式：在仓库根 <code>python -m http.server 8770</code>，访问
+       <code>/docs/UI设计基线/operator-node/design-containers.html</code>（图标字体走相对路径）。
+  </p>
+</div>
+
+<script>
+/* 五种容器的配色：主色 / 边框 / 渐变起点 / 文字色（取自 Colors.xaml 的 Logic* 组） */
+const TYPES = {
+  If:       { badge:"IF",    accent:"#6366F1", bd:"#C7D2FE", hd:"#EEF2FF", ink:"#4338CA", name:"判断" },
+  Case:     { badge:"CASE",  accent:"#8B5CF6", bd:"#DDD6FE", hd:"#F5F3FF", ink:"#6D28D9", name:"分支匹配" },
+  While:    { badge:"WHILE", accent:"#F59E0B", bd:"#FDE68A", hd:"#FFFBEB", ink:"#B45309", name:"条件循环" },
+  For:      { badge:"FOR",   accent:"#10B981", bd:"#A7F3D0", hd:"#ECFDF5", ink:"#047857", name:"按次数循环" },
+  Parallel: { badge:"PAR",   accent:"#0EA5E9", bd:"#BAE6FD", hd:"#F0F9FF", ink:"#0369A1", name:"并行分组" },
+};
+
+/* 一个容器：lanes = [{badge,name,count,ghosts,empty,note}] */
+function container(o){
+  o = Object.assign({ type:"If", title:"判断_1", cond:"1 > 0", meta:"2 分支 · 5 算子",
+                      order:"4", lanes:[], join:false, state:"", collapsed:false,
+                      w:560, h:300, dis:false }, o);
+  const t = TYPES[o.type];
+
+  const el = document.createElement("div");
+  el.className = "cwrap" + (o.state==="fail"?" st-fail":"") + (o.state==="sel"?" st-sel":"") + (o.dis?" st-dis":"");
+  el.style.width = o.w+"px"; el.style.height = o.h+"px";
+  el.style.setProperty("--t-accent", t.accent);
+  el.style.setProperty("--t-bd", t.bd);
+  el.style.setProperty("--t-hd", t.hd);
+  el.style.setProperty("--t-ink", t.ink);
+
+  if(o.collapsed){
+    el.innerHTML = `
+      <div class="frame" style="border-radius:12px">
+        <div class="header">
+          <div class="typebar"></div>
+          <div class="typebadge">${t.badge}</div>
+          <div class="ctitle">${o.title}</div>
+          <div class="collapsed-badge">12 步</div>
+        </div>
+      </div>
+      ${o.order?`<div class="corder">${o.order}</div>`:""}
+      <div class="collapse">&#xf077;</div>`;
+    return el;
+  }
+
+  const lanes = o.lanes.map(l=>`
+    <div class="lane">
+      <div class="lanehead">
+        <div class="branchbadge">${l.badge}</div>
+        <div class="lanename">${l.name}</div>
+        <div class="lanecount">${l.count}</div>
+      </div>
+      <div class="lanebody">
+        ${l.empty
+          ? `<div class="emptytip">（空分支，可从流程栏添加步骤）</div>`
+          : Array.from({length:l.ghosts||1}).map(()=>`<div class="ghost"></div>`).join("")}
+        ${l.note?`<div class="lanenote">${l.note}</div>`:""}
+      </div>
+    </div>`).join("");
+
+  el.innerHTML = `
+    <div class="frame">
+      <div class="header">
+        <div class="typebar"></div>
+        <div class="typebadge">${t.badge}</div>
+        <div class="ctitle">${o.title}</div>
+        ${o.cond?`<div class="cond">${o.cond}</div>`:""}
+        <div class="meta">${o.meta}</div>
+        <div class="cdot"></div>
+      </div>
+      <div class="body">${lanes}</div>
+      ${o.join?`<div class="joinbar"><span class="fa">&#xf126;</span><span>${o.joinText||"汇合 · 3 分支"}</span></div>`:""}
+    </div>
+    ${o.order?`<div class="corder">${o.order}</div>`:""}
+    <div class="collapse">&#xf078;</div>`;
+  return el;
+}
+
+/* 一、五种容器 */
+const typesBox = document.getElementById("types");
+[
+  { type:"If", title:"判断_1", cond:"1 > 0", meta:"2 分支 · 5 算子", order:"4",
+    lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:2},
+           {badge:"2",name:"Else",count:"1 算子",ghosts:1}], w:560,h:300 },
+  { type:"Case", title:"分支匹配_2", cond:"Code", meta:"3 分支 · 4 算子", order:"7",
+    lanes:[{badge:"1",name:"Case 1",count:"2 算子",ghosts:2},
+           {badge:"2",name:"Case 2",count:"1 算子",ghosts:1},
+           {badge:"3",name:"默认",count:"1 算子",ghosts:1}], w:720,h:300 },
+  { type:"While", title:"条件循环_3", cond:"Count < 10", meta:"1 分支 · 2 算子", order:"9",
+    lanes:[{badge:"1",name:"循环体",count:"2 算子",ghosts:2,note:"条件：Count < 10 · 每轮执行前重新判断"}],
+    w:420,h:300 },
+  { type:"For", title:"循环_4", cond:"3 次", meta:"1 分支 · 2 算子", order:"11",
+    lanes:[{badge:"1",name:"循环体",count:"2 算子",ghosts:2,note:"次数：3（未连线时的兜底值）"}],
+    w:420,h:300 },
+  { type:"Parallel", title:"并行_5", cond:"真并行", meta:"3 分支 · 6 算子", order:"13", join:true, joinText:"汇合 · 3 分支",
+    lanes:[{badge:"1",name:"分支 1",count:"2 算子",ghosts:2},
+           {badge:"2",name:"分支 2",count:"2 算子",ghosts:2},
+           {badge:"3",name:"分支 3",count:"2 算子",ghosts:2}], w:760,h:300 },
+].forEach(o=>{
+  const cell=document.createElement("div"); cell.className="cell";
+  const c=document.createElement("div"); c.className="cap"; c.textContent=`${TYPES[o.type].name}（${TYPES[o.type].badge}）`;
+  cell.appendChild(c); cell.appendChild(container(o)); typesBox.appendChild(cell);
+});
+
+/* 二、状态 */
+const statesBox = document.getElementById("states");
+[
+  ["默认", {order:"4", lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:1}]}],
+  ["失败", {order:"4", state:"fail", meta:"2 分支 · 5 算子", lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:1}]}],
+  ["缺条件", {order:"4", state:"fail", cond:"", meta:"缺条件", lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:1}]}],
+  ["选中", {order:"4", state:"sel", lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:1}]}],
+  ["禁用", {order:"4", dis:true, lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:1}]}],
+  ["折叠", {order:"4", collapsed:true, w:240, h:58}],
+].forEach(([cap,o])=>{
+  const cell=document.createElement("div"); cell.className="cell";
+  const c=document.createElement("div"); c.className="cap"; c.textContent=cap;
+  cell.appendChild(c);
+  cell.appendChild(container(Object.assign({title:"判断_1", cond:"1 > 0", meta:"2 分支 · 5 算子", w:420, h:220}, o)));
+  statesBox.appendChild(cell);
+});
+
+/* 三、泳道细节 */
+const lanesBox=document.getElementById("lanes");
+[
+  ["普通（2 算子）", {w:300,h:200, lanes:[{badge:"1",name:"If",count:"2 算子",ghosts:2}]}],
+  ["空分支", {w:300,h:200, lanes:[{badge:"2",name:"Else",count:"0 算子",empty:true}]}],
+  ["While 说明条", {type:"While", title:"条件循环_3", cond:"Count < 10", meta:"1 分支 · 1 算子",
+     w:360,h:230, lanes:[{badge:"1",name:"循环体",count:"1 算子",ghosts:1,note:"条件：Count < 10 · 每轮执行前重新判断"}]}],
+].forEach(([cap,o])=>{
+  const cell=document.createElement("div"); cell.className="cell";
+  const c=document.createElement("div"); c.className="cap"; c.textContent=cap;
+  cell.appendChild(c); cell.appendChild(container(Object.assign({order:"",title:"判断_1",cond:"1 > 0",meta:"1 分支 · 1 算子"},o)));
+  lanesBox.appendChild(cell);
+});
+
+/* 五、配色卡 */
+const pal=document.getElementById("palette");
+for(const [k,t] of Object.entries(TYPES)){
+  const d=document.createElement("div"); d.className="type";
+  d.innerHTML=`<div class="chip" style="background:${t.accent}">${t.badge}</div>
+    <div><div style="font-weight:600">${t.name}</div>
+    <div style="font-family:Consolas,monospace;font-size:10.5px;color:#64748B">
+      ${t.accent} · 边 ${t.bd} · 头 ${t.hd} · 字 ${t.ink}</div></div>`;
+  pal.appendChild(d);
+}
+</script>
+</body>
+</html>

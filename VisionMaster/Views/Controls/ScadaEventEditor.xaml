@@ -277,6 +277,141 @@
                             </TextBlock>
                         </StackPanel>
 
+                        <!--  位操作（置位 / 复位 / 取反，v4）：选目标变量 + 填位号。
+                              位号口径：留空 = Bool 变量整体写（置位=true / 复位=false / 取反=!当前值）；
+                              0~31 = 整型变量里的一位（读-改-写，其余位不动），且不得超过该类型位宽
+                              （byte 只有 0~7）。位宽只有执行侧知道，所以这里不预判，只把口径写在提示里。
+                              可见性判据用 ScadaAction.IsBitAction 而不是三个 DataTrigger，理由同运动族：
+                              这份"哪些类型算位操作"的知识只该存在领域层一处。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsBitAction}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--  名字为空（=还没选）时由 TargetNullValue 顶上一句占位文案，
+                                      省掉一个"空/非空"双控件互斥的触发器  -->
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Text="{Binding VariableDisplayName}"
+                                    TextTrimming="CharacterEllipsis"
+                                    ToolTip="{Binding VariableDisplayName}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                                                    <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Button
+                                    Grid.Column="1"
+                                    Padding="6,1"
+                                    FontSize="11"
+                                    Command="{Binding DataContext.PickVariableCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    Content="选择变量"
+                                    ToolTip="从当前方案的变量清单里挑一个（Bool 或整型）" />
+                            </Grid>
+
+                            <Grid Margin="0,3,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    Margin="0,0,4,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="位号：" />
+
+                                <!--  空输入框对 int? 落 null（= Bool 整体写），所以这里不设默认值；
+                                      TargetNullValue 只负责把"空着"这件事显示成一句话，不改模型语义  -->
+                                <TextBox
+                                    Grid.Column="1"
+                                    Padding="3,2"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding BitIndex, UpdateSourceTrigger=LostFocus, TargetNullValue=（Bool 留空）}"
+                                    ToolTip="0~31；Bool 变量可留空（整体写），整型必须填且不超过该类型位宽（byte 0~7 / short 0~15 / int 0~31）" />
+                            </Grid>
+
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="10"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="留空 = Bool 整体写；整型必须填位号，越界或类型不符时运行日志会记一条错误。"
+                                TextWrapping="Wrap" />
+
+                            <!--  没选变量：执行侧会照实警告并跳过，先把这件事说在界面上  -->
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaWarningBrush}"
+                                Text="还没选变量，这条动作运行时会跳过。"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <!--  播放声音：只选档位，不改变任何变量；执行侧按 Info/Warning/Critical 播放  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="PlaySound">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <TextBlock
+                                Margin="0,0,0,3"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="声音档位" />
+                            <ComboBox
+                                FontSize="11"
+                                SelectedValue="{Binding SoundKind, Mode=TwoWay}"
+                                SelectedValuePath="Tag">
+                                <ComboBoxItem Content="提示" Tag="Info" />
+                                <ComboBoxItem Content="警告" Tag="Warning" />
+                                <ComboBoxItem Content="严重" Tag="Critical" />
+                            </ComboBox>
+                        </StackPanel>
+
                         <!--  条件动作（P0）：只给写变量用。典型配置是「暂停流程」后面跟一条
                               WriteVariable(Paused=1)，勾上后暂停失败/被跳过时不会把页面写成“已暂停”。  -->
                         <CheckBox

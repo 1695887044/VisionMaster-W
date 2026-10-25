@@ -88,7 +88,14 @@ namespace Plugin.CSharpScript
         public ScriptVarType Type
         {
             get => _type;
-            set { if (_type != value) { _type = value; OnPropertyChanged(); OnPropertyChanged(nameof(IsIconic)); } }
+            set
+            {
+                if (_type == value) return;
+                _type = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsIconic));
+                OnPropertyChanged(nameof(ShowsDisplayWindow));
+            }
         }
 
         private string _remark = "";
@@ -100,14 +107,21 @@ namespace Plugin.CSharpScript
         }
 
         private int _displayWindow;
-        /// <summary>该图形输出显示到主界面第几号视图窗口（0=不显示，1~9=窗口1~9；仅 HImage/HRegion/HXld/HObject 有效）</summary>
+        /// <summary>
+        /// 该输出显示到主界面第几号视图窗口（0=不显示，1~9=窗口1~9）。
+        /// **只有 HImage 输出生效**：宿主预览通道（PublishPreview）只收 HImage，
+        /// 区域/轮廓要先在脚本里合成成图像再写输出。
+        /// </summary>
         public int DisplayWindow
         {
             get => _displayWindow;
             set { _displayWindow = value; OnPropertyChanged(); }
         }
 
-        /// <summary>是否为图形（iconic）类型——输出可叠加显示、输入须链接上游而非手填</summary>
+        /// <summary>本行是否该出现「显示窗口」下拉（界面与承诺的唯一口径）。</summary>
+        public bool ShowsDisplayWindow => Type == ScriptVarType.HImage;
+
+        /// <summary>是否为图形（iconic）类型——输入须链接上游而非手填（与"能否推预览"无关）</summary>
         public bool IsIconic =>
             Type == ScriptVarType.HObject ||
             Type == ScriptVarType.HImage ||

@@ -39,28 +39,32 @@ namespace VisionMaster.Scada.Snapshots
             if (page is null)
                 return null;
 
+            var stateLists = BuildStateLists(session.Document.StateLists);
+
             // 基座只取一层：模型的引用写入本就禁止"基座再套基座"，
             // 这里给每只基座传空列表，表示"基座自己的引用不再往下拍"。
             var baseSnapshots = new List<ScadaPageSnapshot>(session.CurrentBasePages.Count);
             foreach (var basePage in session.CurrentBasePages)
-                baseSnapshots.Add(BuildPage(basePage, Array.Empty<ScadaPageSnapshot>(), null));
+                baseSnapshots.Add(BuildPage(basePage, Array.Empty<ScadaPageSnapshot>(), null, stateLists));
 
             var popupSnapshot = session.CurrentPopup is { } popup
                 ? BuildPage(
                     popup,
                     session.CurrentPopupBasePages
-                        .Select(b => BuildPage(b, Array.Empty<ScadaPageSnapshot>(), null))
+                        .Select(b => BuildPage(b, Array.Empty<ScadaPageSnapshot>(), null, stateLists))
                         .ToList(),
-                    null)
+                    null,
+                    stateLists)
                 : null;
 
-            return BuildPage(page, baseSnapshots, popupSnapshot);
+            return BuildPage(page, baseSnapshots, popupSnapshot, stateLists);
         }
 
         private static ScadaPageSnapshot BuildPage(
             ScadaPage page,
             IReadOnlyList<ScadaPageSnapshot> baseSnapshots,
-            ScadaPageSnapshot? popupSnapshot)
+            ScadaPageSnapshot? popupSnapshot,
+            IReadOnlyList<ScadaStateListSnapshot> stateLists)
             => new()
             {
                 PageId = page.PageId.ToString("D"),
@@ -82,7 +86,46 @@ namespace VisionMaster.Scada.Snapshots
                 PopupModal = page.IsPopup && page.PopupModal,
                 Popup = popupSnapshot,
                 Elements = BuildElements(page),
+                StateLists = stateLists,
             };
+
+        private static IReadOnlyList<ScadaStateListSnapshot> BuildStateLists(
+            IReadOnlyList<ScadaStateList>? stateLists)
+        {
+            if (stateLists == null || stateLists.Count == 0)
+                return Array.Empty<ScadaStateListSnapshot>();
+
+            var snapshots = new List<ScadaStateListSnapshot>(stateLists.Count);
+
+            foreach (var list in stateLists)
+            {
+                if (list == null)
+                    continue;
+
+                var entries = new List<ScadaStateEntrySnapshot>(list.Entries.Count);
+                foreach (var entry in list.Entries)
+                {
+                    if (entry == null)
+                        continue;
+
+                    entries.Add(new ScadaStateEntrySnapshot
+                    {
+                        Value = entry.Value,
+                        Text = entry.Text,
+                    });
+                }
+
+                snapshots.Add(new ScadaStateListSnapshot
+                {
+                    StateListId = list.StateListId.ToString("D"),
+                    Name = list.Name,
+                    DefaultText = list.DefaultText,
+                    Entries = entries.AsReadOnly(),
+                });
+            }
+
+            return snapshots.AsReadOnly();
+        }
 
         /// <summary>
         /// 本页全部图元（容器子图元也在同一个集合里，靠 <c>ParentId</c> 表达归属）。

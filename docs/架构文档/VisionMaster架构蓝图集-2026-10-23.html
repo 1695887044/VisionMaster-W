@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VisionMaster 架构蓝图集 · 2026-10-23</title>
+<!--
+  本文件是 VisionMaster架构蓝图集-2026-10-23.md 的图媒介版（同一批证据、同一套编号）。
+  按 AGENTS.md R126：图与网页只作沟通媒介，不进构建、不部署、不作为第二个客户端维护。
+  结论以 MD 为准；数字与行号是 2026-10-23 13:30-13:34 那一轮闸口的快照，引用前按 MD §9 重跑。
+  包裹层（DOCTYPE/head）仅为让本文件从磁盘直开时走标准模式；内部图内容与网页快照逐字相同。
+-->
+</head>
+<body>
+<style>
+  :root {
+    --c-bg: #f8fafc;
+    --c-canvas: #ffffff;
+    --c-border: #cbd5e1;
+    --c-border-strong: #94a3b8;
+    --c-text-main: #0f172a;
+    --c-text-sub: #64748b;
+    --c-alert: #b91c1c;
+    --c-ok: #15803d;
+    --font-ui: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    --font-mono: "SF Mono", Monaco, Consolas, "Courier New", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--c-bg); font-family: var(--font-ui); color: var(--c-text-main); padding: 18px 24px 40px; }
+
+  .nav { position: sticky; top: 0; z-index: 9; background: var(--c-bg); display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 0 9px; margin-bottom: 14px; border-bottom: 2px solid var(--c-border-strong); }
+  .nav .navttl { font-family: var(--font-mono); font-size: 10px; color: var(--c-text-sub); align-self: center; margin-right: 6px; letter-spacing: .5px; }
+  .nav button { font-family: var(--font-mono); font-size: 10.5px; border: 1px solid var(--c-border-strong); background: #fff; color: var(--c-text-main); padding: 3px 7px; cursor: pointer; letter-spacing: .3px; }
+  .nav button.on { background: var(--c-text-main); color: #fff; border-color: var(--c-text-main); }
+  .sheet { display: none; }
+  .sheet.on { display: block; }
+
+  .diagram-canvas { background: var(--c-canvas); border: 2px solid var(--c-border); padding: 22px; max-width: 1260px; margin: 0 auto; }
+  .diagram-header { border-bottom: 1px solid var(--c-border); padding-bottom: 11px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+  .diagram-title { font-size: 21px; font-weight: 600; }
+  .diagram-subtitle { font-size: 10.5px; font-weight: 500; color: var(--c-text-sub); text-transform: uppercase; letter-spacing: .6px; margin-top: 4px; }
+  .sheet-id { font-family: var(--font-mono); font-size: 9.5px; color: var(--c-text-sub); text-align: right; line-height: 1.65; }
+
+  .frame { display: grid; grid-template-columns: 1fr 232px; gap: 16px; align-items: start; }
+  .stack { display: flex; flex-direction: column; gap: 11px; }
+  .band { border: 1px solid var(--c-border-strong); }
+  .band-head { display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid var(--c-border); padding: 5px 10px; background: #f1f5f9; flex-wrap: wrap; }
+  .band-tag { font-family: var(--font-mono); font-size: 10px; background: var(--c-text-main); color: #fff; padding: 1px 5px; letter-spacing: .5px; }
+  .band-name { font-size: 13px; font-weight: 600; }
+  .band-path { font-family: var(--font-mono); font-size: 9.5px; color: var(--c-text-sub); margin-left: auto; }
+  .band-body { padding: 9px; display: grid; gap: 8px; }
+  .cols-2 { grid-template-columns: repeat(2, 1fr); }
+  .cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .cols-4 { grid-template-columns: repeat(4, 1fr); }
+  .cols-5 { grid-template-columns: repeat(5, 1fr); }
+
+  .node { border: 1px solid var(--c-border); background: #fff; padding: 7px 9px; }
+  .node-t { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .node-d { font-size: 10.5px; color: var(--c-text-sub); line-height: 1.5; margin-top: 3px; }
+  .node--alert { border-color: var(--c-alert); }
+  .mono { font-family: var(--font-mono); font-size: 10px; color: var(--c-text-main); }
+  .ln { font-family: var(--font-mono); font-size: 9.5px; color: var(--c-text-sub); }
+  .badge { font-family: var(--font-mono); font-size: 9px; border: 1px solid var(--c-text-main); padding: 0 4px; letter-spacing: .4px; white-space: nowrap; }
+  .badge--fill { background: var(--c-text-main); color: #fff; }
+  .badge--alert { border-color: var(--c-alert); color: var(--c-alert); }
+  .badge--ok { border-color: var(--c-ok); color: var(--c-ok); }
+  ul.lines { list-style: none; margin-top: 4px; }
+  ul.lines li { font-size: 10.5px; line-height: 1.6; }
+  ul.lines li span { color: var(--c-text-sub); }
+  .arrow { text-align: center; font-family: var(--font-mono); font-size: 9.5px; color: var(--c-text-sub); line-height: 1.2; margin: -3px 0; }
+
+  .flow { display: flex; align-items: stretch; }
+  .flow .node { flex: 1; }
+  .flow .sep { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 0 3px; font-family: var(--font-mono); font-size: 9px; color: var(--c-text-sub); text-align: center; }
+
+  .side { border: 1px solid var(--c-border-strong); display: flex; flex-direction: column; }
+  .side-head { border-bottom: 1px solid var(--c-border); background: #f1f5f9; padding: 5px 10px; font-size: 12px; font-weight: 600; }
+  .side-body { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; }
+  .gate { border-left: 2px solid var(--c-text-main); padding: 1px 0 1px 8px; }
+  .gate b { font-size: 10.5px; font-weight: 600; display: block; }
+  .gate i { font-style: normal; font-size: 9.5px; color: var(--c-text-sub); font-family: var(--font-mono); }
+  .side-note { font-size: 9.5px; color: var(--c-text-sub); line-height: 1.55; border-top: 1px dashed var(--c-border); padding-top: 6px; margin-top: 2px; }
+
+  .note { border: 1px dashed var(--c-border-strong); padding: 7px 9px; font-size: 10.5px; color: var(--c-text-sub); line-height: 1.6; }
+  .note b { color: var(--c-text-main); }
+  .note--red { border-color: var(--c-alert); color: var(--c-alert); }
+  .note--red b { color: var(--c-alert); }
+
+  .tbl { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 9.5px; }
+  .tbl th { text-align: left; border-bottom: 1px solid var(--c-border-strong); padding: 3px 5px; font-size: 8.5px; letter-spacing: .5px; text-transform: uppercase; color: var(--c-text-sub); }
+  .tbl td { border-bottom: 1px solid var(--c-border); padding: 3px 5px; vertical-align: top; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl .r { text-align: right; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .legend { margin-top: 14px; border-top: 1px solid var(--c-border); padding-top: 9px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .legend div { font-size: 10px; color: var(--c-text-sub); line-height: 1.55; }
+  .legend b { color: var(--c-text-main); font-size: 10px; }
+</style>
+
+<div class="nav">
+  <span class="navttl">VISIONMASTER / 工程蓝图集</span>
+  <button class="on">00 总览</button>
+  <button>01 插件管线</button>
+  <button>02 轴命令路径</button>
+  <button>03 HALCON 标注</button>
+  <button>04 帮助手册</button>
+  <button>05 Web 运行态</button>
+  <button>06 验证闸链</button>
+  <button>07 主题注入风险面</button>
+  <button>08 待出图与口径修正</button>
+</div>
+
+<!-- ==================================================================== 00 -->
+<section class="sheet on">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">VisionMaster 视觉平台 — 工程架构总览</h1>
+      <p class="diagram-subtitle">WPF / .NET 9 · PRISM 9 · AVALONDOCK · HALCON · PLUGIN ARCHITECTURE</p>
+    </div>
+    <div class="sheet-id">
+      SHEET 00 / 08 · REPO D:\C#\VM<br />
+      102 个 .csproj · 35 个顶层目录 · 39 个插件工程<br />
+      依据：目录与 grep 实测 + 2026-10-23 13:30 闸日志
+    </div>
+  </div>
+
+  <div class="frame">
+    <div class="stack">
+      <div class="band">
+        <div class="band-head"><span class="band-tag">L1</span><span class="band-name">宿主 / 界面层</span><span class="band-path">VisionMaster\ · UI\</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">Shell 主窗 <span class="badge">WINDOWCHROME</span></div><div class="node-d">顶栏 + AvalonDock 停靠区；面板归属由 <span class="mono">CurrentLayoutSchemaVersion</span> 管（R43）</div></div>
+          <div class="node"><div class="node-t">面板与弹窗 <span class="badge">VIEWS</span></div><div class="node-d">流程栏 / 画布 / 程序栏 / 组态三面板（互斥收敛走 <span class="mono">ApplyScadaPanelMode</span>，只认 <span class="mono">IsSelected</span>·R56）</div></div>
+          <div class="node"><div class="node-t">启动自检链 <span class="badge">LIFETIME</span></div><div class="node-d">链上 4 项（单实例 / 配置日志 / HALCON / 插件扫描）；全 Warning 项挪 <span class="mono">OnInitialized</span> 后台（R57/R79）</div></div>
+          <div class="node"><div class="node-t">UI 令牌与分册 <span class="badge">THEMES</span></div><div class="node-d"><span class="mono">Colors.xaml</span> 第一层令牌；<span class="mono">Themes\Dialog\*</span> 可复用件；颜色文件全仓仅 5 个（R140）</div></div>
+          <div class="node"><div class="node-t">帮助手册管线 <span class="badge">EMBEDDED</span></div><div class="node-d">内嵌 <span class="mono">Help\*.md</span> → <span class="mono">HelpCatalogService</span> → <span class="mono">MarkdownToFlowDocument</span> → 详见 04</div></div>
+          <div class="node node--alert"><div class="node-t">主题注入风险面 <span class="badge badge--alert">07</span></div><div class="node-d"><span class="mono">App.xaml:70</span> 把 Fluent 并进<b>应用级</b>资源 → 隐式样式顶掉框架件：列头消失、字形被切、ToggleButton 落位、输入域内缩。详见 07</div></div>
+        </div>
+      </div>
+      <div class="arrow">▲ 绑定 / 命令 / 资源令牌 ▼ · 契约单向：宿主只依赖 Shard 与领域层</div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">L2</span><span class="band-name">契约与代码生成基座</span><span class="band-path">Shard\</span></div>
+        <div class="band-body cols-4">
+          <div class="node"><div class="node-t">Core.Interfaces</div><div class="node-d">插件契约、端口模型、<span class="mono">[StepConfig]</span> / <span class="mono">[Display]</span> / <span class="mono">[RuntimeState]</span></div></div>
+          <div class="node"><div class="node-t">Core.Controls</div><div class="node-d">图元 / 控件侧共享契约（属性网格、外观属性基类）</div></div>
+          <div class="node"><div class="node-t">Core.PluginGenerators <span class="badge">ROSLYN</span></div><div class="node-d">编译期展开参数表与钩子，诊断 CPG0001~5；<b>改它须重建全部插件</b>（R16）</div></div>
+          <div class="node"><div class="node-t">Core.ScadaGenerators <span class="badge">ROSLYN</span></div><div class="node-d">图元外观 / 文字属性生成，重复声明报 SPG0006（R71/R72）</div></div>
+        </div>
+        <div class="note note--red" style="margin:0 10px 8px;border-style:solid;">红线②：契约程序集 <b>不许拷进 Modules\</b> —— 两份静态状态，图元投进去取不出来。落地方式见 01「只拷 TargetPath」</div>
+      </div>
+      <div class="arrow">▲ 实例化 / 端口读写 / 编译执行 ▼</div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">L3</span><span class="band-name">领域模型与运行时服务</span><span class="band-path">Core\ · Engine\ · Services\ · Scada\ · Communication\</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">VM.Core <span class="badge">领域</span></div><ul class="lines"><li>FlowModel / StepModel <span>·方案与步骤树</span></li><li>SolutionService <span>·落盘 + 撤销</span></li><li>变量 / 绑定 / 日志 / AppSettings</li></ul></div>
+          <div class="node"><div class="node-t">VM.FlowEngine <span class="badge">执行</span></div><ul class="lines"><li>FlowCompiler → FlowEngineService <span>·逐拍跑</span></li><li>PluginService / PluginProvider <span>·扫 Modules\</span></li><li>PluginCache <span>·四道指纹失效（R81~83）</span></li></ul></div>
+          <div class="node"><div class="node-t">Core.Halcon <span class="badge">成像</span></div><ul class="lines"><li>HalconBase + ROI 交互 <span>·摘除容差 14px</span></li><li>AnnotationBaker <span>·唯一 OpenWindow 落点，见 03</span></li><li>Debug 与 Release 都要重建（R55）</li></ul></div>
+          <div class="node"><div class="node-t">VM.Communication <span class="badge">IO</span></div><ul class="lines"><li>Modbus / S7 / 仿真驱动 <span>·AddressStartWithZero</span></li><li>数组变量与地址跨度上限（R149/R153）</li><li>变量表 xlsx 导入导出（§35）</li></ul></div>
+          <div class="node"><div class="node-t">Scada 运行时 <span class="badge">组态</span></div><ul class="lines"><li>画面模型 + 图元（DefaultStyleKey 必覆盖·R73）</li><li>轴按 AxisId 寻址，命令走单一执行器，见 02</li><li>FlatPropertyGrid <span>·RequireRefresh = 整表重建·R104</span></li></ul></div>
+          <div class="node"><div class="node-t">支撑服务</div><ul class="lines"><li>Core.Database <span>·记录落库</span></li><li>Service.Identity <span>·账号 / 权限闸门</span></li><li>ScadaAuditWriter <span>·操作审计（05）</span></li></ul></div>
+        </div>
+      </div>
+      <div class="arrow">▲ <span class="mono">Modules\</span> 装载 / 契约回调 ▼ · 红线①：插件源码只许住在 Plugins\</div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">L4</span><span class="band-name">插件层</span><span class="band-path">Plugins\ · 39 工程 → 39 程序集 → 53 个带 GroupName 的类</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">工具箱分组实测 <span class="badge">53 类</span></div><div class="node-d mono">图像处理 12 · 数据处理 8 · 运动控制 7 · 常用工具 4 · 运动卡 3 · 逻辑判断 / 通讯 / 缺陷检测 / 相机 / 标定 / 定位 / 几何工具 各 2 · 逻辑控制 / 相机驱动 / 测量 / 流程控制 / 变量操作 各 1</div></div>
+          <div class="node"><div class="node-t">三类身份</div><ul class="lines"><li>视觉算子 <span>·实现 IVisionPlugin，进工具箱</span></li><li>设备驱动 <span>·相机/运动卡/通讯，不实现 IVisionPlugin</span></li><li>数据与流程 <span>·记录、上传、跑流程、脚本</span></li></ul><div class="node-d">驱动虽不上工具箱，同样要交手册（R41）</div></div>
+          <div class="node"><div class="node-t">随件交付物</div><ul class="lines"><li>39 个 <span class="mono">Help\</span> 目录 · 311 页 .md <span>·另宿主 4 页</span></li><li>39 个 csproj 各自挂 <span class="mono">EmbeddedResource Include="Help\**\*"</span> <span>·无全局 props 规则</span></li><li>配置视图：自供 <span class="mono">GetConfigView</span> 或通用面板</li></ul></div>
+        </div>
+        <div class="note" style="margin:0 10px 8px;">红线③：改了插件源码必须重建<b>该插件工程</b>——只重建宿主，<span class="mono">Modules\</span> 里仍是旧 DLL。闸 <span class="mono">audit_artifacts.ps1</span> 逐工程核 DLL mtime ≥ 源码 mtime、内嵌 <span class="mono">.Help.</span> 资源数 = 磁盘 .md 数。</div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="side-head">验证闸链 <span class="mono" style="font-weight:400">tools\run_gates.ps1</span></div>
+      <div class="side-body">
+        <div class="gate"><b>audit_root</b><i>白名单 8 文件 / 43 目录<br/>实测 35 目录 → OK</i></div>
+        <div class="gate"><b>audit_artifacts</b><i>RESULT: OK<br/>逐插件双判据</i></div>
+        <div class="gate"><b>FlowCanvasChecks</b><i>3501 / 0</i></div>
+        <div class="gate"><b>ScadaChecks</b><i>2637 / 0</i></div>
+        <div class="gate"><b>CommChecks</b><i>336 / 0</i></div>
+        <div class="gate"><b>Database / Recipe /<br/>DataPipeline Checks</b><i>134 / 138 / 97 · 全 0 失败</i></div>
+        <div class="gate"><b>UIThemeSmokeTest</b><i>121 [PASS] / 0<br/>今日 exit 0（见 08）</i></div>
+        <div class="gate"><b>HelpProbe</b><i>74 / 0 · 渲染级对照</i></div>
+        <div class="gate"><b>tools\probes\</b><i>13 个登记探针<br/>probes.json 唯一入口</i></div>
+        <div class="side-note">合计 <b>7 038</b> 条断言、0 失败（2026-10-23 13:30–13:34 日志）。反假绿机制见 06。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="band" style="margin-top:14px;">
+    <div class="band-head"><span class="band-tag">旁路</span><span class="band-name">运行态 Web 客户端与工程资产</span><span class="band-path">Web\ · artifacts\ · docs\</span></div>
+    <div class="band-body cols-3">
+      <div class="node"><div class="node-t">VisionMaster.ScadaWeb <span class="badge badge--alert">R132A 例外</span></div><div class="node-d">不是独立 exe：宿主反射加载的可选 DLL，Watson 起 8080。单一运行内核 + N 视图会话，默认只读、逐命令鉴权、审计带操作者，运动命令默认禁用。详见 05</div></div>
+      <div class="node"><div class="node-t">产物落点</div><div class="node-d mono">artifacts\logs\&lt;yyyyMMdd&gt;\ · artifacts\render\&lt;yyyyMMdd&gt;\ · Modules\（投递）· packages\（HintPath 直引，不许删·R169）</div></div>
+      <div class="node"><div class="node-t">工程纪律资产</div><div class="node-d mono">AGENTS.md 注入层 · docs\工程纪律\分册-*.md · docs\code-changes\ · tools\ · .zcode\skills\</div></div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>依赖方向</b><br />L1 → L3 → L2（契约）；L4 只实现 L2 契约，由 L3 的 PluginService 在运行期从 <span class="mono">Modules\</span> 装载。宿主不反向依赖具体插件。</div>
+    <div><b>三条红线</b><br />① 插件源码必须在 <span class="mono">Plugins\</span>；② 契约程序集不进 <span class="mono">Modules\</span>；③ 改插件源码必须重建该插件工程。判据一律看产物内容，不看构建退出码。</div>
+    <div><b>本图口径</b><br />全部数字为 2026-10-23 实测：工程与文件数来自 find/grep 计数，断言数来自 <span class="mono">artifacts\logs\20261023\gate-*.log</span>。AGENTS.md 里「32 程序集 / 44 类 / 41 目录」为旧测，见 08。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 01 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">插件：构建投递 → 扫描缓存 → 配置 → 编译执行</h1>
+      <p class="diagram-subtitle">THREE DELIBERATE INSTANTIATION SITES · FINGERPRINT-INVALIDATED MANIFEST</p>
+    </div>
+    <div class="sheet-id">SHEET 01 / 08 · ENGINE\ · SHARD\ · PLUGINS\ · MODULES\<br />每个框后为 文件:行（2026-10-23 读码）</div>
+  </div>
+
+  <div class="stack">
+    <div class="band">
+      <div class="band-head"><span class="band-tag">A</span><span class="band-name">构建期：源码 → Modules\</span><span class="band-path">Plugins\Directory.Build.props / .targets</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">39 个插件工程</div><div class="ln">Plugins\*.csproj · 全部已登记 sln</div><div class="node-d">源生成器以 <span class="mono">OutputItemType=Analyzer</span> + <span class="mono">ReferenceOutputAssembly=false</span> 排除在产物之外（R17）</div></div>
+        <div class="sep">→<br />编译期</div>
+        <div class="node"><div class="node-t">StepConfigGenerator</div><div class="ln">Shard\Core.PluginGenerators\StepConfigGenerator.cs:45</div><div class="node-d">展开 <span class="mono">&lt;Ns&gt;.&lt;Class&gt;.StepConfig.g.cs</span> <span class="ln">:259-261</span>；违规报 CPG0001~0005 <span class="ln">:55-80</span></div></div>
+        <div class="sep">→<br />拷贝</div>
+        <div class="node"><div class="node-t">只拷 TargetPath</div><div class="ln">Plugins\Directory.Build.targets:41-43</div><div class="node-d"><b>不拷依赖</b> → <span class="mono">Core.Interfaces.dll</span> / <span class="mono">Core.Halcon.dll</span> 天然留在 Modules\ 之外。实测 <span class="mono">Modules\</span> 内 39 个 Plugin*.dll、0 个 Core.*.dll、0 个 halcon dll</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">Modules\Plugin*.dll</div><div class="ln">AppDomain.BaseDirectory\Modules（DEBUG 走 ..\..\..\..\Modules）</div><div class="node-d">红线③ 的靶子：只重建宿主，这里仍是旧 DLL</div></div>
+      </div>
+      <div class="note note--red" style="margin:0 10px 8px;">红线② 的实现方式是<b> omission（不拷）</b>而不是过滤规则 —— 所以任何"把依赖也带上"的改动都会立刻造出两份契约静态状态。</div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">B</span><span class="band-name">启动扫描：一次反射，三处过滤</span><span class="band-path">Engine\PluginService.cs</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">InitPlugins()</div><div class="ln">:55</div><div class="node-d">先注册内置控制流工具 <span class="ln">:151-310</span>（Break/Continue/Return 等不进 Modules）</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">按名字过滤 glob</div><div class="ln">:110 GetFiles(dir, "Plugin*.dll")</div><div class="node-d">R80：反射元数据只物化一次</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">LoadFrom + GetTypes()</div><div class="ln">:322 / :327</div><div class="node-d">无 AssemblyLoadContext；同一份 <span class="mono">GetTypes()</span> 结果喂三个过滤器</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">三个过滤器</div><div class="ln">:339 视觉插件 · :442 运动驱动 · :483 相机驱动</div><div class="node-d">只有 :339 那支 <span class="mono">Activator.CreateInstance</span>（元数据原型）</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">ToolItemModel + 端口快照</div><div class="ln">:343-386</div><div class="node-d"><span class="mono">ModuleTypeName = AssemblyQualifiedName</span> <span class="ln">:335-349</span>；隐藏的端口从定义里剔除 <span class="ln">:357</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">PluginProvider / 工具箱</div><div class="ln">PluginProvider.cs:65 · ToolViewModel.cs:453</div><div class="node-d">按 <span class="mono">Category</span> 分组（分组名即 GroupName，见 00）</div></div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">C</span><span class="band-name">清单缓存：四道指纹，任一失配即全量重扫并重写</span><span class="band-path">Engine\PluginCache.cs · manifest.json</span></div>
+      <div class="split">
+        <div>
+          <table class="tbl">
+            <tr><th>判据</th><th>位置</th><th>失配动作</th></tr>
+            <tr><td>SchemaVersion = 2</td><td class="ln">PluginCache.cs:39 / :92</td><td>全量重扫</td></tr>
+            <tr><td>每 DLL size + mtime</td><td class="ln">:101-102（缺失 :100）</td><td>全量重扫</td></tr>
+            <tr><td>未登记 Plugin*.dll</td><td class="ln">:108-112</td><td>全量重扫</td></tr>
+            <tr><td>宿主契约指纹</td><td class="ln">:192-211<br/>Core.Interfaces.dll|size|mtimeTicks</td><td>全量重扫</td></tr>
+          </table>
+          <div class="node-d" style="padding:6px 2px 0;color:var(--c-text-sub);">契约指纹<b>刻意不用 AssemblyVersion</b> <span class="ln">:183-186</span>；清单落 <span class="mono">Modules\PluginCache\manifest.json</span> <span class="ln">:146</span>，实测 39 条 DLL / 53 条 ModuleTypeName。</div>
+        </div>
+        <div class="stack">
+          <div class="node"><div class="node-t">不做部分缓存</div><div class="node-d">任一失配 → 重扫<b>并重写</b> <span class="ln">PluginService.cs:104-136</span>；加载失败<b>删清单</b>而不是写半份 <span class="ln">:126-132 · PluginCache.Invalidate :154</span>（R81）</div></div>
+          <div class="node"><div class="node-t">命中仍 LoadFrom 全部程序集</div><div class="node-d">省的是 <span class="mono">GetTypes()</span> 与构造，不是装载 —— 下游自动连线、编译、帮助资源都要类型身份 <span class="ln">PluginCache.cs:16-18</span></div></div>
+          <div class="node"><div class="node-t">跳过构造的前置条件</div><div class="node-d">"构造器无副作用"由静态扫描 PC8 钉住 <span class="ln">PluginCacheChecks.cs:244</span>，扫描面收窄到构造器体（R82）</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">D</span><span class="band-name">参数配置：每次开窗一个新草稿实例</span><span class="band-path">VisionMaster\Services\StepParameterDialog.cs</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">Open(...)</div><div class="ln">:55</div><div class="node-d">只对 ActionStep / ConditionStep / For / Wait / Parallel 开窗，其余返回 false（R25）</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">第三处实例化</div><div class="ln">ResolvePluginInstance :218-234</div><div class="node-d">临时实例只承载草稿与端口表，<b>确认才写回</b></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">视图二选一</div><div class="ln">:74-78 自供 GetConfigView<br/>:96 AutoPortConfigView</div><div class="node-d">并行分组走 <span class="mono">FlatPropertyGrid</span> <span class="ln">:136-149</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">Prism 外壳</div><div class="ln">:112 PluginConfigShell</div><div class="node-d">外壳认 <span class="mono">view as IPluginConfigView ?? view.DataContext as ...</span> <span class="ln">PluginConfigShellViewModel.cs:149</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">上下文只读透传</div><div class="ln">SetConfigContext :190</div><div class="node-d">FlowName / HTTP 端口令牌 / 相机 / 变量 / <span class="mono">IDatabaseAccess</span><span class="ln">（契约 IPluginConfigContextProvider.cs:23,184-191）</span>。实现者 5 个：ImageAcquisition:558 · DatabasePluginBase:292 · DataRecord:217 · VariableAssignment:121 · CSharpScript:725</div></div>
+      </div>
+      <div class="note" style="margin:8px 10px 0;"><b>端口语义纪律</b>：值是端口的才配绑定弹窗；名字类（变量名 / 步骤名 / 卡地址 / 端口名）不许挂绑定，改用手填 + 候选下拉（R33）；手填文本按声明类型 <span class="mono">Convert.ChangeType</span> 宽进严出（R34）；用户意图只认真实输入事件，不许从"值变了"倒推（R35）。</div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">E</span><span class="band-name">编译与执行：逐拍跑，第二处实例化在这里</span><span class="band-path">Engine\ · Core\Models\</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">FlowCompiler.Compile</div><div class="ln">FlowCompiler.cs:244<br/>调用点 ShellViewModel.cs:1461,1529</div><div class="node-d">每个 StepModel <span class="mono">Type.GetType + Activator.CreateInstance</span> <span class="ln">:843-852</span>；端口声明成字段只在编译期暴露 <span class="ln">:857-872</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">CompiledFlow</div><div class="ln">Core\Models\CompiledFlow.cs</div><div class="node-d">条件变量未绑数据源 = 编译失败并指名变量（此前静默取 0 恒走 Else）</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">RunSessionAsync</div><div class="ln">FlowEngineService.cs:433-444<br/>另径 :616-626</div><div class="node-d">建 <span class="mono">ExecutionContext</span> → <span class="mono">session.ExecutionEngine.Run(context)</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">CompiledNode.RunSequence</div><div class="ln">CompiledFlow.cs:55-57<br/>CompiledNode.cs:207</div><div class="node-d">CompiledPluginNode.RunAndGetNext :41-43：先 <span class="mono">BindContextAwarePorts</span> 再 <span class="mono">ExternalPlugin.Execute</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">VisionPluginBase.Execute</div><div class="ln">VisionPluginBase.cs:108</div><div class="node-d">→ <span class="mono">abstract RunAlgorithm(context)</span> <span class="ln">:209</span>；参数表由 <span class="mono">GetConfigProperties :301</span> / <span class="mono">ApplyConfigValues :312</span> 读写</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">HALCON 与结果</div><div class="ln">BlobDetectPlugin.cs:1314,1445,1542</div><div class="node-d">插件直调 <span class="mono">HOperatorSet</span>；标注图经 AnnotationRenderer → <span class="mono">AnnotationBaker.Bake</span>（见 03）落输出端口 <span class="ln">:1377</span></div></div>
+      </div>
+      <div class="note" style="margin:8px 10px 0;"><b>为什么有三处实例化</b>：扫描期原型只取元数据与端口表 <span class="ln">PluginService.cs:339</span>；编译期节点实例才是运行体 <span class="ln">FlowCompiler.cs:847</span>；配置窗每次新建草稿实例 <span class="ln">StepParameterDialog.cs:234</span>。三者不是同一个对象，任何"在构造器里副作用初始化硬件"的写法都会被打三次——PC8 静态扫描就是拦这个。</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>契约面</b><br /><span class="mono">IVisionPlugin.cs:11</span>：Inputs/Outputs :18-19 · Execute(IExecutionContext) :21 · LastError :26。<span class="mono">[StepConfig]</span> :11 标配置属性；<span class="mono">InputPort&lt;T&gt;</span> :15 由公有属性反射 <span class="ln">VisionPluginBase.cs:421-429</span>。</div>
+    <div><b>失效半径</b><br />改源生成器 = 全部插件重建（R16）；改 Core.Interfaces = 契约指纹变 = 清单整体重写；改插件源码不重建该工程 = Modules 陈旧且<b>无任何报错</b>。</div>
+    <div><b>本图口径</b><br />计数：<span class="mono">find Plugins -name *.csproj</span> = 39；<span class="mono">ls Modules\Plugin*.dll</span> = 39；<span class="mono">grep -c GroupName</span> = 53；manifest Schema 2。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 02 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">SCADA 轴命令：两条入口 · 一个执行器 · 下发 ≠ 到位</h1>
+      <p class="diagram-subtitle">PERMISSION GATE BEFORE PRESS · SOLE ENQUEUE PATH · THREE TICK RATES</p>
+    </div>
+    <div class="sheet-id">SHEET 02 / 08 · 依据 R99/R100/R108/R136/R138/R139<br />AGENTS 分册《SCADA与图元》+ 2026-10-23 读码</div>
+  </div>
+
+  <div class="stack">
+    <div class="band">
+      <div class="band-head"><span class="band-tag">入口</span><span class="band-name">面板按钮与动作表共用同一执行器</span><span class="band-path">VisionMaster\Services\Motion\MotionActionExecutor.cs:124</span></div>
+      <div class="split">
+        <div class="node"><div class="node-t">① 轴面板操作按钮 <span class="badge">R108</span></div><div class="node-d"><span class="mono">AxisPanelElement.TryExecuteCommand</span> → <span class="mono">IScadaAxisCommandSink.TryExecute</span><span class="ln">（契约 Scada\Models\IScadaAxisCommandSink.cs:67，实现 MotionActionExecutor.cs:185 → :218）</span><br/>定位走 <span class="mono">TryMove :332</span> —— 它<b>合成</b> <span class="mono">ScadaActionType.MotionMoveAbsolute</span> 再调 <span class="mono">:342 TryExecute</span>，不另开一条路</div></div>
+        <div class="node"><div class="node-t">② 组态动作表 <span class="badge">图元事件</span></div><div class="node-d"><span class="mono">ScadaRuntime.RaiseHooks :289</span> → <span class="mono">ScadaRuntimeHost.OnElementEventRaised :752</span> → <span class="mono">ScadaActionDispatcher.DispatchWithResult :196</span>（循环 :266）→ <span class="mono">ExecuteMotionAction :725</span> → <span class="mono">_motions.TryExecute :736</span></div></div>
+      </div>
+      <div class="note" style="margin:8px 10px 0;"><b>单例可证</b>：<span class="mono">MotionModule.cs:96 与 :102</span> 把 <span class="mono">IScadaAxisCommandSink</span> 与执行器都注册为同一实例 —— 这就是"权限判据、软限位、忙判据只有一份"的结构前提。动作类型共 9 种 <span class="ln">Scada\Models\ScadaActionType.cs:48-72</span>。</div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">闸门</span><span class="band-name">权限在按下之前判，且每拍重算</span><span class="band-path">Scada.Controls\Elements\AxisPanelElement.cs</span></div>
+      <div class="band-body cols-4">
+        <div class="node"><div class="node-t">绑定到可用性</div><div class="node-d">只读 DP <span class="ln">:289 / :440</span>；模板 <span class="mono">IsEnabled=&lt;TemplateBinding CanOperate&gt;</span><span class="ln">（Themes\AxisPanelElement.xaml:468）</span></div></div>
+        <div class="node"><div class="node-t">每拍重算</div><div class="node-d"><span class="mono">RefreshCanOperate :540</span> 调策略 <span class="ln">:544</span>，由 <span class="mono">OnBeat :1055</span> 驱动（另 :780/:843/:1029/:1083）</div></div>
+        <div class="node"><div class="node-t">命令链与行内</div><div class="node-d"><span class="mono">DelegateCommand.CanExecute :381-382</span>；行编辑性 <span class="mono">CanEdit :1252</span></div></div>
+        <div class="node"><div class="node-t">最后一公里</div><div class="node-d">执行前再判一次 <span class="mono">CheckCanRun :503</span>（策略 <span class="ln">:527</span>）—— 防"界面按下的那一刻与真正下发之间权限变了"</div></div>
+      </div>
+      <div class="note" style="margin:0 10px 8px;">策略契约 <span class="mono">IScadaAccessPolicy.cs:95</span>；两份实现 <span class="mono">DefaultScadaAccessPolicy.cs:52</span> 与宿主 <span class="mono">ScadaAccessPolicy.cs:147</span>，都落到 <span class="mono">ScadaRole.Allows</span>。</div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">物理</span><span class="band-name">谓词只有一份副本：先预检，设备层再权威判一次</span><span class="band-path">Shard\Core.Interfaces\Motion\</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">ExecuteMove</div><div class="ln">MotionActionExecutor.cs:448</div><div class="node-d">进入命令闸</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">MotionCommandGate.CheckMove</div><div class="ln">MotionCommandGate.cs:52 · 预检 :148,155,168-175</div><div class="node-d">软限位 <span class="mono">AxisMapping.IsWithinSoftLimit</span>（定义在 <span class="mono">Shard\Core.Interfaces\Motion\MotionDescriptor.cs:276</span>）· 未使能 · 未回零 · 忙；点动越界<b>静默</b> :211</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">NewAxisCommand → Enqueue</div><div class="ln">:695 → :649</div><div class="node-d">唯一入队口；R99 的"下发 ≠ 到位"就发生在这一格之后</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">IMotionDevice.Enqueue</div><div class="ln">MotionDeviceBase.cs:622 → CheckGateLocked :786</div><div class="node-d">锁内再跑权威副本 <span class="mono">CheckMotionPreconditionsLocked :946</span> → :982/:991/:998</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">驱动</div><div class="ln">ZMotion / Sim / Virtual / Steps</div><div class="node-d">使能与安全拆分 :105 / :86；流程步算子共用同一谓词 <span class="ln">Plugin.Motion.Steps\MotionEnablePlugin.cs:115</span></div></div>
+      </div>
+      <div class="note" style="margin:8px 10px 0;">跨层一致性由断言钉住：<span class="mono">FlowCanvasChecks\MotionChecks.cs:906-955</span> 比对"预检与设备判据是否同一结论"。<b>为什么必须有这条</b>：两套谓词各写一遍时，界面放行、设备拒绝（或反之），症状是"按钮能点但不动"，编译与静态扫描都看不见。</div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">回读</span><span class="band-name">三种节拍，谁也不等谁</span><span class="band-path">10ms / 200ms / 100ms</span></div>
+      <div class="band-body cols-3">
+        <div class="node"><div class="node-t">驱动线程 10 ms</div><div class="ln">Shard\Core.Interfaces\Motion\MotionDescriptor.cs:334 PollIntervalMs = 10（夹取 MotionDeviceBase.cs:1314 → 1~1000）</div><div class="node-d">真机位置与状态的来源</div></div>
+        <div class="node"><div class="node-t">画面节拍 200 ms</div><div class="ln">Scada.Controls\Runtime\ScadaBeatSource.cs:41 DefaultIntervalMilliseconds = 200</div><div class="node-d">驱动 <span class="mono">CanOperate</span> 重算、点位行刷新、点动看门狗</div></div>
+        <div class="node"><div class="node-t">状态发布 100 ms</div><div class="ln">MotionStatePublisher.cs:48 PublishIntervalMs = 100<br/>Tick :126 → Publish :148 → GetAxisStatus :164</div><div class="node-d">快照带 <span class="mono">PositionMm / Moving / InPosition</span> :177-181；换表 :200；<b>只有拓扑指纹变才 Version++</b> :214（R139 的 [RuntimeState] 同族）</div></div>
+      </div>
+      <div class="split" style="margin-top:8px;">
+        <div class="node"><div class="node-t">"到位"要显式等</div><div class="node-d">执行器成功文案原文 <span class="mono">"已下发（未等到位）"</span><span class="ln">（MotionActionExecutor.cs:677，语义声明 :14-20）</span>；要等到位是另一个算子 <span class="mono">WaitStep</span> / <span class="mono">CompiledWaitNode.cs:36（50ms 轮询）</span>。把"下发成功"读成"到位"是最贵的一次误判——它会让人以为机械已经停在那儿了。</div></div>
+        <div class="node"><div class="node-t">R100：系统变量的 setter 静默忽略</div><div class="node-d"><span class="mono">SystemVariableModel.cs:137-145</span> 的 <span class="mono">IPort.Value</span> setter 只 <span class="mono">Debug.WriteLine</span>，<b>不抛</b>；原因写在 :129-135：UI 线程 + App 无全局异常处理时抛就是退进程。<span class="mono">Value</span> 对外只读 :124，唯一写入口 <span class="mono">UpdateMirrorValue :166</span></div></div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">点动</span><span class="band-name">按住才动 + 三条收手路径 + 看门狗</span><span class="band-path">AxisPanelElement.cs（全 code-behind，无 XAML 事件）</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">OnApplyTemplate</div><div class="ln">:812</div><div class="node-d">取六个命名件 <span class="mono">PartBtnEnable / Stop / Home / JogForward / JogReverse / ClearAlarm</span> <span class="ln">:785-791</span>（AX3 钉死命名 AxisPanelChecks.cs:180-185）</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">AttachJog</div><div class="ln">:849</div><div class="node-d"><span class="mono">CaptureMouse :859</span>；Down :875 · Up :876 · MouseLeave :877 · LostMouseCapture :878</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">StartJog / EndJog</div><div class="ln">:895 / :909 / :924</div><div class="node-d"><span class="mono">_jogHeld :800</span> 记靶轴；<span class="mono">EndJogForAxis</span> 处理"按住中途换轴"</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">回零长按 0.5 s</div><div class="ln">HomeHoldDelay = 500 :794<br/>OnHomePressed :951 → OnHomeHoldElapsed :961</div><div class="node-d">短按不开闸，防误触回零</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">看门狗 200 ms</div><div class="ln">WatchdogPeriod :62 · 超时 PulseTimeoutMs×2 :732</div><div class="node-d"><b>租约只在驱动接受后才清</b> :639 —— 不清就自动补停，避免"界面以为停了、驱动还在跑"</div></div>
+      </div>
+      <div class="note" style="margin:8px 10px 0;"><b>R138 每拍重读 + 指纹短路</b>：点位是配置里的 <span class="mono">List&lt;MotionPoint&gt;</span>，外部改动无通知。<span class="mono">MotionStatePublisher.TryGetPoints :276</span> 读活表 <span class="ln">GetAxisPoints :290</span>；<span class="mono">AxisPanelElement.RefreshRows :568</span> 比对指纹 <span class="ln">:600</span>，<b>没变化不重建行</b>（短路 :588，只在变化时重建 :593-597），由每拍 <span class="ln">:1051</span> 驱动。判据："谁还会改它、改完有没有通知"——不重读就永远显示旧点位，无脑重建就吃掉用户正在输入的那个框。</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>三道闸的顺序</b><br />权限（按下前，每拍重算）→ 命令闸（预检）→ 设备锁内权威判据。任何一道都不许在别处复制。</div>
+    <div><b>禁止项</b><br />不许在 <span class="mono">Control</span> 子类声明名为 <span class="mono">IsEnabled</span> 的 DP（遮蔽 UIElement.IsEnabled，R108）；不许绕过 <span class="mono">Enqueue</span> 直调驱动；示教只写"当前轴位置"且离线明确拒绝（R136）。</div>
+    <div><b>本图口径</b><br />全部行号来自 2026-10-23 读码；模板纪律见 R136（行模板没有 TemplatedParent，一律 RelativeSource AncestorType=图元类型）。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 03 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">HALCON 双路径：离屏烘焙像素 · 屏内交互 ROI</h1>
+      <p class="diagram-subtitle">ONE OPENWindow SITE · BUFFER WINDOW RESIDENT · HIT TEST ONLY IN A VISIBLE WINDOW</p>
+    </div>
+    <div class="sheet-id">SHEET 03 / 08 · Services\Core.Halcon<br />依据 R36-R39 / R51-R55（2026-10-23 读码）</div>
+  </div>
+
+  <div class="frame">
+    <div class="stack">
+      <div class="band">
+        <div class="band-head"><span class="band-tag">甲</span><span class="band-name">离屏烘焙：把标注烧进像素，无人值守</span><span class="band-path">Helpers\AnnotationBaker.cs</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">入口</div><div class="node-d"><span class="mono">Bake(HObject baseImage, BakePlan plan, Action&lt;string&gt;? warn) :93</span><br/><b>从不抛</b>，失败返回 null 并回调告警<br/><span class="mono">BakePlan :604</span>（Shapes / Objects / Texts 三表，<span class="mono">AddTextBlock :625</span>）<br/><span class="mono">BakeText :667</span> + <span class="mono">HAlign :645</span>（Left/Center/Right）</div></div>
+          <div class="node"><div class="node-t">绘制顺序固定</div><div class="node-d"><span class="mono">Shapes → Objects → Texts :148-150</span>；要改层序改 plan 顺序，不改 baker。输出前 <span class="mono">NormalizeForDisplay :192</span></div></div>
+          <div class="node"><div class="node-t">底图所有权</div><div class="node-d">源图只读、所有权留给调用方 <span class="ln">:87-89</span>；调用方只造 plan（例 <span class="mono">Plugin.ResultDisplay\Services\DisplayDraw.cs:53,114</span>）</div></div>
+        </div>
+        <div class="band-body cols-3" style="border-top:1px dashed var(--c-border);">
+          <div class="node"><div class="node-t">① mode 只能 'buffer'</div><div class="ln">EnsureWindow :447</div><div class="node-d">否则 #1305</div></div>
+          <div class="node"><div class="node-t">② 窗口按尺寸常驻复用</div><div class="ln">:440-451</div><div class="node-d"><span class="mono">Dispose()</span> 才关；反复开关 → #9302 死锁</div></div>
+          <div class="node"><div class="node-t">③ 每轮无条件 SetPart</div><div class="ln">:141</div><div class="node-d">漏了底图缩到左上角，复用会串轮污染</div></div>
+          <div class="node"><div class="node-t">④⑤ 文字坐标只用 "window" + 显式 box</div><div class="ln">:398-420 · DrawTexts :367-382,417-425</div><div class="node-d">字号走窗口级 SetFont；<span class="mono">BakeText.Box</span> 是必填位置参数</div></div>
+          <div class="node"><div class="node-t">⑥ DumpWindowImage 源立刻 Dispose</div><div class="ln">:156-160</div><div class="node-d">整段 <span class="mono">lock :95</span> 罩"改状态→画→回读"</div></div>
+          <div class="node"><div class="node-t">状态还原</div><div class="ln">:153-154 · :331 · :363-364</div><div class="node-d">SetLineWidth 回 1、SetDraw 回 "margin"</div></div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">调用方</span><span class="band-name">五个消费者 · 一处永久豁免</span></div>
+        <div class="band-body cols-2">
+          <div class="node"><div class="node-t">五个 BakePlan 生产点</div><div class="node-d mono">ResultDisplayPlugin.cs:80,485 · CaliperMeasure\AnnotationRenderer.cs:20,47 · BlobDetect\AnnotationRenderer.cs:22,52 · BeadInspectPlugin.cs:841,856 · MatchingPlugin.cs:2106,2130</div></div>
+          <div class="node node--alert"><div class="node-t">永久豁免：ImageScript</div><div class="ln">Plugins\Plugin.ImageScript\HDevDisplayBackend.cs</div><div class="node-d">HDevEngine 逐条驱动 <span class="mono">dev_*</span>，"要画什么"要到脚本跑完才知道，且窗口是交给脚本的（<span class="mono">HandoutWindow :239</span>）；可变状态全 <span class="mono">[ThreadStatic] :38-59</span>。<span class="mono">AnnotationBaker.cs:16-18</span> 标注为永久例外。<b>豁免清单只许变短</b></div></div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">乙</span><span class="band-name">屏内交互：手柄命中只在可见窗口成立</span><span class="band-path">Base\HalconBase.cs</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">换绑后补发 down</div><div class="ln">HSmart_MouseDownForRoi :975（挂钩 :368）</div><div class="node-d">R51：<span class="mono">ReplayMouseDownForFreshHandle</span> 只在换绑分支发，失败静默退化为旧行为。<b>必然行为变更</b>：未选中对象内部拖 = 移动</div></div>
+          <div class="node"><div class="node-t">摘除容差 14 px</div><div class="ln">RoiHitToleranceScreenPx = 14.0</div><div class="node-d">R52：只作用于"是否摘除已选中对象"；挑其它对象仍无容差，否则相邻误选。代价是一条"遮蔽带"</div></div>
+          <div class="node"><div class="node-t">几何记法</div><div class="ln">R54</div><div class="node-d"><span class="mono">rectangle2</span> 的 length1 沿 <b>column</b> 轴（phi=0）；<span class="mono">ellipse</span> 是 radius1 沿 column。记反会得到"手柄命中失败"的假结论</div></div>
+        </div>
+        <div class="note note--red" style="margin:8px 10px 0;">R53 与纪律① 方向相反：<b>画布交互断言只能用可见窗口</b>（buffer 窗口上只有"点中对象内部"能命中，手柄与拖拽全失效）。范式 = 屏幕外 WPF 窗口（Left=-4000）+ STA + <span class="mono">Dispatcher.PushFrame</span> + <b>窗口级</b>主题字典。守门 <span class="mono">RoiInteractionChecks</span> 8 条。</div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="side-head">这一族的闸</div>
+      <div class="side-body">
+        <div class="gate"><b>ResultDisplayCheck ④/④b/④c</b><i>:1271-1295 OpenWindow 只许一处<br/>:1302 豁免清单不失效<br/>:1308 ResultDisplay 自己开 0 窗</i></div>
+        <div class="gate"><b>AnnotationBakerChecks B1~B8</b><i>B1 :61-84 SetPart 像素保真<br/>B8 :401-481 水平对齐换算</i></div>
+        <div class="gate"><b>RoiInteractionChecks</b><i>8 条 · 进常规 gate</i></div>
+        <div class="side-note">
+          <b>文字宽度只有 baker 能量</b>（R39）：<span class="mono">GetStringExtents</span> 必须排在 <span class="mono">TrySetFont</span> 之后；本仓 HALCON <b>没有</b> <span class="mono">GetTextExtents</span>；垂直分量留给调用方（块高 = 行数 × 行距）。<br /><br />
+          <b>R55</b>：改 <span class="mono">Services\Core.Halcon</span> 必须 Debug 与 Release 都重建（<span class="mono">pack.ps1</span> 打 Release），核 DLL 里有没有新符号，不看退出码。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>为什么分两条</b><br />烘焙产像素（可上传、可入库、可回看不依赖窗口）；交互改 ROI（不落像素，用户看到的仍是叠加层）。合成一条的路径必然要么丢标注要么丢手柄。</div>
+    <div><b>迁移纪律</b><br />R38：写"跳过：环境不支持"之前必须回答"谁证明了是环境不支持而不是代码有 bug"，并把反证写进理由；迁移/重构前先织网。</div>
+    <div><b>本图口径</b><br />行号 2026-10-23 实测；六条纪律原文见 AGENTS.md §11 R37。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 04 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">帮助手册：随件写 → 内嵌打包 → 目录构建 → 渲染 → 档位闸</h1>
+      <p class="diagram-subtitle">FAILURE MODES ARE ALL SILENT · SOURCE OF TRUTH IS THE SOURCE CODE ONLY</p>
+    </div>
+    <div class="sheet-id">SHEET 04 / 08 · 实测 311 页插件 .md + 4 页宿主 .md<br/>39 个 Help\ 目录 · 39 个 csproj 各自挂 EmbeddedResource</div>
+  </div>
+
+  <div class="stack">
+    <div class="band">
+      <div class="band-head"><span class="band-tag">1</span><span class="band-name">写与打包</span><span class="band-path">Plugins\&lt;X&gt;\Help\ · *.csproj</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">落点</div><div class="node-d">本工程 <span class="mono">Help\</span>；一程序集多插件时各放 <span class="mono">Help\{插件类名}\</span>，目录名<b>逐字等于类名</b><span class="ln">HelpCatalogService.cs:330-339</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">文件名即排序</div><div class="node-d"><span class="mono">NN-</span> 前缀定页序；首行必须 <span class="mono"># 一级标题</span> <span class="ln">ExtractTitle :487-508</span>；无 BOM UTF-8</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">逐个工程声明</div><div class="node-d"><span class="mono">&lt;EmbeddedResource Include="Help\**\*" /&gt;</span><span class="ln">例 Plugin.Yolo.csproj:19</span>；宿主另有 4 页 <span class="ln">VisionMaster.csproj:95</span>。<b>无全局 props 规则</b>（R41）</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">资源名用点表目录</div><div class="node-d">MSBuild 把 <span class="mono">Help\A\b.md</span> 变成 <span class="mono">{Assembly}.Help.A.b.md</span> —— 这就是 R60 必须先剥分册目录段再判页身份的根因</div></div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">2</span><span class="band-name">运行期：目录与渲染</span><span class="band-path">VisionMaster\Services\Help\</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">HelpCatalogService.Build()</div><div class="ln">:128</div><div class="node-d">扫全部插件程序集内嵌资源；<span class="mono">IsBuilt</span> 幂等</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">GetPageFileName</div><div class="ln">:408</div><div class="node-d">先剥分册目录段 → 页身份只有"最后一个点之后"那段；<span class="mono">IsDeveloperPage :419</span> 靠 <span class="mono">DeveloperPageMark = "dev-" :64</span>；<span class="mono">NarrowToPlugin :431</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">懒构建</div><div class="ln">HelpViewModel.cs:646-652</div><div class="node-d"><span class="mono">if (!catalog.IsBuilt) catalog.Build()</span> —— 手册不在启动关键路径（R79）；构造注入 <span class="ln">:92 / 字段 :45</span></div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">MarkdownToFlowDocument</div><div class="ln">MarkdownToFlowDocument.cs:30,106</div><div class="node-d"><b>自研渲染器</b>，不是 Markdown.Avalonia；输出 FlowDocument 给 FlowDocumentScrollViewer</div></div>
+      </div>
+      <div class="note" style="margin:8px 10px 0;"><b>R63 排版前提只有渲染级对照守得住</b>：① 渲染后残留字面 <span class="mono">**</span> 即红（额度只从代码上下文扣）；② 代码块字体族必须显示得了代码上下文每个字符（判据"与无字形的 U+E000 位图逐像素相同"）；跨行 <span class="mono">**…**</span> 是支持的，别修；测字形按 <b>Rune</b> 不按 <span class="mono">char</span>；诊断带 <span class="mono">U+XXXX</span>。</div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">3</span><span class="band-name">厚度档位（R61）—— 派工单必须抄这三个数字</span><span class="band-path">FlowCanvasChecks\HelpManualCheck.cs:43-75</span></div>
+      <div class="split">
+        <table class="tbl">
+          <tr><th>档</th><th class="r">用户页 ≥</th><th class="r">开发页 ≥</th><th class="r">开发页行 ≥</th></tr>
+          <tr><td>L</td><td class="r">5</td><td class="r">3</td><td class="r">300</td></tr>
+          <tr><td>M（未登记默认）</td><td class="r">4</td><td class="r">2</td><td class="r">150</td></tr>
+          <tr><td>S</td><td class="r">3</td><td class="r">1</td><td class="r">100</td></tr>
+        </table>
+        <div class="node"><div class="node-t">闸的分布</div><div class="node-d"><span class="mono">HM0~HM17</span><span class="ln">HelpManualCheck.cs:170-428</span>：HM4 内嵌 :227 · HM5 首行标题 :236 · HM6 命名（文件名除扩展名外不许再出现点）:247 · HM12 开发页名 :332 · HM16 档位表一一对应 :401 · HM17 厚度 :428。<br/>档位表本体 <span class="ln">:82+</span>；未登记按 M <span class="ln">:54</span></div></div>
+      </div>
+      <div class="band-body cols-3" style="border-top:1px dashed var(--c-border);">
+        <div class="node"><div class="node-t">audit_artifacts.ps1（红线③ 家族）</div><div class="node-d">逐插件核两件事：DLL mtime ≥ 最新源码（含 <span class="mono">Help\*.md</span>）<span class="ln">:11-12</span>；内嵌 <span class="mono">.Help.</span> 资源名数 = 磁盘 .md 数 <span class="ln">:13-14,119-124</span>（取数 <span class="mono">Get-HelpMdCount :52</span> / <span class="mono">Get-EmbeddedHelpNames :67</span>）</div></div>
+        <div class="node"><div class="node-t">HelpProbe（离屏真链路）</div><div class="node-d">跑真链路：PluginService 扫描 → HelpCatalogService.Build → 真 HelpView/HelpViewModel，并把窗口 PNG 化对照 <span class="ln">HelpProbe\Program.cs:31-35</span>。今日 74 PASS / 0 FAIL</div></div>
+        <div class="node"><div class="node-t">为什么全是静默失败</div><div class="node-d">增量构建可以<b>不</b>重编插件工程 → DLL 里少一页；页名不合规 → 目录里少一页或混进用户页；<b>构建退出码全绿也一样</b>。所以判据一律看产物内容（R41/R42/R62）</div></div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">4</span><span class="band-name">口径修正记录</span></div>
+      <div class="band-body cols-3">
+        <div class="node"><div class="node-t">计数口径</div><div class="node-d">按"带 <span class="mono">[Display(GroupName=…)]</span> 的类"算 = <b>53</b>（含设备驱动）。AGENTS.md R41 注的 44 / R62 的 32 是 2026-10-22 旧测，现 39 个工程全部已登记 sln</div></div>
+        <div class="node"><div class="node-t">页数口径</div><div class="node-d">磁盘 <span class="mono">Plugins\*\Help\*.md</span> = 311（记忆里的 251 是 2026-10-14 交付时点）；页数 &gt; 类数是因为一类多页（NN- 前缀）</div></div>
+        <div class="node"><div class="node-t">改文案也算脏</div><div class="node-d">R62：改过任一一页 .md，产物就算脏，必须重建该插件工程并用 <span class="mono">--no-incremental</span> 收尾验证</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>交付清单</b><br />新增插件类必须同时交手册：落点 / EmbeddedResource / 目录名=类名 / NN- 前缀 / 首行 H1 / 无 BOM / 正文 ≥70 行 / 禁 TODO·待补充·(略)·TBD。</div>
+    <div><b>验证配方</b><br /><span class="mono">tr '\0' '\n' &lt; Modules\Plugin.X.dll | grep -a "\.Help\."</span> 数出的资源名 = 该工程 Help\ 下 .md 数（R42）。</div>
+    <div><b>本图口径</b><br />311 / 39 / 53 / 4 均为 2026-10-23 <span class="mono">find</span>·<span class="mono">grep</span> 实测；HM 与 HelpProbe 行号同日报。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 05 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">SCADA 运行态 Web 客户端：单一内核 + N 视图会话</h1>
+      <p class="diagram-subtitle">HOST-LOADED OPTIONAL MODULE · WATSON WS · READ-ONLY BY DEFAULT · PER-COMMAND AUTH</p>
+    </div>
+    <div class="sheet-id">SHEET 05 / 08 · Web\VisionMaster.ScadaWeb<br/>交付物例外 R132A（2026-10-21 裁定）</div>
+  </div>
+
+  <div class="frame">
+    <div class="stack">
+      <div class="band">
+        <div class="band-head"><span class="band-tag">形态</span><span class="band-name">它不是独立进程，也不是 Kestrel</span></div>
+        <div class="flow">
+          <div class="node"><div class="node-t">宿主反射加载</div><div class="ln">VisionMaster\App.xaml.cs:352 ScadaWebModuleLoader.TryLoad</div><div class="node-d">可选 DLL 模块；csproj 在 sln（<span class="mono">VisionMaster.sln:140</span>）但产物只作 <span class="mono">bin\...\Web\VisionMaster.ScadaWeb.dll</span> + <span class="mono">wwwroot</span><span class="ln">（csproj:75-90）</span></div></div>
+          <div class="sep">→</div>
+          <div class="node"><div class="node-t">Watson 7.2.0</div><div class="ln">DLL\Watson\WatsonWebserver.dll，Private=false</div><div class="node-d">不拷进输出目录以免类型身份重复；loader 明确拒收宿主/契约副本<span class="ln">（csproj:37-52）</span></div></div>
+          <div class="sep">→</div>
+          <div class="node"><div class="node-t">进程内起监听</div><div class="ln">ScadaWebHost.Start() :408</div><div class="node-d">端口 8080<span class="ln">（ScadaWebSettings.DefaultPort = 8080，AppConfigModel.cs:292；用点 :423-428）</span>；帧循环与在线表循环走 <span class="mono">Task.Run :500-501</span></div></div>
+        </div>
+        <div class="note" style="margin:8px 10px 0;"><b>端口是刻意错开的</b>：8080 = ScadaWeb，19000 = HttpImageServer，19100 = NetworkCameraServer —— <span class="mono">AppConfigModel.cs:291</span> 的注释就写着这件事。跑真机前必须确认三者未被占（R176）。</div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">内核</span><span class="band-name">桌面与浏览器读的是同一个运行会话</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">IScadaRunHub</div><div class="ln">Scada\Models\IScadaRunHub.cs:20</div><div class="node-d">唯一内核契约；实现就是桌面运行时那份 <span class="mono">ScadaRuntimeHost</span><span class="ln">（VisionMaster\Services\ScadaRuntimeHost.cs:80，注册 App.xaml.cs:478）</span> —— 不存在第二套运行态</div></div>
+          <div class="node"><div class="node-t">ScadaWebSession（每客户端）</div><div class="ln">ScadaWebSession.cs:39</div><div class="node-d">包 Watson 的 WebSocketSession；传输是裸 WebSocket，<b>没有</b> SignalR / SSE</div></div>
+          <div class="node"><div class="node-t">推的是平值帧，不是逐标签订阅</div><div class="ln">ScadaWebValueResolver.cs:11-25</div><div class="node-d">值帧 = <span class="mono">(elementId, property, values)</span> + 结构快照；失步走 <span class="mono">view.resync(scope=structure|frames)</span><span class="ln">（ScadaWebSession.cs:86-89）</span></div></div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">闸门</span><span class="band-name">总闸 → 匿名拒 → 只读 → 角色/策略</span><span class="band-path">ScadaWebAccessPolicy.cs:18-33,237-262</span></div>
+        <div class="band-body cols-4">
+          <div class="node"><div class="node-t">默认值（都是关的）</div><div class="node-d mono">AllowCommands = false :378<br/>RequireLogin = true :359<br/>AllowAnonymousView = false :365<br/>AllowMotionCommands = false :432</div><div class="node-d">出处 <span class="mono">Core\Models\AppConfigModel.cs</span>；运动默认禁用另见 R132A 与 :276 的纪律注</div></div>
+          <div class="node"><div class="node-t">命令路由</div><div class="ln">ScadaWebCommandRouter.cs:54,907-924</div><div class="node-d">九种 Motion 动作类型逐条判（含一处已注明的可绕过路径）</div></div>
+          <div class="node"><div class="node-t">票据与来源</div><div class="ln">ScadaWebTicketService.cs:12 · ScadaWebSecurityGate.cs · ScadaWebRateLimiter.cs</div><div class="node-d">WebSocket 握手带不上 header，所以鉴权走一次性票据 + Origin/Host 校验</div></div>
+          <div class="node"><div class="node-t">审计</div><div class="ln">Router.Audit :1018 → IScadaAuditSink → ScadaAuditWriter.cs:186,359</div><div class="node-d"><b>缺审计 sink 就直接关掉整条写路径</b><span class="ln">（Router :173-178）</span>；记录带操作者 / 会话 / IP</div></div>
+        </div>
+        <div class="note note--red" style="margin:8px 10px 0;"><b>交付边界</b>：只覆盖"已设计画面的运行态查看 / 操作"，<b>不含</b>浏览器编辑组态（R132A）。它是全仓唯一被裁定为交付物的 Web 产物；其余 Web 媒介仍是设计媒介（R126）。</div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="side-head">为什么值得单列一版</div>
+      <div class="side-body">
+        <div class="gate"><b>单一内核不是口号</b><i>桌面改一行运行态<br/>Web 立刻同步</i></div>
+        <div class="gate"><b>默认只读</b><i>四项默认全关<br/>开命令要显式改配置</i></div>
+        <div class="gate"><b>逐命令鉴权</b><i>不是握手时判一次<br/>命令路由每条各判</i></div>
+        <div class="gate"><b>审计是写路径的前提</b><i>没落审计就整条拒写<br/>不是"记不上就算了"</i></div>
+        <div class="side-note">与 02 同源：Web 侧命令最终仍走 <span class="mono">MotionActionExecutor</span> 那一个执行器，权限与物理判据不会因入口不同而多出一份。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>安全前提</b><br />默认只读 + 服务端逐命令鉴权 + 审计带操作者/会话/IP + 运动命令默认禁用，四条缺一即不成立（R132A）。</div>
+    <div><b>反模式</b><br />不要在浏览器侧再实现一套运行态或状态机；不要把 Web 当作第二客户端去维护业务逻辑（R126 精神）。</div>
+    <div><b>本图口径</b><br />2026-10-23 读码；端口/默认值行号取自 <span class="mono">AppConfigModel.cs</span> 与 <span class="mono">ScadaWebHost.cs</span>。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 06 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">验证闸链：一个入口 · 十个步骤 · 六条反假绿机制</h1>
+      <p class="diagram-subtitle">tools\run_gates.ps1 · BUILD EACH HOST FROM ITS OWN CSPROJ · NULL EXIT IS RED</p>
+    </div>
+    <div class="sheet-id">SHEET 06 / 08 · 实测 2026-10-23 13:30–13:34<br/>artifacts\logs\20261023\gate-*.log</div>
+  </div>
+
+  <div class="frame">
+    <div class="stack">
+      <div class="band">
+        <div class="band-head"><span class="band-tag">步骤</span><span class="band-name">顺序与今日结果</span><span class="band-path">run_gates.ps1:181-184（audit） · :203-212（宿主）</span></div>
+        <table class="tbl" style="margin:9px;">
+          <tr><th>#</th><th>步骤</th><th>构建方式</th><th>今日</th><th>备注</th></tr>
+          <tr><td>1</td><td>audit_root</td><td class="ln">powershell.exe -File（审计循环 :187-199）</td><td>OK · 8 文件 / 43 目录白名单</td><td>根目录白名单唯一事实源 tools\root-layout.json</td></tr>
+          <tr><td>2</td><td>audit_artifacts</td><td class="ln">同上</td><td>RESULT: OK</td><td>红线③：逐插件 DLL mtime ≥ 源码 & Help 资源数 = .md 数</td></tr>
+          <tr><td>3</td><td>CommChecks</td><td class="ln">dotnet build &lt;csproj&gt; -m:1 -nodeReuse:false :225</td><td>336 / 0</td><td>—</td></tr>
+          <tr><td>4</td><td>DataPipelineChecks</td><td class="ln">:225</td><td>97 / 0</td><td>复用 3 份 check 源码，无窗口（Program.cs:21-23）</td></tr>
+          <tr><td>5</td><td>DatabaseChecks</td><td class="ln">:225</td><td>134 / 0</td><td>含"插件 DLL 不引用 Core.Database"引用面扫描</td></tr>
+          <tr><td>6</td><td>ScadaChecks</td><td class="ln">:225</td><td>2637 / 0</td><td>63 处注册（Program.cs:109-184）；2714 个 Check 站点 / 20 文件</td></tr>
+          <tr><td>7</td><td>RecipeChecks</td><td class="ln">:225</td><td>138 / 0</td><td><span class="mono">[STAThread] Main :26</span>，13 个 Section 横幅</td></tr>
+          <tr><td>8</td><td>FlowCanvasChecks</td><td class="ln">:225</td><td>3501 / 0</td><td>84 处限定 Run() + 33 处内联族；3482 站点 / 73 文件</td></tr>
+          <tr><td>9</td><td>UIThemeSmokeTest</td><td class="ln">:224 · 不在 sln</td><td>121 [PASS] / 0（无汇总行）</td><td>见底部"口径修正"</td></tr>
+          <tr><td>10</td><td>HelpProbe</td><td class="ln">:224 · 不在 sln</td><td>74 / 0</td><td>离屏真链路 + PNG 对照</td></tr>
+        </table>
+        <div class="note" style="margin:0 9px 9px;">合计 <b>7 038 条断言、0 失败</b>。<span class="mono">UIThemeSmokeTest</span> 与 <span class="mono">HelpProbe</span> 不在 <span class="mono">VisionMaster.sln</span><span class="ln">（run_gates.ps1:4-6 写明；sln 只收 6 个宿主）</span>，所以 <span class="mono">dotnet build VisionMaster.sln</span> 根本不重建它们 —— 这就是"每宿主按自己 csproj 构建再跑"存在的原因（R182）。</div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">反假绿</span><span class="band-name">每一条都用过一次真事故换来的</span><span class="band-path">R183 / R65 / R179</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">陈旧 exe 判红</div><div class="ln">:239-250</div><div class="node-d">取 bin/obj 外最新 <span class="mono">*.cs / *.xaml / *.csproj</span> 与 exe mtime 比；exe 比源码旧直接红，<b>不跑旧 exe</b>（R65）</div></div>
+          <div class="node"><div class="node-t">子进程零输出 = 判红</div><div class="ln">NO OUTPUT :254-257</div><div class="node-d">2026-10-22 实测：整个 gate 报 "8 steps green" 而六个宿主<b>一个都没跑</b>（<span class="mono">Start-Process -ArgumentList ''</span> 抛的绑定异常被 Continue 变成 exit=0）</div></div>
+          <div class="node"><div class="node-t">退出码不许强类型</div><div class="ln">Add-Row :167-173</div><div class="node-d"><span class="mono">$null</span> 一律判红并写 <span class="mono">exit code unknown</span>。<span class="mono">Start-Process</span> 去掉 -Wait 后 -PassThru 的 ExitCode 恒为 null → <span class="mono">[int]$null</span> 印出 0 报全绿</div></div>
+          <div class="node"><div class="node-t">不许走管道捕获</div><div class="ln">:126-127 原始字节 · :60-61,84 UTF-8 优先回落 936</div><div class="node-d">管道按控制台代码页解码 .NET 宿主的 UTF-8 → 日志成"合法 UTF-8 的乱码"，统计正则永不命中，每个宿主回落打印"全部通过"（R183①）</div></div>
+          <div class="node"><div class="node-t">超时与启动失败各有码</div><div class="ln">124 :129-137 · 127 :110,141-143</div><div class="node-d"><span class="mono">-StepTimeoutSec</span> 默认 600（:36-41）；超时 taskkill 整棵进程树。别用 <span class="mono">Start-Process -Wait</span>：它等的是进程树，一个残留后代能把 gate 挂死 11 分钟</div></div>
+          <div class="node"><div class="node-t">聚合与前置缺失</div><div class="ln">:281-288 · MISSING :190,219 · BUILD FAILED :227 · EXE MISSING :234</div><div class="node-d">无行即红；任一红即 exit 1。<span class="mono">-Only</span> 逗号复分 :47；<span class="mono">-SkipBuild</span> 只用于"刚构建完立刻复跑"</div></div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">静态扫描</span><span class="band-name">钉 XAML 与仓库规则的那几族（不跑界面也能红）</span></div>
+        <div class="band-body cols-3">
+          <div class="node"><div class="node-t">硬编码颜色</div><div class="ln">UIThemeSmokeTest\Program.cs:3055-3137（调用 :589）</div><div class="node-d">基线 <span class="mono">hardcoded-colors-baseline.txt</span> 记 路径|数量，<b>新文件必须 0、老文件不许上涨</b> :3113-3124（R140）。豁免表就在此处，别按记忆数颜色文件</div></div>
+          <div class="node"><div class="node-t">GridView 必挂样式</div><div class="ln">UIThemeSmokeTest:2271（:588）· ScadaChecks:21655-21663</div><div class="node-d">出现 GridView 就必须挂 <span class="mono">GridListViewStyle</span> 且行模板是 <span class="mono">GridViewRowPresenter</span>（R19/R20）</div></div>
+          <div class="node"><div class="node-t">资源断链（分册作用域）</div><div class="ln">FlowCanvasChecks\VariableBindingCheck.cs:753 → 断言 :871,877</div><div class="node-d">PowerShell 镜像已声明作废<span class="ln">（audit_resource_scope.ps1:13-16 等）</span>；两条契约同守 R30-R32</div></div>
+          <div class="node"><div class="node-t">ToggleButton 对齐 [AI]</div><div class="ln">ScadaChecks\Program.cs:21292,21309</div><div class="node-d">豁免三条：显式 Style / 自声明对齐 / 同时写 Width+Height（R148）。运行期探针还要"合并 Fluent 再渲染一次"</div></div>
+          <div class="node"><div class="node-t">图标钮紧格子 GB0~GB5</div><div class="ln">FlowCanvasChecks\GlyphButtonClipCheck.cs:55-106</div><div class="node-d">GB2 反向钉住解析器（0 命中即红 = 口径过期）；GB4 把"Padding 写大了"也过账；算术前提由 HelpProbe 四档钉 <span class="ln">HelpProbe:433,596</span>（R68/R69）</div></div>
+          <div class="node"><div class="node-t">OpenWindow 白名单</div><div class="ln">FlowCanvasChecks\ResultDisplayCheck.cs:1271-1306</div><div class="node-d">正则 :1283；"清单只许变短" :1295（R36）</div></div>
+        </div>
+      </div>
+
+      <div class="band">
+        <div class="band-head"><span class="band-tag">探针</span><span class="band-name">tools\probes\probes.json 是唯一入口（R167）</span></div>
+        <div class="band-body cols-2">
+          <div class="node"><div class="node-t">13 个登记探针</div><div class="node-d mono">ResProbe · StyleProbe · ToolboxProbe · LogViewProbe · FocusProbe · BeadViewProbe · ScadaEditorProbe · ScadaUiProbe · ChartProbe5（runMode exe/net48）· WebProbe5 · WebProbe6 · MotionSimProbe · CameraSimProbe</div></div>
+          <div class="node"><div class="node-t">用法与前置</div><div class="node-d"><span class="mono">-List</span> <span class="ln">run-probe.ps1:55-58</span> · <span class="mono">-Name</span> 必填 :60-62 · <span class="mono">-BuildOnly</span> :81-84 · 未登记名直接抛 :71-74 · 登记表与实际目录不一致也抛 :77-79。执行策略 <span class="mono">Restricted</span> → 必须带 <span class="mono">-ExecutionPolicy Bypass</span><span class="ln">（README.md:25）</span>；搬迁三步原子：新址 -BuildOnly 通过 → 更新 json 与 README → 才能删旧路径</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="side-head">没有闸的部分（诚实清单）</div>
+      <div class="side-body">
+        <div class="gate"><b>R184 输入框模板内缩</b><i>人工评审，无自动闸<br/>AGENTS:408</i></div>
+        <div class="gate"><b>R141 可复用 UI 下沉</b><i>人工评审<br/>AGENTS:332</i></div>
+        <div class="gate"><b>ShellCopy.xaml 漂移</b><i>R44 手工同步<br/>只有约定在守</i></div>
+        <div class="gate"><b>GB4 覆盖不到样式站点</b><i>挂 DialogIconButton 的按钮<br/>走的是另一条算式</i></div>
+        <div class="gate"><b>顺序型刷新缺陷</b><i>R105：静态闸挡不住<br/>必须按真实操作顺序各跑一遍</i></div>
+        <div class="side-note"><b>"未经构建或审查确认不得说已验证"（R13）。</b>分册里没写"人工评审"标注，所以其余无闸规则无法从文档枚举 —— 这一格本身就是待还的账。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>验证分层（R175/R176）</b><br />断言宿主优先；只有它证明不了的（真实渲染 / 启动链 / 停靠 / HTTP 端到端）才用真 <span class="mono">VisionMaster.exe</span>，用前必须重建并核对 Debug 与 Release，先备份 Layout.xml。</div>
+    <div><b>新闸三件套（R65）</b><br />加 <span class="mono">Check()</span> 后先 build 再 run（不许 --no-build）；判据落在条数 + 明细原文；必须做变异反证：改坏 → 红 → 还原 → 绿。本轮 GB3/GB5 的反证记录在 2026-10-22 的交付文档里。</div>
+    <div><b>口径修正</b><br />R46 写"冒烟退出码恒为 1（既有红灯未清）"。今日日志：冒烟 <span class="mono">0 个 [FAIL]</span>，且退出码由 <span class="mono">Program.cs:595-597</span> 的计数求和决定，不是硬编码 —— 这条注已过期，见 08。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 07 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">主题注入风险面：一次合并 → 五族症状</h1>
+      <p class="diagram-subtitle">APPLICATION-SCOPE FLUENT MERGE OVERRIDES FRAMEWORK IMPLICIT STYLES · ONE FIX PER FAMILY</p>
+    </div>
+    <div class="sheet-id">SHEET 07 / 08 · VisionMaster\App.xaml:66-80<br/>2026-10-23 当日仍在改这一处</div>
+  </div>
+
+  <div class="stack">
+    <div class="band">
+      <div class="band-head"><span class="band-tag">根</span><span class="band-name">合并顺序 = 优先级（后合并者优先）</span><span class="band-path">App.xaml MergedDictionaries</span></div>
+      <div class="flow">
+        <div class="node"><div class="node-t">1 Core.Halcon Generic</div><div class="ln">:66</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">2 UI Themes\Generic</div><div class="ln">:67</div><div class="node-d">UI 自绘的隐式控件样式</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">3 ScadaIcons</div><div class="ln">:69（VM.Scada.Controls）</div><div class="node-d">文字图标库应用级挂一次</div></div>
+        <div class="sep">→</div>
+        <div class="node node--alert"><div class="node-t">4 Fluent <span class="badge badge--alert">风险源</span></div><div class="ln">:70</div><div class="node-d"><span class="mono">PresentationFramework.Fluent;component/Themes/Fluent.xaml</span><br/>它带的<b>隐式</b> Button / TextBox / PasswordBox / Slider / ListView 样式，从应用级顶掉上面两份与框架自带那份</div></div>
+        <div class="sep">→</div>
+        <div class="node"><div class="node-t">5 Input.xaml 重挂</div><div class="ln">:80（2026-10-23 新增）</div><div class="node-d">只把"输入域"一册提到 Fluent 之后重挂一次，找回 TextBox / PasswordBox / Slider；Button / ListView / DataGrid <b>仍走 Fluent</b>，R148 与 R19 的既有前提不变。整册顺序翻转属换肤级改动，需单独评审 <span class="ln">（注释 :71-79 原文）</span></div></div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">症状族</span><span class="band-name">每一族有各自的判据与各自的闸，彼此正交</span></div>
+      <table class="tbl" style="margin:9px;">
+        <tr><th>族</th><th>症状（用户看到的）</th><th>判据</th><th>守门</th><th>规则</th></tr>
+        <tr><td>列头消失</td><td>ListView+GridView 表头整条不见 / 显示类型全名</td><td>必须挂 <span class="mono">GridListViewStyle</span>；行模板必须是 <span class="mono">GridViewRowPresenter</span>；行容器内边距取 4；不许改成隐式样式</td><td class="ln">UIThemeSmokeTest:2271 + ScadaChecks:21655</td><td>R19-R22</td></tr>
+        <tr><td>字形被切</td><td>关闭按钮的 ✕ 显示成 "&gt;" 或整根不见</td><td>写了 Width/Height 的图标字符按钮必须挂 Style 或显式 Padding（Fluent 给 Button 的隐式 Padding 是 11,5,11,6）</td><td class="ln">GB0~GB5 + HelpProbe 四档</td><td>R68</td></tr>
+        <tr><td>线段不画</td><td>标题栏"关闭"显示成一条斜线 ＼</td><td>标题栏按钮 <span class="mono">Path</span> 几何不许有零长度线段（<span class="mono">M x y L x y</span> 起=终 = 那笔不画）；改 Shell.xaml 必须同步 ShellCopy.xaml</td><td class="ln">RunShellLayoutChecks 末尾两条（原件 + 副本同判据）</td><td>R70</td></tr>
+        <tr><td>控件落位</td><td>自定义模板里的 ToggleButton 跑到左边</td><td>模板内 ToggleButton 必须自声明 <span class="mono">HorizontalAlignment</span>（外壳类还要 VerticalAlignment）；三条豁免</td><td class="ln">ScadaChecks [AI] + 合并 Fluent 再渲染一次</td><td>R148</td></tr>
+        <tr><td>输入域内缩</td><td>小高度输入框里中文上下被切</td><td><span class="mono">PART_ContentHost</span> 不许再吃一层由 Padding 换算的 Margin；判据 <span class="mono">ViewportHeight ≥ ExtentHeight</span> + 数墨迹行数，<b>别看截图</b></td><td class="ln">人工评审（无自动闸）</td><td>R184</td></tr>
+      </table>
+      <div class="band-body cols-3" style="border-top:1px dashed var(--c-border);">
+        <div class="node"><div class="node-t">分册互相看不见（另一条根因）</div><div class="node-d">跨册 <span class="mono">BasedOn</span> / 模板内容 / Freezable 内 → 编译期全绿、运行期 <span class="mono">XamlParseException</span>；普通 <span class="mono">Setter.Value</span> → <b>不抛、值静默不生效</b>。出路只有两条：能同文件就同文件，或把共用令牌搬进 <span class="mono">Colors.xaml</span>；禁止改 DynamicResource 绕过（R30-R32）</div></div>
+        <div class="node"><div class="node-t">同文件后置键那一格</div><div class="node-d">元素<b>自身属性</b>的 <span class="mono">{StaticResource K}</span> 先于该元素 Resources 求值 —— K 就定义在同一个元素里也查不到。修法：把属性挪到子元素（2026-10-22 实测会在无 Application 的断言宿主里连带崩 5 段断言）</div></div>
+        <div class="node"><div class="node-t">DataTemplate 里的后置键</div><div class="node-d">模板延迟物化：排在模板之后的键在"模板被独立实例化"的宿主里（gong 拖拽预览 Popup、<span class="mono">LoadContent()</span>）直接抛 —— 真机症状是<b>一拖就崩</b>，启动冒烟查不出（R173）</div></div>
+      </div>
+    </div>
+
+    <div class="band">
+      <div class="band-head"><span class="band-tag">取证</span><span class="band-name">量 UI 缺陷的正确姿势</span></div>
+      <div class="band-body cols-3">
+        <div class="node"><div class="node-t">不许看内层 ActualWidth</div><div class="node-d">R69：需求宽用<b>不受约束的参照 TextBlock</b>（<span class="mono">Measure(infinite)</span>），判据走算式"内容区 = 实得尺寸 − 生效 Padding − BorderThickness"。<span class="mono">Application.Current.Resources[typeof(Button)]</span> 读不到 Padding Setter，必须取按钮自己的生效值。<b>本会话教训</b>：第一版 harness 用 ActualWidth 判，所有形状都报"完整"——假绿</div></div>
+        <div class="node"><div class="node-t">不许用 PowerShell 5.1</div><div class="node-d">R134：验 .NET 9 WPF 必须用 <span class="mono">net9.0-windows</span> 探针工程。PS 5.1 资源字典加载 0 条目、<span class="mono">LoadComponent</span> 报找不到 System.Runtime 9.0.0.0 → "样式没生效"是假结论。探针放临时目录，用完即删</div></div>
+        <div class="node"><div class="node-t">不许只看截图</div><div class="node-d">禁用态 <span class="mono">Opacity=0.5</span> 让抗锯齿顶行变淡，看着像被切；数字墨迹矮（9~10px）常被误判成正常。R105：只在特定操作顺序下坏的缺陷，"我手动试是好的"不构成证据</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div><b>为什么单列一版</b><br />这四周内两次"显示不全"（列头、✕）和一次"一拖就崩"都回溯到同一处合并。认识这一格，比认识任何一条单独规则更省时间。</div>
+    <div><b>改动半径</b><br />整册顺序翻转 = 换肤级（需 R125 评审）；新增库样式键前必须全仓查同名（R146）；可复用 UI 第二次出现就下沉 Dialog 分册（R141）。</div>
+    <div><b>本图口径</b><br />App.xaml 行号为 2026-10-23 现状（含当日新增的 Input.xaml 重挂注释）；症状族与规则号一一对应 AGENTS.md §6/§9/§22/§33/§40。</div>
+  </div>
+</div>
+</section>
+
+<!-- ==================================================================== 08 -->
+<section class="sheet">
+<div class="diagram-canvas">
+  <div class="diagram-header">
+    <div>
+      <h1 class="diagram-title">审查结论：值得再出的图 · 需要修正的口径</h1>
+      <p class="diagram-subtitle">REVIEW: NEXT SHEETS WORTH DRAFTING + STALE NUMBERS FOUND WHILE SOURCING</p>
+    </div>
+    <div class="sheet-id">SHEET 08 / 08 · 出图过程中的副产品<br/>2026-10-23</div>
+  </div>
+
+  <div class="band">
+    <div class="band-head"><span class="band-tag">优先</span><span class="band-name">建议再出这三张（按踩坑频率排，不按好看排）</span></div>
+    <div class="band-body cols-3">
+      <div class="node"><div class="node-t">A. 属性网格刷新链 <span class="badge badge--fill">最值</span></div><div class="node-d">RequireRefresh = 整表重建（R104）、多态配置不许搭窗口（R106/R107）、两条枚举路读的不是同一个特性（R84-R86）、[RuntimeState] 名单（R139）。<b>值得出</b>：这一族的症状是"两套参数同现 / 改完不刷新"，且现有闸只挡得住顺序无关的那部分</div><div class="ln">取证需读：FlatPropertyGrid · PropertyGridRefreshCheck · IoChecks</div></div>
+      <div class="node"><div class="node-t">B. 通讯读写链</div><div class="node-d">Modbus Address 是原始协议地址不是 4xxxx（R137）、数组元素个数落盘顺序（R149）、跨度上限直接拒绝不分块（R153）、变量表 xlsx 的空白默认值按列语义给（R156）、DataGrid.RowHeight 不许写 Auto（R159）</div><div class="ln">取证需读：Communication\ · IoChecks · 分册-通讯与设备</div></div>
+      <div class="node"><div class="node-t">C. FlowModel 版本与撤销</div><div class="node-d">Version++ 语义（谁 raise 什么算语义变更）、撤销栈边界、配方快照与运行态分离。症状是"改一下没进撤销 / 撤销把运行态抹了"</div><div class="ln">取证需读：FlowModel · SolutionService · RecipeChecks</div></div>
+    </div>
+  </div>
+
+  <div class="band" style="margin-top:12px;">
+    <div class="band-head"><span class="band-tag">其次</span><span class="band-name">排在第二批之后</span></div>
+    <div class="band-body cols-4">
+      <div class="node"><div class="node-t">D. 启动时序</div><div class="node-d">链上 4 项 + 2 项后台 + 逐项 TimeoutMs/TimeoutLevel（R48）、"取消且没跑完"判据（R49）、E18/E19 计数</div></div>
+      <div class="node"><div class="node-t">E. 仓库分区与产物</div><div class="node-d">root-layout.json 白名单、Modules 投递链、packages HintPath 依赖、_Retired 退役件、artifacts 落点（R166-R170）</div></div>
+      <div class="node"><div class="node-t">F. SCADA 图元注册</div><div class="node-d">ScadaGenerators、DefaultStyleKey 覆盖、属性分组登记（R71-R77、R147）、基座画面三闸门（R92）</div></div>
+      <div class="node"><div class="node-t">G. 画布与流程栏双视图</div><div class="node-d">Nodify 画布 ↔ 步骤树同步、拖放与循环控制（R171-R174）、DataType 模板补齐（R23）</div></div>
+    </div>
+  </div>
+
+  <div class="band" style="margin-top:12px;">
+    <div class="band-head"><span class="band-tag">修正</span><span class="band-name">画图时顺手查出来的过期口径（本图已按实测印，注入层未改）</span></div>
+    <table class="tbl" style="margin:9px;">
+      <tr><th>条目</th><th>注入层/记录里的旧数</th><th>2026-10-23 实测</th><th>影响</th></tr>
+      <tr><td>AGENTS R41 注 · 手册计数口径</td><td class="ln">44 类 / 32 程序集（2026-10-22 实测）</td><td><b>53</b> 个带 GroupName 的类 / <b>39</b> 个插件工程与 DLL</td><td>派工时按"类"配额算手册量会少算 9 类</td></tr>
+      <tr><td>AGENTS R62 · 插件工程入 sln</td><td class="ln">现 sln 已登记 32/32</td><td><b>39/39</b>（grep sln Plugins\ 命中 39）</td><td>数字过期但结论仍成立：新增工程必须同时登记 sln</td></tr>
+      <tr><td>AGENTS §36 已闭环注 · 根目录</td><td class="ln">ROOT LAYOUT OK: 8 files / 41 dirs</td><td class="ln">8 files / 43 dirs allowed（实测 35 个顶层目录）</td><td>白名单在长，注记没跟上</td></tr>
+      <tr><td>AGENTS R46 · 冒烟退出码</td><td class="ln">冒烟退出码恒为 1（既有红灯未清）</td><td>今日 gate-UIThemeSmokeTest.log：<b>121 [PASS] / 0 [FAIL]</b>，退出码由计数求和决定（Program.cs:595-597），非硬编码</td><td>"待还技术债"这条已经还了，红灯基线说法会误导下一次判读</td></tr>
+      <tr><td>PluginService/PluginCache 注释</td><td class="ln">"42 plugins"（PluginService.cs:77 · PluginCache.cs:14）</td><td>39 工程 / 39 DLL / 53 显示类</td><td>纯注释陈旧，不影响行为</td></tr>
+      <tr><td>本项目记忆 · 手册页数</td><td class="ln">251 页（2026-10-14 交付时点）</td><td><b>311</b> 页插件 .md + 4 页宿主</td><td>记忆条目应更新为"页数随插件增长，口径按类不按页"</td></tr>
+    </table>
+    <div class="note" style="margin:0 9px 9px;"><b>另有并发改动</b>：今天 09:33 <span class="mono">App.xaml</span> 被改过（Input.xaml 重挂，见 07）、13:13 <span class="mono">DlSegmentPlugin.cs</span> 被改过（13:15 那轮 FlowCanvasChecks 曾以 DlSegment 两条红收尾，13:33 官方 gate 已 3501/0）。跨进程协调先看 <span class="mono">LastWriteTime</span>（R9）——本图所有断言数只保证 13:30–13:34 那一轮。</div>
+  </div>
+
+  <div class="band" style="margin-top:12px;">
+    <div class="band-head"><span class="band-tag">边界</span><span class="band-name">这套图不承诺的事</span></div>
+    <div class="band-body cols-3">
+      <div class="node"><div class="node-t">它是结构图不是索引结论</div><div class="node-d">本会话无 CodeGraph 工具，所有"谁调用谁"为 grep/read 结论（R28）。要当影响面用请重跑索引</div></div>
+      <div class="node"><div class="node-t">它是时点快照</div><div class="node-d">行号会漂。判据是"这张图对不对"，不是"这行还在不在"；引用请以文件+方法名为准</div></div>
+      <div class="node"><div class="node-t">Web 蓝图不是交付物</div><div class="node-d">R126：本 HTML 只作设计/沟通媒介，不进构建、不部署、不作第二客户端维护</div></div>
+    </div>
+  </div>
+</div>
+</section>
+
+<script>
+  (function () {
+    var nav = document.querySelectorAll('.nav button');
+    var sheets = document.querySelectorAll('.sheet');
+    function go(i) {
+      for (var k = 0; k < nav.length; k++) {
+        nav[k].className = (k === i) ? 'on' : '';
+        sheets[k].className = (k === i) ? 'sheet on' : 'sheet';
+      }
+      try { window.scrollTo(0, 0); } catch (e) {}
+    }
+    for (var k = 0; k < nav.length; k++) {
+      (function (idx) { nav[idx].addEventListener('click', function () { go(idx); }); })(k);
+    }
+  })();
+</script>
+</body>
+</html>

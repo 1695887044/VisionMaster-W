@@ -769,6 +769,14 @@ namespace VisionMaster.Scada.Controls
         {
             base.OnMouseWheel(e);
 
+            // 运行态不缩放，也不吞滚轮：操作员在跑画面，滚一下滚轮（或触摸板双指一扫）
+            // 就会以光标为锚把画面放大并偏移，而运行窗口没有"适应窗口"入口——现场只能重开运行。
+            // 不标 Handled 还有一个用处：报警条这类自带 ScrollViewer 的图元，
+            // 在列表滚到尽头后事件会冒到这里；这里既不缩放也不拦，它就只是"没反应"，不会跳一屏。
+            // 取景在运行态只保留中键平移（见 OnMouseDown），它不改倍率、不会把画面留在半屏外。
+            if (IsReadOnly)
+                return;
+
             if (_dragMode != DragMode.None)
                 return; // 拖着东西时滚轮不改变取景，避免"手滑一下滚轮，图元跳到别处"
 

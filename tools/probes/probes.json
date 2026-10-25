@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-22",
+  "updated": "2026-10-24",
   "note": "探针登记表：dir/project 均相对本文件所在目录。运行中的任务必须通过 run-probe.ps1 或本表解析路径，禁止按记忆拼旧路径。",
   "probes": [
     {
@@ -58,6 +58,20 @@
       "project": "_ScadaUiProbe.csproj",
       "runMode": "dotnet",
       "description": "组态 UI 出图探针（--all / --toolbox / --editor / --glyphs / --solution / --flow-manager / --flow-list）；出图落 docs/UI设计基线/app-shell/evidence/"
+    },
+    {
+      "name": "RecipeUiProbe",
+      "dir": "_RecipeUiProbe",
+      "project": "_RecipeUiProbe.csproj",
+      "runMode": "dotnet",
+      "description": "Recipe manager dialog probe (six business states, offline render); output to docs/UI design baseline recipe-manager evidence"
+    },
+    {
+      "name": "ScadaAlarmUiProbe",
+      "dir": "_ScadaAlarmUiProbe",
+      "project": "_ScadaAlarmUiProbe.csproj",
+      "runMode": "dotnet",
+      "description": "报警配置弹窗出图探针（九态 --states=filled,stale,filter,nomatch,error,receipt,new,empty,running）；出图落 artifacts/render/<yyyyMMdd>/scada-alarm-config/；重复像素哈希即判红"
     },
     {
       "name": "ChartProbe5",

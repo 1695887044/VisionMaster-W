@@ -22,6 +22,13 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 执行插件节点
+        ///
+        /// 节点契约（A1 定案 2026-10-24）：本目录下所有"叶子算子"节点（插件 / If / While / For / 并行 / 等待）
+        /// 都是【自己跑完、返回 null】——回到 CompiledNode.RunSequence，由栈继续取下一个兄弟节点。
+        /// 唯一例外是容器类节点，它们把"选中分支的清单"当返回值交出去（CompiledIfNode / 并行退化路径）。
+        /// 因此本方法的 return null 不是"漏交回"，而是叶子契约本身。
+        /// 真正的约束只有一条：任何节点都不许在 RunAndGetNext 里"自己 foreach 子清单并丢弃返回值"，
+        /// 子清单必须交回 RunSequence（统一执行器，见 CompiledNode.RunSequence 注释）。
         /// </summary>
         public override List<CompiledNode> RunAndGetNext(IExecutionContext context)
         {

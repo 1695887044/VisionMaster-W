@@ -1,0 +1,88 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-list-remove",
+  "title": "把方案从启动清单里移除（不删磁盘文件）",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "清单只是 AppConfig.json 里的一份路径列表；移除项不会删 .vms。改动要点「确认」才落盘。",
+  "params": {
+    "solution_name": {
+      "type": "string",
+      "required": true,
+      "example": "旧方案"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.file",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.file",
+      "expect": {
+        "element": "app.menu.file.list",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.file.list",
+      "expect": {
+        "window": "dialog.solution_list",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.solution_list.row",
+      "target_name": "${solution_name}"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.solution_list.remove"
+    },
+    {
+      "n": 6,
+      "do": "assert",
+      "assert": "element_absent",
+      "target": "dialog.solution_list.row",
+      "name_contains": "${solution_name}",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 7,
+      "do": "click",
+      "target": "dialog.solution_list.confirm",
+      "expect": {
+        "window": "dialog.solution_list",
+        "state": "closed"
+      },
+      "timeout_ms": 10000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "list"]
+}

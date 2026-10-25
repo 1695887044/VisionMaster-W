@@ -1924,33 +1924,42 @@
                                 </ItemsControl>
 
                                 <!--
-                                    候选为空（方案里还没有可选项）：退化成手填，绝不放上游面板。
-                                    与 LinkableValueEditor 的 IsHandFillFallback（"无候选，可手填"）同一口径 ——
-                                    "还没配"是常见的首次状态，不能把人堵在一个空下拉上。
+                                    候选为空（方案里还没有可选项）：**不再允许手填**（2026-10-24 起）。
+                                    名字类字段的合法值只能来自方案里已有的卡/轴/变量/流程名，
+                                    凭空手打的名字运行期一定解析不到，所以这里改成"说明原因 + 不被堵死"：
+                                    上方预设列表保持可见（空），提示语走 VM 的 OptionEmptyReason，
+                                    与 LinkableValueEditor 的 IsOptionEmpty 同一口径。
                                 -->
                                 <StackPanel Margin="0,8,0,0">
                                     <StackPanel.Style>
                                         <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding PresetOptions.Count}" Value="0">
+                                                <DataTrigger Binding="{Binding IsOptionEmpty}" Value="True">
                                                     <Setter Property="Visibility" Value="Visible" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </StackPanel.Style>
-                                    <TextBox
+                                    <Border
                                         Height="34"
                                         Padding="10,0"
-                                        VerticalContentAlignment="Center"
-                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
-                                        Style="{StaticResource DialogInput}"
-                                        Tag="手填名字"
-                                        Text="{Binding ConstantValue, UpdateSourceTrigger=PropertyChanged}" />
+                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                        BorderBrush="{StaticResource DialogBorderStrongBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="8">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="11.5"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="当前没有可选值"
+                                            TextTrimming="CharacterEllipsis" />
+                                    </Border>
                                     <TextBlock
                                         Margin="0,6,0,0"
                                         Style="{StaticResource DialogHintText}"
-                                        Text="当前方案里没有可选项：可直接手填，运行期仍会按门禁校验。" />
+                                        Text="{Binding OptionEmptyReason}"
+                                        TextWrapping="Wrap" />
                                 </StackPanel>
 
                                 <Border

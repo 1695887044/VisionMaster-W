@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>流程画布 · 引线优化对比 v4（沿用现有风格）</title>
+<style>
+  /* 视觉令牌与 UI/Controls/Themes/Colors.xaml 逐项一致，不引入新风格 */
+  :root{
+    --bg:#F7F9FC; --grid:#E8EDF5;
+    --card:#FFFFFF; --card-bd:#C9D2DE; --ink:#0F172A; --ink3:#94A3B8;
+    --run:#2563EB; --fail:#EF4444;
+    --frame-bd:#A5C0E8; --frame-hd:#EEF4FF;
+    --lane-bd:rgba(75,130,246,.18); --lane-hd:rgba(255,255,255,.70); --lane-ink:#5A6C99;
+    --link:#3B82F6; --order:#94A3B8; --illegal:#EF4444;
+    --line:#E2E8F0; --panel:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:12px;padding:8px 14px;background:var(--panel);
+    border-bottom:1px solid var(--line);flex:0 0 auto;flex-wrap:wrap}
+  header b{font-size:13px}
+  .tag{font-size:11px;color:var(--ink3);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  .group{display:flex;align-items:center;gap:6px;font-size:12px;color:#475569}
+  .seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:5px 12px;font:inherit;cursor:pointer;color:#475569}
+  .seg button.on{background:var(--run);color:#fff}
+  .spacer{flex:1}
+  button.plain{font:inherit;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+  main{position:relative;flex:1;min-height:0;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  .hud{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font-size:11px;color:var(--ink3);line-height:1.75;white-space:pre;pointer-events:none}
+  .hud b{color:var(--ink)}
+  footer{display:flex;gap:14px;padding:6px 14px;background:var(--panel);border-top:1px solid var(--line);
+    font-size:11px;color:var(--ink3)}
+  footer .right{margin-left:auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <b>流程画布</b>
+    <span class="tag">v4 · 沿用现有风格 · 只治引线</span>
+    <span class="group">走线
+      <span class="seg">
+        <button id="w0">现状（贝塞尔）</button>
+        <button id="w1" class="on">正交</button>
+        <button id="w2">正交 + 通道</button>
+      </span>
+    </span>
+    <span class="group">数据线
+      <span class="seg">
+        <button id="d0">常显</button>
+        <button id="d1" class="on">仅聚焦时</button>
+      </span>
+    </span>
+    <span class="spacer"></span>
+    <button class="plain" id="btnStress">注入 300 节点</button>
+    <button class="plain" id="btnDemo">重建演示图</button>
+  </header>
+
+  <main>
+    <canvas id="cv"></canvas>
+    <div class="hud" id="hud"></div>
+  </main>
+
+  <footer>
+    <span id="stMode">正交 · 数据线仅聚焦</span>
+    <span id="stLinks">—</span>
+    <span id="stCross">—</span>
+    <span id="stFrame">—</span>
+    <span class="right">沿用现有视觉令牌；Web 稿仅作设计媒介，不进入构建（R126）</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ===== 令牌：与 Colors.xaml 一致，尺寸与 FlowLayoutStore 一致 ===== */
+const C = {
+  bg:"#F7F9FC", grid:"#E8EDF5",
+  card:"#FFFFFF", cardBd:"#C9D2DE", ink:"#0F172A", ink3:"#94A3B8",
+  run:"#2563EB", fail:"#EF4444",
+  frameBd:"#A5C0E8", frameHd:"#EEF4FF",
+  laneBd:"rgba(75,130,246,.18)", laneHd:"rgba(255,255,255,.70)", laneInk:"#5A6C99",
+  link:"#3B82F6", order:"#94A3B8",
+};
+const NODE_W=156, NODE_H=58, ROW_GAP=28, COL_GAP=64;
+const FRAME_PAD=16, FRAME_HEADER=46, LANE_PAD=14, LANE_HEADER=28;
+
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let DPR=1;
+
+/* ===== 数据 ===== */
+let seq=1;
+const mk=o=>Object.assign(o,{id:"n"+(seq++)});
+const step=(t,s,o)=>mk(Object.assign({kind:"step",title:t,sub:s||"延时",state:"idle",disabled:false},o||{}));
+const group=(t,lanes)=>mk({kind:"group",title:t,lanes});
+let root=[], links=[], byId=new Map(), pos=new Map();
+let wire="orth", dataMode="focus";   // orth | bezier | channel ; all | focus
+let selected=null, hovered=null;
+
+function buildDemo(){
+  seq=1; links=[];
+  const a1=step("图像采集_0","图像采集");
+  const a2=step("图像预处理_0","图像预处理");
+  const a3=step("模板匹配_0","模板匹配");
+  const b1=step("通过_1","延时");
+  const b2=step("记录_1","变量赋值");
+  const b3=step("异常_1","延时",{disabled:true});
+  const g1=group("判断_1",[
+    {id:"laneA",title:"If(1>0)",steps:[b1,b2]},
+    {id:"laneB",title:"Else",steps:[b3]},
+  ]);
+  const a4=step("几何查找_0","几何查找",{state:"running"});
+  const c1=step("循环体_2","延时");
+  const c2=step("累计_2","变量赋值",{state:"failed"});
+  const g2=group("循环_2",[{id:"laneC",title:"循环体",steps:[c1,c2]}]);
+  const a5=step("结果汇总_0","结果显示");
+  const a6=step("OK","延时");
+  root=[a1,a2,a3,g1,a4,g2,a5,a6];
+
+  // 执行顺序（脊柱）：相邻步骤
+  const spine=[a1,a2,a3,g1,a4,g2,a5,a6];
+  for(let i=1;i<spine.length;i++) links.push({from:spine[i-1].id,to:spine[i].id,order:true});
+  links.push({from:b1.id,to:b2.id,order:true});
+  links.push({from:c1.id,to:c2.id,order:true});
+  // 数据引用（跨行、需要绕行的那类）
+  links.push({from:a1.id,to:a2.id});
+  links.push({from:a2.id,to:a3.id});
+  links.push({from:b2.id,to:a4.id});
+  links.push({from:c2.id,to:a5.id});
+  links.push({from:a5.id,to:b1.id});   // 回边
+  layout(); dirty();
+}
+
+function buildStress(n){
+  seq=1; links=[];
+  const total=n||300, arr=[], cols=6;
+  for(let i=0;i<total;i++){
+    arr.push(step("算子_"+i, i%7===0?"图像采集":(i%5===0?"模板匹配":"延时"),
+      {disabled:(i%3===0), state:(i%97===0?"failed":(i%53===0?"running":"idle"))}));
+  }
+  root=arr;
+  for(let i=1;i<total;i++) links.push({from:arr[i-1].id,to:arr[i].id,order:true});
+  layout(); dirty();
+}
+
+/* ===== 布局：与现有画布同构（列 = 深度，纵向 = 顺序，容器包住子节点） ===== */
+function layout(){
+  pos=new Map(); byId=new Map();
+  function place(steps, depth, y0){
+    let y=y0;
+    for(const s of steps){
+      const x=48+depth*(NODE_W+COL_GAP);
+      if(s.kind==="group"){
+        const gx=x, gy=y;
+        const innerX=gx+FRAME_PAD, innerY=gy+FRAME_HEADER+FRAME_PAD;
+        let laneX=innerX, maxBottom=innerY;
+        const lanes=[];
+        for(const lane of s.lanes){
+          let ly=innerY+LANE_HEADER+LANE_PAD;
+          const laneX0=laneX;
+          for(const st of lane.steps){
+            pos.set(st.id,{x:laneX0+LANE_PAD,y:ly,w:NODE_W,h:NODE_H});
+            byId.set(st.id,st);
+            ly+=NODE_H+ROW_GAP;
+          }
+          const laneH=Math.max(NODE_H+LANE_HEADER+LANE_PAD*2+8, ly-innerY);
+          lanes.push({id:lane.id,title:lane.title,x:laneX0,y:innerY,w:NODE_W+LANE_PAD*2,h:laneH});
+          maxBottom=Math.max(maxBottom,innerY+laneH);
+          laneX=laneX0+NODE_W+LANE_PAD*2+COL_GAP;
+        }
+        const gw=Math.max(...lanes.map(l=>l.x+l.w))+FRAME_PAD-gx;
+        const gh=maxBottom-gy+FRAME_PAD;
+        pos.set(s.id,{x:gx,y:gy,w:gw,h:gh,lanes});
+        byId.set(s.id,s);
+        y=gy+gh+ROW_GAP+16;
+      }else{
+        pos.set(s.id,{x,y,w:NODE_W,h:NODE_H});
+        byId.set(s.id,s);
+        y+=NODE_H+ROW_GAP;
+      }
+    }
+    return y;
+  }
+  place(root,0,48);
+  fit();
+}
+
+const view={x:0,y:0,z:1};
+function contentBounds(){
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+  for(const p of pos.values()){ x1=Math.min(x1,p.x);y1=Math.min(y1,p.y);x2=Math.max(x2,p.x+p.w);y2=Math.max(y2,p.y+p.h); }
+  return isFinite(x1)?{x:x1,y:y1,w:x2-x1,h:y2-y1}:null;
+}
+function fit(){
+  const b=contentBounds(); if(!b) return;
+  const W=cv.clientWidth,H=cv.clientHeight;
+  const z=Math.min((W-120)/b.w,(H-120)/b.h);
+  // 演示图（节点少）：直接 0.75 倍从上部看起，卡片文字可读；大图才适应全图
+  if(pos.size<=60){
+    view.z=0.75;
+    view.x=W/2-(b.x+b.w/2)*view.z;
+    view.y=90-b.y*view.z;
+    return;
+  }
+  view.z=Math.max(0.25, Math.min(0.85, z));
+  view.x=W/2-(b.x+b.w/2)*view.z;
+  view.y=H/2-(b.y+b.h/2)*view.z;
+}
+const X=v=>v*view.z+view.x, Y=v=>v*view.z+view.y;
+
+/* ===== 绘制 ===== */
+let dirtyFlag=true, lastFrame=0, lastLinks=0, lastCross=0;
+const dirty=()=>dirtyFlag=true;
+
+function rr(c,x,y,w,h,r){
+  const k=Math.max(0,Math.min(r,w/2,h/2));
+  c.beginPath();c.moveTo(x+k,y);c.arcTo(x+w,y,x+w,y+h,k);c.arcTo(x+w,y+h,x,y+h,k);
+  c.arcTo(x,y+h,x,y,k);c.arcTo(x,y,x+w,y,k);c.closePath();
+}
+
+// 正交路由：H → V → H，拐点落在"列间空隙"里；多条线在该空隙内平行错开
+function orthoPath(a,b,slot){
+  const ax=a.x+a.w, ay=a.y+a.h/2;
+  const bx=b.x, by=b.y+b.h/2;
+  const gapL=b.x-(a.x+a.w);
+  let midX;
+  if(gapL>40){ midX=a.x+a.w+gapL/2; }
+  else { midX=Math.max(ax,bx)+28; }        // 回边：绕到右侧
+  midX+=slot*7;
+  const r=8;
+  const dir=by>=ay?1:-1;
+  const pts=[];
+  pts.push([ax,ay]);
+  pts.push([midX-r,ay]);
+  pts.push([midX,ay+dir*r]);
+  pts.push([midX,by-dir*r]);
+  pts.push([midX+r,by]);
+  pts.push([bx,by]);
+  return pts;
+}
+
+function drawLinks(focusId){
+  const focusSet=new Set();
+  if(focusId){ focusSet.add(focusId);
+    for(const l of links){ if(l.from===focusId) focusSet.add(l.to); if(l.to===focusId) focusSet.add(l.from); }
+  }
+  const dimAll = focusId && dataMode==="focus";
+
+  // 通道模式：按"列间空隙"分组，给同空隙内的线分配槽位
+  const slotOf=new Map();
+  if(wire==="channel"){
+    const buckets=new Map();
+    for(const l of links){
+      const a=pos.get(l.from), b=pos.get(l.to);
+      if(!a||!b) continue;
+      const key=Math.round((a.x+a.w)/10)+":"+Math.round(b.x/10);
+      const arr=buckets.get(key)||[]; arr.push(l); buckets.set(key,arr);
+    }
+    for(const arr of buckets.values()) arr.forEach((l,i)=>slotOf.set(l,i));
+  }
+
+  let drawn=0, cross=0;
+  const segs=[];
+
+  for(const l of links){
+    const a=pos.get(l.from), b=pos.get(l.to);
+    if(!a||!b) continue;
+    const involved = focusId ? (focusSet.has(l.from) || focusSet.has(l.to)) : false;
+    const isOrder = !!l.order;
+
+    // 数据线：常显 / 仅聚焦
+    if(!isOrder && dataMode==="focus" && !involved) continue;
+
+    const alpha = (!focusId) ? 1 : (involved ? 1 : 0.12);
+    drawn++;
+
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.strokeStyle = isOrder ? C.order : (involved && focusId ? C.run : C.link);
+    ctx.lineWidth = isOrder ? 1.2 : (involved && focusId ? 2 : 1.5);
+    ctx.setLineDash(isOrder ? [4,4] : []);
+
+    const ax=a.x+a.w, ay=a.y+a.h/2, bx=b.x, by=b.y+b.h/2;
+    const pts=[];
+    if(isOrder){
+      // 执行顺序 = 脊柱：**底缘中点 → 顶缘中点**的竖直短线（与真机 SourcePosition=Bottom /
+      // TargetPosition=Top 同口径）。旧稿用"右缘→左缘"才导致长距离绕行、看起来乱。
+      const sx0=a.x+a.w/2, sy0=a.y+a.h;
+      const tx0=b.x+b.w/2, ty0=b.y;
+      ctx.beginPath();
+      ctx.moveTo(X(sx0),Y(sy0));
+      if(Math.abs(sx0-tx0)<2){ ctx.lineTo(X(tx0),Y(ty0)); pts.push([sx0,sy0],[tx0,ty0]); }
+      else {
+        const my=(sy0+ty0)/2;
+        ctx.lineTo(X(sx0),Y(my));
+        ctx.lineTo(X(tx0),Y(my));
+        ctx.lineTo(X(tx0),Y(ty0));
+        pts.push([sx0,sy0],[sx0,my],[tx0,my],[tx0,ty0]);
+      }
+      ctx.stroke();
+    } else if(wire==="bezier"){
+      ctx.beginPath();
+      ctx.moveTo(X(ax),Y(ay));
+      ctx.bezierCurveTo(X(ax)+60*view.z,Y(ay),X(bx)-60*view.z,Y(by),X(bx),Y(by));
+      ctx.stroke();
+      pts.push([ax,ay],[bx,by]);
+    } else {
+      const p=orthoPath(a,b,slotOf.get(l)||0);
+      ctx.beginPath();
+      ctx.moveTo(X(p[0][0]),Y(p[0][1]));
+      for(let i=1;i<p.length;i++) ctx.lineTo(X(p[i][0]),Y(p[i][1]));
+      ctx.stroke();
+      for(let i=1;i<p.length;i++) pts.push(p[i]);
+    }
+    ctx.setLineDash([]);
+
+    // 箭头（顺序链朝下，数据线朝右）
+    const hx = isOrder ? (b.x+b.w/2) : bx;
+    const hy = isOrder ? b.y : by;
+    ctx.beginPath();
+    if(isOrder){
+      ctx.moveTo(X(hx),Y(hy));
+      ctx.lineTo(X(hx)-3.5*view.z,Y(hy)-6*view.z);
+      ctx.lineTo(X(hx)+3.5*view.z,Y(hy)-6*view.z);
+    } else {
+      ctx.moveTo(X(hx),Y(hy));
+      ctx.lineTo(X(hx)-6*view.z,Y(hy)-3.5*view.z);
+      ctx.lineTo(X(hx)-6*view.z,Y(hy)+3.5*view.z);
+    }
+    ctx.closePath(); ctx.fillStyle=ctx.strokeStyle; ctx.fill();
+    ctx.restore();
+
+    // 交叉统计（只对正交段做粗略计数）
+    if(wire!=="bezier" && alpha>0.5){
+      for(let i=1;i<pts.length;i++) segs.push([pts[i-1],pts[i],isOrder]);
+    }
+  }
+
+  // 粗算交叉：竖段 × 横段
+  const vert=segs.filter(s=>Math.abs(s[0][0]-s[1][0])<0.5);
+  const horz=segs.filter(s=>Math.abs(s[0][1]-s[1][1])<0.5);
+  for(const v of vert){
+    const vx=v[0][0], y1=Math.min(v[0][1],v[1][1]), y2=Math.max(v[0][1],v[1][1]);
+    for(const h of horz){
+      const hy=h[0][1], x1=Math.min(h[0][0],h[1][0]), x2=Math.max(h[0][0],h[1][0]);
+      if(vx>x1&&vx<x2&&hy>y1&&hy<y2) cross++;
+    }
+  }
+  lastLinks=drawn; lastCross=cross;
+}
+
+function render(){
+  const t0=performance.now();
+  const W=cv.clientWidth,H=cv.clientHeight;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  if(view.z>=0.35){
+    const st=24*view.z;
+    if(st>=7){ ctx.fillStyle=C.grid;
+      const ox=view.x%st, oy=view.y%st;
+      for(let x=ox;x<W;x+=st) for(let y=oy;y<H;y+=st) ctx.fillRect(x,y,1,1);
+    }
+  }
+
+  const focusId=selected||hovered;
+  const vis={x:(0-view.x)/view.z-80,y:(0-view.y)/view.z-80,w:W/view.z+160,h:H/view.z+160};
+  const inView=p=>!(p.x+p.w<vis.x||p.x>vis.x+vis.w||p.y+p.h<vis.y||p.y>vis.y+vis.h);
+
+  // 容器框 + 泳道（垫底）
+  for(const [id,p] of pos){
+    const n=byId.get(id);
+    if(!n||n.kind!=="group"||!inView(p)) continue;
+    rr(ctx,X(p.x),Y(p.y),p.w*view.z,p.h*view.z,12*view.z);
+    ctx.fillStyle="rgba(165,192,232,.10)"; ctx.fill();
+    ctx.strokeStyle=C.frameBd; ctx.lineWidth=Math.max(1,1.5*view.z); ctx.stroke();
+    const hh=Math.min(FRAME_HEADER,p.h)*view.z;
+    if(hh>2){ rr(ctx,X(p.x),Y(p.y),p.w*view.z,hh,12*view.z); ctx.fillStyle=C.frameHd; ctx.fill(); }
+    if(view.z>=0.45){
+      ctx.fillStyle=C.ink; ctx.font=`600 ${12.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline="middle"; ctx.fillText(n.title,X(p.x+12),Y(p.y+hh/(2*view.z)));
+    }
+    for(const lane of p.lanes){
+      if(!inView(lane)) continue;
+      rr(ctx,X(lane.x),Y(lane.y),lane.w*view.z,lane.h*view.z,8*view.z);
+      ctx.fillStyle="rgba(59,130,246,.05)"; ctx.fill();
+      ctx.strokeStyle=C.laneBd; ctx.lineWidth=Math.max(1,1*view.z); ctx.stroke();
+      if(view.z>=0.45){
+        ctx.fillStyle=C.laneInk; ctx.font=`600 ${9.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline="top"; ctx.fillText(lane.title,X(lane.x+8),Y(lane.y+7));
+      }
+    }
+  }
+
+  drawLinks(focusId);
+
+  // 卡片
+  let drawn=0;
+  for(const [id,p] of pos){
+    const n=byId.get(id);
+    if(!n||n.kind==="group"||!inView(p)) continue;
+    drawn++;
+    const x=X(p.x),y=Y(p.y),w=p.w*view.z,h=p.h*view.z;
+    ctx.save();
+    if(n.disabled) ctx.globalAlpha=0.45;
+    const focusDim = focusId && !(id===focusId) && !links.some(l=>(l.from===focusId&&l.to===id)||(l.to===focusId&&l.from===id));
+    if(focusDim && dataMode==="focus") ctx.globalAlpha*=0.55;
+
+    rr(ctx,x,y,w,h,10*view.z);
+    ctx.fillStyle=n.state==="failed"?"#FFF7F7":C.card; ctx.fill();
+    ctx.strokeStyle = id===selected?C.run:(n.state==="failed"?C.fail:(n.state==="running"?C.run:C.cardBd));
+    ctx.lineWidth=Math.max(1,(id===selected?2:1)*view.z); ctx.stroke();
+
+    if(view.z>=0.45){
+      ctx.fillStyle=C.ink; ctx.font=`600 ${14*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline="alphabetic"; ctx.fillText(n.title,x+10*view.z,y+h*0.45);
+      ctx.fillStyle=C.ink3; ctx.font=`${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.fillText(n.sub,x+10*view.z,y+h*0.45+13*view.z);
+    }
+    ctx.restore();
+  }
+
+  lastFrame=performance.now()-t0;
+  const modeName = wire==="bezier"?"现状贝塞尔":(wire==="orth"?"正交":"正交+通道");
+  document.getElementById("hud").innerHTML =
+    `走线 <b>${modeName}</b> · 数据线 <b>${dataMode==="focus"?"仅聚焦":"常显"}</b><br>`
+   + `节点 <b>${drawn}</b> · 连线 <b>${lastLinks}</b> · 估算交叉 <b>${lastCross}</b><br>`
+   + `一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`;
+  document.getElementById("stMode").textContent=`${modeName} · ${dataMode==="focus"?"数据线仅聚焦":"数据线常显"}`;
+  document.getElementById("stLinks").textContent=`连线 ${lastLinks}`;
+  document.getElementById("stCross").textContent=`交叉 ≈ ${lastCross}`;
+  document.getElementById("stFrame").textContent=`一帧 ${lastFrame.toFixed(1)} ms`;
+  dirtyFlag=false;
+}
+
+/* ===== 交互（最小：悬停/点选聚焦、平移、缩放） ===== */
+let drag=null;
+const P=e=>{const r=cv.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top};};
+function hit(p){
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  let best=null;
+  for(const [id,b] of pos){ const n=byId.get(id); if(!n||n.kind==="group") continue;
+    if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h) best=id; }
+  return best;
+}
+cv.addEventListener("mousedown",e=>{const p=P(e); if(e.button===1||e.altKey){drag={m:"pan",x:p.x,y:p.y};return;}
+  selected=hit(p); dirty();});
+window.addEventListener("mousemove",e=>{const p=P(e);
+  if(drag){ view.x+=p.x-drag.x; view.y+=p.y-drag.y; drag.x=p.x; drag.y=p.y; dirty(); return; }
+  const id=hit(p); if(id!==hovered){hovered=id; dirty();}});
+window.addEventListener("mouseup",()=>drag=null);
+cv.addEventListener("wheel",e=>{e.preventDefault();const p=P(e);
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  view.z=Math.max(0.15,Math.min(2.2,view.z*Math.exp(-e.deltaY*0.0015)));
+  view.x=p.x-wx*view.z; view.y=p.y-wy*view.z; dirty();},{passive:false});
+
+/* ===== 按钮 ===== */
+function wireOn(id){ ["w0","w1","w2"].forEach(k=>document.getElementById(k).classList.toggle("on",k===id)); }
+function dataOn(id){ ["d0","d1"].forEach(k=>document.getElementById(k).classList.toggle("on",k===id)); }
+document.getElementById("w0").onclick=()=>{wire="bezier";wireOn("w0");dirty();};
+document.getElementById("w1").onclick=()=>{wire="orth";wireOn("w1");dirty();};
+document.getElementById("w2").onclick=()=>{wire="channel";wireOn("w2");dirty();};
+document.getElementById("d0").onclick=()=>{dataMode="all";dataOn("d0");dirty();};
+document.getElementById("d1").onclick=()=>{dataMode="focus";dataOn("d1");dirty();};
+document.getElementById("btnDemo").onclick=()=>{buildDemo();};
+document.getElementById("btnStress").onclick=()=>{buildStress(300);};
+
+/* ===== 启动 ===== */
+function resize(){
+  const r=cv.getBoundingClientRect();
+  DPR=window.devicePixelRatio||1;
+  cv.width=Math.max(1,Math.round(r.width*DPR));
+  cv.height=Math.max(1,Math.round(r.height*DPR));
+  dirty();
+}
+window.addEventListener("resize",resize);
+function loop(){ if(dirtyFlag){ try{render();}catch(err){window.__err=String(err);dirtyFlag=false;} } requestAnimationFrame(loop); }
+
+resize(); buildDemo(); loop();
+})();
+</script>
+</body>
+</html>

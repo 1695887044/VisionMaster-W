@@ -55,7 +55,9 @@
             <local:TypeNameShortenerConverter x:Key="TypeNameShortener" />
 
             <DataTemplate x:Key="MyDragAdornerTemplate">
-                <controls:DragGhostCard
+                <!--  卡片 + 落点提示条的组合（设计基线 drag-drop-hint v2）：
+                      提示条自己从 DragHintPresenter.Current 取数，本模板只映射卡片三字段  -->
+                <controls:DragGhostStack
                     Category="{Binding Category}"
                     Icon="{Binding Icon}"
                     Title="{Binding Name}" />
@@ -601,6 +603,10 @@
                                 <!--  注意这里刻意不用 ContentPresenter 包一层：ContentPresenter 会把  -->
                                 <!--  自己的 Content 隐式绑到 Expander.Content（我们没设），显式塞进去的子元素  -->
                                 <!--  会跟那条隐式绑定抢同一个属性——模板里直接放控件、用 Visibility 切换最稳。  -->
+                                <!--  UseDefaultEffectDataTemplate=False（2026-10-23）：默认效果浮层是库内置的  -->
+                                <!--  「图标 + Copy to + 目标名」小条，英文且与 DragGhostCard 叠在一起（用户口径  -->
+                                <!--  "拖拽时候的文字能不能修改"）。拖拽反馈已经由 DragAdornerTemplate 的卡片  -->
+                                <!--  承担，这条浮层纯属重复，直接关掉。  -->
                                 <ItemsControl
                                     x:Name="ContentSite"
                                     Grid.Row="1"
@@ -609,7 +615,7 @@
                                     dd:DragDrop.DragAdornerTranslation="16,12"
                                     dd:DragDrop.IsDragSource="True"
                                     dd:DragDrop.UseDefaultDragAdorner="False"
-                                    dd:DragDrop.UseDefaultEffectDataTemplate="True"
+                                    dd:DragDrop.UseDefaultEffectDataTemplate="False"
                                     ItemsSource="{Binding Children}"
                                     Style="{StaticResource ToolItemsStyle}"
                                     Visibility="Collapsed" />

@@ -57,7 +57,7 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 在"Case N"里挑第一个未被占用的 N（用户可能改过分支名，按"当前条数 + 1"会撞名）。
-        /// 与 ProcessViewModel.NextBranchName（并行分支）同一手法。
+        /// 与 FlowBranchEditor.NextBranchName（并行分支）同一手法。
         /// </summary>
         public string NextCaseBranchName()
         {

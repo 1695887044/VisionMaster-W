@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>算子卡片 · 1:1 视觉稿（对照 StepNodeTemplate）</title>
+<style>
+  /* 图标字体：与 App.xaml 的 Icon 令牌同一个文件（需用 http 打开，见页面底部说明） */
+  @font-face{
+    font-family:"FA6Pro";
+    src:url("../../../UI/Controls/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf") format("opentype");
+    font-weight:900;
+  }
+
+  :root{
+    --bg:#F7F9FC;
+    --card-bg:#FFFFFF; --card-bd:#C9D2DE;
+    --ink:#0F172A; --ink-sub:#94A3B8;
+    --run:#2563EB; --fail:#EF4444; --fail-bg:#FFF7F7;
+    --idle:#A8ABB2; --ok:#16A34A; --skip:#CBD5E1;
+    --order-bg:#0F172A; --order-ink:#FFFFFF;
+    --type-bg:#3B5B8C; --type-ink:#FFFFFF;
+    --op-bg:#F5F3FF; --op-bd:#DDD6FE; --op-ink:#6D28D9;
+    --warn:#E6A23C; --bp-ring:#C0C4CC; --bp-on:#F56C6C;
+    --ext-bg:#FFF7E6; --ext-bd:#E6C98A; --ext-ink:#9A6B0F;
+    --run-text:#1D4ED8;
+    --conn:#3B82F6;
+    --line:#E2E8F0; --panel:#FFFFFF;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}
+  .wrap{max-width:1180px;margin:0 auto;padding:20px 24px 60px}
+  h1{font-size:16px;margin:0 0 4px}
+  .sub{color:#64748B;font-size:12px;margin-bottom:18px}
+  h2{font-size:13.5px;margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .note{font-size:11.5px;color:#64748B;line-height:1.9;margin:8px 0 0}
+  code{background:#F1F5F9;border:1px solid var(--line);border-radius:4px;padding:0 4px;
+    font:11px ui-monospace,Consolas,monospace;color:#334155}
+
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:28px 24px;
+    display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+  .cell{display:flex;flex-direction:column;gap:8px}
+  .cap{font-size:11px;color:#64748B}
+  .zoom2{zoom:2}
+
+  /* ============ 算子卡片：尺寸/字号/颜色逐项取自 StepNodeTemplate ============ */
+  .node{position:relative;width:156px;height:58px}
+  .card{
+    position:absolute;inset:0;               /* 156×58，锚点几何基准 */
+    background:var(--card-bg);
+    border:1px solid var(--card-bd);         /* StepCardStyle: 1px */
+    border-radius:10px;                      /* CornerRadius 10 */
+    padding:8px 10px;                        /* Padding 10,8 */
+    display:flex;align-items:center;gap:8px; /* StackPanel Margin 8,0,0,0 */
+  }
+  .icon{
+    flex:0 0 28px;width:28px;height:28px;    /* 28×28 */
+    border-radius:8px;                       /* CornerRadius 8 */
+    border:1px solid var(--cat-bd);
+    background:var(--cat-soft);
+    display:flex;align-items:center;justify-content:center;
+    font-family:"FA6Pro","Segoe MDL2 Assets",sans-serif;
+    font-size:14px;                          /* FontSize 14 */
+    line-height:1;
+    color:var(--cat-accent);
+  }
+  .text{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:center}
+  .title-row{display:flex;align-items:center;gap:4px;min-width:0}
+  .title{
+    max-width:72px;                          /* MaxWidth 72 */
+    font-size:11.5px;font-weight:600;        /* 11.5 SemiBold */
+    color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .type-badge{
+    height:14px;padding:0 4px;border-radius:3px;background:var(--type-bg);color:var(--type-ink);
+    font-size:8px;font-weight:700;line-height:14px;letter-spacing:.3px;
+  }
+  .op-badge{
+    height:14px;padding:0 4px;border-radius:4px;background:var(--op-bg);
+    border:1px solid var(--op-bd);color:var(--op-ink);
+    font-family:Consolas,ui-monospace,monospace;font-size:8px;font-weight:700;line-height:12px;
+  }
+  .subline{
+    margin-top:1px;margin-right:30px;        /* Margin 0,1,30,0 */
+    font-size:9px;color:var(--ink-sub);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+
+  /* 右上角状态点 7×7 */
+  .dot{position:absolute;top:7px;right:8px;width:7px;height:7px;border-radius:50%;background:var(--idle)}
+  /* 序号角标：左上角 -7,-7，16×14 深色胶囊，Consolas 8 Bold */
+  .order{
+    position:absolute;top:-7px;left:-7px;min-width:16px;height:14px;padding:0 3px;
+    border-radius:4px;background:var(--order-bg);color:var(--order-ink);
+    font-family:Consolas,ui-monospace,monospace;font-size:8px;font-weight:700;line-height:14px;text-align:center;
+  }
+  /* 必填缺失角标 14×14（右下，距底 16） */
+  .missing{position:absolute;right:4px;bottom:16px;width:14px;height:14px;display:flex;
+    align-items:center;justify-content:center;font-family:"FA6Pro",sans-serif;font-size:10px;color:var(--warn)}
+  /* 断点：14×14 命中区 + 8×8 圆点（右上，距顶 14） */
+  .bp{position:absolute;right:4px;top:14px;width:14px;height:14px;display:flex;align-items:center;justify-content:center}
+  .bp i{display:block;width:8px;height:8px;border-radius:50%;border:1.2px solid var(--bp-ring);background:transparent}
+  .bp.on i{background:var(--bp-on);border-color:var(--bp-on)}
+  /* 外链角标：12 高，左下，距底 2 */
+  .ext{position:absolute;left:10px;bottom:2px;height:12px;padding:0 4px;border-radius:6px;
+    background:var(--ext-bg);border:1px solid var(--ext-bd);color:var(--ext-ink);
+    font-family:Consolas,ui-monospace,monospace;font-size:8px;font-weight:600;line-height:10px}
+  /* 耗时：右下 8,5，Consolas 8 */
+  .time{position:absolute;right:8px;bottom:5px;font-family:Consolas,ui-monospace,monospace;
+    font-size:8px;color:var(--ink-sub)}
+  /* 连接点：**不显示**（2026-10-24 用户决定）。
+     真机仍保留 12×12 透明命中区用于拖线，但视觉上一个像素都不画。 */
+  .conn{display:none}
+  /* 注释行：卡片下方 2px，10px 灰字，宽 156 */
+  .comment{width:156px;margin-top:2px;font-size:10px;color:var(--ink-sub);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* 状态修饰 */
+  .st-running .card{border-color:var(--run)}
+  .st-failed .card{border-color:var(--fail);background:var(--fail-bg)}
+  .st-selected .card{border-color:var(--run);border-width:2px;box-shadow:0 0 0 2px rgba(37,99,235,.18)}
+  .st-debug .card{border-color:var(--warn);border-width:2px}
+  .st-disabled{opacity:.45}
+  .st-disabled .title{text-decoration:line-through}
+
+  /* 规格表 */
+  table{border-collapse:collapse;width:100%;font-size:12px;background:var(--panel);
+    border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:#F8FAFC;font-weight:600;color:#334155;font-size:11.5px}
+  tr:last-child td{border-bottom:0}
+  td code{font-size:11px}
+  .sw{display:inline-block;width:12px;height:12px;border-radius:3px;border:1px solid rgba(0,0,0,.08);
+    vertical-align:-2px;margin-right:6px}
+  .cats{display:flex;flex-wrap:wrap;gap:10px}
+  .cat{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;font-size:11.5px}
+  .cat .icon{flex:0 0 28px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>算子卡片 · 1:1 视觉稿</h1>
+  <div class="sub">
+    数值逐项取自 <code>VisionMaster\Views\FlowCanvasView.xaml</code> 的 <code>StepNodeTemplate</code>（:438-759）
+    与 <code>UI\Controls\Themes\Colors.xaml</code>；分类色取自 <code>ToolboxCategoryVisuals</code>（:48-67）与其混色规则。
+  </div>
+
+  <h2>一、默认态（1:1 与 200%）</h2>
+  <div class="stage">
+    <div class="cell">
+      <div class="cap">1:1 · 156×58</div>
+      <div id="n1"></div>
+    </div>
+    <div class="cell">
+      <div class="cap">200%（放大看像素细节）</div>
+      <div class="zoom2" id="n2"></div>
+    </div>
+  </div>
+
+  <h2>二、状态矩阵</h2>
+  <div class="stage" id="states"></div>
+
+  <h2>三、规格表（改自绘层时按这张表对齐）</h2>
+  <table>
+    <tr><th style="width:170px">元素</th><th style="width:250px">数值</th><th>来源</th></tr>
+    <tr><td>卡片</td><td>156×58 · 圆角 10 · 描边 1px · 背景 <span class="sw" style="background:#FFFFFF"></span>#FFFFFF</td><td><code>NodeWidth/NodeHeight</code>；<code>StepCardStyle</code>；<code>FlowCanvasNodeBackgroundBrush</code></td></tr>
+    <tr><td>卡片描边</td><td><span class="sw" style="background:#C9D2DE"></span>#C9D2DE（1px）</td><td><code>FlowCanvasNodeBorderBrush</code></td></tr>
+    <tr><td>内边距</td><td>上 8 · 右 10 · 下 8 · 左 10</td><td><code>Border Padding="10,8"</code></td></tr>
+    <tr><td>图标块</td><td>28×28 · 圆角 8 · 1px 描边 · 底色 = 分类色与白混 88% · 描边 = 混 65%</td><td><code>CategorySoftBrushConverter</code> / <code>CategoryBorderBrushConverter</code></td></tr>
+    <tr><td>图标字形</td><td>14px · 颜色 = 分类色 · Font Awesome 6 Pro Solid</td><td><code>FontSize="14"</code>；<code>CategoryAccentBrushConverter</code></td></tr>
+    <tr><td>图标与文字间距</td><td>8</td><td><code>StackPanel Margin="8,0,0,0"</code></td></tr>
+    <tr><td>标题</td><td>11.5px SemiBold · <span class="sw" style="background:#0F172A"></span>#0F172A · 最大宽 72 · 超长省略号</td><td><code>NodeHeaderText</code></td></tr>
+    <tr><td>副标题</td><td>9px · <span class="sw" style="background:#94A3B8"></span>#94A3B8 · 上距 1 · 右让 30</td><td><code>SubTitle</code> TextBlock</td></tr>
+    <tr><td>状态点</td><td>7×7 圆 · 距顶 7 · 距右 8 · 五态色</td><td><code>NodeStatusDotStyle</code>（Idle #A8ABB2 / Running #2563EB / Success #16A34A / Failed #EF4444 / Skipped #CBD5E1）</td></tr>
+    <tr><td>序号角标</td><td>min 16×14 · 圆角 4 · 左上 (-7,-7) · Consolas 8 Bold 白字 · 底 <span class="sw" style="background:#0F172A"></span>#0F172A</td><td><code>NodeOrderBadge</code></td></tr>
+    <tr><td>类型徽标（如 WAIT）</td><td>高 14 · 内距 4 · 圆角 3 · <span class="sw" style="background:#3B5B8C"></span>#3B5B8C · 8px Bold 白字 · 左距 4</td><td><code>NodeTypeBadge</code></td></tr>
+    <tr><td>操作徽标（如 EQ）</td><td>高 14 · 内距 4 · 圆角 4 · 底 <span class="sw" style="background:#F5F3FF"></span>#F5F3FF · 边 <span class="sw" style="background:#DDD6FE"></span>#DDD6FE · 字 <span class="sw" style="background:#6D28D9"></span>#6D28D9 Consolas 8 Bold</td><td><code>NodeOpBadge</code></td></tr>
+    <tr><td>耗时</td><td>Consolas 8px · 右下 (8,5) · 常态 <span class="sw" style="background:#94A3B8"></span>#94A3B8 · 运行中 <span class="sw" style="background:#1D4ED8"></span>#1D4ED8 + Bold</td><td><code>NodeTimeText</code></td></tr>
+    <tr><td>外链角标</td><td>高 12 · 圆角 6 · 左 10 · 底 2 · 底 <span class="sw" style="background:#FFF7E6"></span>#FFF7E6 · 边 <span class="sw" style="background:#E6C98A"></span>#E6C98A · 字 <span class="sw" style="background:#9A6B0F"></span>#9A6B0F Consolas 8</td><td><code>NodeExternalBadge</code></td></tr>
+    <tr><td>必填缺失角标</td><td>14×14 · 右下 (4,16) · 警示黄 <span class="sw" style="background:#E6A23C"></span>#E6A23C · FA <code>f06a</code> 10px</td><td><code>NodeMissingRequiredBadge</code></td></tr>
+    <tr><td>断点</td><td>命中区 14×14 · 右 4 顶 14 · 内圆 8×8 描边 1.2 · 空 <span class="sw" style="background:#C0C4CC"></span>#C0C4CC / 实 <span class="sw" style="background:#F56C6C"></span>#F56C6C</td><td><code>NodeBreakpointDot</code></td></tr>
+    <tr><td>连接点</td><td><b>不显示</b>（2026-10-24 决定）。真机保留 12×12 透明命中区供拖线，视觉零像素</td><td><code>FlowConnectorStyle</code>（:378-）</td></tr>
+    <tr><td>注释行</td><td>宽 156 · 上距 2 · 10px · <span class="sw" style="background:#94A3B8"></span>#94A3B8 · 超长省略号</td><td><code>Comment</code> TextBlock（:739-749）</td></tr>
+    <tr><td>禁用态</td><td>整节点 <code>Opacity 0.45</code> + 标题加删除线</td><td><code>DataTemplate.Triggers</code>（:752-758）</td></tr>
+    <tr><td>失败态</td><td>描边 <span class="sw" style="background:#EF4444"></span>#EF4444 · 底 <span class="sw" style="background:#FFF7F7"></span>#FFF7F7</td><td><code>StepCardStyle</code> Failed 触发器</td></tr>
+    <tr><td>选中态</td><td>描边 <span class="sw" style="background:#2563EB"></span>#2563EB · 2px（另有 Nodify 光晕）</td><td><code>StepCardStyle</code> IsSelected 触发器</td></tr>
+    <tr><td>调试停驻</td><td>描边 <span class="sw" style="background:#E6A23C"></span>#E6A23C · 2px</td><td><code>IsDebugStopped</code> 触发器</td></tr>
+  </table>
+
+  <h2>四、14 个分类色（图标块三色由它派生）</h2>
+  <div class="cats" id="cats"></div>
+  <p class="note">
+    浅底 = 分类色与白混 <b>88%</b>；描边 = 混 <b>65%</b>；图标字 = 分类色原值。
+    未登记分类回落 <span class="sw" style="background:#909399"></span>#909399 + <code>f1b3</code>。
+  </p>
+
+  <h2>五、说明</h2>
+  <p class="note">
+    ① 本页为**视觉基准**，只定义"看起来一样"；交互与布局不在本页范围。<br>
+    ② 图标字形用仓库自带的 Font Awesome 6 Pro Solid（<code>UI\Controls\Asserts\FontFamilys</code>），
+       需以 http 方式打开本页（在仓库根执行 <code>python -m http.server</code>，再访问
+       <code>/docs/UI设计基线/flow-canvas-interaction/design-node.html</code>）；直接双击 file:// 时字形可能不加载。<br>
+    ③ 自绘层要对齐的是这张表里的**每一项**；当前自绘实现缺：序号胶囊、耗时、注释行、
+       必填/断点/外链角标、删除线、选中光晕。<b>连接点不画</b>（2026-10-24 决定），
+       所以自绘层也不需要补圆环——只保留 12×12 透明命中区即可。
+  </p>
+</div>
+
+<script>
+/* ===== 分类色表：与 ToolboxCategoryVisuals.Map 逐条一致 ===== */
+const CATS = [
+  ["逻辑控制","\uF0E8","#6366F1"],
+  ["流程控制","\uF126","#0EA5E9"],
+  ["逻辑判断","\uF1B2","#8B5CF6"],
+  ["变量操作","\uF044","#14B8A6"],
+  ["图像处理","\uF1C5","#3B82F6"],
+  ["缺陷检测","\uF188","#EF4444"],
+  ["测量","\uF545","#F59E0B"],
+  ["标定","\uF05B","#06B6D4"],
+  ["几何工具","\uF140","#10B981"],
+  ["定位","\uF3C5","#F97316"],
+  ["数据处理","\uF1C0","#64748B"],
+  ["常用工具","\uF080","#6B7280"],
+  ["运动控制","\uF0D1","#65A30D"],
+  ["通讯","\uF519","#D946EF"],
+  ["(未登记)","\uF1B3","#909399"],
+];
+
+function hexToRgb(h){ const n=parseInt(h.slice(1),16); return [(n>>16)&255,(n>>8)&255,n&255]; }
+function mix(hex, ratio){           // 与 CategorySoft/BorderBrushConverter 同一算式
+  const [r,g,b]=hexToRgb(hex);
+  const f=c=>Math.round(c+(255-c)*ratio);
+  return `rgb(${f(r)},${f(g)},${f(b)})`;
+}
+
+/* 生成一个算子卡片 */
+function node(o){
+  o = Object.assign({
+    title:"图像采集_0", sub:"图像采集", order:"1", cat:"图像处理",
+    state:"idle", selected:false, disabled:false, debug:false,
+    time:"", running:false, bp:false, missing:false,
+    ext:"", typeBadge:"", opBadge:"", comment:"",
+    connIn:"none", connOut:"none"      // none | hover | linked
+  }, o);
+
+  const cat = CATS.find(c=>c[0]===o.cat) || CATS[CATS.length-1];
+  const dotColor = o.state==="running" ? "#2563EB"
+                 : o.state==="failed"  ? "#EF4444"
+                 : o.state==="success" ? "#16A34A"
+                 : o.state==="skipped" ? "#CBD5E1"
+                 : "#A8ABB2";
+
+  const cls = ["node"];
+  if(o.state==="running") cls.push("st-running");
+  if(o.state==="failed")  cls.push("st-failed");
+  if(o.selected)          cls.push("st-selected");
+  if(o.debug)             cls.push("st-debug");
+  if(o.disabled)          cls.push("st-disabled");
+
+  const connCls = v => v==="linked" ? "conn visible linked" : (v==="hover" ? "conn visible" : "conn");
+
+  const el = document.createElement("div");
+  el.className = cls.join(" ");
+  el.innerHTML = `
+    <div class="card" style="--cat-soft:${mix(cat[2],0.88)};--cat-bd:${mix(cat[2],0.65)};--cat-accent:${cat[2]}">
+      <div class="icon">&#x${cat[1].codePointAt(0).toString(16)};</div>
+      <div class="text">
+        <div class="title-row">
+          <div class="title">${o.title}</div>
+          ${o.typeBadge ? `<div class="type-badge">${o.typeBadge}</div>` : ""}
+          ${o.opBadge ? `<div class="op-badge">${o.opBadge}</div>` : ""}
+        </div>
+        <div class="subline">${o.sub}</div>
+      </div>
+      <div class="conn ${o.connIn==="linked"?"visible linked":(o.connIn==="hover"?"visible":"")} in"></div>
+      <div class="conn ${o.connOut==="linked"?"visible linked":(o.connOut==="hover"?"visible":"")} out"></div>
+    </div>
+    <div class="dot" style="background:${dotColor}"></div>
+    ${o.order ? `<div class="order">${o.order}</div>` : ""}
+    ${o.missing ? `<div class="missing">&#xf06a;</div>` : ""}
+    <div class="bp ${o.bp?"on":""}"><i></i></div>
+    ${o.ext ? `<div class="ext">${o.ext}</div>` : ""}
+    ${o.time ? `<div class="time" style="${o.running?"color:#1D4ED8;font-weight:700":""}">${o.time}</div>` : ""}
+  `;
+  if(o.comment){
+    const c=document.createElement("div"); c.className="comment"; c.textContent=o.comment;
+    const wrap=document.createElement("div"); wrap.appendChild(el); wrap.appendChild(c); return wrap;
+  }
+  return el;
+}
+
+/* 默认态 */
+document.getElementById("n1").appendChild(node({}));
+document.getElementById("n2").appendChild(node({}));
+
+/* 状态矩阵 */
+const states=[
+  ["默认", {}],
+  ["运行中", {state:"running", time:"12.4 ms", running:true}],
+  ["失败", {state:"failed", time:"87.6 ms"}],
+  ["选中", {selected:true, connIn:"linked", connOut:"linked"}],
+  ["禁用", {disabled:true}],
+  ["调试停驻", {debug:true}],
+  ["断点", {bp:true}],
+  ["必填缺失", {missing:true}],
+  ["带耗时", {time:"12.4 ms"}],
+  ["外链角标", {ext:"×2"}],
+  ["类型徽标", {typeBadge:"WAIT"}],
+  ["操作徽标", {opBadge:"EQ"}],
+  ["无连接点（当前）", {}],
+  ["带注释行", {comment:"等待上料信号，超时 3s 报警"}],
+];
+const box=document.getElementById("states");
+for(const [cap,o] of states){
+  const cell=document.createElement("div"); cell.className="cell";
+  const c=document.createElement("div"); c.className="cap"; c.textContent=cap;
+  cell.appendChild(c); cell.appendChild(node(o)); box.appendChild(cell);
+}
+
+/* 分类色卡 */
+const cats=document.getElementById("cats");
+for(const [name,glyph,hex] of CATS){
+  const d=document.createElement("div"); d.className="cat";
+  d.innerHTML=`<div class="icon" style="--cat-soft:${mix(hex,0.88)};--cat-bd:${mix(hex,0.65)};--cat-accent:${hex}">&#x${glyph.codePointAt(0).toString(16)};</div>
+    <div><div style="font-weight:600;font-size:11.5px">${name}</div>
+    <div style="font-family:Consolas,monospace;font-size:10.5px;color:#64748B">${hex}</div></div>`;
+  cats.appendChild(d);
+}
+</script>
+</body>
+</html>

@@ -171,8 +171,49 @@ Context.SetOutput(""Result"", ""ok"");
             // 空名字行 = 无效配置：先用锚点名字补回（保住绑定，也避免留下没有端口的孤儿键）。
             // 直接删键会让"清空名字后误点确认/试运行"永久丢绑定；留着空名又会让流程编译失败。
             RestoreEmptyNames();
+
+            // 重名/空名必须在**任何写入之前**拒绝：重名会让端口折叠（先到先得），
+            // 另一行的连线随后会被 RemoveOrphanLinks 当孤儿删掉——配置看着正常、运行拿错值。
+            // 宿主 Confirm()/ExecutePlugin() 都 catch OnConfirm 的异常并保持窗口打开，消息直达状态栏。
+            string nameError = GetVariableNamesError();
+            if (nameError != null) throw new InvalidOperationException(nameError);
+
+            // 共享变量的空别名在确认这一刻固化成当前变量名：之后变量管理里改名，
+            // 脚本里写好的键不再跟着漂（声明行仍按 Id 寻址，两件事互不干扰）。
+            if (SharedVars != null)
+                foreach (var def in SharedVars)
+                    def?.CaptureAliasIfEmpty();
+
             base.OnConfirm(stepData);
             RemoveOrphanLinks(stepData);
+        }
+
+        /// <summary>
+        /// 变量表名校验（输入表内部、输出表内部各自唯一且非空）。
+        ///
+        /// 输入与输出是两个独立的命名空间（脚本分别用 GetInput / SetOutput 取写），
+        /// 所以允许同名，只拦同一张表里的重复。
+        /// </summary>
+        private string GetVariableNamesError() =>
+            GetVarNamesError(InputVars, isInput: true) ?? GetVarNamesError(OutputVars, isInput: false);
+
+        private static string GetVarNamesError(IList<ScriptVarDef> vars, bool isInput)
+        {
+            if (vars == null) return null;
+            string table = isInput ? "输入变量" : "输出变量";
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (int i = 0; i < vars.Count; i++)
+            {
+                var v = vars[i];
+                if (v == null) continue;
+                string name = v.Name ?? "";
+                if (string.IsNullOrWhiteSpace(name))
+                    return $"{table}第 {i + 1} 行名字为空：请填写名字、改回原名字或删掉该行";
+                if (seen.TryGetValue(name, out int first))
+                    return $"{table}第 {i + 1} 行「{name}」与第 {first + 1} 行重名：端口只会建一个，另一行的连线会在确认时丢失，请改成不同的名字";
+                seen[name] = i;
+            }
+            return null;
         }
 
         /// <summary>把空名字的输入行恢复成锚点名字（锚点不存在则保持空，由清理按"无端口"处理）。</summary>
@@ -358,6 +399,17 @@ Context.SetOutput(""Result"", ""ok"");
                 }
             }
 
+            // 改名撞名时 MigrateInputKey 刻意"不迁移、也不前进锚点"（见其注释），
+            // 此刻连线键仍挂在锚点上、且仍属于某一行。把它当孤儿删掉就是静默丢绑定，
+            // 所以活行的锚点也算有效键；等用户改成不冲突的名字后由 MigrateInputKey 迁过去。
+            foreach (var kvp in _linkKeys)
+            {
+                if (kvp.Key == null || string.IsNullOrWhiteSpace(kvp.Value)) continue;
+                if (!_varIsInput.TryGetValue(kvp.Key, out bool isInput) || !isInput) continue;
+                if (InputVars == null || !InputVars.Contains(kvp.Key)) continue;
+                valid.Add(kvp.Value);
+            }
+
             foreach (var key in inventory.GetLinkedPortNames().ToList())
             {
                 if (!valid.Contains(key)) stepData.RemoveLink(key);
@@ -399,7 +451,18 @@ Context.SetOutput(""Result"", ""ok"");
                 if (Inputs.TryGetValue(name, out var oldPort)) preserved[name] = oldPort.Value;
 
             foreach (var name in _dynamicInputNames)
+            {
+                Inputs.TryGetValue(name, out var oldPort);
                 RemoveDynamicInput(name);
+                // 摘掉字典键不等于解订阅：上游 OutputPort 的 ValueChanged 委托仍指着这个旧端口，
+                // 于是每次改名/改类型都留下一份"旧端口 + 它缓存的上游图像"。编辑期反复敲键盘
+                // 就是逐次累积，只有插件 Dispose 时才轮到它——那时字典里早就没有这些键了。
+                if (oldPort is IDisposable disposable)
+                {
+                    try { disposable.Dispose(); }
+                    catch { /* 退订失败不该挡住端口重建 */ }
+                }
+            }
             _dynamicInputNames.Clear();
 
             if (InputVars != null)
@@ -426,14 +489,24 @@ Context.SetOutput(""Result"", ""ok"");
         /// <summary>按 OutputVars 定义重建动态输出端口，并写 StepData 输出快照。</summary>
         public void RebuildDynamicOutputs()
         {
+            // 先留一份重建前的端口对象：ClearDynamicOutputs 只摘字典键，
+            // 旧端口若仍被下游输入端口当 LinkedSource 指着，它承载的图像就出不去。
+            var previous = new Dictionary<string, IOutputPort>(StringComparer.Ordinal);
+            foreach (var kvp in Outputs) previous[kvp.Key] = kvp.Value;
+
             ClearDynamicOutputs();
 
             var snapshot = new List<DynamicPortInfo>();
+            var seenNames = new HashSet<string>(StringComparer.Ordinal);
             if (OutputVars != null)
             {
                 foreach (var v in OutputVars)
                 {
                     if (v == null || string.IsNullOrWhiteSpace(v.Name)) continue;
+                    // 重名行不建端口（AddDynamicOutput 见同名也静默不建），快照必须与端口集合同口径，
+                    // 否则编译期会看到两份同名输出、下游按名字取时行为取决于谁先被读。
+                    // 重名本身由 OnConfirm 拒绝（GetVarNamesError），这里只是编辑期的 1:1 保证。
+                    if (!seenNames.Add(v.Name)) continue;
                     var port = CreateOutputPort(v);
                     AddDynamicOutput(port);
                     snapshot.Add(new DynamicPortInfo
@@ -449,7 +522,26 @@ Context.SetOutput(""Result"", ""ok"");
             if (StepData != null)
                 StepData.OutputPortDefinitions = snapshot;
 
+            ReleaseRemovedOutputValues(previous);
             NotifyPortsRebuilt();
+        }
+
+        /// <summary>
+        /// 被本次重建摘掉的输出端口：断开它承载的值引用。
+        ///
+        /// 只断引用、**不 Dispose**：输出值常常就是上游的图（脚本透传），释放权归生产者，
+        /// 基类也只在轮首与插件 Dispose 时按同一判据回收。断引用的收益是让"旧端口被下游指着"
+        /// 时不再顺带钉住一张图；下游会在下次编译重新指向新端口。
+        /// </summary>
+        private void ReleaseRemovedOutputValues(IReadOnlyDictionary<string, IOutputPort> previous)
+        {
+            foreach (var kvp in previous)
+            {
+                if (Outputs.TryGetValue(kvp.Key, out var current) && ReferenceEquals(current, kvp.Value)) continue;
+                if (kvp.Value.Value is not IDisposable) continue;   // int/string 之类没必要惊动 ValueChanged
+                try { kvp.Value.Value = null; }
+                catch { /* 端口已失效不该挡住重建 */ }
+            }
         }
 
         private static IInputPort CreateInputPort(ScriptVarDef v) => v.Type switch
@@ -751,10 +843,16 @@ Context.SetOutput(""Result"", ""ok"");
                 var option = FindSharedCandidate(def);
                 if (option == null) continue;
 
+                // 顺序有讲究：先把"脚本此刻用的键"按**旧名**固化，再覆盖成宿主当前名。
+                // 反过来做就等于让脚本键跟着变量管理里的改名一起漂。
+                def.CaptureAliasIfEmpty();
+
                 def.VariableId = option.VariableId;
                 def.Name = option.Name;
                 def.TypeName = option.TypeName;
                 def.IsSystem = option.IsSystem;
+
+                def.CaptureAliasIfEmpty();   // 首次绑定（此前没有名字）用当前名兜上
             }
         }
 
@@ -778,6 +876,11 @@ Context.SetOutput(""Result"", ""ok"");
         /// <summary>校验脚本（不执行）：先查共享变量用法，再强制重编译当前脚本正文。返回 null=通过；否则为带行列号的错误。</summary>
         public string ValidateScript()
         {
+            // 变量表重名/空名先查：这类错误会让端口折叠或连线丢失，且与脚本正文无关，
+            // 在编译前报出来最省事（文案与确认时拒绝的完全一致）。
+            string nameError = GetVariableNamesError();
+            if (nameError != null) return nameError;
+
             // 共享变量用法先查：未声明/只读被写这类错误，Roslyn 只会报"方法不存在/类型不对"，
             // 定位不到"去左侧共享变量表加一行"这个可执行动作。
             string sharedError = ScriptSharedUsageValidator.Validate(ScriptText, SharedVars);
@@ -818,15 +921,35 @@ Context.SetOutput(""Result"", ""ok"");
             }
 
             // —— 构造脚本门面（把端口/变量/日志/显示能力注入脚本）——
+            // 端口名是字符串：拼错时不再静默（GetInput 拿默认值 / SetOutput 直接丢），
+            // 每轮每个名字 Warn 一次，避免长循环里刷屏。
+            var warnedMissingPorts = new HashSet<string>(StringComparer.Ordinal);
+            void WarnMissingPort(string direction, string name)
+            {
+                string key = (name ?? "").Trim();
+                if (!warnedMissingPorts.Add(direction + ":" + key)) return;
+                context?.Logger?.Warn($"[{InstanceName}] 脚本引用了不存在的{direction}端口「{(key.Length == 0 ? "(空)" : key)}」：请核对左侧变量表与脚本里的字符串");
+            }
+
             var globals = new ScriptContext(
                 context,
-                getInput: name => context != null && Inputs.TryGetValue(name, out var p) ? p.GetActualValue() : null,
+                getInput: name =>
+                {
+                    if (context != null && Inputs.TryGetValue(name ?? "", out var p))
+                        return p.GetActualValue();
+                    WarnMissingPort("输入", name);
+                    return null;
+                },
                 setOutput: (name, value) =>
                 {
-                    if (Outputs.TryGetValue(name, out var op))
+                    if (Outputs.TryGetValue(name ?? "", out var op))
                     {
                         try { op.Value = value; }
                         catch (Exception ex) { throw new InvalidCastException($"写输出端口[{name}]失败：{ex.Message}", ex); }
+                    }
+                    else
+                    {
+                        WarnMissingPort("输出", name);
                     }
                 },
                 showImage: (img, view) =>
@@ -848,7 +971,8 @@ Context.SetOutput(""Result"", ""ok"");
                     if (img != null && img.IsInitialized())
                         this.PublishPreview(img, view, title, info, marks);
                 },
-                shared: new ScriptSharedAccessor(SharedVars, context?.SharedVariables))
+                shared: new ScriptSharedAccessor(SharedVars, context?.SharedVariables),
+                cancellationToken: context?.CancellationToken ?? CancellationToken.None)
             {
                 Host = InstanceName
             };
@@ -883,6 +1007,11 @@ Context.SetOutput(""Result"", ""ok"");
                 Success.Value = false;
                 ErrorMessage.Value = d != null ? FormatDiagnosticSafe(d) : ("脚本编译错误: " + cex.Message);
             }
+            catch (OperationCanceledException) when (context?.CancellationToken.IsCancellationRequested == true)
+            {
+                // 取消不是失败（与基类 Execute 同口径）：原样上抛，节点层按"令牌已取消"记 Skipped
+                throw;
+            }
             catch (Exception ex)
             {
                 // 脚本内抛出的异常 = 失败（剥掉 TargetInvocation 外壳，给可读信息）
@@ -899,7 +1028,9 @@ Context.SetOutput(""Result"", ""ok"");
             if (OutputVars == null) return;
             foreach (var v in OutputVars)
             {
-                if (v == null || v.DisplayWindow < 1 || !v.IsIconic) continue;
+                // 按"界面给了显示窗口的类型"判定 = 只有 HImage。宿主预览通道只收 HImage，
+                // 用 IsIconic 判会让区域/轮廓行选了窗口却什么都不发生（静默），承诺与实现就此分家。
+                if (v == null || v.DisplayWindow < 1 || !v.ShowsDisplayWindow) continue;
                 if (!Outputs.TryGetValue(v.Name, out var port)) continue;
                 if (port.Value is HImage hi && hi.IsInitialized())
                     this.PublishPreview(hi, v.DisplayWindow);

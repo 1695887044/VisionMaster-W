@@ -60,6 +60,11 @@ namespace HelpProbe
                 return 0;
             }
 
+            // 2026-10-24 修复：探针进程自己不是 WPF 资源包的一部分，默认 ResourceAssembly 是 HelpProbe 自己
+            //   → HelpView.xaml 里那条 /VisionMaster;component/Resources/Icons/help.ico 在「窗口样式应用时」
+            //   解析不到（报「找不到资源 resources/icons/help.ico」），把整段断言带崩。
+            //   真机 App.xaml 里 ResourceAssembly 天然是 VisionMaster，这里必须显式指过去才能同构。
+            SetResourceAssembly(typeof(VisionMaster.App).Assembly);
             var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             MergeAppResources(app, repoRoot);
             // 无 Prism 容器：视图上的 AutoWireViewModel 走"返回 null"，我们手工塞 DataContext
@@ -1187,6 +1192,18 @@ namespace HelpProbe
         {
             // <仓库根>\HelpProbe\bin\<Cfg>\net9.0-windows\ → 上四级
             return Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, @"..\..\..\..\"));
+        }
+
+        /// <summary>
+        /// 把 WPF 的「资源包程序集」指到 VisionMaster（真机里它就是入口程序集）。
+        /// 探针进程的入口程序集是 HelpProbe.exe，若不指过去，所有 /VisionMaster;component/… 的
+        /// pack URI（HelpView.xaml 的窗口图标）都会在解析期报「找不到资源」。
+        /// 只能改一次（改过再加 Application 会抛），所以放在建 Application 之前、且判空跳过。
+        /// </summary>
+        private static void SetResourceAssembly(System.Reflection.Assembly assembly)
+        {
+            if (Application.ResourceAssembly == null)
+                Application.ResourceAssembly = assembly;
         }
 
         /// <summary>按 App.xaml 的方式合并全局资源（照抄 UIThemeSmokeTest 的做法）</summary>

@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisionMaster · 顶栏 / 底栏 chrome 优化 · Web 设计基线 v1</title>
+<style>
+  /* =====================================================================
+     VisionMaster · 主界面 chrome（顶栏 + 底栏）设计基线 v1
+     设计媒介，不是交付物（AGENTS.md R126）。颜色全部收敛在 #chrome-root
+     的 CSS 变量里，README 的令牌映射表一一对应 UI/Controls/Themes/Colors.xaml。
+     ===================================================================== */
+  :root{
+    --page-bg:#E9EEF5;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.16) 1px, transparent 0) 0 0/24px 24px,
+      var(--page-bg);
+    color:#0F172A;
+    font-family:var(--font);
+    font-size:13px;
+    line-height:1.5;
+    padding:26px 26px 60px;
+    -webkit-font-smoothing:antialiased;
+  }
+  button{ font-family:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
+  code{ font-family:var(--mono); font-size:11.5px; }
+
+  /* ---------- 页面说明（不属于应用界面） ---------- */
+  .page{ max-width:1560px; margin:0 auto 18px; }
+  .page h1{ margin:0; font-size:20px; font-weight:600; display:flex; align-items:center; gap:10px; letter-spacing:-.01em; }
+  .ver{ display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px;
+        background:#E0F2FE; color:#0284C7; font-size:11px; font-weight:700; }
+  .page .meta{ margin:7px 0 0; color:#475569; font-size:12.5px; max-width:1400px; }
+  .page .meta b{ color:#0F172A; }
+  .legend{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .tag{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:6px;
+        background:#FFFFFF; border:1px solid #E2E8F0; color:#475569; font-size:11.5px; }
+  .tag i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot-p0{ background:#EF4444; } .dot-p1{ background:#F59E0B; } .dot-p2{ background:#3B82F6; }
+
+  /* ---------- 设计画布（应用界面本体，1920×1080 等比缩放） ---------- */
+  .frame{
+    max-width:1560px; margin:0 auto 22px; background:#FFF; border:1px solid #CBD5E1;
+    border-radius:14px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,.12), 0 2px 8px rgba(15,23,42,.05);
+  }
+  .frame-head{
+    display:flex; align-items:center; gap:10px; padding:10px 14px; background:#F8FAFC;
+    border-bottom:1px solid #E2E8F0;
+  }
+  .frame-head .t{ font-size:13px; font-weight:600; }
+  .frame-head .s{ font-size:11.5px; color:#64748B; }
+  .seg{ margin-left:auto; display:flex; gap:2px; background:#F1F5F9; border-radius:8px; padding:3px; }
+  .seg button{
+    height:26px; padding:0 11px; border-radius:6px; font-size:12px; color:#475569;
+    transition:background .15s ease, color .15s ease;
+  }
+  .seg button:hover{ background:#E2E8F0; color:#0F172A; }
+  .seg button.on{ background:#FFFFFF; color:#0F172A; font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.08); }
+
+  .stagewrap{ background:#E9EEF5; padding:16px; }
+  .stage{
+    width:100%; border-radius:10px; overflow:hidden; border:1px solid #CBD5E1; background:#FFFFFF;
+    box-shadow:0 2px 8px rgba(15,23,42,.06);
+  }
+  .screen{ position:relative; width:100%; aspect-ratio:16/9; display:flex; flex-direction:column; background:#F1F5F9; }
+
+  /* =====================================================================
+     应用界面令牌（与 Colors.xaml / ScadaTokens.xaml 对应，见 README 映射表）
+     ===================================================================== */
+  #chrome-root{
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --surface-3:#F1F5F9;
+    --border:#E2E8F0;
+    --border-soft:#EEF2F7;
+    --border-strong:#CBD5E1;
+    --text:#0F172A;
+    --text-2:#475569;
+    --text-3:#94A3B8;
+    --primary:#0EA5E9;
+    --primary-strong:#0284C7;
+    --primary-soft:#F0F9FF;
+    --primary-light:#E0F2FE;
+    --success:#15803D;  --success-chip:#F0FDF4; --success-line:#22C55E;
+    --danger:#B91C1C;   --danger-chip:#FEF2F2;  --danger-line:#EF4444;
+    --warning:#B45309;  --warning-chip:#FFF4E5; --warning-line:#F59E0B;
+    --radius-sm:6px; --radius-md:8px; --radius-pill:999px;
+    --titlebar-h:40px; --statusbar-h:28px; --runbar-h:48px;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-pop:0 8px 24px rgba(15,23,42,.14), 0 2px 6px rgba(15,23,42,.06);
+  }
+
+  /* ---------------- 顶栏 ---------------- */
+  .titlebar{
+    height:40px; flex:none; display:flex; align-items:center; gap:4px; padding:0 0 0 8px;
+    background:var(--surface); border-bottom:1px solid var(--border); position:relative; z-index:5;
+  }
+  .tb-brand{ display:flex; align-items:center; gap:7px; padding-right:6px; }
+  .tb-logo{
+    width:22px; height:22px; border-radius:6px; display:grid; place-items:center;
+    background:linear-gradient(135deg,#0EA5E9,#2563EB); color:#FFF; font-size:11px; font-weight:700;
+  }
+  .tb-file{
+    height:26px; display:flex; align-items:center; gap:6px; padding:0 9px; border-radius:var(--radius-sm);
+    font-size:12.5px; color:var(--text-2); transition:background .15s ease,color .15s ease;
+  }
+  .tb-file:hover{ background:var(--surface-3); color:var(--text); }
+  .tb-file.on{ background:var(--primary-light); color:var(--primary-strong); font-weight:600; }
+  .tb-sep{ width:1px; height:18px; background:var(--border); margin:0 6px; flex:none; }
+
+  .modes{ display:flex; align-items:center; gap:2px; background:var(--surface-3); border-radius:var(--radius-md); padding:3px; }
+  .modes .m{
+    height:24px; display:flex; align-items:center; gap:5px; padding:0 10px; border-radius:var(--radius-sm);
+    font-size:12px; color:var(--text-2); transition:background .15s ease,color .15s ease,box-shadow .15s ease;
+  }
+  .modes .m:hover{ background:#E2E8F0; color:var(--text); }
+  .modes .m.on{ background:var(--surface); color:var(--text); font-weight:600; box-shadow:var(--shadow-1); }
+  .modes .m .k{ font-size:10px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .modes .m.on .k{ color:var(--primary-strong); }
+  .mode-hint{ display:none; margin-left:6px; }
+  .modes .m.on .mode-hint{
+    display:inline-flex; align-items:center; height:17px; padding:0 6px; border-radius:var(--radius-pill);
+    font-size:10px; font-weight:600; background:var(--primary-soft); color:var(--primary-strong);
+  }
+
+  .tb-actions{ display:flex; align-items:center; gap:2px; }
+  .ib{
+    width:28px; height:28px; border-radius:var(--radius-sm); display:grid; place-items:center;
+    color:var(--text-2); transition:background .15s ease,color .15s ease;
+  }
+  .ib:hover{ background:var(--surface-3); color:var(--text); }
+  .ib:active{ background:var(--primary-light); }
+  .ib[disabled]{ opacity:.35; cursor:not-allowed; }
+  .ib[disabled]:hover{ background:none; }
+  .ib .badge{
+    position:absolute; translate:9px -9px; min-width:14px; height:14px; border-radius:var(--radius-pill);
+    background:var(--danger-line); color:#FFF; font-size:9.5px; font-weight:700; display:grid; place-items:center; padding:0 3px;
+  }
+  .ib-wrap{ position:relative; display:inline-flex; }
+
+  .tb-doc{
+    margin:0 auto; display:flex; align-items:center; gap:8px; padding:0 10px; height:28px;
+    border-radius:var(--radius-sm); transition:background .15s ease;
+  }
+  .tb-doc:hover{ background:var(--surface-3); }
+  .tb-doc .nm{ font-size:13px; font-weight:600; color:var(--text); max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tb-doc .st{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-2); }
+  .tb-doc .st .d{ width:6px; height:6px; border-radius:50%; background:var(--success-line); }
+  .tb-doc .st.warn .d{ background:var(--warning-line); }
+  .tb-doc .st.err .d{ background:var(--danger-line); }
+  .tb-doc .path{ font-size:11px; color:var(--text-3); max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  .winctl{ display:flex; align-items:stretch; height:40px; }
+  .winctl button{ width:46px; display:grid; place-items:center; color:var(--text-2); transition:background .15s ease,color .15s ease; }
+  .winctl button:hover{ background:var(--surface-3); color:var(--text); }
+  .winctl button.close:hover{ background:#DC2626; color:#FFF; }
+
+  /* ---------------- 运行条 ---------------- */
+  .runbar{
+    height:var(--runbar-h); flex:none; display:flex; align-items:center; gap:10px; padding:0 12px;
+    background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .state{
+    display:flex; align-items:center; gap:7px; height:28px; padding:0 10px 0 9px; border-radius:var(--radius-pill);
+    background:var(--surface-3); font-size:12px; font-weight:600; color:var(--text-2);
+  }
+  .state .d{ width:8px; height:8px; border-radius:50%; background:var(--text-3); }
+  .state.run{ background:var(--success-chip); color:var(--success); }
+  .state.run .d{ background:var(--success-line); box-shadow:0 0 0 3px rgba(34,197,94,.18); }
+  .state.pause{ background:var(--warning-chip); color:var(--warning); }
+  .state.pause .d{ background:var(--warning-line); }
+  .state.err{ background:var(--danger-chip); color:var(--danger); }
+  .state.err .d{ background:var(--danger-line); }
+  .state .el{ font-size:11px; font-weight:500; color:inherit; opacity:.85; font-variant-numeric:tabular-nums; }
+
+  .runbar .sp{ flex:1; }
+  .btn{
+    height:30px; display:inline-flex; align-items:center; gap:6px; padding:0 12px; border-radius:var(--radius-sm);
+    font-size:12.5px; font-weight:500; border:1px solid transparent; transition:background .15s ease,border-color .15s ease,color .15s ease;
+  }
+  .btn.ghost{ color:var(--text-2); }
+  .btn.ghost:hover{ background:var(--surface-3); color:var(--text); }
+  .btn.line{ border-color:var(--border-strong); color:var(--text); background:var(--surface); }
+  .btn.line:hover{ background:var(--surface-2); border-color:#B6C2D2; }
+  .btn.pri{ background:var(--primary-strong); color:#FFF; }
+  .btn.pri:hover{ background:#0369A1; }
+  .btn.danger{ background:var(--danger-line); color:#FFF; }
+  .btn.danger:hover{ background:#DC2626; }
+  .btn[disabled]{ opacity:.4; cursor:not-allowed; background:var(--surface-3); color:var(--text-3); border-color:transparent; }
+  .btn .kbd{ font-size:10.5px; padding:1px 5px; border-radius:4px; background:rgba(15,23,42,.06); color:var(--text-2); }
+  .btn.pri .kbd,.btn.danger .kbd{ background:rgba(255,255,255,.18); color:#FFF; }
+  .btn.icon{ padding:0 9px; }
+  .split{ display:flex; align-items:center; }
+  .split .btn.line:first-child{ border-top-right-radius:0; border-bottom-right-radius:0; }
+  .split .btn.line:last-child{ border-left:0; border-top-left-radius:0; border-bottom-left-radius:0; padding:0 7px; }
+  .rb-sep{ width:1px; height:20px; background:var(--border); margin:0 2px; flex:none; }
+
+  /* ---------------- 工作区占位 ---------------- */
+  .workspace{ flex:1; min-height:0; display:flex; gap:8px; padding:8px; background:#E9EEF5; }
+  .wcol{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); display:flex; flex-direction:column; min-height:0; }
+  .whead{ height:30px; flex:none; display:flex; align-items:center; gap:6px; padding:0 10px; border-bottom:1px solid var(--border-soft); font-size:12px; font-weight:600; color:var(--text-2); }
+  .wbody{ flex:1; min-height:0; display:grid; place-items:center; color:var(--text-3); font-size:12px; }
+
+  /* ---------------- 底栏（状态栏） ---------------- */
+  .statusbar{
+    height:var(--statusbar-h); flex:none; display:flex; align-items:center; gap:0; padding:0 4px;
+    background:var(--surface-2); border-top:1px solid var(--border); font-size:12px; color:var(--text-2);
+    position:relative; z-index:4;
+  }
+  .sb-group{ display:flex; align-items:center; gap:0; padding:0 2px; }
+  .sb-item{
+    height:24px; display:flex; align-items:center; gap:5px; padding:0 8px; border-radius:var(--radius-sm);
+    transition:background .15s ease,color .15s ease; white-space:nowrap;
+  }
+  .sb-item:hover{ background:var(--surface-3); color:var(--text); }
+  .sb-item .lb{ color:var(--text-3); }
+  .sb-item .vl{ font-weight:600; color:var(--text); font-variant-numeric:tabular-nums; }
+  .sb-item .vl.dim{ color:var(--text-3); font-weight:500; }
+  .sb-item .vl.ok{ color:var(--success); }
+  .sb-item .vl.ng{ color:var(--danger); }
+  .sb-item .vl.wn{ color:var(--warning); }
+  .sb-item .vl.mono{ font-family:var(--mono); font-size:11.5px; }
+  .sb-sep{ width:1px; height:14px; background:var(--border); margin:0 4px; flex:none; }
+  .sb-sp{ flex:1; }
+
+  .sb-run{ display:flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:var(--radius-sm); font-weight:600; }
+  .sb-run .d{ width:7px; height:7px; border-radius:50%; background:var(--text-3); }
+  .sb-run.run .d{ background:var(--success-line); } .sb-run.run{ color:var(--success); }
+  .sb-run.err .d{ background:var(--danger-line); } .sb-run.err{ color:var(--danger); }
+
+  .kpi{ display:flex; align-items:center; gap:5px; height:24px; padding:0 8px; border-radius:var(--radius-sm); }
+  .kpi:hover{ background:var(--surface-3); }
+  .kpi .lb{ color:var(--text-3); font-size:11.5px; }
+  .kpi .vl{ font-weight:700; font-variant-numeric:tabular-nums; }
+  .kpi.ok .vl{ color:var(--success); } .kpi.ng .vl{ color:var(--danger); } .kpi.wn .vl{ color:var(--warning); }
+  .kpi .vl.na{ color:var(--text-3); font-weight:600; font-size:11px; }
+
+  .chip{
+    height:20px; display:inline-flex; align-items:center; gap:5px; padding:0 7px; border-radius:var(--radius-pill);
+    font-size:11px; font-weight:600;
+  }
+  .chip.warn{ background:var(--warning-chip); color:var(--warning); }
+  .chip.err{ background:var(--danger-chip); color:var(--danger); }
+  .chip.ok{ background:var(--success-chip); color:var(--success); }
+  .chip.info{ background:var(--primary-soft); color:var(--primary-strong); }
+  .chip.plain{ background:var(--surface-3); color:var(--text-2); }
+  .chip .cd{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+  .user{ display:flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:var(--radius-sm); }
+  .user:hover{ background:var(--surface-3); }
+  .user .av{ width:16px; height:16px; border-radius:50%; background:var(--surface-3); color:var(--text-3); display:grid; place-items:center; font-size:9px; font-weight:700; }
+  .user.in .av{ background:var(--primary-light); color:var(--primary-strong); }
+  .user .nm{ color:var(--text-2); }
+  .user.in .nm{ color:var(--primary-strong); font-weight:600; }
+
+  .perf{ display:flex; align-items:center; gap:2px; }
+  .perf .sb-item{ padding:0 7px; }
+  .perf .bar{ width:26px; height:4px; border-radius:2px; background:var(--surface-3); overflow:hidden; }
+  .perf .bar i{ display:block; height:100%; border-radius:2px; background:var(--primary); }
+
+  .sb-btn{ height:24px; display:inline-flex; align-items:center; gap:5px; padding:0 8px; border-radius:var(--radius-sm); color:var(--text-2); }
+  .sb-btn:hover{ background:var(--surface-3); color:var(--text); }
+
+  /* 悬停/弹出层 */
+  .pop{
+    position:absolute; bottom:calc(var(--statusbar-h) + 6px); right:8px; width:268px;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-pop);
+    padding:8px; display:none; z-index:30;
+  }
+  .pop.show{ display:block; }
+  .pop h4{ margin:2px 4px 6px; font-size:11.5px; color:var(--text-3); font-weight:600; }
+  .pop .row{ display:flex; align-items:center; gap:8px; padding:6px 6px; border-radius:6px; font-size:12px; }
+  .pop .row:hover{ background:var(--surface-3); }
+  .pop .row .nm{ flex:1; color:var(--text); }
+  .pop .row .v{ font-family:var(--mono); font-size:11px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+  .pop .row .bar{ width:54px; height:4px; border-radius:2px; background:var(--surface-3); overflow:hidden; }
+  .pop .row .bar i{ display:block; height:100%; background:var(--primary); }
+  .pop .foot{ margin-top:4px; padding:6px 4px 2px; border-top:1px solid var(--border-soft); font-size:11px; color:var(--text-3); }
+
+  /* 问题清单浮窗（点 chip 弹出） */
+  .issues{
+    position:absolute; bottom:calc(var(--statusbar-h) + 6px); right:8px; width:340px; background:var(--surface);
+    border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-pop); overflow:hidden; display:none; z-index:30;
+  }
+  .issues.show{ display:block; }
+  .issues .h{ padding:9px 12px; border-bottom:1px solid var(--border-soft); display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; }
+  .issues .h .sp{ flex:1; }
+  .issues .b{ max-height:210px; overflow:auto; }
+  .issues .r{ display:flex; gap:8px; align-items:flex-start; padding:8px 12px; border-bottom:1px solid var(--border-soft); font-size:12px; }
+  .issues .r:last-child{ border-bottom:0; }
+  .issues .r:hover{ background:var(--surface-2); }
+  .issues .r .ic{ width:16px; height:16px; border-radius:4px; display:grid; place-items:center; font-size:9px; font-weight:700; flex:none; margin-top:1px; }
+  .issues .r .ic.e{ background:var(--danger-chip); color:var(--danger); }
+  .issues .r .ic.w{ background:var(--warning-chip); color:var(--warning); }
+  .issues .r .ic.i{ background:var(--primary-soft); color:var(--primary-strong); }
+  .issues .r .tx{ flex:1; color:var(--text); }
+  .issues .r .tx small{ display:block; color:var(--text-3); font-size:11px; margin-top:1px; }
+  .issues .r .go{ font-size:11.5px; color:var(--primary-strong); font-weight:600; }
+
+  /* 命令面板 */
+  .palette{
+    position:absolute; inset:0; background:rgba(15,23,42,.35); display:none; place-items:start center; z-index:60; padding-top:80px;
+  }
+  .palette.show{ display:grid; }
+  .pal-box{ width:560px; background:var(--surface); border-radius:12px; box-shadow:var(--shadow-pop); overflow:hidden; border:1px solid var(--border); }
+  .pal-in{ display:flex; align-items:center; gap:8px; padding:12px 14px; border-bottom:1px solid var(--border-soft); }
+  .pal-in input{ flex:1; border:0; outline:0; font-size:14px; background:none; color:var(--text); }
+  .pal-in input::placeholder{ color:var(--text-3); }
+  .pal-list{ max-height:280px; overflow:auto; padding:6px; }
+  .pal-list .it{ display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:7px; font-size:12.5px; }
+  .pal-list .it.on{ background:var(--primary-soft); color:var(--primary-strong); font-weight:600; }
+  .pal-list .it .k{ margin-left:auto; font-size:11px; color:var(--text-3); }
+
+  /* ---------------- 下面的说明区 ---------------- */
+  .cards{ max-width:1560px; margin:0 auto; display:grid; gap:14px; }
+  .card{ background:#FFF; border:1px solid #E2E8F0; border-radius:12px; overflow:hidden; }
+  .card > h3{ margin:0; padding:12px 16px; font-size:13.5px; font-weight:600; border-bottom:1px solid #EEF2F7; display:flex; align-items:center; gap:8px; }
+  .card > h3 .n{ width:20px; height:20px; border-radius:6px; background:#E0F2FE; color:#0284C7; display:grid; place-items:center; font-size:11px; font-weight:700; }
+  .card > h3 .sp{ flex:1; }
+  .card > h3 .who{ font-size:11px; font-weight:500; color:#64748B; }
+  .card .bd{ padding:12px 16px 16px; }
+  table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  th,td{ text-align:left; padding:8px 10px; border-bottom:1px solid #EEF2F7; vertical-align:top; }
+  th{ font-size:11.5px; color:#64748B; font-weight:600; background:#F8FAFC; white-space:nowrap; }
+  tr:last-child td{ border-bottom:0; }
+  td.k{ width:150px; font-weight:600; color:#0F172A; white-space:nowrap; }
+  td.before{ color:#64748B; }
+  td.after{ color:#0F172A; }
+  .pill{ display:inline-flex; align-items:center; height:19px; padding:0 7px; border-radius:999px; font-size:11px; font-weight:600; }
+  .p0{ background:#FEF2F2; color:#B91C1C; }
+  .p1{ background:#FFF4E5; color:#B45309; }
+  .p2{ background:#F0F9FF; color:#0284C7; }
+  .mono{ font-family:var(--mono); font-size:11.5px; }
+  .hint{ color:#64748B; font-size:12px; margin:0 0 8px; }
+  .two{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media (max-width:1100px){ .two{ grid-template-columns:1fr; } }
+  .kvs{ display:grid; grid-template-columns:120px 1fr; gap:6px 12px; font-size:12.5px; }
+  .kvs .k{ color:#64748B; }
+  .kvs .v{ color:#0F172A; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1>主界面 chrome（顶栏 + 底栏）优化 · Web 设计基线 <span class="ver">v1</span></h1>
+  <p class="meta">
+    目标文件：<b>VisionMaster/Shell.xaml</b>（顶栏 36px + 运行条 48px + 状态栏 26px）。
+    本稿是 <b>AGENTS.md §30 第 ① 步</b>（Web 设计基线），只作设计媒介，<b>不进构建、不部署</b>（R126）；
+    确认后才进第 ③ 步 WPF 复刻。
+  </p>
+  <div class="legend">
+    <span class="tag"><i class="dot-p0"></i>P0 必改：误导 / 误切 / 空间浪费</span>
+    <span class="tag"><i class="dot-p1"></i>P1 建议改：密度与可用性</span>
+    <span class="tag"><i class="dot-p2"></i>P2 可选：锦上添花</span>
+    <span class="tag">画布 1920×1080 等比缩放，与 app-shell 基线一致</span>
+  </div>
+</div>
+
+<!-- ============================ 设计画布 ============================ -->
+<div class="frame">
+  <div class="frame-head">
+    <span class="t">改后效果</span>
+    <span class="s">点击右侧按钮切换状态（也支持 URL 参数 / 键盘）</span>
+    <div class="seg" id="seg">
+      <button class="on" data-s="debug">调试 · 运行中</button>
+      <button data-s="run">运行（驾驶舱）</button>
+      <button data-s="config">组态</button>
+      <button data-s="kbd">键盘焦点</button>
+      <button data-s="empty">空方案</button>
+      <button data-s="palette">命令面板</button>
+    </div>
+  </div>
+  <div class="stagewrap">
+    <div class="stage">
+      <div class="screen" id="chrome-root">
+
+        <!-- ======================= 顶栏 40px ======================= -->
+        <header class="titlebar">
+          <div class="tb-brand">
+            <div class="tb-logo">VM</div>
+          </div>
+
+          <button class="tb-file on" title="主菜单（文件 / 编辑 / 视图 / 系统 / 帮助）">☰ 文件</button>
+
+          <div class="tb-sep"></div>
+
+          <button class="ib" title="新建方案 Ctrl+N">＋</button>
+          <button class="ib" title="打开方案 Ctrl+O">▤</button>
+          <button class="ib" title="保存方案 Ctrl+S">▣</button>
+
+          <div class="tb-sep"></div>
+
+          <!-- 工作模式分段：选中态带快捷键提示 + 一行说明 -->
+          <div class="modes" role="tablist">
+            <button class="m on" data-mode="debug">调试<span class="k">^1</span><span class="mode-hint">流程画布</span></button>
+            <button class="m" data-mode="run">运行<span class="k">^2</span></button>
+            <button class="m" data-mode="config">组态<span class="k">^3</span></button>
+            <button class="m" data-mode="free">自由<span class="k">^4</span></button>
+          </div>
+
+          <div class="tb-sep"></div>
+
+          <div class="tb-actions">
+            <button class="ib" id="btnPalette" title="命令面板 Ctrl+K">⌕</button>
+            <button class="ib" title="全局变量">⟨⟩</button>
+            <button class="ib" title="硬件管理">⚙</button>
+            <div class="ib-wrap">
+              <button class="ib" id="btnRecipe" title="配方管理">▤</button>
+              <span class="badge" id="recipeBadge">3</span>
+            </div>
+          </div>
+
+          <!-- 中央：当前方案 = 身份 + 保存态 + 路径（三合一，悬浮出全路径） -->
+          <button class="tb-doc" id="tbDoc" title="D:\C#\VM\解决方案\综合测试台（测试员版）\综合测试台（测试员版）.vmsln">
+            <span class="nm" id="docName">综合测试台（测试员版）</span>
+            <span class="st" id="docState"><span class="d"></span><span id="docStateText">已保存</span></span>
+            <span class="path">…\综合测试台（测试员版）\</span>
+          </button>
+
+          <div class="winctl">
+            <button title="最小化">─</button>
+            <button title="最大化">▢</button>
+            <button class="close" title="关闭">✕</button>
+          </div>
+        </header>
+
+        <!-- ======================= 运行条 48px ======================= -->
+        <div class="runbar" id="runbar">
+          <div class="state run" id="runState">
+            <span class="d"></span><span id="runStateText">运行中</span><span class="el" id="runClock">00:04:12</span>
+          </div>
+
+          <div class="rb-sep"></div>
+
+          <button class="btn ghost" id="btnCompile" title="编译流程 F7">▦ 编译</button>
+
+          <div class="split">
+            <button class="btn line" id="btnRun" disabled title="运行一次 F5">▶ 运行</button>
+            <button class="btn line" id="btnRunMore" disabled title="运行方式：一次 / 循环 / 从当前步骤">▾</button>
+          </div>
+
+          <button class="btn ghost" id="btnPause" title="暂停 F6">⏸ 暂停</button>
+          <button class="btn ghost" id="btnStep" title="单步 F10" disabled>⏭ 单步</button>
+
+          <div class="rb-sep"></div>
+
+          <button class="btn danger" id="btnStop" title="停止 Shift+F5">■ 停止<span class="kbd">Shift+F5</span></button>
+
+          <div class="sp"></div>
+
+          <!-- 运行条右侧：本场景的"下一步该做什么" -->
+          <span class="chip info" id="runTip"><span class="cd"></span>第 3 / 8 步 · 定位</span>
+          <span class="chip plain" id="runRate">节拍 19.7 s</span>
+        </div>
+
+        <!-- ======================= 工作区占位 ======================= -->
+        <main class="workspace" id="workspace">
+          <div class="wcol" style="width:200px" id="colNav">
+            <div class="whead">流程导航</div>
+            <div class="wbody">流程胶囊 + 步骤树</div>
+          </div>
+          <div class="wcol" style="flex:1">
+            <div class="whead" id="docTabs">流程画布 · 视觉图像</div>
+            <div class="wbody" id="canvasBody">画布</div>
+          </div>
+          <div class="wcol" style="width:210px" id="colInsp">
+            <div class="whead">检查器</div>
+            <div class="wbody">步骤参数 / 工具箱</div>
+          </div>
+        </main>
+
+        <!-- ======================= 底栏 28px ======================= -->
+        <footer class="statusbar" id="statusbar">
+          <!-- 左：运行态 + 生产 KPI -->
+          <div class="sb-group" id="sbLeft">
+            <span class="sb-run run" id="sbRun"><span class="d"></span>运行中</span>
+            <span class="sb-sep"></span>
+            <span class="kpi" title="单件节拍（最近 10 件均值）"><span class="lb">节拍</span><span class="vl">19.7</span><span class="lb">s</span></span>
+            <span class="sep-v sb-sep"></span>
+            <span class="kpi ok" title="OK 计数（今日）"><span class="lb">OK</span><span class="vl">1 248</span></span>
+            <span class="kpi ng" title="NG 计数（今日）"><span class="lb">NG</span><span class="vl">6</span></span>
+            <span class="kpi wn" title="未确认告警"><span class="lb">告警</span><span class="vl">1</span></span>
+          </div>
+
+          <!-- 组态模式的替代内容 -->
+          <div class="sb-group" id="sbConfig" style="display:none">
+            <span class="chip info"><span class="cd"></span>组态设计</span>
+            <span class="sb-sep"></span>
+            <span class="sb-item" title="当前画面"><span class="lb">页面</span><span class="vl">主画面</span></span>
+            <span class="sb-item" title="基准分辨率"><span class="lb">1280 × 800</span></span>
+            <span class="sb-item" title="网格大小"><span class="lb">网格</span><span class="vl">20 px</span></span>
+            <span class="sb-item" title="当前选中图元"><span class="lb">选中</span><span class="vl">按钮 ×1</span></span>
+          </div>
+
+          <div class="sb-sp"></div>
+
+          <!-- 右：状态信息（可点） -->
+          <div class="sb-group">
+            <button class="sb-item" id="btnIssues" title="查看问题清单">
+              <span class="chip err"><span class="cd"></span>2 错误</span>
+              <span class="chip warn" style="margin-left:-2px"><span class="cd"></span>1 警告</span>
+            </button>
+            <span class="sb-sep"></span>
+
+            <button class="sb-item" id="btnPath" title="D:\C#\VM\解决方案\综合测试台（测试员版）\综合测试台（测试员版）.vmsln">
+              <span class="lb">方案</span><span class="vl" id="sbPath">综合测试台（测试员版）</span>
+            </button>
+            <span class="sb-sep"></span>
+
+            <button class="user in" id="btnUser" title="点击切换用户 / 登录">
+              <span class="av">张</span><span class="nm" id="userName">操作员 · 张三</span>
+            </button>
+            <span class="sb-sep"></span>
+
+            <button class="sb-item" id="btnPerf" title="系统资源（点击查看明细）">
+              <span class="lb">CPU</span><span class="vl" id="pCpu">12%</span>
+              <span class="lb" style="margin-left:4px">MEM</span><span class="vl" id="pMem">296</span><span class="lb">MB</span>
+            </button>
+            <span class="sb-sep"></span>
+
+            <button class="sb-btn" id="btnConsole" title="展开 / 收起底部控制台（32 ↔ 240）">▁ 控制台</button>
+            <span class="sb-item" style="cursor:default" title="当前时间"><span class="vl mono" id="clock2">18:42:07</span></span>
+          </div>
+
+          <!-- 资源浮窗 -->
+          <div class="pop" id="popPerf">
+            <h4>系统资源 · 进程</h4>
+            <div class="row"><span class="nm">CPU</span><span class="bar"><i style="width:12%"></i></span><span class="v">12.0 %</span></div>
+            <div class="row"><span class="nm">内存（Working Set）</span><span class="bar"><i style="width:18%"></i></span><span class="v">296 MB</span></div>
+            <div class="row"><span class="nm">线程</span><span class="v">85</span></div>
+            <div class="row"><span class="nm">句柄</span><span class="v">2 431</span></div>
+            <div class="row"><span class="nm">GC 堆</span><span class="v">64.2 MB</span></div>
+            <div class="foot">阈值：CPU ≥ 80%、内存 ≥ 1 GB、句柄 ≥ 10 000 时，底栏数字变橙并出角标。</div>
+          </div>
+
+          <!-- 问题清单浮窗 -->
+          <div class="issues" id="popIssues">
+            <div class="h"><span>问题清单</span><span class="sp"></span><span style="font-size:11px;font-weight:500;color:#64748B">点击定位</span></div>
+            <div class="b">
+              <div class="r"><span class="ic e">E</span><span class="tx">步骤「定位」未配置相机<small>流程 · 定位 · 输入端口 · 图像</small></span><span class="go">定位</span></div>
+              <div class="r"><span class="ic e">E</span><span class="tx">流程「检测_2」引用了已删除的全局变量<small>流程 · 检测_2 · 顺序执行</small></span><span class="go">定位</span></div>
+              <div class="r"><span class="ic w">W</span><span class="tx">配方「型号 A」与当前方案参数不一致<small>配方 · 型号 A</small></span><span class="go">查看</span></div>
+            </div>
+          </div>
+
+          <!-- 命令面板 -->
+          <div class="palette" id="palette">
+            <div class="pal-box">
+              <div class="pal-in"><span style="color:#94A3B8">⌕</span><input id="palInput" placeholder="搜索流程 / 视图 / 命令…（Esc 关闭）" readonly></div>
+              <div class="pal-list">
+                <div class="it on"><span>▶</span><span>运行一次</span><span class="k">F5</span></div>
+                <div class="it"><span>■</span><span>停止运行</span><span class="k">Shift+F5</span></div>
+                <div class="it"><span>▦</span><span>编译流程</span><span class="k">F7</span></div>
+                <div class="it"><span>⚙</span><span>打开硬件管理</span><span class="k">—</span></div>
+                <div class="it"><span>▤</span><span>配方管理</span><span class="k">—</span></div>
+                <div class="it"><span>⟨⟩</span><span>全局变量</span><span class="k">—</span></div>
+                <div class="it"><span>◨</span><span>切换到「组态」场景</span><span class="k">Ctrl+3</span></div>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ 说明区 ============================ -->
+<div class="cards">
+
+  <div class="card">
+    <h3><span class="n">1</span>优化清单（逐条：现状 → 改法 → 为什么）<span class="sp"></span><span class="who">来源：VisionMaster/Shell.xaml 实际结构</span></h3>
+    <div class="bd">
+      <p class="hint">行号指向当前 <span class="mono">VisionMaster/Shell.xaml</span>。P0 = 会误导判断或浪费空间，建议本轮就改。</p>
+      <table>
+        <thead><tr><th>优先级</th><th>位置</th><th>现状</th><th>改法</th><th>理由</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="pill p0">P0</span></td>
+            <td class="k">状态栏方案路径<br><span class="mono">:1722-1730</span></td>
+            <td class="before">显示完整路径，<span class="mono">MaxWidth=400</span> 后截断成 <span class="mono">…综合测试台（测试员版…</span>（截图即如此）</td>
+            <td class="after">左侧只显<b>方案名</b>，悬浮显示全路径</td>
+            <td>路径是"我在哪"的答案，但被截断后两头都没信息；100+ 字符挤在 26px 高的底栏里</td>
+          </tr>
+          <tr>
+            <td><span class="pill p0">P0</span></td>
+            <td class="k">KPI 无数据<br><span class="mono">:1613-1680</span></td>
+            <td class="before">数据源未接入时绑 <span class="mono">"—"</span>，和真实值混排，看不出"是真的 0 还是没接入"</td>
+            <td class="after">未接入用浅色 <b>未接入</b> 文案 + 虚线占位，不占读数位</td>
+            <td>节拍/OK/NG/告警是产线判断依据，"没有数"和"0"必须一眼分开</td>
+          </tr>
+          <tr>
+            <td><span class="pill p0">P0</span></td>
+            <td class="k">底栏折叠按钮<br><span class="mono">:1770-1784</span></td>
+            <td class="before">只有一个 <span class="mono">F0120</span> 图标按钮，无文字、无状态</td>
+            <td class="after">带文字的 <b>▁ 控制台</b>，展开时箭头向上</td>
+            <td>底栏最重要的操作是"把控制台拉出来"，现在要靠猜图标</td>
+          </tr>
+          <tr>
+            <td><span class="pill p1">P1</span></td>
+            <td class="k">竖线分隔符<br><span class="mono">:1613-1686</span></td>
+            <td class="before">每组之间用 <span class="mono">TextBlock "|"</span> 当分隔，9 条竖线，间距 4/6/8/10 混用</td>
+            <td class="after">统一 1px 分隔块（14px 高），KPI 用 8px 内距的气泡</td>
+            <td>竖线本身是文字，会跟着字体基线漂移，且挤压 26px 高度里的横向空间</td>
+          </tr>
+          <tr>
+            <td><span class="pill p1">P1</span></td>
+            <td class="k">底栏高度<br><span class="mono">:302</span></td>
+            <td class="before">26px，字号 12px，元素无内边距，鼠标命中区只有文字本身</td>
+            <td class="after">28px + 24px 可点区域（<span class="mono">.sb-item</span>）</td>
+            <td>底栏里可点的东西不少（用户、方案、控制台），26px 下点哪都是"差一点"</td>
+          </tr>
+          <tr>
+            <td><span class="pill p1">P1</span></td>
+            <td class="k">系统资源<br><span class="mono">:1785-1851</span></td>
+            <td class="before">CPU / MEM / THD / HND 四组常驻，占底栏近 1/3 宽，其中线程数、句柄数几乎没人看</td>
+            <td class="after">常驻只留 <b>CPU + MEM</b>；THD/HND/GC 收进点击浮窗</td>
+            <td>诊断信息按需展开即可，常驻只留"会不会卡"的那两个数</td>
+          </tr>
+          <tr>
+            <td><span class="pill p1">P1</span></td>
+            <td class="k">顶栏文件操作<br><span class="mono">:1194-1211</span></td>
+            <td class="before">新建/打开/保存三个纯图标按钮，紧挨着菜单，与"全局命令区"同权重</td>
+            <td class="after">收进 <b>☰ 文件</b> 菜单按钮（带文字）；顶栏只留模式 + 全局命令 + 身份</td>
+            <td>文件操作是低频，三者并排占了 100px+；菜单里本来就有这些命令</td>
+          </tr>
+          <tr>
+            <td><span class="pill p1">P1</span></td>
+            <td class="k">顶栏模式切换<br><span class="mono">:1216-1244</span></td>
+            <td class="before">四个按钮只有选中色（LogicIf/For/While 三套色），没有快捷键提示</td>
+            <td class="after">分段控件（灰底白块）+ 快捷键角标 <span class="mono">^1…^4</span> + 选中态右侧一行说明</td>
+            <td>模式是全局上下文，用户不知道 Ctrl+1..4 存在；三套颜色轮流亮反而像状态灯</td>
+          </tr>
+          <tr>
+            <td><span class="pill p1">P1</span></td>
+            <td class="k">顶栏中央<br><span class="mono">:1278-1301</span></td>
+            <td class="before">居中只有"文件夹图标 + 方案名"，保存状态、路径无处安放</td>
+            <td class="after">身份胶囊：<b>方案名 + 保存态 ● 已保存/未保存 + 目录尾段</b>，点击弹方案菜单</td>
+            <td>顶栏中央是视线落点，应该回答"我现在在编辑什么、存了没"</td>
+          </tr>
+          <tr>
+            <td><span class="pill p2">P2</span></td>
+            <td class="k">问题清单<br>（新增）</td>
+            <td class="before">只在控制台日志里翻，编译错误/告警没有聚合入口</td>
+            <td class="after">底栏右侧 <b>2 错误 · 1 警告</b> 胶囊，点开列表可定位</td>
+            <td>把"哪里坏了"从翻日志变成一眼可见；无错误时显示灰色"无问题"</td>
+          </tr>
+          <tr>
+            <td><span class="pill p2">P2</span></td>
+            <td class="k">运行条右端<br><span class="mono">:1322-1436</span></td>
+            <td class="before">48px 运行条左端是操作按钮，右端空着</td>
+            <td class="after">右端显示<b>当前步骤进度</b>（第 3 / 8 步 · 定位）+ 实时节拍</td>
+            <td>运行时最常问"跑到哪了"，现在要去流程树里找高亮</td>
+          </tr>
+          <tr>
+            <td><span class="pill p2">P2</span></td>
+            <td class="k">图标可读性<br><span class="mono">:1251-1274</span></td>
+            <td class="before">四个 FontAwesome 图标按钮，只有 ToolTip</td>
+            <td class="after">保留图标 + ToolTip，但命令面板（Ctrl+K）里补全文字入口</td>
+            <td>图标节省空间的前提是"有第二条带文字的路径"</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h3><span class="n">2</span>改前 / 改后对照（顶栏）</h3>
+      <div class="bd">
+        <table>
+          <thead><tr><th>区段</th><th>改前</th><th>改后</th></tr></thead>
+          <tbody>
+            <tr><td class="k">高度</td><td class="before">36px（WindowChrome CaptionHeight=36）</td><td class="after">40px</td></tr>
+            <tr><td class="k">左起</td><td class="before">Logo → 菜单 → 新建/打开/保存 → 分隔 → 模式×4 → 分隔 → 搜索/变量/硬件/配方</td><td class="after">Logo → ☰ 文件 → 模式分段 → 搜索/变量/硬件/配方</td></tr>
+            <tr><td class="k">中央</td><td class="before">文件夹图标 + 方案名</td><td class="after">方案名 + 保存态 + 目录尾段（可点）</td></tr>
+            <tr><td class="k">右端</td><td class="before">最小化/最大化/关闭（<span class="mono">Path</span> 几何）</td><td class="after">不变（几何与命中区不动）</td></tr>
+            <tr><td class="k">命中区</td><td class="before">34×30 图标 / 24 高模式按钮</td><td class="after">28×28 图标 / 32 高分段内 24 高按钮</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="n">3</span>改前 / 改后对照（底栏）</h3>
+      <div class="bd">
+        <table>
+          <thead><tr><th>区段</th><th>改前</th><th>改后</th></tr></thead>
+          <tbody>
+            <tr><td class="k">高度</td><td class="before">26px</td><td class="after">28px（+2px，画布损失 2px）</td></tr>
+            <tr><td class="k">左</td><td class="before">● 未启动 ｜ 节拍 — ｜ OK — ｜ NG — ｜ 告警 — ｜ 当前用户：未登录（操作员） ｜ 当前方案 D:\…\综合测试台（测试员版…</td><td class="after">● 运行中 ｜ 节拍 19.7 s ｜ OK 1 248 ｜ NG 6 ｜ 告警 1 …（右）… 方案 综合测试台（测试员版）</td></tr>
+            <tr><td class="k">分隔</td><td class="before">9 条 <span class="mono">TextBlock "|"</span></td><td class="after">1px 分隔块，固定 14px 高</td></tr>
+            <tr><td class="k">资源</td><td class="before">CPU · MEM · THD · HND 常驻 + 2 条竖线</td><td class="after">CPU + MEM 常驻，其余进浮窗</td></tr>
+            <tr><td class="k">控制台</td><td class="before">图标按钮，无文字</td><td class="after">▁ 控制台（展开时 ▔）</td></tr>
+            <tr><td class="k">组态态</td><td class="before">整条左区换成"组态设计 ｜ 1280×800 · 网格 20px · 选中图元"（写死）</td><td class="after">组态设计胶囊 + 页面 / 分辨率 / 网格 / 选中 四个可点项</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h3><span class="n">4</span>令牌映射（Web 变量 → WPF 资源键）</h3>
+      <div class="bd">
+        <p class="hint">复刻时只认这张表；视图里禁止再写 hex（R117 / R140）。</p>
+        <table>
+          <thead><tr><th>用途</th><th>Web 变量</th><th>WPF 资源</th></tr></thead>
+          <tbody>
+            <tr><td class="k">底栏底</td><td class="mono">--surface-2</td><td class="mono">ScadaTitleBarBrush</td></tr>
+            <tr><td class="k">顶栏底</td><td class="mono">--surface</td><td class="mono">DialogSurfaceBrush</td></tr>
+            <tr><td class="k">分隔线</td><td class="mono">--border</td><td class="mono">DialogBorderBrush</td></tr>
+            <tr><td class="k">次要文字</td><td class="mono">--text-2</td><td class="mono">ScadaSecondaryTextBrush</td></tr>
+            <tr><td class="k">弱化文字</td><td class="mono">--text-3</td><td class="mono">ScadaFaintTextBrush</td></tr>
+            <tr><td class="k">选中底</td><td class="mono">--primary-light</td><td class="mono">DialogAccentSoftBrush</td></tr>
+            <tr><td class="k">主色</td><td class="mono">--primary-strong</td><td class="mono">DialogAccentBrush</td></tr>
+            <tr><td class="k">OK</td><td class="mono">--success</td><td class="mono">DialogSuccessBrush</td></tr>
+            <tr><td class="k">NG / 停止</td><td class="mono">--danger-line</td><td class="mono">DialogDangerBrush</td></tr>
+            <tr><td class="k">告警</td><td class="mono">--warning</td><td class="mono">DialogWarningBrush</td></tr>
+            <tr><td class="k">圆角</td><td class="mono">--radius-sm 6</td><td class="mono">（新增）TitleBarButtonCornerRadius</td></tr>
+            <tr><td class="k">底栏高</td><td class="mono">--statusbar-h 28</td><td class="mono">Shell.xaml Row3 Height=28</td></tr>
+            <tr><td class="k">顶栏高</td><td class="mono">--titlebar-h 40</td><td class="mono">Shell.xaml Row0 Height=40 + CaptionHeight=40</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3><span class="n">5</span>五态覆盖（R115：缺一个视同未完成）</h3>
+      <div class="bd">
+        <table>
+          <thead><tr><th>状态</th><th>顶栏</th><th>底栏</th></tr></thead>
+          <tbody>
+            <tr><td class="k">默认</td><td>模式选中 + 方案已保存</td><td>运行中 + KPI 有值</td></tr>
+            <tr><td class="k">悬停</td><td>按钮 6px 圆角灰底；窗口按钮 hover 变色</td><td>sb-item 灰底；KPI 可点有 hover</td></tr>
+            <tr><td class="k">按下 / 选中</td><td>模式段白块 + 阴影；按下用 <span class="mono">--primary-light</span></td><td>浮窗打开时按钮保持选中底</td></tr>
+            <tr><td class="k">禁用</td><td>运行中"编译/运行"置灰 40%（<span class="mono">:1220</span> 现状命令 CanExecute）</td><td>无数据 KPI 显示"未接入"而非禁用</td></tr>
+            <tr><td class="k">键盘焦点</td><td>切到「键盘焦点」状态可看：2px 焦点环 + 模式角标可见</td><td>同上，焦点环不改变布局尺寸</td></tr>
+          </tbody>
+        </table>
+        <p class="hint" style="margin-top:10px">
+          动效 150ms（hover/按下）；浮窗 180ms 淡入 + 4px 上移，均满足 R116 的 150~200ms。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="n">6</span>与现有规范的冲突检查（必须先解决，避免复刻即违规）</h3>
+    <div class="bd">
+      <table>
+        <thead><tr><th>规范</th><th>本稿是否触发</th><th>处理</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="k">R43 布局结构版本</td>
+            <td>顶栏/底栏高度 36→40、26→28，<b>不涉及</b>面板归属与停靠语义</td>
+            <td>不升 <span class="mono">LayoutHelper.CurrentLayoutSchemaVersion</span>（与 R47"改顶栏不升结构版本"一致）</td>
+          </tr>
+          <tr>
+            <td class="k">R44 / R70</td>
+            <td>改 <span class="mono">Shell.xaml</span> 必须同步 <span class="mono">UIThemeSmokeTest\ShellCopy.xaml</span></td>
+            <td>复刻批次里同批改副本，并跑 <span class="mono">RunShellLayoutChecks()</span> 9 条</td>
+          </tr>
+          <tr>
+            <td class="k">R47</td>
+            <td>全局变量 / 硬件管理仍在顶栏（停靠区之前）</td>
+            <td>本稿保留位置，只是换了图标尺寸；命令落点不变</td>
+          </tr>
+          <tr>
+            <td class="k">R68</td>
+            <td>写了宽高的图标字符按钮必须挂 Style 或 Padding</td>
+            <td>顶栏 <span class="mono">.ib</span> 是 28×28 + 模板内 ContentPresenter 居中，复刻时给 <span class="mono">Padding="0"</span> + 显式模板</td>
+          </tr>
+          <tr>
+            <td class="k">R117 / R140</td>
+            <td>新增颜色</td>
+            <td>无新增 hex：全部复用既有令牌；仅新增"圆角 6"与两个高度常量</td>
+          </tr>
+          <tr>
+            <td class="k">R129 / R130 已知偏差</td>
+            <td>Web 是 flex 布局，WPF 是 Grid；字号用 CSS px</td>
+            <td>见 README「已知偏差」：滚动条宽度、字体度量、阴影层数（Web 2 层 / WPF 1 层）</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3><span class="n">7</span>待用户拍板（复刻前必须定）</h3>
+    <div class="bd">
+      <div class="kvs">
+        <span class="k">Q1 顶栏高度</span><span class="v">40px（+4）还是保持 36px？40 能让模式分段更稳，但会改 <span class="mono">CaptionHeight</span> 与双击标题栏最大化的命中区。<b>建议 40</b>。</span>
+        <span class="k">Q2 底栏高度</span><span class="v">28px（+2）是否可接受？画布只损失 2px。<b>建议 28</b>。</span>
+        <span class="k">Q3 文件操作</span><span class="v">新建/打开/保存收进「☰ 文件」菜单，还说保留三个图标？<b>建议收进菜单</b>（菜单里已有同样命令）。</span>
+        <span class="k">Q4 资源显示</span><span class="v">CPU/MEM 常驻 + 浮窗；还是继续四项常驻？<b>建议常驻两项</b>。</span>
+        <span class="k">Q5 问题清单</span><span class="v">是否本轮就要（新增聚合逻辑，非纯视觉）？可先只做视觉占位。</span>
+        <span class="k">Q6 未接入 KPI</span><span class="v">未接入显示"未接入"还是继续保持 <span class="mono">"—"</span>？<b>建议"未接入"</b>（区分"没数"与"0"）。</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var root = document.getElementById('chrome-root');
+  var current = 'debug';
+
+  function q(sel){ return document.querySelector(sel); }
+  function qa(sel){ return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+
+  /* ---- 模式按钮 ---- */
+  var modeMap = {debug:'调试', run:'运行', config:'组态', free:'自由'};
+  function setMode(m){
+    qa('.modes .m').forEach(function(b){ b.classList.toggle('on', b.dataset.mode === m); });
+    var hint = q('.modes .m.on .mode-hint');
+    qa('.modes .m').forEach(function(b){ if(b.dataset.mode !== m){ var h=b.querySelector('.mode-hint'); if(h) h.remove(); } });
+    if(m === 'debug' && !q('.modes .m.on .mode-hint')){
+      var s = document.createElement('span'); s.className='mode-hint'; s.textContent='流程画布';
+      q('.modes .m.on').appendChild(s);
+    }
+  }
+
+  /* ---- 状态切换 ---- */
+  function apply(state){
+    current = state;
+    qa('#seg button').forEach(function(b){ b.classList.toggle('on', b.dataset.s === state); });
+
+    /* 复位 */
+    q('#runbar').style.display = '';
+    q('#sbLeft').style.display = '';
+    q('#sbConfig').style.display = 'none';
+    q('#colNav').style.display = '';
+    q('#colInsp').style.display = '';
+    q('#docTabs').textContent = '流程画布 · 视觉图像';
+    q('#canvasBody').textContent = '画布';
+    var navBody = q('#colNav').querySelector('.wbody');
+    var inspHead = q('#colInsp').querySelector('.whead');
+    var inspBody = q('#colInsp').querySelector('.wbody');
+    if(navBody) navBody.textContent = '流程胶囊 + 步骤树';
+    if(inspHead) inspHead.textContent = '检查器';
+    if(inspBody) inspBody.textContent = '步骤参数 / 工具箱';
+    if(state === 'kbd'){ qa('.modes .m, #btnUser').forEach(function(el){ el.style.outline=''; }); }
+    q('#palette').classList.remove('show');
+    q('#docName').textContent = '综合测试台（测试员版）';
+    q('#sbPath').textContent = '综合测试台（测试员版）';
+    q('#docStateText').textContent = '已保存';
+    q('#docState').className = 'st';
+    q('#recipeBadge').style.display = '';
+    setMode('debug');
+
+    if(state === 'run'){
+      setMode('run');
+      q('#runbar').style.display = 'none';
+      q('#colNav').style.display = 'none';
+      q('#colInsp').style.display = 'none';
+      q('#docTabs').textContent = '运行驾驶舱';
+      q('#canvasBody').textContent = '驾驶舱：大号停止 + KPI 条 + 视觉图像';
+      q('#sbRun').className = 'sb-run run';
+    } else if(state === 'config'){
+      setMode('config');
+      q('#runbar').style.display = 'none';
+      q('#colNav').style.display = 'none';
+      q('#sbLeft').style.display = 'none';
+      q('#sbConfig').style.display = '';
+      q('#docTabs').textContent = '组态画面';
+      q('#canvasBody').textContent = '组态画布（基座画面）';
+      q('#colInsp').querySelector('.whead').textContent = '属性 / 图层 / 图元';
+      q('#colInsp').querySelector('.wbody').textContent = '选中图元属性';
+    } else if(state === 'kbd'){
+      /* 键盘焦点态：在模式段与底栏项上画焦点环 */
+      var m = q('.modes .m:nth-child(3)');
+      m.style.outline = '2px solid #0EA5E9';
+      m.style.outlineOffset = '1px';
+      var u = q('#btnUser');
+      u.style.outline = '2px solid #0EA5E9';
+      u.style.outlineOffset = '-2px';
+      /* 下一次切状态时清掉 */
+      setTimeout(function(){ m.style.outline=''; u.style.outline=''; }, 60000);
+    } else if(state === 'empty'){
+      q('#docName').textContent = '未加载方案';
+      q('#sbPath').textContent = '未加载';
+      q('#docStateText').textContent = '新建后未保存';
+      q('#docState').className = 'st warn';
+      q('#recipeBadge').style.display = 'none';
+      q('#runState').className = 'state';
+      q('#runStateText').textContent = '未启动';
+      q('#runClock').textContent = '—';
+      q('#btnCompile').setAttribute('disabled','');
+      q('#btnRun').setAttribute('disabled','');
+      q('#btnStop').setAttribute('disabled','');
+      q('#sbRun').className = 'sb-run';
+      q('#runTip').innerHTML = '<span class="cd"></span>先新建或打开一个方案';
+      q('#runRate').textContent = '节拍 未接入';
+      q('#canvasBody').textContent = '空方案：拖入算子开始';
+      q('#colNav').querySelector('.wbody').textContent = '（还没有流程）';
+      q('#colInsp').querySelector('.wbody').textContent = '（未选中步骤）';
+      qa('.kpi .vl').forEach(function(v){ v.textContent = '未接入'; v.className = 'vl na'; });
+    } else if(state === 'palette'){
+      q('#palette').classList.add('show');
+    }
+  }
+
+  qa('#seg button').forEach(function(b){
+    b.addEventListener('click', function(){ apply(b.dataset.s); });
+  });
+
+  /* ---- 顶栏模式按钮 ---- */
+  qa('.modes .m').forEach(function(b){
+    b.addEventListener('click', function(){ apply(b.dataset.mode === 'config' ? 'config' : (b.dataset.mode === 'run' ? 'run' : 'debug')); });
+  });
+
+  /* ---- 浮窗：资源 / 问题清单 ---- */
+  var popPerf = q('#popPerf'), popIssues = q('#popIssues');
+  q('#btnPerf').addEventListener('click', function(e){
+    e.stopPropagation();
+    popIssues.classList.remove('show');
+    popPerf.classList.toggle('show');
+  });
+  q('#btnIssues').addEventListener('click', function(e){
+    e.stopPropagation();
+    popPerf.classList.remove('show');
+    popIssues.classList.toggle('show');
+  });
+  document.addEventListener('click', function(e){
+    if(!popPerf.contains(e.target) && e.target !== q('#btnPerf')) popPerf.classList.remove('show');
+    if(!popIssues.contains(e.target) && !q('#btnIssues').contains(e.target)) popIssues.classList.remove('show');
+  });
+
+  /* ---- 命令面板 ---- */
+  q('#btnPalette').addEventListener('click', function(){ apply('palette'); });
+  q('#palette').addEventListener('click', function(e){ if(e.target === q('#palette')) apply('debug'); });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape'){ apply(current === 'palette' ? 'debug' : current); popPerf.classList.remove('show'); popIssues.classList.remove('show'); }
+  });
+
+  /* ---- 时钟 ---- */
+  var t0 = new Date();
+  function pad(n){ return (n < 10 ? '0' : '') + n; }
+  function tick(){
+    var d = new Date();
+    q('#clock2').textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    var el = Math.floor((d - t0) / 1000) + 252;
+    q('#runClock').textContent = pad(Math.floor(el / 3600)) + ':' + pad(Math.floor(el % 3600 / 60)) + ':' + pad(el % 60);
+  }
+  tick(); setInterval(tick, 1000);
+
+  /* ---- 深链 ?s=debug|run|config|kbd|empty|palette ---- */
+  var params = new URLSearchParams(location.search);
+  var s = params.get('s');
+  apply(s && ['debug','run','config','kbd','empty','palette'].indexOf(s) >= 0 ? s : 'debug');
+})();
+</script>
+</body>
+</html>

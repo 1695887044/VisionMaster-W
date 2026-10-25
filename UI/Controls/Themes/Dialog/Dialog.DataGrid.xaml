@@ -87,4 +87,95 @@
     <Setter Property="RowStyle" Value="{StaticResource DialogDataGridRow}" />
     <Setter Property="ColumnHeaderStyle" Value="{StaticResource DialogDataGridColumnHeader}" />
   </Style>
+
+  <!--
+      ============================================================
+      v2.1「报警配置」基线（docs/UI设计基线/scada-alarm-config）
+      ============================================================
+      与上面那套的差别只有"密度"：表头 34（原 42）、行内边距 8（原 12）、
+      行不交替、无列排序/拖动/改宽（列宽是设计基线钉死的）。
+  -->
+  <Style x:Key="DialogAlarmGridColumnHeader" TargetType="DataGridColumnHeader">
+    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+  </Style>
+  <!--  数值列表头：右对齐，右侧预留 20（与阈值单元格的"数字右边缘同一条线"）  -->
+  <Style
+      x:Key="DialogAlarmGridColumnHeaderNumeric"
+      BasedOn="{StaticResource DialogAlarmGridColumnHeader}"
+      TargetType="DataGridColumnHeader">
+    <Setter Property="Padding" Value="12,0,20,0" />
+    <Setter Property="HorizontalContentAlignment" Value="Right" />
+  </Style>
+  <Style x:Key="DialogAlarmGridCell" TargetType="DataGridCell" BasedOn="{StaticResource DialogDataGridCell}">
+    <Setter Property="Padding" Value="0,8" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <!--
+      首列专用：选中时左侧 2px 主色竖条，行内校验失败时转危险红（错误优先于选中）。
+      竖条画在单元格模板里而不是行上 —— 行的左侧竖条要 Retemplate DataGridRow，
+      会连带接管展开行（RowDetails）的呈现，风险远大于收益。
+  -->
+  <Style x:Key="DialogAlarmGridCellMarker" TargetType="DataGridCell" BasedOn="{StaticResource DialogDataGridCell}">
+    <Setter Property="Padding" Value="0,8" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="DataGridCell">
+          <Border Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+            <Grid>
+              <Border
+                  x:Name="Marker"
+                  Width="2"
+                  HorizontalAlignment="Left"
+                  Background="Transparent"
+                  SnapsToDevicePixels="True" />
+              <ContentPresenter
+                  Margin="{TemplateBinding Padding}"
+                  VerticalAlignment="Center"
+                  SnapsToDevicePixels="True" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}}" Value="True">
+              <Setter TargetName="Marker" Property="Background" Value="{StaticResource DialogAccentBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding HasInlineError}" Value="True">
+              <Setter TargetName="Marker" Property="Background" Value="{StaticResource DialogDangerBrush}" />
+            </DataTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <!--  行：不加行间距（行间分隔交给 1px 横向网格线）；停用行走第三级灰，不降透明度  -->
+  <Style x:Key="DialogAlarmGridRow" TargetType="DataGridRow" BasedOn="{StaticResource DialogDataGridRow}">
+    <Setter Property="Margin" Value="0" />
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+        <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+  <Style x:Key="DialogAlarmGrid" TargetType="DataGrid" BasedOn="{StaticResource DialogDataGrid}">
+    <Setter Property="AlternationCount" Value="1" />
+    <Setter Property="RowDetailsVisibilityMode" Value="VisibleWhenSelected" />
+    <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+    <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+    <Setter Property="CanUserSortColumns" Value="False" />
+    <Setter Property="CanUserReorderColumns" Value="False" />
+    <Setter Property="CanUserResizeColumns" Value="False" />
+    <Setter Property="CellStyle" Value="{StaticResource DialogAlarmGridCell}" />
+    <Setter Property="RowStyle" Value="{StaticResource DialogAlarmGridRow}" />
+    <Setter Property="ColumnHeaderStyle" Value="{StaticResource DialogAlarmGridColumnHeader}" />
+  </Style>
 </ResourceDictionary>

@@ -203,13 +203,22 @@ namespace VisionMaster.Services
         /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
         public bool TrySave(string? name, ScadaClipboardPayload? payload,
                             out ScadaTemplateInfo? saved, out string? error)
-            => TrySave(name, payload, 0, out saved, out error);
+            => TrySave(name, payload, 0, null, out saved, out error);
 
         /// <summary>
         /// 存模板（含参数化下标）。<paramref name="parameterIndex"/> 是"存模板时选的那个序号"，
         /// 批量对话框与单实例拖入拿它当默认起始序号；0 是历史行为。
         /// </summary>
         public bool TrySave(string? name, ScadaClipboardPayload? payload, int parameterIndex,
+                            out ScadaTemplateInfo? saved, out string? error)
+            => TrySave(name, payload, parameterIndex, null, out saved, out error);
+
+        /// <summary>
+        /// 存模板（含参数化下标 + 数组根清单）。<paramref name="arrayRoots"/> 是严格替换的候选清单；
+        /// 旧调用不传时按 null 存，严格替换对该模板不可用。
+        /// </summary>
+        public bool TrySave(string? name, ScadaClipboardPayload? payload, int parameterIndex,
+                            IReadOnlyList<string>? arrayRoots,
                             out ScadaTemplateInfo? saved, out string? error)
         {
             saved = null;
@@ -241,6 +250,7 @@ namespace VisionMaster.Services
                 CreatedUtc = DateTime.UtcNow,
                 ParameterIndex = parameterIndex,
                 Revision = 1,
+                ArrayRoots = NormalizeRoots(arrayRoots),
                 Payload = payload,
             };
 
@@ -263,6 +273,15 @@ namespace VisionMaster.Services
         /// 由编辑器把画面上的关联实例整块刷新。
         /// </summary>
         public bool TryUpdate(Guid templateId, ScadaClipboardPayload? payload, int parameterIndex,
+                              out int revision, out string? error)
+            => TryUpdate(templateId, payload, parameterIndex, null, out revision, out error);
+
+        /// <summary>
+        /// 同 <see cref="TryUpdate(Guid,ScadaClipboardPayload,int,out int,out string?)"/>，
+        /// 并更新数组根清单（null = 保留原清单）。
+        /// </summary>
+        public bool TryUpdate(Guid templateId, ScadaClipboardPayload? payload, int parameterIndex,
+                              IReadOnlyList<string>? arrayRoots,
                               out int revision, out string? error)
         {
             revision = 0;
@@ -291,6 +310,10 @@ namespace VisionMaster.Services
 
             record.Payload = payload;
             record.ParameterIndex = parameterIndex;
+
+            if (arrayRoots != null)
+                record.ArrayRoots = NormalizeRoots(arrayRoots);
+
             record.Revision++;
 
             if (!Persist(out error)) return false;
@@ -304,6 +327,28 @@ namespace VisionMaster.Services
 
         /// <summary>取模板当前 Revision（旧文件缺字段按 0）。</summary>
         public int GetRevision(Guid templateId) => Find(templateId)?.Revision ?? 0;
+
+        /// <summary>取模板的数组根清单（旧模板没有该字段时返回空表）。</summary>
+        public IReadOnlyList<string> GetArrayRoots(Guid templateId)
+            => Find(templateId)?.ArrayRoots?.ToArray() ?? Array.Empty<string>();
+
+        private static List<string>? NormalizeRoots(IReadOnlyList<string>? roots)
+        {
+            if (roots == null)
+                return null;
+
+            var result = new List<string>();
+
+            foreach (string root in roots)
+            {
+                string clean = (root ?? string.Empty).Trim();
+
+                if (clean.Length > 0 && !result.Contains(clean, StringComparer.Ordinal))
+                    result.Add(clean);
+            }
+
+            return result;
+        }
 
         /// <summary>重命名模板。重名<b>拒绝</b>而不是避让（理由见类注释）。</summary>
         public bool TryRename(Guid templateId, string? newName, out string? error)
@@ -560,6 +605,9 @@ namespace VisionMaster.Services
 
             /// <summary>定义版本：每次"用当前选中更新模板" +1；旧文件缺字段按 0。</summary>
             public int Revision { get; set; }
+
+            /// <summary>参数化时改写过的数组根（严格替换的候选清单）；旧模板缺字段按空。</summary>
+            public List<string>? ArrayRoots { get; set; }
 
             public ScadaClipboardPayload? Payload { get; set; }
         }

@@ -173,12 +173,13 @@ namespace ScadaChecks
                     "IsEditable",
                     "HmiAccentBrush"), "");
 
-            Check("AlarmBannerElement 模板契约：AccentBar + 44px 行 + ChipBrush 保留",
+            Check("AlarmBannerElement 模板契约：AccentBar + 44px 行 + ChipBrush 保留；行数超出时出竖滚动条",
                 TemplateContains(themesDir, "AlarmBannerElement.xaml",
                     "x:Name=\"AccentBar\"",
                     "Height=\"44\"",
                     "ChipBrush",
                     "x:Name=\"ListScroll\"",
+                    "VerticalScrollBarVisibility=\"Auto\"",
                     "x:Name=\"EmptyHint\""), "");
 
             Check("AxisPanelElement 模板契约：六个按钮/点位区命名件保留，字号底线 10、点位行 26",

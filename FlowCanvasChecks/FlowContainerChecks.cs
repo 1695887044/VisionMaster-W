@@ -119,8 +119,14 @@ namespace FlowCanvasChecks
             session.AddBlueprintsDeep(flow.Steps);
 
             var runTask = engine.TryRunSessionOnceAsync(session);
+            // 判据必须等**两个**分支都进了闸门（2026-10-24 修抖动）：
+            // Reached 只证明"有一个到了"，另一个可能还在 ExecuteBranch 的收尾段没置 IsRunning，
+            // 于是"两条胶囊同时 IsRunning"这条断言约 1/4 轮采样到中间态而假红。
             bool reached = WaitFor(() => SafeGatePlugin.Reached.IsSet);
             Check("两分支都抵达闸门（真并发进行中的确定性窗口）", reached, $"reached={reached}");
+            bool bothArrived = WaitFor(() => Volatile.Read(ref SafeGatePlugin.ArrivedCount) >= 2);
+            Check("两分支均已进入闸门体（arrived==2，为下一条提供确定性窗口）", bothArrived,
+                $"arrived={Volatile.Read(ref SafeGatePlugin.ArrivedCount)}");
             Check("★运行中：两条分支胶囊 IsRunning=true（流程栏绿点数据源）",
                 par.Children[0].IsRunning && par.Children[1].IsRunning,
                 $"分支1={par.Children[0].IsRunning} 分支2={par.Children[1].IsRunning}");

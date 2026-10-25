@@ -1,0 +1,517 @@
+<!-- D-4 视觉监控 -->
+<section class="screen-page" id="d-monitor" data-page="monitor">
+  <div class="tpl-head">
+    <div><h2><span>D-04</span>视觉监控 · 引导拍照与对位</h2>
+      <p>动觉协同：实时图 + 对位偏差 + 引导抓取坐标回写轴 + 六宫格相机 + 单步调试走位。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>实时图 + 对位区</span><span><b>右栏</b>相机 + 单步调试</span><span><b>出口</b>数据追溯</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <span class="mode-pill" style="border-color:rgba(34,197,94,.45);color:#86EFAC;">VISION · 已标定</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>相机</span><b>CAM-0 16 MP</b></div>
+      <div class="top-stat"><span>曝光</span><b>3.2 ms</b></div>
+      <div class="top-stat"><span>对位偏差</span><b>ΔX 0.018</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:18:07</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item active" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>相机已连接 · 触发正常</div><div class="conn-sub">16 MP · 3.2 ms</div></div>
+      </div>
+      <div class="main">
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:12px;flex:1;min-height:0;">
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;">
+            <div class="card" style="flex:1;min-height:0;padding:11px;">
+              <div class="card-head"><div><b>实时图像 · CAM-0</b><span>1920 × 1200 · 已叠加对位框与抓取点</span></div><span class="chip ok">Live</span></div>
+              <div style="position:relative;flex:1;min-height:0;border-radius:6px;background:#080D12;border:1px solid var(--c-border);overflow:hidden;">
+                <img src="../../../Image/images/bga_14x14_defects.png" alt="实时图像" style="position:absolute;right:2%;bottom:2%;width:190px;height:auto;border-radius:4px;border:1px solid var(--c-border);opacity:.92;">
+                <svg viewBox="0 0 900 470" preserveAspectRatio="xMidYMid meet" style="position:absolute;inset:0;width:100%;height:100%;">
+                  <!-- 视场网格 -->
+                  <g stroke="#16202B" stroke-width="1">
+                    <path d="M150 0 V470 M300 0 V470 M450 0 V470 M600 0 V470 M750 0 V470"></path>
+                    <path d="M0 117 H900 M0 235 H900 M0 352 H900"></path>
+                  </g>
+                  <!-- 工件轮廓 -->
+                  <rect x="250" y="120" width="400" height="240" rx="10" fill="rgba(56,189,248,.05)" stroke="#3A4A5C" stroke-width="2"></rect>
+                  <!-- 对位框 -->
+                  <rect x="268" y="136" width="364" height="208" rx="8" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-dasharray="12 8"></rect>
+                  <!-- 抓取点 -->
+                  <circle cx="450" cy="240" r="9" fill="none" stroke="#F59E0B" stroke-width="2.4"></circle>
+                  <path d="M450 222 V258 M432 240 H468" stroke="#F59E0B" stroke-width="1.6"></path>
+                  <text x="466" y="228" fill="#F59E0B" font-size="11" font-family="Cascadia Mono,monospace">PICK (452.318, 238.706)</text>
+                  <!-- 轴坐标 -->
+                  <text x="16" y="24" fill="#38BDF8" font-size="11" font-family="Cascadia Mono,monospace">CAM → ROBOT 映射 · mm/px 0.0321</text>
+                  <text x="16" y="446" fill="#64748B" font-size="10" font-family="Cascadia Mono,monospace">ΔX +0.018  ΔY −0.007  Δθ +0.120°</text>
+                  <!-- 结果角标 -->
+                  <rect x="620" y="16" width="264" height="34" rx="6" fill="rgba(34,197,94,.14)" stroke="rgba(34,197,94,.45)"></rect>
+                  <text x="634" y="38" fill="#86EFAC" font-size="13" font-family="Cascadia Mono,monospace">ALIGN OK · Score 0.97</text>
+                </svg>
+              </div>
+            </div>
+            <div class="card" style="flex:none;padding:11px;">
+              <div class="card-head"><div><b>对位与引导</b><span>像素坐标 → 轴坐标 → 回写点位表</span></div><span class="chip">Hmi.Panel</span></div>
+              <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;">
+                <div class="kpi" style="padding:7px 9px;"><span>像素 X</span><b style="font-size:15px;">1204.6</b></div>
+                <div class="kpi" style="padding:7px 9px;"><span>像素 Y</span><b style="font-size:15px;">688.2</b></div>
+                <div class="kpi" style="padding:7px 9px;"><span>轴 X</span><b style="font-size:15px;">128.48</b></div>
+                <div class="kpi" style="padding:7px 9px;"><span>轴 Y</span><b style="font-size:15px;">64.00</b></div>
+                <div class="kpi" style="padding:7px 9px;"><span>轴 Z</span><b style="font-size:15px;">−12.50</b></div>
+                <div class="kpi" style="padding:7px 9px;"><span>轴 R</span><b style="font-size:15px;">45.00<small>°</small></b></div>
+              </div>
+              <div class="row" style="margin-top:9px;"><span class="btn primary" data-nav="jog">回写点位 P001</span><span class="btn">单次抓取</span><span class="chip ok">对位 OK</span><span class="chip">Score 0.97</span><span class="chip">耗时 62 ms</span></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;">
+            <div class="card" style="flex:none;padding:11px;">
+              <div class="card-head"><div><b>相机六宫格</b><span>触发计数 · 最新帧</span></div><span class="chip">Hmi.ImageView ×4</span></div>
+              <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;">
+                <div style="position:relative;aspect-ratio:4/3;border-radius:5px;background:#0B1116;border:1px solid var(--c-border);overflow:hidden;">
+                  <img src="../../../Image/images/caliper/caliper_1.png" alt="CAM-1" style="width:100%;height:100%;object-fit:cover;opacity:.86;">
+                  <span style="position:absolute;left:5px;top:4px;font-family:var(--mono);font-size:8px;color:#86EFAC;">CAM-1 1284 帧</span></div>
+                <div style="position:relative;aspect-ratio:4/3;border-radius:5px;background:#0B1116;border:1px solid var(--c-border);overflow:hidden;">
+                  <img src="../../../Image/images/bga_14x14_model.png" alt="CAM-2" style="width:100%;height:100%;object-fit:cover;opacity:.86;">
+                  <span style="position:absolute;left:5px;top:4px;font-family:var(--mono);font-size:8px;color:#86EFAC;">CAM-2 1284 帧</span></div>
+                <div style="position:relative;aspect-ratio:4/3;border-radius:5px;background:#0B1116;border:1px solid var(--c-border);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                  <span style="font-size:9px;color:var(--c-text-3);">CAM-3 未接入</span></div>
+                <div style="position:relative;aspect-ratio:4/3;border-radius:5px;background:#0B1116;border:1px solid var(--c-border);overflow:hidden;display:flex;align-items:center;justify-content:center;">
+                  <span style="font-size:9px;color:var(--c-text-3);">CAM-4 未接入</span></div>
+              </div>
+            </div>
+            <div class="card" style="flex:1;min-height:0;padding:11px;">
+              <div class="card-head"><div><b>单步调试</b><span>逐步走位 · 每步可在图上确认</span></div><span class="chip">Hmi.Button ×4</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;">
+                <div class="homestep done"><i>✓</i>移到拍照位<small>X 128.480</small></div>
+                <div class="homestep done"><i>✓</i>触发相机<small>3.2 ms</small></div>
+                <div class="homestep done"><i>✓</i>对位计算<small>62 ms</small></div>
+                <div class="homestep on"><i>4</i>移到抓取位<small>运行中</small></div>
+                <div class="homestep"><i>5</i>夹爪闭合<small>待执行</small></div>
+                <div class="homestep"><i>6</i>抬升 Z<small>待执行</small></div>
+              </div>
+              <div class="row" style="margin-top:9px;"><span class="btn primary">下一步</span><span class="btn">单步暂停</span><span class="btn danger">中止</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>3 条 · 1 条未确认</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:06:12</span><span class="name">R 轴跟随误差接近阈值</span><span class="state">未确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">15:00:19</span><span class="name">对位 Score 0.91 · 回写点位</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:52:44</span><span class="name">相机重连成功</span><span class="state">已确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="height:196px;flex:none;">
+          <div class="card-head"><div><b>视觉 KPI</b><span>本班</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>对位成功率</span><b>99.7<small>%</small></b><em>目标 ≥ 99.5</em></div>
+            <div class="kpi"><span>对位耗时</span><b>62<small>ms</small></b><em>预算 80</em></div>
+            <div class="kpi"><span>回写次数</span><b>126</b><em>今日</em></div>
+            <div class="kpi"><span>NG 跳帧</span><b>2</b><em>已复检</em></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>工件与配方</b><span>当前 SN 与工艺</span></div><span class="chip">Hmi.IOField</span></div>
+          <div style="display:flex;flex-direction:column;gap:5px;">
+            <div class="detail-row"><span>当前 SN</span><b style="font-family:var(--mono);font-size:9px;">MC-A7F21C-0184</b></div>
+            <div class="detail-row"><span>配方</span><b>MC-XY 装配</b></div>
+            <div class="detail-row"><span>相机标定</span><b>2026-10-21 · 通过</b></div>
+            <div class="detail-row"><span>手眼标定</span><b>Eye-to-Hand · RMS 0.014</b></div>
+            <div class="detail-row"><span>已拍帧</span><b>1 284</b></div>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn" data-nav="jog">去点动 →</span><span class="btn" data-nav="trace">追溯 →</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>相机 16 MP · 3.2 ms</span><span>对位耗时 62 ms</span>
+      <span>SN MC-A7F21C-0184</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- D-5 工艺参数 -->
+<section class="screen-page" id="d-recipe" data-page="recipe">
+  <div class="tpl-head">
+    <div><h2><span>D-05</span>工艺参数 · 运动配方与节拍</h2>
+      <p>配方管理页：运动配方列表 + 当前配方明细（速度/加速度/延时/点位）+ 节拍分解 + 配方差异对比。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>配方列表 + 明细</span><span><b>右栏</b>节拍 + 差异</span><span><b>出口</b>报警中心</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip warn"><i></i>配方切换中</span>
+      <span class="mode-pill" style="border-color:rgba(245,158,11,.5);color:#FCD34D;">ADMIN · 工程师</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前配方</span><b>MC-XY 标准</b></div>
+      <div class="top-stat"><span>理论节拍</span><b>2.31 s</b></div>
+      <div class="top-stat"><span>实测节拍</span><b>2.64 s</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>王工</b></div>
+      <div class="clock">15:21:33</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item active" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>配方 3 套可用</div><div class="conn-sub">切换前需确认</div></div>
+      </div>
+      <div class="main">
+        <div style="display:grid;grid-template-columns:300px minmax(0,1fr);gap:12px;flex:1;min-height:0;">
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>运动配方</b><span>3 套 · 选中即预览</span></div><span class="chip">Hmi.RecipePanel</span></div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              <div style="padding:8px 9px;border-radius:6px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.45);">
+                <div style="display:flex;justify-content:space-between;"><b style="font-size:10px;">MC-XY 标准</b><span class="chip ok">当前</span></div>
+                <div style="font-family:var(--mono);font-size:8.5px;color:var(--c-text-3);margin-top:3px;">节拍 2.31 s · 点位 5 个</div>
+              </div>
+              <div style="padding:8px 9px;border-radius:6px;background:var(--c-surface-2);border:1px solid var(--c-border);">
+                <div style="display:flex;justify-content:space-between;"><b style="font-size:10px;">MC-XY 高速</b><span class="chip warn">待确认</span></div>
+                <div style="font-family:var(--mono);font-size:8.5px;color:var(--c-text-3);margin-top:3px;">节拍 1.98 s · 点位 5 个</div>
+              </div>
+              <div style="padding:8px 9px;border-radius:6px;background:var(--c-surface-2);border:1px solid var(--c-border);">
+                <div style="display:flex;justify-content:space-between;"><b style="font-size:10px;">MC-Z 单轴微调</b><span class="chip">待用</span></div>
+                <div style="font-family:var(--mono);font-size:8.5px;color:var(--c-text-3);margin-top:3px;">节拍 1.42 s · 点位 2 个</div>
+              </div>
+            </div>
+            <div class="row" style="margin-top:10px;"><span class="btn primary">应用配方</span><span class="btn">另存为</span></div>
+            <div class="safe-strip" style="margin-top:10px;flex-direction:column;align-items:flex-start;gap:3px;">
+              <b style="font-size:9px;">应用前预检</b>
+              <span style="font-size:8.5px;">✓ 软限位 ✓ 点位有效 ✗ Z 轴速度超限</span>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;">
+            <div class="card" style="flex:none;padding:11px;">
+              <div class="card-head"><div><b>配方明细 · MC-XY 标准</b><span>逐轴速度 / 加速度 / 延时 / 点位</span></div><span class="chip">Hmi.DataGrid</span></div>
+              <table class="pm-table">
+                <thead><tr><th>参数</th><th>X</th><th>Y</th><th>Z</th><th>R</th><th>单位</th></tr></thead>
+                <tbody>
+                  <tr><td class="k">运行速度</td><td class="v hl">120.000</td><td class="v">120.000</td><td class="v">60.000</td><td class="v">360.000</td><td>mm/s</td></tr>
+                  <tr><td class="k">点动速度</td><td class="v">24.000</td><td class="v">24.000</td><td class="v">12.000</td><td class="v">60.000</td><td>mm/s</td></tr>
+                  <tr><td class="k">加速度</td><td class="v">800.000</td><td class="v">800.000</td><td class="v">400.000</td><td class="v">1800.000</td><td>mm/s²</td></tr>
+                  <tr><td class="k">到位延时</td><td class="v">30</td><td class="v">30</td><td class="v">80</td><td class="v">20</td><td>ms</td></tr>
+                  <tr><td class="k">夹爪闭合延时</td><td class="v" colspan="4">150 ms（真空到位后）</td><td>ms</td></tr>
+                  <tr><td class="k">安全抬升高度</td><td class="v" colspan="4">Z = −2.000 mm</td><td>mm</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="card" style="flex:1;min-height:0;padding:11px;">
+              <div class="card-head"><div><b>节拍分解</b><span>MC-XY 标准 vs MC-XY 高速</span></div><span class="chip">Hmi.MultiTrend</span></div>
+              <div class="tl" style="height:28px;">
+                <div class="seg a" style="left:0%;width:20%">取件</div><div class="seg c" style="left:20.6%;width:16%">夹爪</div>
+                <div class="seg a" style="left:37.2%;width:26%">搬运</div><div class="seg c" style="left:63.8%;width:14%">放件</div>
+                <div class="seg d" style="left:78.4%;width:21.6%">复位</div>
+              </div>
+              <div class="tl" style="height:28px;margin-top:6px;">
+                <div class="seg a" style="left:0%;width:17%">取件</div><div class="seg c" style="left:17.6%;width:14%">夹爪</div>
+                <div class="seg a" style="left:32.2%;width:23%">搬运</div><div class="seg c" style="left:55.8%;width:12%">放件</div>
+                <div class="seg d" style="left:68.4%;width:31.6%">复位</div>
+              </div>
+              <div class="tl-ruler"><span>0.00</span><span>0.46</span><span>0.92</span><span>1.38</span><span>1.84</span><span>2.30</span></div>
+              <div class="row" style="margin-top:8px;"><span class="chip ok">标准 2.31 s</span><span class="chip warn">高速 1.98 s（−14%）</span><span class="chip">高速需 Z 轴限速 45</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>配方相关 2 条</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:21:14</span><span class="name">Z 轴速度超软限位 45 mm/s</span><span class="state">未确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">15:02:40</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="height:210px;flex:none;">
+          <div class="card-head"><div><b>配方差异</b><span>标准 → 高速</span></div><span class="chip">Hmi.Panel</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;">
+            <div class="detail-row"><span>X 运行速度</span><b>120 → 150</b></div>
+            <div class="detail-row"><span>Z 运行速度</span><b>60 → 78 ⚠</b></div>
+            <div class="detail-row"><span>加速度</span><b>800 → 1100</b></div>
+            <div class="detail-row"><span>夹爪延时</span><b>150 → 120 ms</b></div>
+            <div class="detail-row"><span>点位 P003</span><b>一致</b></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>班次产量</b><span>配方维度对比</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>标准 产量</span><b>4 128</b><em>99.17% 良率</em></div>
+            <div class="kpi"><span>高速 产量</span><b>512</b><em>99.02% 良率</em></div>
+            <div class="kpi"><span>节拍差</span><b>−0.33<small>s</small></b><em>−14%</em></div>
+            <div class="kpi"><span>NG 差</span><b>+2</b><em>关注</em></div>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn" data-nav="alarm">看报警 →</span><span class="btn" data-nav="overview">回总览 →</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>配方 MC-XY 标准</span><span>理论 2.31 s / 实测 2.64 s</span>
+      <span>预检 1 项未通过</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- D-6 报警中心 -->
+<section class="screen-page" id="d-alarm" data-page="alarm">
+  <div class="tpl-head">
+    <div><h2><span>D-06</span>报警中心 · 运动异常分级</h2>
+      <p>按严重度分级的报警清单 + 逐条处置建议 + 报警与轴位置的关联 + 确认与静音动作。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>报警清单 + 详情</span><span><b>右栏</b>统计 + 处置</span><span><b>出口</b>总览</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip warn"><i></i>告警中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>未确认</span><b>1</b></div>
+      <div class="top-stat"><span>今日</span><b>14 条</b></div>
+      <div class="top-stat"><span>MTBF</span><b>62 h</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:24:15</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item active" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>报警保留 90 天</div><div class="conn-sub">可导出 CSV</div></div>
+      </div>
+      <div class="main">
+        <div class="card" style="flex:1;min-height:0;padding:12px;">
+          <div class="card-head"><div><b>报警清单</b><span>按时间倒序 · 红色为紧急、黄色为告警、蓝色为提示</span></div><span class="chip">Hmi.AlarmBanner</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <div class="alarm-row critical" style="grid-template-columns:auto auto minmax(0,1fr) auto auto;padding:8px 10px;font-size:10px;">
+              <span class="sev">紧急</span><span class="time">15:23:51</span><span class="name">R 轴跟随误差超限 · E102</span><span class="state">未确认</span><span class="btn danger">确认</span>
+            </div>
+            <div class="alarm-row warning" style="grid-template-columns:auto auto minmax(0,1fr) auto auto;padding:8px 10px;font-size:10px;">
+              <span class="sev">告警</span><span class="time">15:21:14</span><span class="name">Z 轴速度超软限位 45 mm/s</span><span class="state">未确认</span><span class="btn">确认</span>
+            </div>
+            <div class="alarm-row warning" style="grid-template-columns:auto auto minmax(0,1fr) auto auto;padding:8px 10px;font-size:10px;">
+              <span class="sev">告警</span><span class="time">15:06:12</span><span class="name">R 轴跟随误差接近阈值（0.018 / 0.050）</span><span class="state">未确认</span><span class="btn">确认</span>
+            </div>
+            <div class="alarm-row info" style="grid-template-columns:auto auto minmax(0,1fr) auto auto;padding:8px 10px;font-size:10px;">
+              <span class="sev">提示</span><span class="time">15:02:40</span><span class="name">配方切换完成 · 3 轴参数已下发</span><span class="state">已确认</span><span class="btn">确认</span>
+            </div>
+            <div class="alarm-row info" style="grid-template-columns:auto auto minmax(0,1fr) auto auto;padding:8px 10px;font-size:10px;">
+              <span class="sev">提示</span><span class="time">14:58:05</span><span class="name">回零完成 · X/Y/Z 原点有效</span><span class="state">已确认</span><span class="btn">确认</span>
+            </div>
+            <div class="alarm-row info" style="grid-template-columns:auto auto minmax(0,1fr) auto auto;padding:8px 10px;font-size:10px;">
+              <span class="sev">提示</span><span class="time">14:52:44</span><span class="name">相机重连成功 · CAM-0</span><span class="state">已确认</span><span class="btn">确认</span>
+            </div>
+          </div>
+          <div class="card-head" style="margin-top:14px;"><div><b>报警详情 · R 轴跟随误差超限</b><span>E102 · 位置关联与实际波形</span></div><span class="chip danger">未确认</span></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;flex:1;min-height:0;">
+            <div class="wave-card" style="flex:1;">
+              <svg viewBox="0 0 620 150" preserveAspectRatio="none">
+                <line class="grid" x1="0" y1="30" x2="620" y2="30"></line>
+                <line class="grid" x1="0" y1="75" x2="620" y2="75"></line>
+                <line class="grid" x1="0" y1="120" x2="620" y2="120"></line>
+                <line class="zl" x1="0" y1="40" x2="620" y2="40" stroke="#7F1D1D" style="stroke:#7F1D1D;"></line>
+                <polyline class="c2" points="0,124 60,122 120,118 180,112 240,104 300,96 360,86 420,74 470,60 500,44 520,38 560,52 600,70 620,74"></polyline>
+                <text class="axl" x="4" y="12">err mm</text>
+                <text class="axl" x="560" y="36" style="fill:#FCA5A5;">阈值 0.050</text>
+              </svg>
+              <div class="wave-legend"><span><i style="background:#F59E0B"></i>R 跟随误差</span><span><i style="background:#7F1D1D"></i>阈值 0.050 mm</span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;color:var(--c-text-3);">
+              <div class="detail-row"><span>发生轴</span><b>R 旋转</b></div>
+              <div class="detail-row"><span>触发位置</span><b>44.812°</b></div>
+              <div class="detail-row"><span>峰值误差</span><b style="color:#FCA5A5;">0.062 mm</b></div>
+              <div class="detail-row"><span>持续</span><b>0.38 s</b></div>
+              <div class="detail-row"><span>当前配方</span><b>MC-XY 标准</b></div>
+              <div class="safe-strip" style="margin-top:auto;flex-direction:column;align-items:flex-start;gap:3px;"><b style="font-size:9px;">处置建议</b><span style="font-size:8.5px;">① 检查 R 轴负载与减速比是否改动<br>② 复核电子齿轮比 1:5 是否为齿轮箱实际值<br>③ 重新回零后空跑 10 次</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card" style="height:238px;flex:none;">
+          <div class="card-head"><div><b>报警统计</b><span>今日 14 条 · 按类别</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>运动类</span><b>6</b><em>3 已确认</em></div>
+            <div class="kpi"><span>通讯类</span><b>1</b><em>已恢复</em></div>
+            <div class="kpi"><span>视觉类</span><b>2</b><em>已复检</em></div>
+            <div class="kpi"><span>安全类</span><b>0</b><em>—</em></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>处置动作</b><span>确认 / 静音 / 导出</span></div><span class="chip">Hmi.AckButton</span></div>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <span class="btn primary" style="height:30px;">确认本页全部（4）</span>
+            <span class="btn" style="height:30px;">静音 30 分钟</span>
+            <span class="btn" style="height:30px;">导出报警 CSV</span>
+            <span class="btn danger" style="height:30px;">清除已确认提示</span>
+          </div>
+          <div class="card-head" style="margin-top:12px;"><div><b>最近处置</b><span>谁确认了什么、什么时候</span></div><span class="chip">审计</span></div>
+          <div style="display:flex;flex-direction:column;gap:5px;font-size:8.5px;color:var(--c-text-3);">
+            <div class="detail-row"><span>15:02 李工 确认配方切换</span><b>OK</b></div>
+            <div class="detail-row"><span>14:58 李工 确认回零完成</span><b>OK</b></div>
+            <div class="detail-row"><span>14:41 王工 确认参数下发</span><b>OK</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>未确认 1 条</span><span>今日 14 条报警</span>
+      <span>审计已记录</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- D-7 数据追溯 -->
+<section class="screen-page" id="d-trace" data-page="trace">
+  <div class="tpl-head">
+    <div><h2><span>D-07</span>数据追溯 · 搬运动作与轴位记录</h2>
+      <p>逐件 SN + 每件的四轴取放坐标、耗时、对位分数，整表可导出。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>追溯表（10 列）</span><span><b>右栏</b>统计 + 对位分布</span><span><b>出口</b>手动操作</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>今日件数</span><b>4 128</b></div>
+      <div class="top-stat"><span>轨迹上传</span><b>正常</b></div>
+      <div class="top-stat"><span>CSV 行</span><b>4 128 / 20 000</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:27:48</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item active" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>History 目录已挂载</div><div class="conn-sub">CSV 4 128 行</div></div>
+      </div>
+      <div class="main">
+        <div class="card" style="flex:1;min-height:0;padding:12px;">
+          <div class="card-head"><div><b>逐件追溯 · 记录</b><span>每件一行 · 最新在最上 · 上限 20 000 行，超出丢最旧</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <table class="pm-table" style="font-size:9px;">
+            <thead><tr><th>SN</th><th>型号</th><th>X</th><th>Y</th><th>Z</th><th>R</th><th>对位分</th><th>单件耗时</th><th>结果</th><th>时间</th></tr></thead>
+            <tbody>
+              <tr><td class="v hl">MC-A7F21C-0184</td><td>MC-XY</td><td>128.480</td><td>64.000</td><td>−12.500</td><td>45.00</td><td>0.97</td><td>2.64</td><td><span class="chip ok">OK</span></td><td>15:27:41</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0183</td><td>MC-XY</td><td>128.492</td><td>63.988</td><td>−12.500</td><td>45.00</td><td>0.96</td><td>2.61</td><td><span class="chip ok">OK</span></td><td>15:27:38</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0182</td><td>MC-XY</td><td>128.470</td><td>64.014</td><td>−12.510</td><td>45.00</td><td>0.98</td><td>2.66</td><td><span class="chip ok">OK</span></td><td>15:27:35</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0181</td><td>MC-XY</td><td>128.505</td><td>63.976</td><td>−12.496</td><td>45.02</td><td>0.91</td><td>2.72</td><td><span class="chip warn">复检</span></td><td>15:27:32</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0180</td><td>MC-XY</td><td>128.463</td><td>64.022</td><td>−12.508</td><td>45.00</td><td>0.97</td><td>2.63</td><td><span class="chip ok">OK</span></td><td>15:27:29</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0179</td><td>MC-XY</td><td>128.511</td><td>63.951</td><td>−12.492</td><td>44.98</td><td>0.88</td><td>2.81</td><td><span class="chip danger">NG</span></td><td>15:27:26</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0178</td><td>MC-XY</td><td>128.477</td><td>64.008</td><td>−12.504</td><td>45.00</td><td>0.97</td><td>2.62</td><td><span class="chip ok">OK</span></td><td>15:27:23</td></tr>
+              <tr><td class="v hl">MC-A7F21C-0177</td><td>MC-XY</td><td>128.484</td><td>63.995</td><td>−12.500</td><td>45.00</td><td>0.96</td><td>2.64</td><td><span class="chip ok">OK</span></td><td>15:27:20</td></tr>
+            </tbody>
+          </table>
+          <div class="row" style="margin-top:auto;padding-top:10px;">
+            <span class="btn">导出 CSV</span><span class="btn">按 SN 检索</span><span class="btn">按结果筛选</span>
+            <span style="margin-left:auto" class="chip">显示 8 / 4 128 行</span><span class="chip ok">轨迹已落 History</span>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card" style="height:236px;flex:none;">
+          <div class="card-head"><div><b>运动 KPI</b><span>本班</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>平均单件</span><b>2.64<small>s</small></b><em>目标 ≤ 2.80</em></div>
+            <div class="kpi"><span>对位均值</span><b>0.961</b><em>目标 ≥ 0.95</em></div>
+            <div class="kpi"><span>NG 率</span><b>0.83<small>%</small></b><em>目标 ≤ 1.0</em></div>
+            <div class="kpi"><span>回零次数</span><b>2</b><em>今日</em></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>对位分数分布</b><span>本班 4 128 件 · 直方图</span></div><span class="chip">Hmi.MultiTrend</span></div>
+          <div class="wave-card" style="height:130px;flex:none;">
+            <svg viewBox="0 0 320 130" preserveAspectRatio="none">
+              <line class="grid" x1="0" y1="100" x2="320" y2="100"></line>
+              <rect x="10" y="96" width="30" height="4" fill="#EF4444"></rect>
+              <rect x="46" y="88" width="30" height="12" fill="#F59E0B"></rect>
+              <rect x="82" y="62" width="30" height="38" fill="#38BDF8"></rect>
+              <rect x="118" y="34" width="30" height="66" fill="#38BDF8"></rect>
+              <rect x="154" y="16" width="30" height="84" fill="#22C55E"></rect>
+              <rect x="190" y="28" width="30" height="72" fill="#22C55E"></rect>
+              <rect x="226" y="56" width="30" height="44" fill="#38BDF8"></rect>
+              <rect x="262" y="84" width="30" height="16" fill="#F59E0B"></rect>
+              <text class="axl" x="10" y="120">0.85</text><text class="axl" x="262" y="120">0.99</text>
+            </svg>
+          </div>
+          <div class="card-head" style="margin-top:12px;"><div><b>失败原因 Top 5</b><span>今日</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <table class="axs-table">
+            <thead><tr><th>#</th><th>原因</th><th>次数</th><th>占比</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td class="n">对位分 &lt; 0.90</td><td>19</td><td>44%</td></tr>
+              <tr><td>2</td><td class="n">夹爪真空未到位</td><td>11</td><td>26%</td></tr>
+              <tr><td>3</td><td class="n">Z 轴到位超时</td><td>7</td><td>16%</td></tr>
+              <tr><td>4</td><td class="n">R 轴跟随误差</td><td>4</td><td>9%</td></tr>
+              <tr><td>5</td><td class="n">其他</td><td>2</td><td>5%</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>今日 4 128 件</span><span>CSV 4 128 行</span>
+      <span>History 目录正常</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- 方案 D 三页共用说明（只在 ?shot=1 外的评审视图可见） -->
+<div class="page-notes">
+  <div class="note-card">
+    <h3>方案 D 为什么要单列</h3>
+    <ul>
+      <li>前三套方案（A/B/C）虽是产线设备，但界面重心在「检测结果」；D 的重心是<strong>运动本身</strong>：轴位置、速度、跟随误差、互锁、回零、点动、点位示教。</li>
+      <li>触摸屏现场最费页面的是<strong>点动与回零</strong>：按钮要够大（≥ 56 px）、要能按住、要防误触，所以 D-02 单独占一整页。</li>
+      <li>机构示意用 <code>Hmi.Panel</code> 里的 SVG 几何拼出来，位置数值与四轴卡片一一对应，不是装饰图。</li>
+      <li>图元落点：<code>Hmi.AxisPanel</code>（紧凑预设 280×280）、<code>Hmi.AxisConsole</code>（轴控台 320×470）、<code>Hmi.AxisPointTable</code>（点位表）、<code>Hmi.MultiTrend</code>（速度/跟随误差曲线）、<code>Hmi.DataGrid</code>（轴状态与追溯表）、<code>Hmi.KpiBoard</code>（运动 KPI）。</li>
+    </ul>
+  </div>
+  <div class="note-card">
+    <h3>安全与权限（不能省）</h3>
+    <ul>
+      <li><strong>手动模式软禁自动</strong>：进入 D-02 时自动流程被禁，顶栏状态胶囊变黄并显示 <code>MANUAL</code>。</li>
+      <li><strong>点动「按住才动」</strong>：鼠标按下运动、抬起/移出/失去捕获立刻停（对应 <code>CanOperate</code> 每拍重算 + <code>CaptureMouse</code>）。</li>
+      <li><strong>回零长按 0.5 s</strong>：防误触；回零顺序 Z → X → Y → R（先抬 Z 防撞）。</li>
+      <li><strong>参数改动需二次确认</strong>：D-03 下发参数要确认，落审计（谁、何时、改了哪几项）。</li>
+      <li><strong>急停始终可达</strong>：每页右栏与 D-02 点动盘都有红色急停入口，不做隐藏。</li>
+    </ul>
+  </div>
+</div>
+</section>

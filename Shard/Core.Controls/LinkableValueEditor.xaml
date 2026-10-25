@@ -73,7 +73,8 @@
             <!--  可文本输入：固定值编辑框  -->
             <TextBox
                 x:Name="PART_ValueBox"
-                Height="36"
+                MinHeight="36"
+                MaxHeight="36"
                 Padding="10,0"
                 VerticalContentAlignment="Center"
                 Background="White"
@@ -129,26 +130,64 @@
                             <DataTrigger Binding="{Binding IsOptionPort, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed" />
                             </DataTrigger>
+                            <!--
+                                空候选态（2026-10-24 口径）：封闭集合端口取不到候选时，这一行由
+                                PART_OptionEmpty 占位并给原因，**主输入框必须跟着折叠** ——
+                                否则空态块与可手填的 TextBox 叠在一起，"不许手填"就落不了地。
+                                判据只用 IsOptionEmpty（= 封闭集合 && 无候选），不掺类型。
+                            -->
+                            <DataTrigger Binding="{Binding IsOptionEmpty, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </TextBox.Style>
             </TextBox>
 
             <!--
-                空候选提示（占位文案）：IsFunctionalEnum 端口**取不到候选**时（还没配运动卡 /
-                方案里没有已启用的轴），这一行退化成可手填 —— 必须说明原因，
-                否则看起来像"下拉坏了"。只在"手填退化 + 未链接 + 输入框为空"时显示，
-                不遮挡已填内容；已填内容时同样的话挂在输入框的 ToolTip 上（见 UpdateHandFillHint）。
+                空候选态（2026-10-24 口径）：IsFunctionalEnum 端口**取不到候选**时
+                （还没配运动卡 / 方案里没有已启用的轴 / 宿主漏注册来源），
+                这一行**不再是可手填的输入框**，而是一个明确不可编辑的占位 + 一行原因说明。
+
+                【为什么不再手填】轴名/卡名是框架的权威清单，手填一个不存在的名字，
+                界面毫无提示、要到运行期才炸；而且"没登记来源（程序缺陷）"与"还没配卡（正常）"
+                以前长得一模一样。原因文案由 OptionEmptyReason 给出，缺陷态染红（见 UpdateOptionEmptyState）。
+
+                本文件在 Core.Controls，引用不到 UI 库主题令牌，色值只能内联 —— 与输入框同一组字面量。
             -->
-            <TextBlock
-                x:Name="PART_NoOptionHint"
-                Margin="12,0,0,0"
+            <Border
+                x:Name="PART_OptionEmpty"
+                MinHeight="36"
+                Padding="10,6"
                 VerticalAlignment="Center"
-                FontSize="12"
-                Foreground="#94A3B8"
-                IsHitTestVisible="False"
-                Text="无候选，可手填"
-                Visibility="Collapsed" />
+                HorizontalAlignment="Stretch"
+                Background="#F8FAFC"
+                BorderBrush="#CBD5E1"
+                BorderThickness="1"
+                CornerRadius="8"
+                Visibility="Collapsed">
+                <StackPanel VerticalAlignment="Center">
+                    <!--
+                        占位行 = 让用户一眼看出"这里本该有个下拉"；
+                        原因行 = 为什么没有、我该做什么。**允许换行**：
+                        以前单行 + CharacterEllipsis 会把"程序缺陷：宿主没有为「MotionAxisName」登记…"
+                        从中间截掉，用户看不到最关键的那半句（2026-10-24 渲染实测）。
+                        高度只由内容撑开，其它行行高不受影响（行最小高由 AutoPortRow 的 MinHeight=48 保底）。
+                    -->
+                    <TextBlock
+                        FontSize="12"
+                        Foreground="#94A3B8"
+                        Text="当前没有可选值" />
+                    <TextBlock
+                        x:Name="PART_OptionEmptyText"
+                        Margin="0,2,0,0"
+                        FontSize="11.5"
+                        Foreground="#94A3B8"
+                        LineHeight="16"
+                        Text=""
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
 
             <!--
                 枚举端口：下拉选择，候选即枚举成员。
@@ -162,7 +201,8 @@
             -->
             <ComboBox
                 x:Name="PART_EnumBox"
-                Height="36"
+                MinHeight="36"
+                MaxHeight="36"
                 HorizontalAlignment="Stretch"
                 VerticalContentAlignment="Center"
                 Background="White"

@@ -133,6 +133,61 @@ namespace VisionMaster.Services
             => _variableStore ??= new GlobalVariableWriter(Workspace);
 
         /// <summary>
+        /// 运行期能力面清单（唯一事实源）。新增任何"由宿主注入、缺省回落空实现"的能力属性时，
+        /// 必须在这里登记，否则两处会同时判红：
+        ///  · <c>EngineContextWiringChecks</c> 反射比对——<see cref="ExecutionContext"/> 上有、清单里没有 → 红；
+        ///  · 并行分支上下文 <c>ParallelBranchExecutionContext</c> 的搬运——清单登记了没搬 → 红。
+        ///
+        /// 为什么用属性清单：能力面是 init 属性，反射拿到 <see cref="System.Reflection.PropertyInfo"/>
+        /// 既能读父上下文的取值，也能直接比对"分支上下文与父上下文是不是同一批实例"。
+        /// </summary>
+        public static readonly System.Reflection.PropertyInfo[] RuntimeCapabilities =
+        {
+            typeof(ExecutionContext).GetProperty(nameof(Cameras))!,
+            typeof(ExecutionContext).GetProperty(nameof(Motions))!,
+            typeof(ExecutionContext).GetProperty(nameof(FlowInvoker))!,
+            typeof(ExecutionContext).GetProperty(nameof(Comms))!,
+            typeof(ExecutionContext).GetProperty(nameof(Database))!,
+        };
+
+        /// <summary>按 <see cref="RuntimeCapabilities"/> 的顺序取出全部能力面的当前值</summary>
+        public object?[] SnapshotCapabilities()
+        {
+            var values = new object?[RuntimeCapabilities.Length];
+            for (int i = 0; i < RuntimeCapabilities.Length; i++)
+                values[i] = RuntimeCapabilities[i].GetValue(this);
+            return values;
+        }
+
+        /// <summary>
+        /// 【唯一的上下文装配入口】从 <see cref="ExecutionContextCapabilitySource"/> 造一份执行上下文。
+        ///
+        /// 为什么装配收在这里：连续执行、单次执行、并行分支、插件试运行以前各自写一份对象初始化器，
+        /// 单次执行那份漏了 <c>Database</c>（2026-10-24 评审团 C1）——同一个流程
+        /// "连续跑能查库、单次跑必报没有接入数据库服务"，且没有任何断言盯着"注入清单是否齐全"。
+        /// 收成一个方法后，"漏注入"是运行期第一跳的异常，不是静默回落成空实现。
+        ///
+        /// 【反射装配】按 <see cref="RuntimeCapabilities"/> 逐项写回：新增能力属性只要登记进清单，
+        /// 这里自动覆盖；<see cref="ExecutionContextCapabilitySource.ResolveCapabilities"/> 缺分支会抛，
+        /// 不会静默漏搬。守门：FlowCanvasChecks 的 EngineContextWiringChecks。
+        /// </summary>
+        public static ExecutionContext Create(
+            ILogService logService,
+            FlowSession? session,
+            IWorkspaceManager? workspace,
+            CancellationToken token,
+            ExecutionContextCapabilitySource source)
+        {
+            if (source is null) throw new ArgumentNullException(nameof(source));
+
+            var context = new ExecutionContext(logService, session!, workspace!, token);
+            var values = source.ResolveCapabilities();
+            for (int i = 0; i < RuntimeCapabilities.Length; i++)
+                RuntimeCapabilities[i].SetValue(context, values[i]);
+            return context;
+        }
+
+        /// <summary>
         /// 构造函数（简化版本）
         /// </summary>
         /// <param name="logService">日志服务</param>

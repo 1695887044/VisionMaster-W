@@ -1,0 +1,68 @@
+/* ============ 方案 D · 轴控件（AxisPanelElement）像素级复刻样式 ============ */
+/* 一个控件类三个预设：AxisPanel 280x280 / AxisConsole 320x470 / AxisPointTable 340x300 */
+/* 令牌取自 AxisPanelElement 默认值：Accent #FFFF6161 / Alarm #FFE03A2B / Off #FF2A2D31 / Muted #FF9A9A9D */
+.axp{--ax-accent:#FF6161;--ax-alarm:#E03A2B;--ax-off:#2A2D31;--ax-muted:#9A9A9D;--ax-surface:#1E2228;--ax-border:#33383F;
+  display:flex;flex-direction:column;background:var(--ax-surface);border:1px solid var(--ax-border);border-radius:8px;
+  font-size:11px;color:var(--c-text);overflow:hidden;position:relative}
+.axp-hd{display:flex;align-items:center;gap:6px;padding:7px 9px 5px}
+.axp-hd .nm{font-size:11px;font-weight:700;white-space:nowrap}
+.axp-combo{flex:1;min-width:0;display:flex;align-items:center;gap:6px;height:22px;padding:0 6px;border-radius:4px;
+  background:#252A31;border:1px solid var(--ax-border);font-size:10.5px;color:var(--c-text-2);overflow:hidden}
+.axp-combo b{color:var(--c-text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.axp-combo .car{margin-left:auto;color:var(--ax-muted);font-size:9px}
+.axp-empty{padding:14px 9px;font-size:10px;color:var(--ax-muted)}
+.axp-pos{display:flex;align-items:baseline;justify-content:center;gap:5px;padding:2px 9px 4px}
+.axp-pos b{font-family:var(--mono);font-size:30px;line-height:1;font-weight:600;color:var(--ax-accent);letter-spacing:-.5px}
+.axp-pos em{font-style:normal;font-size:10.5px;color:var(--ax-muted)}
+.axp-lamps{display:grid;grid-template-columns:repeat(4,1fr);gap:3px 4px;padding:0 9px 5px}
+.axp-lamp{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--ax-muted);line-height:1.2}
+.axp-lamp i{width:8px;height:8px;flex:none;border-radius:50%;background:var(--ax-off);box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)}
+.axp-lamp i.on{background:var(--ax-accent);box-shadow:0 0 5px rgba(255,97,97,.55)}
+.axp-lamp i.on.g{background:#22C55E;box-shadow:0 0 5px rgba(34,197,94,.55)}
+.axp-lamp i.al{background:var(--ax-alarm);box-shadow:0 0 5px rgba(224,58,43,.6)}
+.axp-lamp.on{color:var(--c-text-2)}
+.axp-vel{display:flex;align-items:center;gap:5px;padding:0 9px 6px;font-size:10px;color:var(--c-text-2)}
+.axp-vel b{font-family:var(--mono);font-weight:600;color:var(--c-text)}
+.axp-vel em{font-style:normal;color:var(--ax-muted);font-size:9px}
+.axp-vel .st{margin-left:auto;padding:1px 5px;border-radius:3px;background:#2B3138;color:var(--ax-muted);font-size:9px}
+.axp-cmds{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:0 9px}
+.axp-btn{height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:10px;
+  background:#2B3138;border:1px solid #3B424B;color:var(--c-text-2);white-space:nowrap}
+.axp-btn.hot{background:rgba(255,97,97,.14);border-color:rgba(255,97,97,.5);color:#FFB4B4}
+.axp-btn.danger{background:rgba(224,58,43,.16);border-color:rgba(224,58,43,.55);color:#FFB4B4}
+.axp-btn.dim{opacity:.45}
+.axp-msg{padding:5px 9px 6px;font-size:9px;color:var(--ax-alarm);min-height:14px}
+.axp-msg.ok{color:#86EFAC}
+.axp-points{padding:0 9px 8px}
+.axp-ph{display:grid;grid-template-columns:1fr 52px 52px 66px;gap:2px;padding:0 3px 2px;font-size:9px;font-weight:600;color:var(--ax-muted)}
+.axp-ph span:nth-child(2),.axp-ph span:nth-child(3){text-align:right}
+.axp-ph span:last-child{text-align:center}
+.axp-prow{display:grid;grid-template-columns:1fr 52px 52px 66px;gap:2px;align-items:center;
+  padding:2px 3px;border-radius:3px;font-size:10px;min-height:24px}
+.axp-prow:nth-child(odd){background:rgba(255,255,255,.025)}
+.axp-prow .cap{font-weight:600;color:var(--c-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.axp-prow .pv{text-align:right;font-family:var(--mono);color:var(--c-text)}
+.axp-prow .ps{height:18px;display:flex;align-items:center;justify-content:flex-end;padding:0 3px;border-radius:3px;
+  background:#252A31;border:1px solid #3B424B;font-family:var(--mono);font-size:9.5px;color:var(--c-text-2)}
+.axp-prow .po{display:flex;gap:2px;justify-content:flex-end}
+.axp-prow .po span{height:18px;padding:0 4px;display:flex;align-items:center;border-radius:3px;font-size:9px;
+  background:#2B3138;border:1px solid #3B424B;color:var(--c-text-2)}
+.axp-prow .po span.off{opacity:.35}
+.axp-prow.sel{background:rgba(255,97,97,.08);box-shadow:inset 2px 0 0 var(--ax-accent)}
+.axp-foot{display:flex;align-items:center;gap:6px;padding:6px 9px;border-top:1px solid var(--ax-border);
+  font-size:9px;color:var(--ax-muted);margin-top:auto}
+.axp-foot .tag{margin-left:auto;padding:1px 5px;border-radius:3px;background:#2B3138;color:var(--c-text-3);font-size:8.5px}
+.axp-dims{position:absolute;top:4px;right:6px;font-family:var(--mono);font-size:8px;color:var(--ax-muted);opacity:.75}
+.axp-nopoints .axp-points{display:none}
+.axp-only-points .axp-hd,.axp-only-points .axp-pos,.axp-only-points .axp-lamps,
+.axp-only-points .axp-vel,.axp-only-points .axp-cmds,.axp-only-points .axp-msg{display:none}
+/* 候选（控件当前没有的能力）：橙色虚线，明确「不是已实现」 */
+.axp-gap{display:flex;align-items:flex-start;gap:6px;margin:0 9px 8px;padding:5px 7px;border-radius:4px;
+  border:1px dashed rgba(245,158,11,.55);background:rgba(245,158,11,.08);font-size:9px;color:#FCD34D;line-height:1.35}
+.axp-gap b{font-weight:700;color:#FDE68A}
+.axp-gap i{font-style:normal;flex:none;padding:0 4px;border-radius:2px;background:rgba(245,158,11,.2);color:#FDE68A}
+/* 轴控件展示台：真实尺寸框 */
+.axp-stage{display:flex;gap:14px;align-items:flex-start}
+.axp-slot{display:flex;flex-direction:column;gap:5px}
+.axp-slot > .cap{font-size:9px;color:var(--c-text-3);font-family:var(--mono)}
+.axp-slot > .cap b{color:#93C5FD;font-weight:600}

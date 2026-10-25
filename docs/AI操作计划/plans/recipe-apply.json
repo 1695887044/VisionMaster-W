@@ -1,0 +1,85 @@
+{
+  "schema": "vm-plan/1",
+  "id": "recipe-apply",
+  "title": "应用一份配方",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "应用会先弹窗口内覆盖层的「确认应用」，确认前不写任何值；只写内存，不保存方案。",
+  "params": {
+    "recipe_name": {
+      "type": "string",
+      "required": true,
+      "example": "产品A"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.system",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.system",
+      "expect": {
+        "element": "app.menu.system.recipe",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.system.recipe",
+      "expect": {
+        "window": "dialog.recipe",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.recipe.row",
+      "target_name": "${recipe_name}"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.recipe.apply",
+      "expect": {
+        "element": "dialog.recipe.confirm_apply",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.recipe.confirm_apply",
+      "expect": {
+        "element": "dialog.recipe.confirm_apply",
+        "state": "closed"
+      },
+      "timeout_ms": 10000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["recipe", "apply"]
+}

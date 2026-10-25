@@ -1,0 +1,82 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-edit-comment",
+  "title": "编辑流程注释",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "注释存在流程模型里，随方案保存；注释文字用于流程胶囊悬浮提示。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "主流程"
+    },
+    "comment": {
+      "type": "string",
+      "required": true,
+      "example": "上料 + 定位 + 输出"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.comment",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.comment",
+      "expect": {
+        "window": "dialog.flow_comment",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "type",
+      "target": "dialog.flow_comment.input",
+      "text": "${comment}",
+      "clear": true
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.flow_comment.ok",
+      "expect": {
+        "window": "dialog.flow_comment",
+        "state": "closed"
+      },
+      "timeout_ms": 5000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "comment"]
+}

@@ -207,6 +207,8 @@ namespace Plugin.CSharpScript
             def.Name = option.Name;
             def.TypeName = option.TypeName;
             def.IsSystem = option.IsSystem;
+            // 别名留空 = 用变量名，但这个名字要在此刻定下来：变量管理里之后改名不该让脚本键漂移。
+            def.CaptureAliasIfEmpty();
         }
 
         // 生成不与现有条目重复的默认名：in / in2 / in3 …

@@ -104,7 +104,7 @@ namespace FlowCanvasChecks
         /// </summary>
         private static void RunEmptyOptionFallback()
         {
-            Section("[PortBind] 空候选退化：没有候选时回到可手填（不再把人堵在空下拉里）");
+            Section("[PortBind] 空候选：不再退回手填，改为「禁用下拉 + 说明原因」（2026-10-24 口径）");
 
             string probe = "未执行";
             var thread = new Thread(() =>
@@ -120,7 +120,8 @@ namespace FlowCanvasChecks
 
                     var valueBox = editor.FindName("PART_ValueBox") as System.Windows.Controls.TextBox;
                     var enumBox = editor.FindName("PART_EnumBox") as System.Windows.Controls.ComboBox;
-                    var hint = editor.FindName("PART_NoOptionHint") as System.Windows.Controls.TextBlock;
+                    var empty = editor.FindName("PART_OptionEmpty") as System.Windows.UIElement;
+                    var emptyText = editor.FindName("PART_OptionEmptyText") as System.Windows.Controls.TextBlock;
                     var linkBtn = editor.FindName("PART_LinkBtn") as System.Windows.Controls.Button;
                     string linkVisibility = linkBtn == null ? "null" : linkBtn.Visibility.ToString();
 
@@ -128,19 +129,22 @@ namespace FlowCanvasChecks
                     {
                         $"空候选只能选={editor.IsOptionPort}",
                         $"空候选手填={editor.IsHandFillFallback}",
+                        $"空候选空态={editor.IsOptionEmpty}",
+                        $"空候选缺陷={editor.IsOptionEmptyDefect}",
                         $"空候选数={editor.EnumOptions.Count}",
                         $"主值框={valueBox?.Visibility}",
                         $"主下拉={enumBox?.Visibility}",
-                        $"提示={hint?.Visibility}",
-                        $"提示语={hint?.Text}",
+                        $"空态块={empty?.Visibility}",
+                        $"空态固定文案={((empty as System.Windows.Controls.Border)?.Child as System.Windows.Controls.Panel)?.Children.OfType<System.Windows.Controls.TextBlock>().FirstOrDefault()?.Text}",
+                        $"提示语={emptyText?.Text}",
                         $"链接按钮={linkVisibility}",
                     };
 
-                    // 走真实写路径：PortValue 就是 TextBox 的绑定目标（用户敲进去的那一路）
-                    editor.PortValue = "X";
+                    // 走真实写路径：封闭集合端口 + 空串 → 不写回（保留端口原值，R35 同族）
+                    editor.PortValue = "手打的名字";
                     parts.Add($"写回={port.Value}");
 
-                    // ---- ② 有候选：仍必须是下拉，且写回的是成员名（显示中文、值稳定键）----
+                    // ---- ② 有候选：必须是下拉，且写回的是成员名（显示中文、值稳定键）----
                     var enumPort = new InputPort<ProbeOption>("Kind", ProbeOption.Line, "查找类型");
                     editor.Port = enumPort;
                     editor.UpdateLayout();
@@ -154,10 +158,11 @@ namespace FlowCanvasChecks
                     parts.Add($"枚举写回={enumPort.Value}");
 
                     // ---- ③ 候选被清空（模拟方案变化后重取候选）----
-                    //  形态要跟着退回手填，且**端口已有值不许被清空**（R35：重填候选不能抹掉用户值）。
+                    //  形态退回空态（不再是手填），且**端口已有值不许被清空**（R35：重填候选不能抹掉用户值）。
                     editor.EnumOptions.Clear();
                     parts.Add($"清空后只能选={editor.IsOptionPort}");
                     parts.Add($"清空后手填={editor.IsHandFillFallback}");
+                    parts.Add($"清空后空态={editor.IsOptionEmpty}");
                     parts.Add($"清空后端口值={enumPort.Value}");
 
                     probe = string.Join(" ", parts);
@@ -171,15 +176,29 @@ namespace FlowCanvasChecks
             thread.Start();
             thread.Join(8000);
 
-            Check("★空候选的 IsFunctionalEnum 端口退化为可手填（输入框可见 / 下拉折叠 / 有「无候选，可手填」提示）",
-                probe.Contains("空候选只能选=False") && probe.Contains("空候选手填=True")
-                && probe.Contains("空候选数=0")
-                && probe.Contains("主值框=Visible") && probe.Contains("主下拉=Collapsed")
-                && probe.Contains("提示=Visible") && probe.Contains("无候选"),
+            Check("★空候选的 IsFunctionalEnum 端口不再退化为可手填（主输入框折叠 / 空态块可见 / 手填恒 false）",
+                probe.Contains("空候选只能选=False") && probe.Contains("空候选手填=False")
+                && probe.Contains("空候选空态=True")
+                && probe.Contains("主值框=Collapsed") && probe.Contains("主下拉=Collapsed")
+                && probe.Contains("空态块=Visible") && probe.Contains("当前没有可选值"),
                 probe);
 
-            Check("★空候选不是死路：手填的值真的写进了端口",
-                probe.Contains("写回=X"), probe);
+            // 注：原判据含 `空候选数=0`（EnumOptions.Count）。
+
+            // 2026-10-24 改口径后这条不再成立：空候选时下拉被 IsOptionEmpty 折叠，
+            // 但 EnumOptions 里**仍保留上一次的候选**（R35：重填候选不能抹掉用户值，
+            // 否则配好卡切回来端口值会被清空）。所以 Count 不是判据，"主下拉折叠 + 空态块可见"
+            // 才是。把它当判据会在正确实现上翻红。
+
+            // 判据只看**值**，不看字段名：`提示语=` 后面紧跟文案，含"程序缺陷"或"当前方案里没有"
+            // 都算给了可读原因（前者=来源没登记/抛异常，后者=已登记但没有可用项）。
+            Check("★空候选不是死路：空态块里有一句可读说明（不是空白块）",
+                probe.Contains("空态固定文案=当前没有可选值")
+                || probe.Contains("提示语=") && (probe.Contains("程序缺陷") || probe.Contains("当前方案里没有")),
+                probe);
+
+            Check("★空候选的封闭端口不许手填写入（手打的名字进不了端口）",
+                !probe.Contains("写回=手打的名字"), probe);
 
             Check("★空候选仍不许链接（名字类端口挂绑定弹窗 = 运行期拿值当名字，R33）",
                 probe.Contains("链接按钮=Collapsed"), probe);
@@ -191,8 +210,9 @@ namespace FlowCanvasChecks
                 && probe.Contains("枚举写回=Circle"),
                 probe);
 
-            Check("★候选被清空后形态自动退回手填，且端口已有值不被清空（R35：重填候选不能抹掉用户值）",
-                probe.Contains("清空后只能选=False") && probe.Contains("清空后手填=True")
+            Check("★候选被清空后形态退回空态（不再手填），且端口已有值不被清空（R35：重填候选不能抹掉用户值）",
+                probe.Contains("清空后只能选=False") && probe.Contains("清空后手填=False")
+                && probe.Contains("清空后空态=True")
                 && probe.Contains("清空后端口值=Circle"),
                 probe);
         }

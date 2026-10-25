@@ -1,0 +1,66 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-run-once",
+  "title": "单次运行一条流程",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "右键菜单入口走非调试路径：断点不生效；流程必须是启用态且当前没在跑。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "工位1"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    },
+    {
+      "assert": "text_absent",
+      "text": "已禁用"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.run_once",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.run_once"
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "单次运行已启动",
+      "timeout_ms": 15000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "run"]
+}

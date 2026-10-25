@@ -38,6 +38,7 @@ namespace VisionMaster.Scada
         private ObservableCollection<ScadaPage> _pages = new();
         private ObservableCollection<ScadaAlarmDefinition> _alarms = new();
         private ObservableCollection<ScadaVariableEvent> _variableEvents = new();
+        private ObservableCollection<ScadaStateList> _stateLists = new();
 
         /// <summary>
         /// 结构版本号（落盘）。加载到小于 <see cref="CurrentSchemaVersion"/> 的文件时，
@@ -79,6 +80,7 @@ namespace VisionMaster.Scada
             _pages.CollectionChanged += OnPagesChanged;
             _alarms.CollectionChanged += OnAlarmsChanged;
             _variableEvents.CollectionChanged += OnVariableEventsChanged;
+            _stateLists.CollectionChanged += OnStateListsChanged;
 
             // 基座集合同样要在<b>字段初始化的那份实例</b>上挂订阅——只在属性 setter 里挂的话，
             // 新建文档（不走反序列化）就永远收不到 CollectionChanged：
@@ -154,6 +156,32 @@ namespace VisionMaster.Scada
         /// <summary>变量事件增删 → 记一条变更（理由与删报警相同：删配置也要能撤销）</summary>
         private void OnVariableEventsChanged(object? sender, NotifyCollectionChangedEventArgs e)
             => ScadaCollectionRecorder.Record(_variableEvents, e);
+
+        /// <summary>
+        /// 方案级文本列表（落盘）：ComboBox 等控件按稳定 Id 引用。
+        ///
+        /// 与 <see cref="Alarms"/> 同一套范式（整体替换 + setter 摘旧挂新 + 变更记录）。
+        /// 列表自身的条目改动由 <see cref="ScadaStateList.Version"/> 通知订阅方，
+        /// 文档层不需要逐条订阅——那会把“条目改了哪一条”抄成第二份真相。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaStateList> StateLists
+        {
+            get => _stateLists;
+            set
+            {
+                var old = _stateLists;
+                if (old != null)
+                    old.CollectionChanged -= OnStateListsChanged;
+
+                _stateLists = value ?? new ObservableCollection<ScadaStateList>();
+                _stateLists.CollectionChanged += OnStateListsChanged;
+            }
+        }
+
+        /// <summary>文本列表增删 → 记一条变更（与报警/变量事件同一口径）</summary>
+        private void OnStateListsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScadaCollectionRecorder.Record(_stateLists, e);
 
         /// <summary>
         /// 打开一次可撤销的编辑（D3 统一写入口），用法与 <see cref="ScadaPage.BeginEdit"/> 一致。

@@ -54,10 +54,14 @@ namespace VisionMaster.Views.DialogViews
             // 若在 XAML 里直接写 clr-namespace:Core.Controls，生成代码会按相对命名空间
             // 解析成 VisionMaster.Core.Controls（CS0234）。这里用 ContentControl 承载，
             // 视觉与契约完全不变（仍是唯一的 LinkableValueEditor 编辑入口）。
+            // 2026-10-24：高度约束从 Height=36 改成 MinHeight=36 + Stretch。
+            // 空候选时编辑器要显示「当前没有可选值 + 原因」两行说明，Height 会把内容裁掉
+            // （实测空态文案自身要 64 高，被 36 卡死，见 _AutoPanelProbe 的 MeasureChain 链）。
+            // 普通行内容仍是 36 高，视觉不变。
             _editor = new LinkableValueEditor
             {
-                Height = 36,
-                VerticalAlignment = VerticalAlignment.Center,
+                MinHeight = 36,
+                VerticalAlignment = VerticalAlignment.Stretch,
                 Label = string.Empty,
             };
             EditorHost.Content = _editor;

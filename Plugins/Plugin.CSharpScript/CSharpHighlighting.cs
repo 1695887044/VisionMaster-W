@@ -30,14 +30,14 @@ namespace Plugin.CSharpScript
         private static readonly string[] ContextApi =
         {
             "Context", "GetInput", "SetOutput", "GetGlobal", "SetGlobal", "TrySetGlobal",
-            "GetVar", "SetVar", "Vars",
+            "GetVar", "SetVar", "Vars", "CancellationToken", "ThrowIfCancellationRequested",
             "Info", "Warn", "Error", "Success", "ShowImage", "Fail",
         };
 
         // 脚本中常见的类型/静态类：青色（小写内置类型走关键字规则）
         private static readonly string[] KnownTypes =
         {
-            "HImage", "HObject", "HRegion", "HXld", "HXLDCont", "HTuple", "HalconDotNet",
+            "HImage", "HObject", "HRegion", "HXLDCont", "HTuple", "HalconDotNet",
             "String", "Int32", "Int64", "Double", "Single", "Boolean", "Decimal", "Object",
             "Exception", "Console", "Math", "Convert", "DateTime", "TimeSpan",
             "List", "Dictionary", "HashSet", "Queue", "Stack",

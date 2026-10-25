@@ -2379,4 +2379,123 @@
         render(null);
         return { node: node, update: function () { }, updateGrid: render };
     };
+
+    // ----------------------------------------------------------------------
+    //  Hmi.RecipePanel 配方只读面板（配方名 · 版本 / 状态 / 逐项参数；2Hz recipe 消息）
+    //
+    //  数据来自服务端 ScadaRecipePanelData（与桌面控件同一份格式化口径），
+    //  Web 不做变量名解析、也不做"文案包含偏离"这类判断——只看 statusKey。
+    //  没有 recipe 消息时显示"等待配方数据"。
+    // ----------------------------------------------------------------------
+    registry['Hmi.RecipePanel'] = function (el, ctx) {
+        var doc = global.document;
+
+        var node = doc.createElement('div');
+        node.className = 'hmi-recipe-panel';
+        node.style.cssText = 'position:relative;width:100%;height:100%;overflow:hidden;'
+            + 'display:flex;flex-direction:column;box-sizing:border-box;padding:10px 12px;'
+            + 'background:rgba(21,28,35,0.92);border:1px solid #2A3745;border-radius:6px;'
+            + 'font:12px "Microsoft YaHei",sans-serif;color:#E6EEF7;';
+
+        // 标题（留空则整行收起）
+        var title = doc.createElement('div');
+        title.style.cssText = 'flex:0 0 auto;font-size:11.5px;color:#7C8A99;margin-bottom:4px;'
+            + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+        title.textContent = prop(el, 'Title', '当前配方');
+
+        // 主行：配方名 · 版本 + 状态胶囊
+        var headRow = doc.createElement('div');
+        headRow.style.cssText = 'flex:0 0 auto;display:flex;align-items:center;gap:8px;';
+
+        var header = doc.createElement('div');
+        header.style.cssText = 'flex:1 1 0;min-width:0;font-size:15px;font-weight:600;'
+            + 'white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
+
+        var pill = doc.createElement('div');
+        pill.style.cssText = 'flex:0 0 auto;padding:1px 8px;border-radius:9px;border:1px solid #3A4A5C;'
+            + 'font-size:11px;white-space:nowrap;';
+
+        headRow.appendChild(header);
+        headRow.appendChild(pill);
+
+        // 明细列表
+        var list = doc.createElement('div');
+        list.style.cssText = 'flex:1 1 auto;min-height:0;overflow:auto;margin-top:8px;';
+
+        // 空态 / 未接入提示
+        var hint = doc.createElement('div');
+        hint.style.cssText = 'flex:0 0 auto;margin-top:6px;font-size:11.5px;color:#7C8A99;';
+
+        node.appendChild(title);
+        node.appendChild(headRow);
+        node.appendChild(list);
+        node.appendChild(hint);
+
+        var STATUS_COLORS = {
+            ok: { border: '#22C55E', bg: 'rgba(21,128,61,0.55)', text: '#22C55E' },
+            warn: { border: '#F59E0B', bg: 'rgba(59,42,18,0.85)', text: '#F59E0B' },
+            danger: { border: '#EF4444', bg: 'rgba(27,36,45,0.95)', text: '#EF4444' },
+            muted: { border: '#3A4A5C', bg: 'transparent', text: '#A9B7C6' }
+        };
+
+        function applyTitle() {
+            var text = prop(el, 'Title', '当前配方') || '';
+            title.textContent = text;
+            title.style.display = text ? 'block' : 'none';
+        }
+
+        function render(message) {
+            var entry = null;
+            if (message && Array.isArray(message.elements)) {
+                for (var i = 0; i < message.elements.length; i++) {
+                    if (String(message.elements[i].elementId) === String(el.ElementId)) {
+                        entry = message.elements[i];
+                        break;
+                    }
+                }
+            }
+
+            applyTitle();
+
+            if (!entry) {
+                header.textContent = '等待配方数据';
+                pill.textContent = '';
+                pill.style.display = 'none';
+                list.replaceChildren();
+                hint.textContent = '配方数据 2Hz 下发；运行态进入后自动出现';
+                return;
+            }
+
+            header.textContent = entry.header || '';
+            header.title = entry.header || '';
+
+            var key = entry.statusKey || 'muted';
+            var colors = STATUS_COLORS[key] || STATUS_COLORS.muted;
+            var statusText = entry.status || '';
+            pill.textContent = statusText;
+            pill.style.display = statusText ? 'block' : 'none';
+            pill.style.borderColor = colors.border;
+            pill.style.background = colors.bg;
+            pill.style.color = colors.text;
+
+            list.replaceChildren();
+
+            var rows = Array.isArray(entry.rows) ? entry.rows : [];
+            for (var r = 0; r < rows.length; r++) {
+                var line = doc.createElement('div');
+                line.textContent = rows[r] && rows[r].text !== undefined ? String(rows[r].text) : '';
+                line.title = line.textContent;
+                line.style.cssText = 'font:11.5px "Cascadia Mono",Consolas,monospace;'
+                    + 'margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+                    + 'color:' + (rows[r] && rows[r].truncated ? '#7C8A99' : '#A9B7C6')
+                    + ';font-style:' + (rows[r] && rows[r].truncated ? 'italic' : 'normal') + ';';
+                list.appendChild(line);
+            }
+
+            hint.textContent = entry.hint || '';
+        }
+
+        render(null);
+        return { node: node, update: function () { }, updateRecipe: render };
+    };
 })(window);

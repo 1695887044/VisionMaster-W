@@ -212,6 +212,15 @@ namespace VisionMaster.Views.DialogViews
             public TextBlock ErrorText { get; set; } = null!;
             public ConfigEditorKind Kind { get; set; }
 
+            /// <summary>名字类参数的候选类别（仅 ConfigEditorKind.Enum 里走 [StepConfigOptions] 那支非 null）。</summary>
+            public StepConfigOptionKind? OptionsKind { get; set; }
+
+            /// <summary>候选取用结果（取候选那一刻的快照，供刷新时判断是否需要重建）。</summary>
+            public StepConfigOptionResult? OptionResult { get; set; }
+
+            /// <summary>空候选说明控件（有候选时为 null）。</summary>
+            public TextBlock? OptionEmptyNote { get; set; }
+
             /// <summary>true = 正在把插件值刷进控件（此时控件事件不许再写回插件，否则会互相打架）</summary>
             public bool Updating { get; set; }
         }
@@ -336,6 +345,14 @@ namespace VisionMaster.Views.DialogViews
             row.ErrorText = error;
             editorStack.Children.Add(error);
 
+            // 空候选说明（由 CreateOptionEditor 在造控件时挂进本栈）：
+            // 必须排在 shell 之后、error 之前，否则会被错误提示压到最下面。
+            if (row.OptionEmptyNote != null)
+            {
+                editorStack.Children.Remove(row.OptionEmptyNote);
+                editorStack.Children.Insert(editorStack.Children.Count - 1, row.OptionEmptyNote);
+            }
+
             Grid.SetColumn(editorStack, 1);
             grid.Children.Add(editorStack);
 
@@ -422,6 +439,15 @@ namespace VisionMaster.Views.DialogViews
                 return box;
             }
 
+            // 【v3】名字类 string 参数（标了 [StepConfigOptions]）：渲染成**只选不填**的下拉。
+            // 2026-10-24 口径变更：轴名/卡名是框架的权威清单，手打一个不存在的名字界面毫无提示，
+            // 要到运行期才炸；且"宿主漏注册来源"（程序缺陷）与"还没配卡"（正常）在旧实现里
+            // 长得一模一样（都是空下拉 + 可手填）。现在改成：有候选→只能选；没候选→禁用 + 红字说明原因。
+            if (descriptor.Type == typeof(string) && descriptor.OptionsKind is { } optionsKind)
+            {
+                return CreateOptionEditor(row, descriptor, optionsKind);
+            }
+
             if (descriptor.Type == typeof(string))
             {
                 row.Kind = ConfigEditorKind.Text;
@@ -452,6 +478,110 @@ namespace VisionMaster.Views.DialogViews
                 ToolTip = "该类型暂不支持在此编辑",
             };
         }
+
+        /// <summary>
+        /// 名字类参数（标了 [StepConfigOptions] 的 string）：**只选不填**的下拉。
+        ///
+        /// 【为什么不能手填】轴名/卡名是框架的权威清单，值最终要拿去查注册表；
+        /// 手打一个不存在的名字，界面当时毫无提示，要到运行期才抛"没有名为 X 的轴"。
+        /// 更糟的是"宿主漏注册来源"（程序缺陷）与"还没配卡"（正常业务态）在旧实现里
+        /// 表现得一模一样 —— 都是空下拉且可自由输入，缺陷永远没人发现。
+        ///
+        /// 【三态】（与 LinkableValueEditor / OptionSourceGenerator 同一套判据，都走 GetOptionsResult）
+        ///  · 有候选        → 可用的下拉，值 = 成员名/资源名（写回仍是稳定的名字，不是显示文本）；
+        ///  · 空·已登记来源 → 禁用 + 灰字"先去哪里配"（正常业务态，用户按提示去配卡即可）；
+        ///  · 空·没登记/抛异常 → 禁用 + **红字"这是程序缺陷"** + 原因（必须让缺陷显形）。
+        ///
+        /// 候选**每次渲染现取**（GetOptionsResult 不缓存）：用户在设置里配完卡回来重开面板即可见，
+        /// 不需要重启，也不需要"刷新"按钮。
+        /// </summary>
+        private FrameworkElement CreateOptionEditor(
+            ConfigRow row,
+            StepConfigPropertyDescriptor descriptor,
+            StepConfigOptionKind kind)
+        {
+            row.Kind = ConfigEditorKind.Enum;
+            row.OptionsKind = kind;
+
+            var result = StepConfigOptionSource.GetOptionsResult(kind);
+            var combo = new ComboBox
+            {
+                Height = 32,
+                VerticalAlignment = VerticalAlignment.Center,
+                ItemsSource = result.Items,
+                DisplayMemberPath = "Display",
+                SelectedValuePath = "Value",
+                // ★ 只选不填：没有候选时直接禁用，绝不退化成自由文本框
+                IsEditable = false,
+                IsEnabled = result.Items.Count > 0,
+                Tag = "ConfigEditor:" + descriptor.Name,
+            };
+
+            combo.SelectionChanged += (_, _) =>
+            {
+                if (row.Updating || combo.SelectedValue is not string value) return;
+                try
+                {
+                    ClearConfigRowError(row);
+                    WriteConfigValue(row, value);
+                }
+                catch (Exception ex)
+                {
+                    ShowConfigRowError(row, $"无法写回「{value}」：{ex.Message}");
+                }
+            };
+
+            row.OptionResult = result;
+            if (result.Items.Count == 0)
+            {
+                // 空候选：把原因写进提示 + 行内说明。缺陷态用红字，业务态用灰字。
+                var reason = DescribeOptionEmptyReason(kind, result);
+                combo.ToolTip = reason;
+                row.OptionEmptyNote = AddOptionEmptyNote(row, reason, result.IsDefect);
+            }
+            else
+            {
+                combo.ToolTip = $"候选来自当前方案（共 {result.Items.Count} 项）；只能从候选中选择";
+            }
+
+            return combo;
+        }
+
+        /// <summary>空候选的说明文字（放在控件下方，红色 = 程序缺陷，灰色 = 正常业务态）。</summary>
+        private TextBlock AddOptionEmptyNote(ConfigRow row, string reason, bool isDefect)
+        {
+            var note = new TextBlock
+            {
+                Margin = new Thickness(2, 2, 0, 0),
+                FontSize = 10.5,
+                TextWrapping = TextWrapping.Wrap,
+                Text = reason,
+                Tag = "ConfigOptionEmpty:" + row.Descriptor.Name,
+                Foreground = (Brush)FindResource(isDefect ? "DialogDangerTextBrush" : "DialogTextMutedBrush"),
+            };
+
+            // 缺陷态：外壳也染红，让人一眼看出"这行不是我没配，是程序有问题"
+            if (isDefect)
+            {
+                row.EditorShell.BorderBrush = (Brush)FindResource("DialogDangerBrush");
+                row.EditorShell.BorderThickness = new Thickness(1);
+            }
+
+            return note;
+        }
+
+        /// <summary>空候选原因：程序缺陷（红）与正常未配（灰）必须能分开。</summary>
+        private static string DescribeOptionEmptyReason(StepConfigOptionKind kind, StepConfigOptionResult result)
+            => result.Failure switch
+            {
+                StepConfigOptionFailureKind.NoProvider
+                    => $"程序缺陷：宿主没有为「{kind}」登记候选来源，本应有可选项。请把这个提示反馈给开发。",
+                StepConfigOptionFailureKind.ProviderThrew
+                    => $"程序缺陷：取「{kind}」候选时出错 —— {result.ProviderErrors[0]}。请反馈给开发。",
+                _ when kind == StepConfigOptionKind.MotionAxisName
+                    => "当前方案里没有已启用的轴：先到「运动卡设置」配好卡与轴，再回到这里选择。",
+                _ => $"当前方案里还没有可用的「{kind}」：先到对应的设备设置里配好，再回到这里选择。",
+            };
 
         /// <summary>把插件实例上的当前值刷进控件（不触发写回）。</summary>
         private void RefreshConfigRowValue(ConfigRow row)

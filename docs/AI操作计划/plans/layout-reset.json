@@ -1,0 +1,40 @@
+{
+  "schema": "vm-plan/1",
+  "id": "layout-reset",
+  "title": "恢复默认停靠布局",
+  "version": "1.1.0",
+  "risk": "high",
+  "description": "破坏性：丢弃当前面板位置、大小与显隐。会出现两个标题同为「恢复默认布局」的 MessageBox——先确认，再确认结果提示；没有 toast。",
+  "params": {},
+  "preconditions": [
+    { "assert": "process_running", "process": "VisionMaster" },
+    { "assert": "window", "target": "app.main" }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "menu",
+      "path": ["app.menu.root", "app.menu.tool", "app.menu.tool.reset_layout"],
+      "expect": { "window": "dialog.reset_layout", "state": "visible" },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "dialog.reset_layout.ok",
+      "note": "确认框（默认按钮是取消）",
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "dialog.reset_layout.ok",
+      "note": "结果提示框；两个 MessageBox 标题相同",
+      "expect": { "window": "dialog.reset_layout", "state": "closed" },
+      "timeout_ms": 5000,
+      "retry": 3
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["layout", "reset", "destructive"]
+}

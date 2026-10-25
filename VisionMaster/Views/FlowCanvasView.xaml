@@ -11,6 +11,7 @@
     xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
     xmlns:vm="clr-namespace:VisionMaster.ViewModels"
+    xmlns:views="clr-namespace:VisionMaster.Views"
     d:DesignHeight="600"
     d:DesignWidth="900"
     prism:ViewModelLocator.AutoWireViewModel="True"
@@ -25,10 +26,268 @@
     <!--  ==========================================  -->
 
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <!--  步骤右键菜单样式（流程栏 / 画布共用一份，定义在 UI 主题里）。
+                  就地合并而不是靠应用级：无 Application 的断言宿主里也能解析（R22 同一手法）。  -->
+            <ResourceDictionary Source="/UI;component/Themes/Controls/StepContextMenu.xaml" />
+        </ResourceDictionary.MergedDictionaries>
 
         <helpers:CategoryAccentBrushConverter x:Key="CategoryAccentBrushConverter" />
         <helpers:CategorySoftBrushConverter x:Key="CategorySoftBrushConverter" />
         <helpers:CategoryBorderBrushConverter x:Key="CategoryBorderBrushConverter" />
+
+        <!--  ================================================================
+              右键菜单：**全画布共享一份实例**
+              ================================================================
+              2026-10-24：原来三处菜单都写在 DataTemplate 里 = 每个节点/每根线各造一份。
+              3542 步的压测方案下，节点菜单 14 个对象 × 3542 + 容器 13 × 990 + 连线 5 × 7083
+              ≈ **8.5 万个从未打开过的对象**——它们照样参与构造、属主引用与 GC。
+              改成资源里的单实例后，同一时刻只有一个菜单对象存在。
+
+              为什么绑定不用改：WPF 在弹出时把 ContextMenu 的 DataContext 设成
+              PlacementTarget.DataContext（节点/连线 VM），所以 `{Binding XxxCommand}`
+              与菜单内联时完全等价；菜单按 DataContext 求值，复用到不同类型节点上也安全。
+
+              必须定义在 DataTemplate **之前**（R173）：模板延迟物化，
+              排在后面的键在"模板被独立实例化"的宿主里会抛 XamlParseException。
+              ================================================================  -->
+
+        <!--  步骤节点菜单（算子卡）。与容器菜单的差别：多一项「切换断点」（容器不能断点）
+              样式与流程栏右键菜单同源（UI/Controls/Themes/Controls/StepContextMenu.xaml，R141 下沉）；
+              页脚写画布的真实语义——作用于**指针下的节点**，不是"当前选中"  -->
+        <ContextMenu
+            x:Key="StepNodeContextMenu"
+            Style="{StaticResource StepContextMenuStyle}"
+            ui:MenuItemEx.Footer="右键菜单 · 作用于指针下的算子">
+            <!--  分支结构动作：三项按容器类型互斥显示（节点 VM 的类型判据，与流程栏同一口径）；
+                  命令体在 FlowCanvasViewModel.OnAddBranch → FlowBranchEditor  -->
+            <MenuItem
+                Command="{Binding AddElseIfBranchCommand}"
+                Header="添加 ElseIf 分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="在 If 容器内追加一条 ElseIf 分支"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsIfLikeNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding AddElseBranchCommand}"
+                Header="添加 Else 分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为 If 补一条兜底分支"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsIfLikeNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding AddCaseBranchCommand}"
+                Header="添加 Case 分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为分支匹配容器追加一条 Case"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsCaseNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding AddBranchCommand}"
+                Header="添加分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为并行分组追加一条并行分支"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsParallelNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <!--  分隔线只在真有分支项时出现（叶子上四项全 Collapsed，不能让菜单以一条横线开头）  -->
+            <Separator Style="{StaticResource StepMenuSeparatorStyle}" Visibility="{Binding HasBranchMenuItems, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding OpenBindingCommand}"
+                Header="编辑绑定…"
+                Icon="link"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为这一步的输入端口选择来源（打开变量绑定）"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding RenameCommand}"
+                Header="重命名"
+                Icon="pen-to-square"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="修改显示名，不改变算子类型"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding EditCommentCommand}"
+                Header="编辑注释"
+                Icon="comment-lines"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为这一步补充说明文字"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding OpenModuleParametersCommand}"
+                Header="步骤参数…"
+                Icon="sliders"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="打开算子参数面板"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding CopyCommand}"
+                Header="复制"
+                Icon="copy"
+                InputGestureText="Ctrl+C"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="复制这一步（含子步骤与内部连线），到画布空白处右键粘贴"
+                ui:MenuItemEx.Tone="Slate" />
+            <Separator Style="{StaticResource StepMenuSeparatorStyle}" />
+            <MenuItem
+                Command="{Binding ToggleBreakpointCommand}"
+                Header="切换断点"
+                Icon="circle-dot"
+                IsChecked="{Binding IsBreakpoint, Mode=OneWay}"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="断点开关：运行到这一步前暂停"
+                ui:MenuItemEx.Tone="Amber"
+                Visibility="{Binding BreakpointMenuVisibility}" />
+            <MenuItem
+                Command="{Binding ToggleDisableCommand}"
+                Header="{Binding DisableMenuHeader}"
+                Icon="ban"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="启用开关：禁用后跳过这一步"
+                ui:MenuItemEx.Tone="Amber" />
+            <MenuItem
+                Command="{Binding DeleteCommand}"
+                Header="删除"
+                Icon="trash"
+                InputGestureText="Del"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="连同子步骤移出图纸"
+                ui:MenuItemEx.Tone="Danger" />
+        </ContextMenu>
+
+        <!--  容器框菜单：没有「切换断点」（容器不能断点），其余与算子卡一致  -->
+        <ContextMenu
+            x:Key="ContainerNodeContextMenu"
+            Style="{StaticResource StepContextMenuStyle}"
+            ui:MenuItemEx.Footer="右键菜单 · 作用于指针下的容器">
+            <MenuItem
+                Command="{Binding AddElseIfBranchCommand}"
+                Header="添加 ElseIf 分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="在 If 容器内追加一条 ElseIf 分支"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsIfLikeNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding AddElseBranchCommand}"
+                Header="添加 Else 分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为 If 补一条兜底分支"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsIfLikeNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding AddCaseBranchCommand}"
+                Header="添加 Case 分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为分支匹配容器追加一条 Case"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsCaseNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding AddBranchCommand}"
+                Header="添加分支"
+                Icon="code-branch"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为并行分组追加一条并行分支"
+                ui:MenuItemEx.Tone="Indigo"
+                Visibility="{Binding IsParallelNode, Converter={ui:BooleanToVisibilityConverter}}" />
+            <!--  分隔线只在真有分支项时出现：While/For 三项全 Collapsed，
+                  不能让容器菜单以一条横线开头（步骤菜单的同一处理见 HasBranchMenuItems）  -->
+            <Separator Style="{StaticResource StepMenuSeparatorStyle}" Visibility="{Binding HasBranchMenuItems, Converter={ui:BooleanToVisibilityConverter}}" />
+            <MenuItem
+                Command="{Binding OpenBindingCommand}"
+                Header="编辑绑定…"
+                Icon="link"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为这个容器的输入端口选择来源（打开变量绑定）"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding RenameCommand}"
+                Header="重命名"
+                Icon="pen-to-square"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="修改显示名，不改变容器类型"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding EditCommentCommand}"
+                Header="编辑注释"
+                Icon="comment-lines"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="为这个容器补充说明文字"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding OpenModuleParametersCommand}"
+                Header="步骤参数…"
+                Icon="sliders"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="打开容器参数面板"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding CopyCommand}"
+                Header="复制"
+                Icon="copy"
+                InputGestureText="Ctrl+C"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="复制这个容器（含子步骤与内部连线），到画布空白处右键粘贴"
+                ui:MenuItemEx.Tone="Slate" />
+            <Separator Style="{StaticResource StepMenuSeparatorStyle}" />
+            <MenuItem
+                Command="{Binding ToggleDisableCommand}"
+                Header="{Binding DisableMenuHeader}"
+                Icon="ban"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="启用开关：禁用后跳过这个容器"
+                ui:MenuItemEx.Tone="Amber" />
+            <MenuItem
+                Command="{Binding DeleteCommand}"
+                Header="删除"
+                Icon="trash"
+                InputGestureText="Del"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="连同子步骤移出图纸"
+                ui:MenuItemEx.Tone="Danger" />
+        </ContextMenu>
+
+        <!--  连线菜单：子菜单项按连接的 DataContext（连线 VM）取 Bindings，逐条解绑  -->
+        <ContextMenu
+            x:Key="ModuleLinkContextMenu"
+            Style="{StaticResource StepContextMenuStyle}"
+            ui:MenuItemEx.Footer="右键菜单 · 作用于这根连线">
+            <MenuItem
+                Command="{Binding OpenBindingCommand}"
+                Header="编辑绑定…"
+                Icon="link"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="打开变量绑定，重新选择来源"
+                ui:MenuItemEx.Tone="Slate" />
+            <MenuItem
+                Command="{Binding UnbindAllCommand}"
+                Header="断开全部绑定"
+                Icon="link-slash"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="整批解绑（可一次撤销）"
+                ui:MenuItemEx.Tone="Danger" />
+            <MenuItem
+                Header="断开单条绑定"
+                Icon="scissors"
+                ItemsSource="{Binding Bindings}"
+                Style="{StaticResource StepMenuItemStyle}"
+                ui:MenuItemEx.Description="按端口逐条解绑"
+                ui:MenuItemEx.Tone="Slate">
+                <MenuItem.ItemContainerStyle>
+                    <Style TargetType="MenuItem">
+                        <Setter Property="Header" Value="{Binding MenuHeader}" />
+                        <Setter Property="Command" Value="{Binding DataContext.UnbindCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
+                        <Setter Property="CommandParameter" Value="{Binding}" />
+                    </Style>
+                </MenuItem.ItemContainerStyle>
+            </MenuItem>
+        </ContextMenu>
 
         <!--  模块卡片：flow-logic 156×58 / 圆角 10 / 1px 描边；
               运行=蓝边、失败=红边+淡红底、选中=2px 运行色；
@@ -125,35 +384,39 @@
             <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasNodeSubTextBrush}" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Opacity" Value="0" />
+
+            <!--  极简模板（2026-10-24）：Nodify 默认的 NodeInput/NodeOutput 模板是 7 个元素
+                  （Grid + 带 OpacityMask 的隐藏 Border + StackPanel + Control + Ellipse + ContentPresenter…）。
+                  每节点 2 个连接点 → 每节点白白多出 12 个元素、3500 步方案下约 4 万个，
+                  而它们常态 Opacity=0、只承担"命中 + 一个小圆环"。
+                  这里换成 **单个 Ellipse**：Fill=Transparent 保证可命中，
+                  描边/透明度仍由上面那些 Setter 与触发器驱动（TemplateBinding 继承 BorderBrush）。
+                  不要加回 ContentPresenter：连接点没有内容语义。  -->
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Control">
+                        <Ellipse
+                            Fill="Transparent"
+                            Stroke="{TemplateBinding BorderBrush}"
+                            StrokeThickness="1.5" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+
             <Style.Triggers>
-                <!--  悬停浮现：未连线常态、已连线但数据线隐藏的回退态，都靠悬停显形。
-                      放在"已连线常显"之前：已连线且开着的端口悬停时仍是常显的 1.0（后写者赢）  -->
-                <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType={x:Type nodify:ItemContainer}}}" Value="True" />
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="Opacity" Value="0.85" />
-                </MultiDataTrigger>
-                <!--  已连线且数据线开关开着 → 亮蓝常显（UserControl 的 DataContext 就是画布 VM）  -->
-                <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                        <Condition Binding="{Binding IsConnected}" Value="True" />
-                        <Condition Binding="{Binding DataContext.ShowDataLinks, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}}" Value="True" />
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="BorderBrush" Value="{StaticResource FlowCanvasNodeIconBrush}" />
-                    <Setter Property="Opacity" Value="1" />
-                </MultiDataTrigger>
-                <DataTrigger Binding="{Binding IsDragInProgress}" Value="True">
-                    <Setter Property="Opacity" Value="0.85" />
-                </DataTrigger>
-                <!--  拖线中的不可达端口：显示但压灰（放最后覆盖前两条的透明度）  -->
-                <MultiDataTrigger>
-                    <MultiDataTrigger.Conditions>
-                        <Condition Binding="{Binding IsDragInProgress}" Value="True" />
-                        <Condition Binding="{Binding IsConnectable}" Value="False" />
-                    </MultiDataTrigger.Conditions>
-                    <Setter Property="Opacity" Value="0.25" />
-                </MultiDataTrigger>
+                <!--  ============================================================
+                      连接点**一律不显示**（2026-10-24 用户决定：画布上不要圆点）。
+                      保留的是控件本身 12×12 的**透明命中区**（模板里的 Ellipse Fill=Transparent），
+                      拖线手势照旧可用，只是屏幕上不画任何像素。
+                      下面四条触发器（悬停浮现 / 已连线常显 / 拖线显形 / 拖线压灰）因此全部停用；
+                      要恢复只需把这段注释解开——不要改成别的显隐条件，否则"不显示"这条决定会被静默推翻。
+                      ============================================================ -->
+                <!--
+                <MultiDataTrigger> … 悬停浮现 Opacity .85 … </MultiDataTrigger>
+                <MultiDataTrigger> … 已连线且数据线开 → 蓝实心 1.0 … </MultiDataTrigger>
+                <DataTrigger … IsDragInProgress → .85 … />
+                <MultiDataTrigger> … 拖线不可达 → .25 … </MultiDataTrigger>
+                -->
             </Style.Triggers>
         </Style>
 
@@ -169,29 +432,8 @@
                 <Grid
                     Width="{x:Static vm:FlowCanvasViewModel.NodeWidth}"
                     Height="{x:Static vm:FlowCanvasViewModel.NodeHeight}"
-                    Grid.Row="0">
-                    <!--  节点右键菜单：模板内联 = 每节点一份实例，DataContext 即节点 VM，命令走注入的闭包  -->
-                    <Grid.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Command="{Binding OpenBindingCommand}" Header="编辑绑定…（打开变量绑定）" />
-                            <MenuItem Command="{Binding OpenModuleParametersCommand}" Header="步骤参数…" />
-                            <Separator />
-                            <MenuItem
-                                Command="{Binding CopyCommand}"
-                                Header="复制"
-                                ToolTip="复制该模块（含子步骤与内部连线；Ctrl+V 或画布空白右键粘贴）" />
-                            <MenuItem
-                                Command="{Binding ToggleBreakpointCommand}"
-                                Header="切换断点"
-                                Visibility="{Binding BreakpointMenuVisibility}" />
-                            <MenuItem Command="{Binding ToggleDisableCommand}" Header="{Binding DisableMenuHeader}" />
-                            <Separator />
-                            <MenuItem
-                                Command="{Binding DeleteCommand}"
-                                Header="删除"
-                                ToolTip="连同子步骤一并移出图纸（Delete 键删除当前选中）" />
-                        </ContextMenu>
-                    </Grid.ContextMenu>
+                    Grid.Row="0"
+                    ContextMenu="{StaticResource StepNodeContextMenu}">
 
                     <!--  卡片本体：内边距 8/10（flow-logic `padding:8px 10px`）  -->
                     <Border Padding="10,8" Style="{StaticResource StepCardStyle}" ToolTip="{Binding CardTooltip}">
@@ -522,24 +764,8 @@
                 <Grid
                     Width="{Binding LaneWidth}"
                     Height="{Binding LaneHeight}"
-                    Grid.Row="0">
-                    <Grid.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Command="{Binding OpenBindingCommand}" Header="编辑绑定…（打开变量绑定）" />
-                            <MenuItem Command="{Binding OpenModuleParametersCommand}" Header="步骤参数…" />
-                            <Separator />
-                            <MenuItem
-                                Command="{Binding CopyCommand}"
-                                Header="复制"
-                                ToolTip="复制该容器（含子步骤与内部连线；Ctrl+V 或画布空白右键粘贴）" />
-                            <MenuItem Command="{Binding ToggleDisableCommand}" Header="{Binding DisableMenuHeader}" />
-                            <Separator />
-                            <MenuItem
-                                Command="{Binding DeleteCommand}"
-                                Header="删除"
-                                ToolTip="连同子步骤一并移出图纸（Delete 键删除当前选中）" />
-                        </ContextMenu>
-                    </Grid.ContextMenu>
+                    Grid.Row="0"
+                    ContextMenu="{StaticResource ContainerNodeContextMenu}">
 
                     <Border
                         x:Name="ContainerFrame"
@@ -1096,6 +1322,7 @@
               Fill 必须给：Nodify 的箭头由 Fill 填充，漏了就是描边色空芯三角。  -->
         <DataTemplate x:Key="ModuleLinkTemplate" DataType="{x:Type vm:CanvasLinkViewModel}">
             <nodify:StepConnection
+                ContextMenu="{StaticResource ModuleLinkContextMenu}"
                 ContextMenuOpening="OnConnectionContextMenuOpening"
                 Source="{Binding SourceAnchor}"
                 SourceOffsetMode="None"
@@ -1105,27 +1332,24 @@
                 TargetPosition="{Binding TargetPosition}"
                 Text="{Binding LinkLabel}"
                 ToolTip="{Binding Tooltip}">
-                <nodify:StepConnection.ContextMenu>
-                    <ContextMenu>
-                        <MenuItem Command="{Binding OpenBindingCommand}" Header="编辑绑定…（打开变量绑定）" />
-                        <Separator />
-                        <MenuItem Command="{Binding UnbindAllCommand}" Header="断开全部绑定（整批可撤销）" />
-                        <MenuItem Header="断开单条绑定" ItemsSource="{Binding Bindings}">
-                            <MenuItem.ItemContainerStyle>
-                                <Style TargetType="MenuItem">
-                                    <Setter Property="Header" Value="{Binding MenuHeader}" />
-                                    <Setter Property="Command" Value="{Binding DataContext.UnbindCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
-                                    <Setter Property="CommandParameter" Value="{Binding}" />
-                                </Style>
-                            </MenuItem.ItemContainerStyle>
-                        </MenuItem>
-                    </ContextMenu>
-                </nodify:StepConnection.ContextMenu>
                 <nodify:StepConnection.Style>
                     <Style TargetType="{x:Type nodify:StepConnection}">
                         <Setter Property="Stroke" Value="{StaticResource FlowCanvasLinkBrush}" />
                         <Setter Property="Fill" Value="{StaticResource FlowCanvasLinkBrush}" />
                         <Setter Property="StrokeThickness" Value="1.5" />
+                        <!--  交叉分离：同几何用画布底色的粗笔垫底，线条互相穿过处出现断口，
+                              谁在上谁下一眼可辨（数据线一开就是一张网，用户口径"线交织在一起太乱"）。
+                              值取"线宽 + 约 2px"，太粗会把线本身吃掉，太细看不出断口  -->
+                        <Setter Property="OutlineBrush" Value="{StaticResource FlowCanvasLinkOutlineBrush}" />
+                        <Setter Property="OutlineThickness" Value="1.6" />
+                        <!--  中段标签：底色 + 字色 + 内边距。Nodify 只在 TextBackground 非空时才画底框
+                              并让 TextPadding/TextCornerRadius 生效  -->
+                        <Setter Property="TextBackground" Value="{StaticResource FlowCanvasLinkLabelBackgroundBrush}" />
+                        <Setter Property="TextPadding" Value="5,1" />
+                        <Setter Property="TextCornerRadius" Value="4" />
+                        <Setter Property="FontSize" Value="10.5" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="Foreground" Value="{StaticResource FlowCanvasLinkLabelTextBrush}" />
                         <Style.Triggers>
                             <!--  执行顺序链：自上而下流动（底缘出、顶缘进），细灰虚线与数据线区分；
                                   进出边（Bottom/Top）由主 VM 按连线语义写入，不在样式里覆盖  -->
@@ -1134,6 +1358,9 @@
                                 <Setter Property="Fill" Value="{StaticResource FlowCanvasOrderLinkBrush}" />
                                 <Setter Property="StrokeDashArray" Value="2.5,2.5" />
                                 <Setter Property="StrokeThickness" Value="1.2" />
+                                <!--  顺序链标签弱化：它只是执行次序，不该抢数据线的注意力  -->
+                                <Setter Property="Foreground" Value="{StaticResource FlowCanvasOrderLinkLabelTextBrush}" />
+                                <Setter Property="FontWeight" Value="Normal" />
                             </DataTrigger>
                             <!--  顺序链"已执行"染色（评审清单 B 包）：两端步骤都离开 Idle（终态口径）→
                                   换运行色实线。放在 IsOrderLink 触发器之后（后写者赢），
@@ -1153,6 +1380,8 @@
                                 <Setter Property="Stroke" Value="{StaticResource FlowCanvasLinkIllegalBrush}" />
                                 <Setter Property="Fill" Value="{StaticResource FlowCanvasLinkIllegalBrush}" />
                                 <Setter Property="StrokeDashArray" Value="4,3" />
+                                <!--  标签跟着变红：非法线是要用户去修的错误提示，字色与线色必须同源  -->
+                                <Setter Property="Foreground" Value="{StaticResource FlowCanvasFailedTextBrush}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -1212,6 +1441,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <!--  画布快捷键挂 UserControl 级：挂 NodifyEditor 上时焦点一旦落到工具条/流程栏（编辑器子树外），
@@ -1287,12 +1517,32 @@
                         Content="数据线"
                         IsChecked="{Binding ShowDataLinks}"
                         ToolTip="显示/隐藏端口之间的数据绑定连线（非法连线始终显示）" />
+                    <!--  大流程降级提示：只在真的精简过时出现，避免"线不见了"被当成绑定丢失  -->
+                    <TextBlock
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{StaticResource FlowCanvasWarningBrush}"
+                        Text="已精简连线"
+                        ToolTip="当前流程数据线过多（&gt;1500 根），画布只显示非法连线以保证可操作；关闭「数据线」开关可恢复常规视图"
+                        Visibility="{Binding DataLinksReduced, Converter={ui:BooleanToVisibilityConverter}}" />
                     <CheckBox
                         Margin="0,0,8,0"
                         VerticalAlignment="Center"
                         Content="顺序链"
                         IsChecked="{Binding ShowOrderLinks}"
                         ToolTip="显示/隐藏执行顺序（节点间的细虚线箭头）" />
+                    <!--  自绘预览（C2 测量用）：把画布换成自绘渲染层，只读（平移/缩放/点选）。
+                          默认关闭；打开后编辑器整体隐藏，避免两套渲染同时生效。
+                          存在的意义是**在真机上对比同一流程的打开耗时**，不是日常使用入口。  -->
+                    <CheckBox
+                        x:Name="ChkSurfacePreview"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        Checked="OnSurfacePreviewChanged"
+                        Content="自绘预览"
+                        ToolTip="用自绘渲染层预览当前流程（只读：可平移/缩放/点选；编辑请关闭）"
+                        Unchecked="OnSurfacePreviewChanged" />
                     <!--  flow-logic：小地图默认关闭，避免常驻右下角遮挡“结果汇总”等输出节点；
                           打开后仍可拖动/点击平移视口  -->
                     <CheckBox
@@ -1457,11 +1707,17 @@
             <!--  画布空白右键菜单：只有「粘贴」。WPF 按命中元素向上找最近一份 ContextMenu——
                   右键落在节点/连线上时它们的模板菜单接管，只有空白（编辑器本体）才轮到这里  -->
             <nodify:NodifyEditor.ContextMenu>
-                <ContextMenu>
+                <ContextMenu
+                    Style="{StaticResource StepContextMenuStyle}"
+                    ui:MenuItemEx.Footer="右键菜单 · 作用于画布空白处">
                     <MenuItem
                         Command="{Binding PasteCommand}"
                         Header="粘贴"
-                        ToolTip="把复制的模块粘贴到鼠标位置（含子步骤与内部连线；指向外部步骤的连线不随粘贴保留）" />
+                        Icon="paste"
+                        InputGestureText="Ctrl+V"
+                        Style="{StaticResource StepMenuItemStyle}"
+                        ui:MenuItemEx.Description="把复制的模块粘到鼠标位置（指向外部步骤的连线不随粘贴保留）"
+                        ui:MenuItemEx.Tone="Slate" />
                 </ContextMenu>
             </nodify:NodifyEditor.ContextMenu>
             <nodify:NodifyEditor.Background>
@@ -1498,7 +1754,10 @@
                     <Setter Property="IsDraggable" Value="{Binding IsDraggable}" />
                     <Setter Property="IsSelectable" Value="{Binding IsSelectable}" />
                     <!--  叠放层次：同层"框 < 泳道 < 内容"、跨层按拓扑深度抬高。
-                          此前靠 Nodes 集合加入顺序叠放，后入分支的泳道会盖住先入分支里的嵌套容器框  -->
+                          此前靠 Nodes 集合加入顺序叠放，后入分支的泳道会盖住先入分支里的嵌套容器框
+
+                          2026-10-24 实测：去掉这条绑定只快约 15%（heavy_layout 3.9s→3.5s），
+                          不是"每容器 42ms"的元凶，恢复保留。  -->
                     <Setter Property="Panel.ZIndex" Value="{Binding ZOrder}" />
                     <Setter Property="SelectedBrush" Value="{StaticResource FlowCanvasNodeSelectedGlowBrush}" />
                     <Setter Property="SelectedBorderThickness" Value="1.5" />
@@ -1546,6 +1805,22 @@
                 </DataTemplate>
             </nodify:NodifyEditor.PendingConnectionTemplate>
         </nodify:NodifyEditor>
+
+        <!--  ============================================================
+              自绘预览层（C2）：与 NodifyEditor 同格叠放，默认 Collapsed。
+              勾选工具条「自绘预览」后：编辑器整体 Collapsed，本层 Visible。
+              只读——平移/缩放/点选，不参与拖动改序与拖线；编辑必须切回。
+              存在意义：在真机上对比同一流程"打开到可交互"的耗时（C2 决策依据）。
+              ============================================================  -->
+        <views:FlowCanvasSurface
+            x:Name="SurfacePreview"
+            Grid.Row="2"
+            ClipToBounds="True"
+            MouseLeftButtonDown="OnSurfaceMouseDown"
+            MouseLeftButtonUp="OnSurfaceMouseUp"
+            MouseMove="OnSurfaceMouseMove"
+            MouseWheel="OnSurfaceMouseWheel"
+            Visibility="Collapsed" />
 
         <!--  画布内拖动节点的浮层（纯视觉）：与工具箱 / 流程栏共用 DragGhostCard（设计基线 v2）。
               Popup 相对 Editor 定位，偏移由视图在 PreviewMouseMove 里按 (16,12) 更新；
@@ -1598,6 +1873,7 @@
                     ShadowDepth="1" />
             </Border.Effect>
             <nodify:Minimap
+                x:Name="MiniMap"
                 Background="{StaticResource FlowCanvasToolbarBrush}"
                 ItemsSource="{Binding Nodes}"
                 ItemTemplate="{StaticResource MinimapItemTemplate}"

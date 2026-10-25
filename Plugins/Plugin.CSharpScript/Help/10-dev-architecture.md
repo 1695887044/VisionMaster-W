@@ -63,13 +63,18 @@ Compile → TakeExternalLibsAudit（一次性投递审计）→ ScriptContext �
 3. **宿主根目录扫 `*.dll`**：投放到 exe 目录的第三方与插件 dll。
 4. **`ExternalLibs\` 白名单**：只有登记进 `whitelist.json` 且 SHA256 校验通过的才加进来。
 
-第 3、4 层都要过一次"是不是托管程序集"的判断：用 `AssemblyName.GetAssemblyName(path)`，
-**原生 dll 会抛 `BadImageFormatException`（CS0009 那一族）**，扫目录时不判掉就会让整个引用集构建失败。
+第 1~3 层都走同一个 `AddAssembly`：先用 `AssemblyName.GetAssemblyName(path)` 判"是不是托管程序集"，
+**原生 dll（`halcon.dll` / `hcanvas.dll` 等）在这里抛 `BadImageFormatException` 并被就地丢弃**——
+整目录扫描不判掉就会把原生 dll 塞进引用集。
+
+第 4 层（白名单）**没有这道判断**：哈希通过后直接 `MetadataReference.CreateFromFile(dll)`。
+`CreateFromFile` 对原生 dll 不抛，失败推迟到脚本 `Compile`，表现是 **CS0009 打红全部脚本**。
+所以白清单里混进一个原生 dll 是"全局编译灾难"，不是"那条库单独不可用"——这条是白名单定位（见 `Help/04`）尚未拍板的实际风险。
 
 ## 五 白名单是 fail-closed 的
 
 审计条目写进静态 `ExternalAudit`（`AuditLock`），由 `TakeExternalLibsAudit()` **一次性取走**，
-`RunAlgorithm` 在编译之后、执行之前按严重级别（`ExternalLibSeverity.Error` 走 Warn 面、其余走 Info）投递给日志一次，
+`RunAlgorithm` 在编译之后、执行之前按严重级别（`Error` 走 Error 面、`Warning` 走 Warn 面、其余走 Info）投递给日志一次，
 不重复刷屏。审计原文（照源码）：
 
 - `[扩展库白名单] ExternalLibs 目录存在但缺少 whitelist.json：拒绝加载任何扩展 dll（默认拒绝）。`
@@ -84,7 +89,9 @@ Compile → TakeExternalLibsAudit（一次性投递审计）→ ScriptContext �
 
 ## 六 画布与窗口交接
 
-图形输出只在两个条件同时成立时推送：变量行 `DisplayWindow >= 1` 且 `IsIconic` 为真、且端口值确实是 `HImage`。
+推送条件只有一个口径：变量行 `DisplayWindow >= 1` 且 `ShowsDisplayWindow` 为真（等价于"类型是 `HImage`"）、
+且端口值确实是 `HImage`。`ScriptVarDef.ShowsDisplayWindow` 是**界面那一列与推送判据共用的唯一来源**，
+所以区域/轮廓行根本选不出窗口，不存在"配了却不显示"的静默分支。
 `HRegion`、`HXLDCont` 这类要在脚本里自己合成成图像再 `SetOutput`——本插件**没有**图像脚本那套显示后端合成路径。
 日志、`ShowImage` 系列、`MarkLine`/`MarkText` 标注（`NewMarks()` 造列表，`MeasureAnnotation` 带 `Points` 与 `Color`，默认 `green`）
 都通过宿主出口走，节点自己绝不开窗口（AGENTS.md R36）。

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Core.Interfaces;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VisionMaster.Binding;
 using VisionMaster.Models;
@@ -199,6 +200,20 @@ namespace VisionMaster.Services
 
         public bool IsLoggedIn => _accessPolicy?.IsLoggedIn ?? true;
 
+        public bool CanOperate(out string error) => EnsureOperator(out error);
+
+        /// <summary>
+        /// 当前登录者的角色中文名（"工程师"/"操作员"）；未登录时给"未登录"。
+        /// <para>
+        /// 只用于界面文案（权限条上的「admin（工程师）▾」）。<b>不要拿它做权限判断</b>——
+        /// 判权限一律走 <see cref="CanEdit"/> / <see cref="CanOperate"/>，
+        /// 它们内部查的是 <see cref="ScadaAccessPolicy.CanOperate"/> 的档位比较。
+        /// </para>
+        /// </summary>
+        public string ActorRoleName => _accessPolicy == null
+            ? "未登录"
+            : _accessPolicy.IsLoggedIn ? _accessPolicy.CurrentRole.DisplayName() : "未登录";
+
         /// <summary>编辑类动作（捕获/改名/删除/导入/导出）的权限判据。</summary>
         public bool CanEdit(out string error) => EnsureEngineer(out error);
 
@@ -214,8 +229,34 @@ namespace VisionMaster.Services
         //  捕获
         // ────────────────────────────────────────────────────────────────
 
-        /// <summary>从当前已确认的步骤参数捕获一份新配方。</summary>
+        /// <summary>从当前已确认的步骤参数捕获一份新配方（全量）。</summary>
         public RecipeCaptureResult Capture(string name, string? code = null, string? notes = null)
+            => CaptureCore(name, code, notes, selection: null);
+
+        /// <summary>
+        /// 只在用户勾选的那一部分参数上建新配方（v2「手动勾选」）。
+        /// <para>
+        /// <paramref name="selection"/> 为 null 表示"全量"（老行为，导入补齐等地方还在用）；
+        /// 给空集合则表示"一个都没勾"——直接判失败，不要悄悄退化成全量，
+        /// 那正是用户 2026-10-24 明着否决过的"把所有参数都存进配方"。
+        /// </para>
+        /// <para>
+        /// 每一项仍走一遍与全量捕获<b>相同</b>的过滤（隐藏/路径模型类/已链接/空值/不支持类型），
+        /// 只是多了一道"没勾就跳过"。这样两条路径的口径不会分叉。
+        /// </para>
+        /// </summary>
+        public RecipeCaptureResult Capture(
+            string name,
+            string? code,
+            string? notes,
+            IReadOnlyCollection<(RecipeTargetKind Kind, Guid TargetId, string Key)> selection)
+            => CaptureCore(name, code, notes, selection ?? Array.Empty<(RecipeTargetKind, Guid, string)>());
+
+        private RecipeCaptureResult CaptureCore(
+            string name,
+            string? code,
+            string? notes,
+            IReadOnlyCollection<(RecipeTargetKind Kind, Guid TargetId, string Key)>? selection)
         {
             var solution = Solution;
             if (solution == null)
@@ -232,6 +273,22 @@ namespace VisionMaster.Services
                 && string.Equals(r.Name?.Trim(), trimmed, StringComparison.OrdinalIgnoreCase)))
             {
                 return new RecipeCaptureResult { Success = false, Message = $"配方「{trimmed}」已存在，请换一个名称" };
+            }
+
+            // v2：勾选子集。null = 全量；空集合 = 用户一个都没勾 → 明确拒绝（见 Capture 重载的注释）。
+            HashSet<(RecipeTargetKind Kind, Guid TargetId, string Key)>? picked = null;
+            if (selection != null)
+            {
+                if (selection.Count == 0)
+                {
+                    return new RecipeCaptureResult
+                    {
+                        Success = false,
+                        Message = "还没有勾选任何参数。请在候选表里勾上要存进配方的参数。",
+                    };
+                }
+
+                picked = new HashSet<(RecipeTargetKind, Guid, string)>(selection);
             }
 
             var report = new RecipeValidationReport();
@@ -260,6 +317,9 @@ namespace VisionMaster.Services
                     if (parameter.IsHidden) continue;
                     if (IsDeniedKey(parameter.Key)) continue;
                     if (step.IsLinked(parameter.Key)) continue;
+                    // v2：没勾的参数直接跳过（校验口径与全量路径完全一致，只是多这一道）。
+                    if (picked != null
+                        && !picked.Contains((RecipeTargetKind.StepInput, step.StepID, parameter.Key))) continue;
                     if (!step.InputValues.TryGetValue(parameter.Key, out var raw) || raw == null) continue;
 
                     if (!RecipeTypeKey.TryToCanonicalToken(raw, parameter.Type, out var token, out var valueError))
@@ -295,6 +355,9 @@ namespace VisionMaster.Services
             foreach (var variable in _workspace.GlobalVariables)
             {
                 if (variable is not LocalVariableModel local) continue;
+                // v2：变量也一样，没勾就不进配方（Key 恒为空串，与 GetCandidates 的构造口径一致）。
+                if (picked != null
+                    && !picked.Contains((RecipeTargetKind.LocalVariable, local.VariableId, string.Empty))) continue;
                 if (IsTriggerVariable(solution, local.Name))
                 {
                     report.Warn(local.Name, string.Empty, "触发源变量会起流程，v2 不纳入配方");
@@ -979,6 +1042,219 @@ namespace VisionMaster.Services
                 $"{entry.TargetName}.{entry.Key}".TrimEnd('.'));
             RaiseStateChanged();
             return true;
+        }
+
+        /// <summary>
+        /// 直接改配方里某条参数存的值（不改目标当前值）。
+        ///
+        /// 判据与 <see cref="AddEntry"/> 同一套：类型要按声明类型解析、null 不许、不支持的类型不许。
+        /// <b>刻意不做的一步</b>：不复验"目标此刻是否已链接/已隐藏"。理由是配方存的是<b>快照</b>——
+        /// 换型时把另一台机器当时的值抄过来，本来就是刻意的；为它设卡会让"机器 A 链接了、机器 B 没链接"这种
+        /// 常见场景无法建档。真正能不能写回目标，由 <see cref="Validate"/> / <see cref="Apply"/> 在应用那一刻判。
+        /// </summary>
+        /// <param name="text">用户输入的原文本；按 <see cref="RecipeEntry.DeclaredType"/> 解析（R34 宽进严出）。</param>
+        public bool UpdateEntryValue(
+            Guid recipeId,
+            RecipeTargetKind kind,
+            Guid targetId,
+            string key,
+            string? text,
+            out string error)
+        {
+            error = string.Empty;
+            var solution = Solution;
+            if (solution == null) { error = "当前没有打开的方案"; return false; }
+            if (!EnsureEngineer(out error)) return false;
+
+            var recipe = solution.FindRecipe(recipeId);
+            if (recipe == null) { error = "找不到配方"; return false; }
+
+            var entry = recipe.FindEntry(kind, targetId, key);
+            if (entry == null) { error = "配方里没有这条参数"; return false; }
+
+            // 声明类型用配方自己记下的那份（捕获时快照），不是目标此刻的类型——
+            // 目标换了插件也不能让这条快照被按新类型解析。解析不到类型就按 JSON 原文收（JToken 本身是规范 JSON）。
+            var declaredType = RecipeTypeKey.TryResolveType(entry.DeclaredType);
+            if (declaredType == null)
+            {
+                if (string.IsNullOrWhiteSpace(entry.DeclaredType))
+                {
+                    // 极老的配方可能没记类型：退回看目标此刻的声明类型，退不到就拒绝。
+                    declaredType = ResolveDeclaredTypeAtTarget(solution, kind, targetId, key);
+                    if (declaredType == null)
+                    {
+                        error = "这条参数没有记录类型，也找不到目标的声明类型，无法解析";
+                        return false;
+                    }
+                }
+                else
+                {
+                    // 记了键但当前进程解析不到（插件被移除等）：按 JSON 原文收。
+                    declaredType = typeof(JToken);
+                }
+            }
+
+            if (!RecipeTypeKey.IsSupportedType(declaredType, out var typeReason))
+            {
+                error = typeReason;
+                return false;
+            }
+
+            if (!TryParseEntryText(text, declaredType, out var token, out var valueError))
+            {
+                error = valueError;
+                return false;
+            }
+
+            if (token == null || token.Type == JTokenType.Null)
+            {
+                error = "值不能为 null";
+                return false;
+            }
+
+            if (!RecipeTypeKey.TryConvertToDeclared(token, declaredType, out _, out var convertError))
+            {
+                error = convertError;
+                return false;
+            }
+
+            var before = entry.DisplayValue;
+            if (string.Equals(before, token.ToString(Formatting.None), StringComparison.Ordinal))
+            {
+                // 值没变就不递增内容版本——否则"点开框又点掉"也会让版本涨一格。
+                return true;
+            }
+
+            entry.Value = token;
+            entry.ValueIsNull = false;
+            recipe.TouchEntries(ActorName);
+            Audit(recipe.Name, "修改配方参数", ScadaAuditOutcome.Success,
+                $"{entry.TargetName}.{entry.Key}".TrimEnd('.') + $"：{before} → {entry.DisplayValue}");
+            RaiseStateChanged();
+            return true;
+        }
+
+        /// <summary>
+        /// 把用户手填的文本按声明类型解析成规范 JSON 值（R34 宽进严出）。
+        ///
+        /// 与 <see cref="RecipeTypeKey.TryToCanonicalToken"/> 的区别只有一点：那个方法收的是"已经对好型的 CLR 值"，
+        /// 这里收的是<b>框里手打的字</b>。按声明类型先转成 CLR 值再过一遍同一函数，所以枚举、NaN/Inf、集合原文
+        /// 这些判断仍然只有一份。
+        /// </summary>
+        private static bool TryParseEntryText(string? text, Type declaredType, out JToken? token, out string error)
+        {
+            token = null;
+            error = string.Empty;
+
+            var raw = (text ?? string.Empty).Trim();
+            var target = Nullable.GetUnderlyingType(declaredType) ?? declaredType;
+
+            // 字符串类型原样收：手填的空串是一个合法值，不该被 Trim/转换吃掉。
+            if (target == typeof(string))
+                return RecipeTypeKey.TryToCanonicalToken(text ?? string.Empty, declaredType, out token, out error);
+
+            // 结构化/JSON 原文类型：按 JSON 解析，语法错就报错（不猜）。
+            if (target == typeof(JToken) || target == typeof(JObject) || target == typeof(JArray))
+            {
+                try
+                {
+                    token = string.IsNullOrEmpty(raw)
+                        ? JValue.CreateNull()
+                        : JToken.Parse(raw);
+                    return true;
+                }
+                catch (JsonReaderException ex)
+                {
+                    error = "不是合法的 JSON：" + ex.Message;
+                    return false;
+                }
+            }
+
+            if (raw.Length == 0)
+            {
+                error = "值不能为空";
+                return false;
+            }
+
+            // 枚举收成员名（也接受中文显示名解析不到的情况就让下面 IsDefined 判死，错误文案带原值）。
+            if (target.IsEnum)
+                return RecipeTypeKey.TryToCanonicalToken(raw, declaredType, out token, out error);
+
+            // 布尔放宽常见写法，避免"只有 True/False"这种桌面端很别扭的输入。
+            if (target == typeof(bool))
+            {
+                bool boolValue;
+                if (!bool.TryParse(raw, out boolValue) && !TryParseLooseBoolean(raw, out boolValue))
+                {
+                    error = $"「{raw}」不是布尔值（可填 true/false 或 1/0）";
+                    return false;
+                }
+
+                return RecipeTypeKey.TryToCanonicalToken(boolValue, declaredType, out token, out error);
+            }
+
+            object? converted;
+            try
+            {
+                converted = ValueConverter.Convert(raw, declaredType);
+            }
+            catch (Exception ex)
+            {
+                error = $"「{raw}」不能当作 {SimpleTypeName(target)}：{ex.Message}";
+                return false;
+            }
+
+            return RecipeTypeKey.TryToCanonicalToken(converted, declaredType, out token, out error);
+        }
+
+        private static bool TryParseLooseBoolean(string raw, out bool value)
+        {
+            switch (raw.Trim().ToLowerInvariant())
+            {
+                case "1":
+                case "yes":
+                case "y":
+                case "是":
+                case "开":
+                    value = true;
+                    return true;
+                case "0":
+                case "no":
+                case "n":
+                case "否":
+                case "关":
+                    value = false;
+                    return true;
+                default:
+                    value = false;
+                    return false;
+            }
+        }
+
+        /// <summary>类型名给人看（错误文案里不出现 System. 与反引号）。</summary>
+        private static string SimpleTypeName(Type type)
+            => (Nullable.GetUnderlyingType(type) ?? type).Name;
+
+        /// <summary>老配方没记声明类型时的兜底：看目标<b>此刻</b>的类型。</summary>
+        private static Type? ResolveDeclaredTypeAtTarget(
+            SolutionModel solution,
+            RecipeTargetKind kind,
+            Guid targetId,
+            string key)
+        {
+            if (kind == RecipeTargetKind.StepInput)
+            {
+                var step = FindStep(solution, targetId);
+                if (step != null && TryResolveSchema(step, out var schema, out _)
+                    && schema.Parameters.TryGetValue(key, out var parameter))
+                {
+                    return parameter.Type;
+                }
+
+                return null;
+            }
+
+            return null;
         }
 
         /// <summary>从配方里删除一条参数（不改目标当前值）。</summary>

@@ -14,33 +14,17 @@
 
     <!--
         ============================================================================
-        报警配置（方案级：一张平铺表，一行一条报警定义）
+        报警配置 v2.1（设计基线：docs/UI设计基线/scada-alarm-config/design.html）
         ============================================================================
 
-        为什么是平铺表而不是"左清单 + 右详情"
-        =========
-        报警的形状就是"一行一条定义"，而现场最常见的动作是"把这一列的数值挨个调一遍"。
-        左清单右详情会把这件事变成"点一条、改一处、再点下一条"；平铺之后同一列上下相邻，
-        比较与批量修改都直接。
+        同一张表把"定义 + 展开详情"放在一起：七列主字段就地编辑，选中行的次要字段
+        （回差 / 延时 / 断线说明 / 四条长文本）在行下方展开。
 
-        为什么次要字段收进展开行（DataGrid.RowDetails）
-        =========
-        920 宽的表最多容得下七列主字段，再把回差 / 延时 / 断线 / 信息文本 / 原因 / 措施 /
-        附加信息全摊在外面只会横向溢出。收进展开行后，主次一眼分明：要细调某一条时选中它，
-        展开区就跟着出来（RowDetailsVisibilityMode=VisibleWhenSelected，见下方 DataGrid）。
+        写回口径：即时写回 + 进撤销栈。没有「确定」——每一次改单元格都当场落进模型，
+        底部「关闭」关的是窗，不是"是否采纳"；Esc 等同关闭。
 
-        写回口径：即时写回 + 进撤销栈
-        =========
-        本弹窗没有"确定"这个提交动作 —— 每一次改单元格都当场落进模型并包一层作用域，
-        所以底部只有一个「关闭」（它关的是窗，不是"是否采纳"）。
-
-        皮肤全部来自 UI/Controls/Themes/DialogStyles.xaml（青蓝设计系统），
-        色值全部来自 Colors.xaml 的 Dialog* 令牌 —— 与「连接管理」「变量管理」「扫描组」
-        几个弹窗同屏切换时不跳色。唯二的例外是错误条的红底红边（设计系统里没有
-        "危险底"这个令牌，取值与 DialogDangerBrush #EF4444 同族：red-50 / red-200）。
-
-        ★ 自绘标题栏必须保留 ui:WindowDragBehavior.IsWindowDraggable，
-          否则无系统边框的弹窗拖不动。
+        ★ 自绘标题栏必须保留 ui:WindowDragBehavior.IsWindowDraggable，否则拖不动。
+        ★ 所有颜色只引 Colors.xaml 的 Dialog* 令牌（R140）；本页不出现 #RRGGBB。
     -->
 
     <prism:Dialog.WindowStyle>
@@ -51,544 +35,1340 @@
         </Style>
     </prism:Dialog.WindowStyle>
 
-    <!--  Esc 等同于点「关闭」：本弹窗没有"放弃改动"的语义，Esc 只是关窗  -->
     <UserControl.InputBindings>
         <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
     </UserControl.InputBindings>
 
-    <Grid Margin="20,18,20,16">
+    <UserControl.Resources>
+        <!--
+            ============================================================
+            页面级样式（只服务本弹窗的密度：34 高工具栏按钮、30 高表格控件）
+            ============================================================
+            基础形制在 UI/Controls/Themes/Dialog 分册里（DialogQuietButton /
+            DialogGridSilentInput / DialogGridSelect / DialogGridPicker / DialogAlarmGrid…）。
+            这里只写"报警配置这一屏"的派生：语义色、行状态、错误态。
+        -->
+
+        <!--  主按钮：accent 实底 / 白字 / 34 高（基线 .btn-primary.btn-lg）  -->
+        <Style x:Key="ScadaAlarmPrimaryButton" TargetType="Button">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style TargetType="Control">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border
+                                        Margin="2"
+                                        BorderBrush="{StaticResource DialogAccentDarkBrush}"
+                                        BorderThickness="2"
+                                        CornerRadius="8"
+                                        SnapsToDevicePixels="True" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentDarkBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentDarkBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentTextBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  次按钮（底栏「关闭」）：白底 + 描边 / 34 高（基线 .btn.btn-lg）  -->
+        <Style x:Key="ScadaAlarmSecondaryButton" TargetType="Button">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style TargetType="Control">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border
+                                        Margin="2"
+                                        BorderBrush="{StaticResource DialogAccentBrush}"
+                                        BorderThickness="2"
+                                        CornerRadius="8"
+                                        SnapsToDevicePixels="True" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45" />
+                                <Setter Property="Cursor" Value="Arrow" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  工具栏幽灵按钮（删除）：透明底，34 高  -->
+        <Style
+            x:Key="ScadaAlarmGhostButton"
+            BasedOn="{StaticResource DialogQuietButton}"
+            TargetType="Button">
+            <Setter Property="Height" Value="34" />
+            <Setter Property="MinHeight" Value="34" />
+        </Style>
+
+        <!--
+            组筛选胶囊：一段"下拉胶囊"，不是表单控件（基线 .filter）。
+            hover / 筛选态的覆盖顺序按基线：筛选态在 hover 之后声明，
+            因此正在按组筛选时悬停仍保持 accent-soft 底与 accent 边。
+        -->
+        <Style x:Key="ScadaAlarmFilterButton" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style TargetType="Control">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border
+                                        Margin="2"
+                                        BorderBrush="{StaticResource DialogAccentBrush}"
+                                        BorderThickness="2"
+                                        CornerRadius="8"
+                                        SnapsToDevicePixels="True" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                </Trigger>
+                <DataTrigger Binding="{Binding HasGroupFilter}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ScadaAlarmFilterKeyText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.HasGroupFilter, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ScadaAlarmFilterValueText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.HasGroupFilter, RelativeSource={RelativeSource AncestorType={x:Type Button}}}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  标题栏计数：11.5 / text-3，数字由 Run 单独加粗成 text-2  -->
+        <Style x:Key="ScadaAlarmCountText" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+        </Style>
+
+        <!--  底栏提示：静默态 text-3，运行态琥珀（两件事不用一个色说）  -->
+        <Style x:Key="ScadaAlarmStatusHint" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusHintIsWarning}" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  名称格：错误 → 红框红底红字（只有这一格变，整行不受影响）  -->
+        <Style
+            x:Key="ScadaAlarmNameInput"
+            BasedOn="{StaticResource DialogGridSilentInput}"
+            TargetType="TextBox">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NameHasError}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  普通静默单元格（报警组）：停用行走第三级灰，不降透明度  -->
+        <Style
+            x:Key="ScadaAlarmCellInput"
+            BasedOn="{StaticResource DialogGridSilentInput}"
+            TargetType="TextBox">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            阈值 / 断线秒数：所有数字共用同一条右边缘（右侧预留 20），单位由视图贴在 right 8。
+            改这里时两侧一起动，否则「5 s」的 s 会把 5 顶得跟 85 / 12 对不齐（基线 D2）。
+        -->
+        <Style
+            x:Key="ScadaAlarmPrimaryValueInput"
+            BasedOn="{StaticResource DialogGridSilentInput}"
+            TargetType="TextBox">
+            <Setter Property="Padding" Value="9,0,20,0" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding PrimaryValueHasError}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style
+            x:Key="ScadaAlarmKindSelect"
+            BasedOn="{StaticResource DialogGridSelect}"
+            TargetType="ComboBox">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  严重度：字段本身就是一块语义色（与运行态配色同族）；停用行收回成灰字  -->
+        <Style
+            x:Key="ScadaAlarmSeveritySelect"
+            BasedOn="{StaticResource DialogGridSelect}"
+            TargetType="ComboBox">
+            <Setter Property="FontWeight" Value="Medium" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SeverityText}" Value="严重">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SeverityText}" Value="警告">
+                    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SeverityText}" Value="提示">
+                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Background" Value="Transparent" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                    <Setter Property="FontWeight" Value="Normal" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            监视变量：整格是选择器按钮。未绑变量时常驻警示色（这条报警运行态不会求值，
+            必须自己举手）；停用行只把文字压到第三级灰，警示底保留（仍是"缺变量"）。
+        -->
+        <Style
+            x:Key="ScadaAlarmPicker"
+            BasedOn="{StaticResource DialogGridPicker}"
+            TargetType="Button">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasVariable}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  组历史值：24×24 图标按钮，悬停只出浅底（基线 .group .hist）  -->
+        <Style x:Key="ScadaAlarmHistoryButton" TargetType="Button">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style TargetType="Control">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border
+                                        Margin="1"
+                                        BorderBrush="{StaticResource DialogAccentBrush}"
+                                        BorderThickness="2"
+                                        CornerRadius="4"
+                                        SnapsToDevicePixels="True" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="4"
+                            SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  详情块字段：错误时只在各自格子上标红（行内文案另有一条 errline）  -->
+        <Style
+            x:Key="ScadaAlarmDeadbandInput"
+            BasedOn="{StaticResource DialogGridField}"
+            TargetType="TextBox">
+            <Setter Property="TextAlignment" Value="Right" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DeadbandHasError}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style
+            x:Key="ScadaAlarmDelayInput"
+            BasedOn="{StaticResource DialogGridField}"
+            TargetType="TextBox">
+            <Setter Property="TextAlignment" Value="Right" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DelaySecondsHasError}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBrush}" />
+                    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  错误格下面的就地原因：11.5 红字，自动换行  -->
+        <Style
+            x:Key="ScadaAlarmFieldError"
+            BasedOn="{StaticResource DialogInlineFieldError}"
+            TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+
+        <!--  信息文本标签的 why：断线行文案更短（基线 stale 详情块）  -->
+        <Style x:Key="ScadaAlarmMessageWhy" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Text" Value=" · 报警条上显示这一句，留空则用名称" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsStaleKind}" Value="True">
+                    <Setter Property="Text" Value=" · 留空则用名称" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--  启用列表头居中（其余列左对齐 / 数值列右对齐）  -->
+        <Style
+            x:Key="ScadaAlarmGridColumnHeaderCenter"
+            BasedOn="{StaticResource DialogAlarmGridColumnHeader}"
+            TargetType="DataGridColumnHeader">
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+
+        <!--  本页 ToolTip 统一走 Dialog 分册的圆角样式（Fluent 的隐式样式在 App 级最后合并）  -->
+        <Style TargetType="ToolTip" BasedOn="{StaticResource DialogToolTipStyle}" />
+    </UserControl.Resources>
+
+    <!--  ================================================================  -->
+    <!--  窗口骨架：白卡（16,16,16,0）+ 灰底底栏 56                         -->
+    <!--  ================================================================  -->
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="56" />
         </Grid.RowDefinitions>
 
-        <!--  ================================================================  -->
-        <!--  主卡：工具栏 + 报警表                                             -->
-        <!--  ================================================================  -->
-        <Grid Grid.Row="0">
-            <!--  投影层与内容层分离：投影不挂在承载文字的 Border 上，否则文字会失去 ClearType 变糊  -->
-            <Border Style="{StaticResource DialogCardShadow}" />
-            <Border Style="{StaticResource DialogCardBorder}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
+        <Border
+            Grid.Row="0"
+            Margin="16,16,16,0"
+            Style="{StaticResource DialogAlarmCard}">
+            <!--  底部留 10：DataGrid 是直角白底，直接铺到圆角卡底会盖住两个下圆角  -->
+            <Grid Margin="0,0,0,10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="44" />
+                    <RowDefinition Height="48" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                    <!--
-                        标题栏（无系统边框的弹窗靠它拖动）。
-                        Background="Transparent" 不能省：Border 的 Background 为 null 时
-                        整块区域不参与命中测试，鼠标按在空白处根本传不到拖动行为上。
-                    -->
-                    <Border
-                        Grid.Row="0"
-                        ui:WindowDragBehavior.IsWindowDraggable="True"
-                        Background="Transparent"
-                        Style="{StaticResource DialogCardHeader}">
-                        <Grid>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf0f3;" />
-                                <TextBlock Style="{StaticResource DialogCardTitle}" Text="{Binding Title}" />
+                <!--  ============ 标题栏 ============  -->
+                <!--  Background=Transparent 不能省：否则空白处不参与命中测试，拖不动窗  -->
+                <Border
+                    Grid.Row="0"
+                    ui:WindowDragBehavior.IsWindowDraggable="True"
+                    Background="Transparent"
+                    Style="{StaticResource DialogAlarmTitleBar}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Grid.Column="0"
+                            Margin="0,0,9,0"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="16"
+                            Foreground="{StaticResource DialogAccentBrush}"
+                            Text="&#xf0f3;" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Style="{StaticResource DialogAlarmTitle}"
+                            Text="{Binding Title}" />
+
+                        <StackPanel
+                            Grid.Column="2"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Orientation="Horizontal">
+
+                            <!--  运行中：绿点胶囊；只表示"流程在跑"，后果写在底栏琥珀句里  -->
+                            <Border
+                                Margin="0,0,8,0"
+                                Style="{StaticResource DialogRunChip}"
+                                Visibility="{Binding ShowRunningChip, Converter={ui:BooleanToVisibilityConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse
+                                        Margin="0,0,5,0"
+                                        Style="{StaticResource DialogChipDotSuccess}" />
+                                    <TextBlock Style="{StaticResource DialogRunChipText}" Text="运行中" />
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Style="{StaticResource ScadaAlarmCountText}">
+                                <Run Text="共 " />
+                                <Run
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    Text="{Binding AlarmCount, Mode=OneWay}" />
+                                <Run Text=" 条" />
+                            </TextBlock>
+
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Visibility="{Binding ShowBreakdown, Converter={ui:BooleanToVisibilityConverter}}">
+                                <Ellipse Margin="8,0" Style="{StaticResource DialogCountSeparator}" />
+                                <TextBlock Style="{StaticResource ScadaAlarmCountText}">
+                                    <Run Text="启用 " />
+                                    <Run
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="{Binding EnabledCount, Mode=OneWay}" />
+                                </TextBlock>
+                                <Ellipse Margin="8,0" Style="{StaticResource DialogCountSeparator}" />
+                                <TextBlock Style="{StaticResource ScadaAlarmCountText}">
+                                    <Run Text="严重 " />
+                                    <Run
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="{Binding CriticalCount, Mode=OneWay}" />
+                                </TextBlock>
                             </StackPanel>
 
-                            <!--  条数提示放标题栏右侧，工具栏那行就腾出来给按钮了  -->
-                            <TextBlock
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                FontSize="12"
-                                Foreground="{StaticResource DialogTextMutedBrush}"
-                                Text="{Binding CountHint}" />
-                        </Grid>
-                    </Border>
+                            <!--  缺变量：不是胶囊，是"琥珀点 + 琥珀字"，只在存在时出现  -->
+                            <StackPanel
+                                Margin="8,0,0,0"
+                                Orientation="Horizontal"
+                                Visibility="{Binding HasIncomplete, Converter={ui:BooleanToVisibilityConverter}}">
+                                <Ellipse Margin="0,0,6,0" Style="{StaticResource DialogIncompleteDot}" />
+                                <TextBlock Style="{StaticResource DialogIncompleteText}">
+                                    <Run Text="缺变量 " />
+                                    <Run
+                                        FontWeight="SemiBold"
+                                        Text="{Binding MissingVariableCount, Mode=OneWay}" />
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Border>
 
-                    <!--  ============ 工具栏 ============  -->
+                <!--  ============ 工具栏（空方案时整条收起） ============  -->
+                <Border
+                    Grid.Row="1"
+                    Style="{StaticResource DialogAlarmToolbar}"
+                    Visibility="{Binding HasRows, Converter={ui:BooleanToVisibilityConverter}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+
+                            <Button
+                                Command="{Binding AddCommand}"
+                                Style="{StaticResource ScadaAlarmPrimaryButton}">
+                                <Button.ToolTip>
+                                    <ToolTip Content="新建一条报警定义（名字自动取「报警_N」，条件种类默认高限）" />
+                                </Button.ToolTip>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="12"
+                                        Text="&#xf067;" />
+                                    <TextBlock VerticalAlignment="Center" Text="新增报警" />
+                                </StackPanel>
+                            </Button>
+
+                            <!--
+                                删除走"红图标 + 中性文字"：文字悬停由模板转成主色，
+                                图标被显式设红、不跟随 Foreground ⇒ 悬停后仍看得出这是删除。
+                            -->
+                            <Button
+                                Margin="8,0,0,0"
+                                Command="{Binding RemoveCommand}"
+                                Style="{StaticResource ScadaAlarmGhostButton}">
+                                <Button.ToolTip>
+                                    <ToolTip Content="删除选中那条报警（撤销即可恢复）" />
+                                </Button.ToolTip>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock
+                                        Margin="0,0,6,0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource DialogIconFont}"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogDangerBrush}"
+                                        Text="&#xf1f8;" />
+                                    <TextBlock VerticalAlignment="Center" Text="删除" />
+                                </StackPanel>
+                            </Button>
+
+                            <Border
+                                Width="1"
+                                Height="20"
+                                Margin="12,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource DialogBorderBrush}" />
+
+                            <!--
+                                组筛选：Button + ContextMenu（不是 ComboBox）——胶囊里是
+                                "组 + 当前组名 + 箭头"，展开的候选来自本方案已用过的组名。
+                            -->
+                            <Button
+                                Click="GroupFilterButton_Click"
+                                Style="{StaticResource ScadaAlarmFilterButton}">
+                                <Button.ToolTip>
+                                    <ToolTip Content="按报警组筛选（组名是自由文本，来自本方案已用过的值）" />
+                                </Button.ToolTip>
+                                <Button.ContextMenu>
+                                    <ContextMenu
+                                        DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                        ItemsSource="{Binding GroupFilterOptions}">
+                                        <ContextMenu.ItemContainerStyle>
+                                            <Style TargetType="MenuItem">
+                                                <Setter Property="Command" Value="{Binding DataContext.SetGroupFilterCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
+                                                <Setter Property="CommandParameter" Value="{Binding}" />
+                                                <Setter Property="Header" Value="{Binding}" />
+                                            </Style>
+                                        </ContextMenu.ItemContainerStyle>
+                                    </ContextMenu>
+                                </Button.ContextMenu>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource ScadaAlarmFilterKeyText}" Text="组" />
+                                    <TextBlock
+                                        Margin="6,0,0,0"
+                                        Style="{StaticResource ScadaAlarmFilterValueText}"
+                                        Text="{Binding GroupFilter}" />
+                                    <Path
+                                        Width="10"
+                                        Height="6"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Data="M0,0 L5,5 L10,0"
+                                        Opacity="0.6"
+                                        Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                        StrokeThickness="1.5" />
+                                </StackPanel>
+                            </Button>
+
+                            <!--  「显示 2 / 7」+ 清除：只在有筛选时出现  -->
+                            <StackPanel
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Orientation="Horizontal"
+                                Visibility="{Binding ShowShownHint, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock Style="{StaticResource ScadaAlarmCountText}">
+                                    <Run Text="显示 " />
+                                    <Run
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="{Binding VisibleRowCount, Mode=OneWay}" />
+                                    <Run Text=" / " />
+                                    <Run Text="{Binding AlarmCount, Mode=OneWay}" />
+                                </TextBlock>
+                                <Button
+                                    Margin="6,0,0,0"
+                                    Command="{Binding ClearFilterCommand}"
+                                    Style="{StaticResource DialogLinkButton}">
+                                    <!--
+                                        基线工具条这一项恒为「清除」（design.html 的 filter 态：显示 2 / 7 清除）。
+                                        「清除搜索 / 清除筛选」那套带宾语的文案只属于无结果态的大按钮
+                                        （绑 ClearFilterButtonText），两处不共用一个字符串。
+                                    -->
+                                    <TextBlock Text="清除" TextDecorations="Underline" />
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!--  搜索：176×30，放大镜 9 左，输入区左留 29  -->
+                        <Border
+                            Grid.Column="1"
+                            Margin="12,0,0,0"
+                            Style="{StaticResource DialogSearchChromeCompact}">
+                            <Grid>
+                                <TextBlock
+                                    Margin="9,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="11.5"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    IsHitTestVisible="False"
+                                    Text="&#xf002;" />
+                                <TextBox
+                                    Tag="搜索名称 / 变量 / 组"
+                                    Style="{StaticResource DialogSearchInputCompact}"
+                                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                                    <TextBox.ToolTip>
+                                        <ToolTip Content="搜索会同时匹配名称、监视变量与报警组" />
+                                    </TextBox.ToolTip>
+                                </TextBox>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!--  ============ 表格 + 空态 / 无结果 ============  -->
+                <Grid Grid.Row="2">
+                    <DataGrid
+                        x:Name="AlarmGrid"
+                        ItemsSource="{Binding RowsView}"
+                        SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                        Style="{StaticResource DialogAlarmGrid}"
+                        Visibility="{Binding HasRows, Converter={ui:BooleanToVisibilityConverter}}">
+                        <DataGrid.Columns>
+
+                            <!--  名称：就地改名（失焦提交；逐字符查重会在输入中途撞"已存在同名"）  -->
+                            <DataGridTemplateColumn
+                                Width="150"
+                                CellStyle="{StaticResource DialogAlarmGridCellMarker}"
+                                Header="名称">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox
+                                            Style="{StaticResource ScadaAlarmNameInput}"
+                                            Text="{Binding Name, UpdateSourceTrigger=LostFocus}">
+                                            <TextBox.ToolTip>
+                                                <ToolTip Content="报警名在同方案内必须唯一；留空会被拒绝并回灌原名" />
+                                            </TextBox.ToolTip>
+                                        </TextBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!--  监视变量：整格可点，未绑变量时常驻警示色  -->
+                            <DataGridTemplateColumn
+                                Width="158"
+                                CellStyle="{StaticResource DialogAlarmGridCell}"
+                                Header="监视变量">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button
+                                            Command="{Binding DataContext.PickVariableForRowCommand, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                            CommandParameter="{Binding}"
+                                            HorizontalAlignment="Stretch"
+                                            Style="{StaticResource ScadaAlarmPicker}">
+                                            <Button.ToolTip>
+                                                <ToolTip Content="点击更换监视变量（取消选择不会改动任何东西）" />
+                                            </Button.ToolTip>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    Grid.Column="0"
+                                                    Margin="0,0,6,0"
+                                                    VerticalAlignment="Center"
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="12"
+                                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type Button}}}"
+                                                    Text="&#xf0c1;"
+                                                    Visibility="{Binding HasVariable, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                                                <TextBlock
+                                                    Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    FontSize="12.5"
+                                                    Text="{Binding VariableDisplay}"
+                                                    TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!--  种类：下拉（DialogCombo 必须给显式 ItemTemplate，否则选中框退化成 ToString）  -->
+                            <DataGridTemplateColumn
+                                Width="118"
+                                CellStyle="{StaticResource DialogAlarmGridCell}"
+                                Header="种类">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox
+                                            HorizontalAlignment="Stretch"
+                                            ItemTemplate="{StaticResource DialogDisplayNameTemplate}"
+                                            ItemsSource="{Binding DataContext.KindOptions, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                            SelectedValue="{Binding Kind, Mode=TwoWay}"
+                                            SelectedValuePath="Kind"
+                                            Style="{StaticResource ScadaAlarmKindSelect}">
+                                            <ComboBox.ToolTip>
+                                                <ToolTip Content="四限 / 布尔跳变 / 通信断线；改这里不会自动改报警等级" />
+                                            </ComboBox.ToolTip>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!--  阈值：四限 = 数值；断线 = 秒数（单位 s 贴右 8）；布尔 = —  -->
+                            <DataGridTemplateColumn
+                                Width="86"
+                                CellStyle="{StaticResource DialogAlarmGridCell}"
+                                Header="阈值"
+                                HeaderStyle="{StaticResource DialogAlarmGridColumnHeaderNumeric}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid HorizontalAlignment="Stretch">
+                                            <TextBox
+                                                Style="{StaticResource ScadaAlarmPrimaryValueInput}"
+                                                Text="{Binding PrimaryValueText, UpdateSourceTrigger=LostFocus}"
+                                                Visibility="{Binding ShowsPrimaryValueInput, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <TextBox.ToolTip>
+                                                    <ToolTip Content="越过这个数值即触发；填不出来的数会回灌原值并给出原因" />
+                                                </TextBox.ToolTip>
+                                            </TextBox>
+                                            <TextBlock
+                                                Margin="0,0,20,0"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontSize="12.5"
+                                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                                Text="—"
+                                                Visibility="{Binding ShowsPrimaryValueInput, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                                            <TextBlock
+                                                Margin="0,0,8,0"
+                                                HorizontalAlignment="Right"
+                                                VerticalAlignment="Center"
+                                                FontSize="11.5"
+                                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                Text="{Binding ThresholdUnit}"
+                                                Visibility="{Binding HasThresholdUnit, Converter={ui:BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!--  报警等级：语义色块（严重 / 警告 / 提示）  -->
+                            <DataGridTemplateColumn
+                                Width="100"
+                                CellStyle="{StaticResource DialogAlarmGridCell}"
+                                Header="报警等级">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ComboBox
+                                            HorizontalAlignment="Stretch"
+                                            ItemTemplate="{StaticResource DialogDisplayNameTemplate}"
+                                            ItemsSource="{Binding DataContext.SeverityOptions, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
+                                            SelectedValue="{Binding Severity, Mode=TwoWay}"
+                                            SelectedValuePath="Severity"
+                                            Style="{StaticResource ScadaAlarmSeveritySelect}">
+                                            <ComboBox.ToolTip>
+                                                <ToolTip Content="提示 / 警告 / 严重：决定报警条与历史里的配色分档" />
+                                            </ComboBox.ToolTip>
+                                        </ComboBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!--  启用：取消勾选 = 保留配置但运行态不判这条报警  -->
+                            <DataGridTemplateColumn
+                                Width="54"
+                                CellStyle="{StaticResource DialogAlarmGridCell}"
+                                Header="启用"
+                                HeaderStyle="{StaticResource ScadaAlarmGridColumnHeaderCenter}">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                            IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                            Style="{StaticResource DialogCheckBox}">
+                                            <CheckBox.ToolTip>
+                                                <ToolTip Content="取消勾选 = 保留配置但运行态不判这条报警" />
+                                            </CheckBox.ToolTip>
+                                        </CheckBox>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+
+                            <!--  报警组：自由文本 + 历史值下拉；箭头贴文字，整块最宽 138  -->
+                            <DataGridTemplateColumn
+                                Width="*"
+                                CellStyle="{StaticResource DialogAlarmGridCell}"
+                                Header="报警组">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Grid
+                                            Width="138"
+                                            HorizontalAlignment="Left">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="112" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox
+                                                Grid.Column="0"
+                                                Tag="未分组"
+                                                Style="{StaticResource ScadaAlarmCellInput}"
+                                                Text="{Binding AlarmGroup, UpdateSourceTrigger=LostFocus}">
+                                                <TextBox.ToolTip>
+                                                    <ToolTip Content="留空 = 不分组。可以手填一个全新的组名" />
+                                                </TextBox.ToolTip>
+                                            </TextBox>
+                                            <Button
+                                                Grid.Column="1"
+                                                Margin="2,0,0,0"
+                                                Click="GroupHistoryButton_Click"
+                                                Style="{StaticResource ScadaAlarmHistoryButton}">
+                                                <Button.ToolTip>
+                                                    <ToolTip Content="从本方案已用过的报警组里挑一个" />
+                                                </Button.ToolTip>
+                                                <Button.ContextMenu>
+                                                    <ContextMenu
+                                                        DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
+                                                        ItemsSource="{Binding GroupSuggestions}">
+                                                        <ContextMenu.ItemContainerStyle>
+                                                            <Style TargetType="MenuItem">
+                                                                <Setter Property="Command" Value="{Binding DataContext.ApplyGroupCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
+                                                                <Setter Property="CommandParameter" Value="{Binding}" />
+                                                                <Setter Property="Header" Value="{Binding}" />
+                                                            </Style>
+                                                        </ContextMenu.ItemContainerStyle>
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
+                                                <TextBlock
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="10.5"
+                                                    Text="&#xf078;" />
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+
+                        <!--
+                            ============ 展开行：规则 + 次要字段 ============
+                            规则句按引擎口径写清"何时报警、何时恢复"；数值单独成 Run 加粗。
+                            断线行不出现回差 / 延时（超时本身就是延时），用一句话说明。
+                        -->
+                        <DataGrid.RowDetailsTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource DialogDetailPanel}">
+                                    <StackPanel>
+
+                                        <!--  行内校验失败：红圈叹号 + 原因（只有出错那一行有）  -->
+                                        <StackPanel
+                                            Margin="0,0,0,8"
+                                            Orientation="Horizontal"
+                                            Visibility="{Binding HasInlineError, Converter={ui:BooleanToVisibilityConverter}}">
+                                            <TextBlock
+                                                Margin="0,1,6,0"
+                                                VerticalAlignment="Top"
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="12"
+                                                Foreground="{StaticResource DialogDangerBrush}"
+                                                Text="&#xf06a;" />
+                                            <TextBlock
+                                                MaxWidth="720"
+                                                Style="{StaticResource DialogInlineFieldError}"
+                                                Text="{Binding InlineError}"
+                                                TextWrapping="Wrap" />
+                                        </StackPanel>
+
+                                        <!--  新增行的「待完成」提示：绑上变量 / 离开这一行就收起（瞬态）  -->
+                                        <Border
+                                            Style="{StaticResource DialogSetupHint}"
+                                            Visibility="{Binding ShowSetupHint, Converter={ui:BooleanToVisibilityConverter}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock
+                                                    Grid.Column="0"
+                                                    Margin="0,2,7,0"
+                                                    VerticalAlignment="Top"
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="12"
+                                                    Foreground="{StaticResource DialogWarningBrush}"
+                                                    Text="&#xf071;" />
+                                                <TextBlock Grid.Column="1" Style="{StaticResource DialogSetupHintText}">
+                                                    <Run FontWeight="SemiBold" Text="{Binding SetupHintTitle, Mode=OneWay}" />
+                                                    <Run Text="：" />
+                                                    <Run Text="{Binding SetupHintBody, Mode=OneWay}" />
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+
+                                        <!--  规则句  -->
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0" Style="{StaticResource DialogRuleTag}">
+                                                <TextBlock Style="{StaticResource DialogRuleTagText}" Text="规则" />
+                                            </Border>
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                Margin="8,0,0,0"
+                                                Style="{StaticResource DialogRuleText}">
+                                                <Run FontWeight="SemiBold" Text="{Binding RuleSubject, Mode=OneWay}" />
+                                                <Run Text="{Binding RulePredicate, Mode=OneWay}" />
+                                                <Run FontWeight="SemiBold" Text="{Binding RuleValue, Mode=OneWay}" />
+                                                <Run Text="{Binding RuleAfterValue, Mode=OneWay}" />
+                                                <Run FontWeight="SemiBold" Text="{Binding RuleDelay, Mode=OneWay}" />
+                                                <Run Text="{Binding RuleBeforeRecovery, Mode=OneWay}" />
+                                                <Run FontWeight="SemiBold" Text="{Binding RuleRecovery, Mode=OneWay}" />
+                                                <Run Text="{Binding RuleTail, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Grid>
+
+                                        <!--  断线说明：替代回差 / 延时这两格  -->
+                                        <TextBlock
+                                            Margin="0,0,0,12"
+                                            Style="{StaticResource DialogRuleNote}"
+                                            Text="{Binding StaleNote}"
+                                            Visibility="{Binding ShowStaleNote, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                                        <!--  回差 / 延时：只对四限与布尔出现；断线整块不出现  -->
+                                        <Grid Visibility="{Binding ShowDelay, Converter={ui:BooleanToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="150" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel
+                                                Grid.Column="0"
+                                                Visibility="{Binding ShowDeadband, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource DialogFieldLabel}" Text="回差" />
+                                                    <TextBlock
+                                                        Style="{StaticResource DialogFieldLabel}"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text=" · 抑制阈值抖动" />
+                                                </StackPanel>
+                                                <TextBox
+                                                    Style="{StaticResource ScadaAlarmDeadbandInput}"
+                                                    Text="{Binding DeadbandText, UpdateSourceTrigger=LostFocus}">
+                                                    <TextBox.ToolTip>
+                                                        <ToolTip Content="值回落到「阈值 ± 回差」之内才算恢复，避免在阈值上抖动" />
+                                                    </TextBox.ToolTip>
+                                                </TextBox>
+                                                <TextBlock
+                                                    Style="{StaticResource ScadaAlarmFieldError}"
+                                                    Text="{Binding InlineError}"
+                                                    Visibility="{Binding DeadbandHasError, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            </StackPanel>
+
+                                            <StackPanel
+                                                Grid.Column="2"
+                                                Visibility="{Binding ShowDelay, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource DialogFieldLabel}" Text="延时（秒）" />
+                                                    <TextBlock
+                                                        Style="{StaticResource DialogFieldLabel}"
+                                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                                        Text=" · 0 = 立即" />
+                                                </StackPanel>
+                                                <TextBox
+                                                    Style="{StaticResource ScadaAlarmDelayInput}"
+                                                    Text="{Binding DelaySecondsText, UpdateSourceTrigger=LostFocus}">
+                                                    <TextBox.ToolTip>
+                                                        <ToolTip Content="条件持续成立这么久才真的报警（滤掉瞬时抖动）" />
+                                                    </TextBox.ToolTip>
+                                                </TextBox>
+                                                <TextBlock
+                                                    Style="{StaticResource ScadaAlarmFieldError}"
+                                                    Text="{Binding InlineError}"
+                                                    Visibility="{Binding DelaySecondsHasError, Converter={ui:BooleanToVisibilityConverter}}" />
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!--  分隔线：只有"数值区 → 长文本区"时才画；断线行没有  -->
+                                        <Border
+                                            Height="1"
+                                            Margin="8,0,8,8"
+                                            Background="{StaticResource DialogBorderLightBrush}"
+                                            Visibility="{Binding ShowDelay, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                                        <!--  四条长文本：信息文本 / 故障原因 / 解决措施 / 附加信息  -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="0">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Style="{StaticResource DialogFieldLabel}" Text="信息文本" />
+                                                    <TextBlock Style="{StaticResource ScadaAlarmMessageWhy}" />
+                                                </StackPanel>
+                                                <TextBox
+                                                    Tag="留空则显示报警名"
+                                                    Style="{StaticResource DialogGridField}"
+                                                    Text="{Binding Message, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Row="0" Grid.Column="2">
+                                                <TextBlock Style="{StaticResource DialogFieldLabel}" Text="故障原因" />
+                                                <TextBox
+                                                    Tag="为什么会报警"
+                                                    Style="{StaticResource DialogGridField}"
+                                                    Text="{Binding Cause, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+
+                                            <StackPanel
+                                                Grid.Row="1"
+                                                Grid.Column="0"
+                                                Margin="0,8,0,0">
+                                                <TextBlock Style="{StaticResource DialogFieldLabel}" Text="解决措施" />
+                                                <TextBox
+                                                    Tag="现场该怎么做"
+                                                    Style="{StaticResource DialogGridField}"
+                                                    Text="{Binding Remedy, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+
+                                            <StackPanel
+                                                Grid.Row="1"
+                                                Grid.Column="2"
+                                                Margin="0,8,0,0">
+                                                <TextBlock Style="{StaticResource DialogFieldLabel}" Text="附加信息" />
+                                                <TextBox
+                                                    Tag="备注 / 相关点位"
+                                                    Style="{StaticResource DialogGridField}"
+                                                    Text="{Binding ExtraInfo, UpdateSourceTrigger=LostFocus}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </DataGrid.RowDetailsTemplate>
+                    </DataGrid>
+
+                    <!--  搜索 / 筛选一条都没匹配：表头留着，表体换成一块说明  -->
+                    <Grid
+                        Margin="0,34,0,0"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        Visibility="{Binding ShowNoResult, Converter={ui:BooleanToVisibilityConverter}}">
+                        <StackPanel
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                            <Border Style="{StaticResource DialogEmptyStateBadge}">
+                                <TextBlock Style="{StaticResource DialogEmptyStateBadgeGlyph}" Text="&#xf002;" />
+                            </Border>
+                            <TextBlock Style="{StaticResource DialogEmptyTitle}" Text="{Binding NoResultTitle}" />
+                            <TextBlock Style="{StaticResource DialogEmptyDescription}" Text="{Binding NoResultDescription}" />
+                            <Button
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center"
+                                Command="{Binding ClearFilterCommand}"
+                                Content="{Binding ClearFilterButtonText}"
+                                Style="{StaticResource ScadaAlarmSecondaryButton}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!--  空方案：一条报警都没有（与"搜索没匹配"是两件事）  -->
                     <StackPanel
-                        Grid.Row="1"
-                        Margin="16,14,16,10"
-                        Orientation="Horizontal">
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="{Binding ShowEmptyState, Converter={ui:BooleanToVisibilityConverter}}">
+                        <Border Style="{StaticResource DialogEmptyStateBadge}">
+                            <TextBlock Style="{StaticResource DialogEmptyStateBadgeGlyph}" Text="&#xf0f3;" />
+                        </Border>
+                        <TextBlock Style="{StaticResource DialogEmptyTitle}" Text="这个方案还没有报警定义" />
+                        <TextBlock Style="{StaticResource DialogEmptyDescription}" Text="报警是方案级配置：跟着 .vms 文件走、进撤销栈。新建一条后，先选监视变量、再确认阈值与等级——没绑变量的报警运行态不会求值。" />
                         <Button
-                            Height="34"
-                            MinWidth="104"
+                            Margin="0,10,0,0"
+                            HorizontalAlignment="Center"
                             Command="{Binding AddCommand}"
-                            Style="{StaticResource DialogPrimaryButton}"
-                            ToolTip="新建一条报警定义（名字自动取「报警_N」，条件种类默认高限）">
+                            Style="{StaticResource ScadaAlarmPrimaryButton}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock
                                     Margin="0,0,6,0"
                                     VerticalAlignment="Center"
-                                    FontFamily="{StaticResource Icon}"
+                                    FontFamily="{StaticResource DialogIconFont}"
                                     FontSize="12"
                                     Text="&#xf067;" />
                                 <TextBlock VerticalAlignment="Center" Text="新增报警" />
                             </StackPanel>
                         </Button>
-
-                        <!--
-                            危险动作走"红图标 + 中性文字"：与扫描组 / 连接管理两个弹窗同一手法。
-                            文字保留次级色、悬停时按钮模板把它转成主色，而图标被显式设成红色、
-                            不跟随按钮 Foreground ⇒ 悬停后依然是"这是删除"的视觉提示。
-                        -->
-                        <Button
-                            Height="34"
-                            Margin="8,0,0,0"
-                            Command="{Binding RemoveCommand}"
-                            Style="{StaticResource DialogGhostButton}"
-                            ToolTip="删除选中那条报警（撤销即可恢复）">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    FontFamily="{StaticResource Icon}"
-                                    FontSize="12"
-                                    Foreground="{StaticResource DialogDangerBrush}"
-                                    Text="&#xf1f8;" />
-                                <TextBlock VerticalAlignment="Center" Text="删除" />
-                            </StackPanel>
-                        </Button>
-
-                        <Border
-                            Width="1"
-                            Height="20"
-                            Margin="12,0"
-                            VerticalAlignment="Center"
-                            Background="{StaticResource DialogBorderBrush}" />
-
-                        <Button
-                            Height="34"
-                            Command="{Binding PickVariableCommand}"
-                            Style="{StaticResource DialogGhostButton}"
-                            ToolTip="为选中那条报警挑一个监视变量（取消选择不会改动任何东西）">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock
-                                    Margin="0,0,6,0"
-                                    VerticalAlignment="Center"
-                                    FontFamily="{StaticResource Icon}"
-                                    FontSize="12"
-                                    Foreground="{StaticResource DialogAccentBrush}"
-                                    Text="&#xf0c1;" />
-                                <TextBlock VerticalAlignment="Center" Text="选择变量" />
-                            </StackPanel>
-                        </Button>
                     </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
 
-                    <!--  ============ 口径提示 ============  -->
-                    <!--  用两列 Grid 而不是横向 StackPanel：StackPanel 不给子项宽度约束，TextWrapping 会失效  -->
-                    <Grid Grid.Row="2" Margin="16,0,16,10">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+        <!--  ============ 底栏（灰底上，56 高） ============  -->
+        <Border Grid.Row="1" Style="{StaticResource DialogAlarmFooter}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!--  删除回执：绿勾 + 已删除报警 [名] + 就地撤销（不占全局撤销位）  -->
+                <StackPanel
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal"
+                    Visibility="{Binding HasReceipt, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogSuccessTextBrush}"
+                        Text="&#xf00c;" />
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding ReceiptText}" />
+                    <Button
+                        Margin="6,0,0,0"
+                        Command="{Binding ReceiptUndoCommand}"
+                        Style="{StaticResource DialogLinkButtonSuccess}">
+                        <TextBlock Text="撤销" TextDecorations="Underline" />
+                    </Button>
+                </StackPanel>
+
+                <!--  全局撤销：按钮上直接带"下一次撤的是什么"  -->
+                <Button
+                    Grid.Column="1"
+                    Margin="0,0,10,0"
+                    Command="{Binding UndoCommand}"
+                    Style="{StaticResource DialogQuietButton}"
+                    Visibility="{Binding ShowUndo, Converter={ui:BooleanToVisibilityConverter}}">
+                    <Button.ToolTip>
+                        <ToolTip Content="撤销上一次改动（Ctrl+Z 在弹窗内不生效，故给出按钮）" />
+                    </Button.ToolTip>
+                    <StackPanel Orientation="Horizontal">
                         <TextBlock
-                            Grid.Column="0"
                             Margin="0,0,6,0"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="11"
-                            Foreground="{StaticResource DialogTextMutedBrush}"
-                            Text="&#xf05a;" />
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="12"
+                            Text="&#xf0e2;" />
                         <TextBlock
-                            Grid.Column="1"
                             VerticalAlignment="Center"
-                            FontSize="11.5"
-                            Foreground="{StaticResource DialogTextMutedBrush}"
-                            Text="报警定义跟着方案文件走：改一格即写入当前方案并进撤销栈，弹窗没有「确定」。选中某一行会展开它的次要字段。"
-                            TextWrapping="Wrap" />
-                    </Grid>
+                            Text="{Binding UndoButtonText}"
+                            TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Button>
 
-                    <!--  ============ 校验 / 删除失败条 ============  -->
-                    <Border
-                        Grid.Row="3"
-                        Margin="16,0,16,10"
-                        Padding="10,7"
-                        Background="#FEF2F2"
-                        BorderBrush="#FECACA"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock
-                                Margin="0,0,6,0"
-                                VerticalAlignment="Center"
-                                FontFamily="{StaticResource Icon}"
-                                FontSize="11"
-                                Foreground="{StaticResource DialogDangerBrush}"
-                                Text="&#xf06a;" />
-                            <TextBlock
-                                FontSize="12"
-                                Foreground="{StaticResource DialogDangerBrush}"
-                                Text="{Binding ErrorMessage}"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
+                <!--  写入口径提示：回执态让位给回执；运行态换琥珀句  -->
+                <TextBlock
+                    Grid.Column="2"
+                    MaxWidth="360"
+                    Text="{Binding StatusHint}">
+                    <TextBlock.Style>
+                        <Style BasedOn="{StaticResource ScadaAlarmStatusHint}" TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasReceipt}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
-                    <!--  ============ 报警表 ============  -->
-                    <Grid Grid.Row="4" Margin="1,0,1,1">
-                        <DataGrid
-                            HorizontalScrollBarVisibility="Disabled"
-                            ItemsSource="{Binding Rows}"
-                            RowDetailsVisibilityMode="VisibleWhenSelected"
-                            SelectedItem="{Binding SelectedRow}"
-                            Style="{StaticResource DialogDataGrid}"
-                            VerticalScrollBarVisibility="Auto">
-                            <DataGrid.Columns>
+                <!--  全局错误（没有打开的方案等）：行内校验不走这里  -->
+                <TextBlock
+                    Grid.Column="3"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Center"
+                    FontSize="11.5"
+                    Foreground="{StaticResource DialogDangerTextBrush}"
+                    Text="{Binding ErrorMessage}"
+                    TextTrimming="CharacterEllipsis"
+                    Visibility="{Binding HasError, Converter={ui:BooleanToVisibilityConverter}}" />
 
-                                <!--  报警名（内联输入框，失焦提交：逐字符改名会在输入中途撞上"已存在同名"）  -->
-                                <DataGridTemplateColumn
-                                    Width="150"
-                                    CellStyle="{StaticResource DialogDataGridCellFlush}"
-                                    Header="名称">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBox
-                                                Style="{StaticResource DialogGridInput}"
-                                                Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
-                                                ToolTip="报警名在同方案内必须唯一；留空会被拒绝并回灌原名" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                                <!--  监视变量：只读展示。挑变量走工具条的「选择变量」（先选中这一行）  -->
-                                <DataGridTemplateColumn Width="160" Header="监视变量">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <TextBlock
-                                                VerticalAlignment="Center"
-                                                Text="{Binding VariableDisplay}"
-                                                TextTrimming="CharacterEllipsis"
-                                                ToolTip="这条报警看的是哪个工程变量">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="FontSize" Value="12.5" />
-                                                        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
-                                                        <Style.Triggers>
-                                                            <!--  没绑变量时压成提示色，让"还没配"一眼看得出来  -->
-                                                            <DataTrigger Binding="{Binding HasVariable}" Value="False">
-                                                                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                                <!--
-                                    条件种类：下拉。高度压到 30 与 DialogGridInput 齐平，
-                                    否则 46 高的行里会顶到上下边。
-                                    ★ 铁律：用 DialogCombo 就必须给显式 ItemTemplate，
-                      不能改用 DisplayMemberPath（选中框会退化成 ToString()）。
-                                -->
-                                <DataGridTemplateColumn
-                                    Width="132"
-                                    CellStyle="{StaticResource DialogDataGridCellFlush}"
-                                    Header="种类">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <ComboBox
-                                                Height="30"
-                                                HorizontalAlignment="Stretch"
-                                                VerticalAlignment="Center"
-                                                ItemTemplate="{StaticResource DialogDisplayNameTemplate}"
-                                                ItemsSource="{Binding DataContext.KindOptions, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                                SelectedValue="{Binding Kind, Mode=TwoWay}"
-                                                SelectedValuePath="Kind"
-                                                Style="{StaticResource DialogCombo}"
-                                                ToolTip="四限 / 布尔跳变 / 通信断线；改这里不会自动改报警等级" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                                <!--
-                                    阈值：只有"四限"用得到。非四限的报警这一格摆一个"—"，
-                                    而不是留一个可编辑却写了不生效的输入框。
-                                -->
-                                <DataGridTemplateColumn
-                                    Width="84"
-                                    CellStyle="{StaticResource DialogDataGridCellFlush}"
-                                    Header="阈值">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <TextBox
-                                                    Style="{StaticResource DialogGridInput}"
-                                                    Text="{Binding ThresholdText, UpdateSourceTrigger=LostFocus}"
-                                                    TextAlignment="Right"
-                                                    ToolTip="越过这个数值即触发；填不出来的数会回灌原值并给出原因"
-                                                    Visibility="{Binding IsLimitKind, Converter={ui:BooleanToVisibilityConverter}}" />
-                                                <TextBlock
-                                                    Style="{StaticResource DialogGridNumber}"
-                                                    Text="—"
-                                                    Visibility="{Binding IsLimitKind, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
-                                            </Grid>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                                <!--  报警等级：下拉（提示 / 警告 / 严重）  -->
-                                <DataGridTemplateColumn
-                                    Width="108"
-                                    CellStyle="{StaticResource DialogDataGridCellFlush}"
-                                    Header="报警等级">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <ComboBox
-                                                Height="30"
-                                                HorizontalAlignment="Stretch"
-                                                VerticalAlignment="Center"
-                                                ItemTemplate="{StaticResource DialogDisplayNameTemplate}"
-                                                ItemsSource="{Binding DataContext.SeverityOptions, RelativeSource={RelativeSource AncestorType={x:Type DataGrid}}}"
-                                                SelectedValue="{Binding Severity, Mode=TwoWay}"
-                                                SelectedValuePath="Severity"
-                                                Style="{StaticResource DialogCombo}"
-                                                ToolTip="提示 / 警告 / 严重：决定报警条与历史里的配色分档" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                                <!--  启用：停用后运行态不求值这条报警，但配置原样保留  -->
-                                <DataGridTemplateColumn Width="64" Header="启用">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <CheckBox
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                                ToolTip="取消勾选 = 保留配置但运行态不判这条报警" />
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                                <!--
-                                    报警组：自由文本（组名随现场工艺划分走，做成枚举就锁死了）
-                                    + 历史值下拉（本方案里已用过的组名）。
-                                    ★ 这里没有用 DialogCombo 做"可编辑下拉"：DialogCombo 的模板里
-                      没有 PART_EditableTextBox（它是 ToggleButton + ContentPresenter），
-                      IsEditable=True 会变成"能敲字但看不见"。所以走
-                      TextBox + 小箭头按钮 + ContextMenu 的历史值下拉，与扫描组编辑器同一手法。
-                                -->
-                                <DataGridTemplateColumn
-                                    Width="*"
-                                    CellStyle="{StaticResource DialogDataGridCellFlush}"
-                                    Header="报警组">
-                                    <DataGridTemplateColumn.CellTemplate>
-                                        <DataTemplate>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <TextBox
-                                                    Grid.Column="0"
-                                                    Style="{StaticResource DialogGridInput}"
-                                                    Text="{Binding AlarmGroup, UpdateSourceTrigger=LostFocus}"
-                                                    ToolTip="留空 = 不分组。可以手填一个全新的组名" />
-
-                                                <!--
-                                                    ContextMenu 挂在独立的 Popup 里、不在可视树上，无法继承 DataContext，
-                                                    所以必须显式把 PlacementTarget（= 这个按钮）的 DataContext 接过来，
-                                                    否则菜单项里的 ItemsSource / Command 全部绑不上、点了没反应。
-                                                -->
-                                                <Button
-                                                    Grid.Column="1"
-                                                    Margin="2,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Click="GroupHistoryButton_Click"
-                                                    Style="{StaticResource DialogIconButton}"
-                                                    ToolTip="从本方案已用过的报警组里挑一个">
-                                                    <Button.ContextMenu>
-                                                        <ContextMenu
-                                                            DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}"
-                                                            ItemsSource="{Binding GroupSuggestions}">
-                                                            <ContextMenu.ItemContainerStyle>
-                                                                <Style TargetType="MenuItem">
-                                                                    <Setter Property="Command" Value="{Binding DataContext.ApplyGroupCommand, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
-                                                                    <Setter Property="CommandParameter" Value="{Binding}" />
-                                                                    <Setter Property="Header" Value="{Binding}" />
-                                                                </Style>
-                                                            </ContextMenu.ItemContainerStyle>
-                                                        </ContextMenu>
-                                                    </Button.ContextMenu>
-                                                    <TextBlock
-                                                        FontFamily="{StaticResource Icon}"
-                                                        FontSize="11"
-                                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                                        Text="&#xf078;" />
-                                                </Button>
-                                            </Grid>
-                                        </DataTemplate>
-                                    </DataGridTemplateColumn.CellTemplate>
-                                </DataGridTemplateColumn>
-
-                            </DataGrid.Columns>
-
-                            <!--  ============ 展开行：次要字段 ============  -->
-                            <DataGrid.RowDetailsTemplate>
-                                <DataTemplate>
-                                    <Border
-                                        Padding="16,12,16,14"
-                                        Background="{StaticResource DialogInputBackgroundBrush}"
-                                        BorderBrush="{StaticResource DialogBorderLightBrush}"
-                                        BorderThickness="0,1,0,0">
-                                        <StackPanel>
-
-                                            <!--  条件摘要：把"种类 + 阈值 + 回差"拼成一句人话，省得逐格去对  -->
-                                            <TextBlock
-                                                Margin="0,0,0,10"
-                                                FontSize="12"
-                                                Foreground="{StaticResource DialogTextSecondaryBrush}">
-                                                <Run Foreground="{StaticResource DialogTextMutedBrush}" Text="触发条件：" />
-                                                <Run Text="{Binding ConditionText, Mode=OneWay}" />
-                                            </TextBlock>
-
-                                            <!--  三个数值：回差 / 延时 / 断线判定（各按种类显隐或置灰）  -->
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="12" />
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="12" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="回差" />
-                                                    <Grid>
-                                                        <TextBox
-                                                            Style="{StaticResource DialogInput}"
-                                                            Tag="仅四限用"
-                                                            Text="{Binding DeadbandText, UpdateSourceTrigger=LostFocus}"
-                                                            TextAlignment="Right"
-                                                            ToolTip="值回落到「阈值 ± 回差」之内才算恢复，避免在阈值上抖动"
-                                                            Visibility="{Binding IsLimitKind, Converter={ui:BooleanToVisibilityConverter}}" />
-                                                        <TextBlock
-                                                            Style="{StaticResource DialogGridNumber}"
-                                                            Text="—"
-                                                            Visibility="{Binding IsLimitKind, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
-                                                    </Grid>
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="2">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="延时（秒）" />
-                                                    <TextBox
-                                                        Style="{StaticResource DialogInput}"
-                                                        Tag="0 = 立即"
-                                                        Text="{Binding DelaySecondsText, UpdateSourceTrigger=LostFocus}"
-                                                        TextAlignment="Right"
-                                                        ToolTip="条件持续成立这么久才真的报警（滤掉瞬时抖动）" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Column="4">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="断线判定（秒）" />
-                                                    <Grid>
-                                                        <TextBox
-                                                            Style="{StaticResource DialogInput}"
-                                                            Tag="仅断线用"
-                                                            Text="{Binding StaleSecondsText, UpdateSourceTrigger=LostFocus}"
-                                                            TextAlignment="Right"
-                                                            ToolTip="变量这么久没刷新就判通信断线（最小 1 秒）"
-                                                            Visibility="{Binding IsStaleKind, Converter={ui:BooleanToVisibilityConverter}}" />
-                                                        <TextBlock
-                                                            Style="{StaticResource DialogGridNumber}"
-                                                            Text="—"
-                                                            Visibility="{Binding IsStaleKind, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
-                                                    </Grid>
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <!--  四条长文本：信息文本 / 故障原因 / 解决措施 / 附加信息  -->
-                                            <Grid Margin="0,10,0,0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="12" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-
-                                                <StackPanel Grid.Row="0" Grid.Column="0">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="信息文本" />
-                                                    <TextBox
-                                                        Style="{StaticResource DialogInput}"
-                                                        Tag="留空则显示报警名"
-                                                        Text="{Binding Message, UpdateSourceTrigger=LostFocus}"
-                                                        ToolTip="报警条 / 报警历史里给人看的那一句" />
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Row="0" Grid.Column="2">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="故障原因" />
-                                                    <TextBox
-                                                        Style="{StaticResource DialogInput}"
-                                                        Tag="为什么会报"
-                                                        Text="{Binding Cause, UpdateSourceTrigger=LostFocus}" />
-                                                </StackPanel>
-
-                                                <StackPanel
-                                                    Grid.Row="1"
-                                                    Grid.Column="0"
-                                                    Margin="0,10,0,0">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="解决措施" />
-                                                    <TextBox
-                                                        Style="{StaticResource DialogInput}"
-                                                        Tag="现场该怎么处理"
-                                                        Text="{Binding Remedy, UpdateSourceTrigger=LostFocus}" />
-                                                </StackPanel>
-
-                                                <StackPanel
-                                                    Grid.Row="1"
-                                                    Grid.Column="2"
-                                                    Margin="0,10,0,0">
-                                                    <TextBlock Style="{StaticResource DialogFormLabel}" Text="附加信息" />
-                                                    <TextBox
-                                                        Style="{StaticResource DialogInput}"
-                                                        Tag="备注 / 相关点位"
-                                                        Text="{Binding ExtraInfo, UpdateSourceTrigger=LostFocus}" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </DataGrid.RowDetailsTemplate>
-                        </DataGrid>
-
-                        <!--
-                            空态：一条报警都没有时把表让出来给提示，
-                            避免一张空表被误读成"报警配置坏了"。
-                        -->
-                        <StackPanel
-                            VerticalAlignment="Center"
-                            Visibility="{Binding HasRows, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
-                            <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf0f3;" />
-                            <TextBlock Style="{StaticResource DialogEmptyStateTitle}" Text="还没有报警定义" />
-                            <TextBlock
-                                MaxWidth="440"
-                                Style="{StaticResource DialogEmptyStateHint}"
-                                Text="点左上角「新增报警」建一条，再为它选监视变量、设阈值与报警等级。"
-                                TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Grid>
-                </Grid>
-            </Border>
-        </Grid>
-
-        <!--  ============ 底栏 ============  -->
-        <!--  写回是即时的，所以这里只有「关闭」：它关的是窗，不是"是否采纳"  -->
-        <StackPanel
-            Grid.Row="1"
-            Margin="0,14,0,0"
-            HorizontalAlignment="Right"
-            Orientation="Horizontal">
-            <Button
-                Width="104"
-                Command="{Binding CloseCommand}"
-                Content="关 闭"
-                Style="{StaticResource DialogPrimaryButton}" />
-        </StackPanel>
+                <Button
+                    Grid.Column="4"
+                    Command="{Binding CloseCommand}"
+                    Content="关闭"
+                    Style="{StaticResource ScadaAlarmSecondaryButton}">
+                    <Button.ToolTip>
+                        <ToolTip Content="Esc" />
+                    </Button.ToolTip>
+                </Button>
+            </Grid>
+        </Border>
     </Grid>
 </UserControl>

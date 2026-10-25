@@ -1,0 +1,59 @@
+/* ============ v4 · 轴控件新增「步进点动」的像素级复刻（JogStepMm + ShowStepSelector） ============ */
+/* 位置在 AxisPanelElement 模板 RootGrid 的 Row3（速度行）与 Row4（操作按钮）之间，插入一行 `.axp-jog`。 */
+/* 只在 ShowStepSelector=true 且 ShowCommands=true 时出现；关掉后版面与 v3 完全一致（零回归）。 */
+
+/* 一行两块：① 步距分段选择 ② 点动速度 · 倍率显示 */
+.axp-jog{display:flex;align-items:center;gap:6px;padding:0 9px 6px;font-size:9px;color:var(--ax-muted)}
+.axp-jog .lbl{flex:none;font-size:9px;color:var(--ax-muted);letter-spacing:.2px}
+.axp-jog .sep{flex:none;width:1px;height:12px;background:var(--ax-border)}
+
+/* 步距分段：5 档，选中档珊瑚红底（与位置大字同色，一眼看出「当前步距」） */
+.axp-steps{display:flex;flex:none;border:1px solid #3B424B;border-radius:4px;overflow:hidden;background:#252A31}
+.axp-steps span{height:20px;min-width:34px;padding:0 5px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:9.5px;color:var(--c-text-2);border-right:1px solid #3B424B;cursor:default}
+.axp-steps span:last-child{border-right:0}
+.axp-steps span.on{background:rgba(255,97,97,.22);color:#FFC9C9;font-weight:700;
+  box-shadow:inset 0 0 0 1px rgba(255,97,97,.55)}
+.axp-steps span.dim{opacity:.45}
+
+/* 速度与倍率：速度是只读显示（真值来自 JogVelocityMmPerS），倍率是派生显示（×2 = 20 mm/s） */
+.axp-rate{display:flex;align-items:baseline;gap:4px;min-width:0;overflow:hidden}
+.axp-rate b{font-family:var(--mono);font-size:10px;font-weight:600;color:var(--c-text)}
+.axp-rate em{font-style:normal;font-size:8.5px;color:var(--ax-muted)}
+.axp-rate .x{margin-left:2px;padding:0 4px;border-radius:3px;background:rgba(255,97,97,.14);
+  color:#FFB4B4;font-family:var(--mono);font-size:9px;font-weight:700}
+.axp-jog .eff{margin-left:auto;flex:none;font-family:var(--mono);font-size:9px;color:var(--c-text-3)}
+
+/* 步进点动按钮：与「点动 ▶」同色，但带下档小标（点一下走一格 vs 按住走） */
+.axp-btn .sub{font-size:8px;color:var(--ax-muted);margin-left:3px}
+.axp-btn.step{position:relative}
+.axp-btn.step::after{content:"";position:absolute;left:4px;right:4px;bottom:2px;height:1px;
+  background:repeating-linear-gradient(90deg,currentColor 0 2px,transparent 2px 4px);opacity:.45}
+
+/* 属性面板里的两个新键（画在设计稿里，说明"改哪儿"） */
+.axp-prop{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:9.5px;color:var(--c-text-2);
+  border-bottom:1px dashed rgba(148,163,184,.14)}
+.axp-prop:last-child{border-bottom:0}
+.axp-prop .k{flex:none;width:118px;font-family:var(--mono);font-size:9px;color:#93C5FD}
+.axp-prop .v{flex:1;min-width:0;font-family:var(--mono);font-size:9px;color:var(--c-text)}
+.axp-prop .v em{font-style:normal;color:var(--ax-muted)}
+.axp-prop .tag{flex:none;padding:0 4px;border-radius:2px;font-size:8px;background:rgba(56,189,248,.16);color:#7DD3FC}
+.axp-prop .tag.new{background:rgba(34,197,94,.16);color:#86EFAC}
+.axp-prop .tag.def{background:#2B3138;color:var(--c-text-3)}
+
+/* 三态对照小卡（用于并排展示 关/开/单轴） */
+.axp-trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
+.axp-trio .col{display:flex;flex-direction:column;gap:6px}
+.axp-trio .cap{font-size:9px;color:var(--c-text-3);font-family:var(--mono);line-height:1.5}
+.axp-trio .cap b{color:#93C5FD;font-weight:600}
+.axp-trio .cap i{font-style:normal;color:#86EFAC}
+
+/* 交互说明表 */
+.axp-iom{width:100%;border-collapse:collapse;font-size:9.5px}
+.axp-iom th{text-align:left;padding:4px 6px;color:var(--c-text-3);font-weight:600;font-size:9px;
+  border-bottom:1px solid var(--c-border);background:rgba(255,255,255,.02)}
+.axp-iom td{padding:4px 6px;border-bottom:1px solid rgba(148,163,184,.1);color:var(--c-text-2);vertical-align:top}
+.axp-iom td:first-child{color:var(--c-text);font-family:var(--mono);font-size:9px;white-space:nowrap}
+.axp-iom td.ok{color:#86EFAC}
+.axp-iom td.no{color:#FCA5A5}
+.axp-iom tr:last-child td{border-bottom:0}

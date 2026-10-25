@@ -223,6 +223,9 @@ namespace VisionMaster.ScadaWeb
         /// <summary>DataGrid 行数据发送分频（每 5 拍发一次 = 2Hz）</summary>
         private int _gridTick;
 
+        /// <summary>配方面板数据发送分频（每 5 拍发一次 = 2Hz；配方很少变，2Hz 足够）</summary>
+        private int _recipeTick;
+
         /// <summary>
         /// 准入闸：16 个活跃名额 + 8 个在途握手预留槽。
         /// 用原子预占替代"先数 Count 再 TryAdd"的 TOCTOU：两个并发握手在旧写法下可以同时通过上限。
@@ -2905,7 +2908,86 @@ namespace VisionMaster.ScadaWeb
                         session.TrySend(state.GridJson);
                 }
             }
+
+            // 配方面板数据 2Hz（每 5 拍一次）：明细是"一份格式化清单"，不是逐属性绑定。
+            if (state.RecipeJson != null && (Interlocked.Increment(ref _recipeTick) % 5) == 0)
+            {
+                foreach (var session in _sessions.Values)
+                {
+                    if (string.Equals(session.CurrentPageKey, pageKey, StringComparison.Ordinal))
+                        session.TrySend(state.RecipeJson);
+                }
+            }
         }
+
+        /// <summary>
+        /// 把当前页「配方面板」图元的数据投影成一条 <c>recipe</c> 消息（2Hz）。
+        ///
+        /// 与 <see cref="BuildGridJson"/> 同一理由：面板显示的是"一份格式化清单"
+        /// （配方名 · 版本 / 状态 / 逐项参数），不是"每个属性各绑一条变量"，
+        /// 塞不进标量值帧。数据与桌面控件共用 <see cref="ScadaRecipePanelData"/>，
+        /// 两端不会各说各话。
+        /// </summary>
+        private string? BuildRecipeJson(ScadaRuntime session, ScadaPageSnapshot page, long generation)
+        {
+            var runtimePage = session.CurrentPage;
+            if (runtimePage == null || _values == null)
+                return null;
+
+            var elements = new List<object>();
+
+            foreach (var element in runtimePage.Elements)
+            {
+                if (element is null || element.TypeKey != "Hmi.RecipePanel")
+                    continue;
+
+                // 面板属性走属性袋（未写的键现取描述符默认值，与桌面端同一口径）
+                bool showDetails = !string.Equals(
+                    ReadElementProperty(element, "ShowDetails"), "False", StringComparison.OrdinalIgnoreCase);
+
+                int maxRows = int.TryParse(
+                    ReadElementProperty(element, "MaxRows"), NumberStyles.Integer,
+                    CultureInfo.InvariantCulture, out var parsedMax)
+                    ? parsedMax
+                    : 12;
+
+                var snapshot = ScadaRecipePanelData.Read(_values, showDetails, maxRows);
+
+                elements.Add(new
+                {
+                    elementId = element.ElementId.ToString("D"),
+                    header = snapshot.Header,
+                    status = snapshot.Status,
+                    statusKey = snapshot.StatusKey,
+                    dangling = snapshot.IsDangling,
+                    hint = snapshot.Hint,
+                    rows = snapshot.Rows.Select(line => new
+                    {
+                        text = line.Text,
+                        truncated = line.IsTruncated
+                    }).ToArray()
+                });
+            }
+
+            if (elements.Count == 0)
+                return null;
+
+            return Json(new
+            {
+                type = "recipe",
+                seq = Interlocked.Increment(ref _seq),
+                runGeneration = generation,
+                pageId = page.PageId,
+                pageVersion = page.PageVersion,
+                elements
+            });
+        }
+
+        /// <summary>读一个图元属性袋里的键（缺键返回空串，由调用方给默认值）</summary>
+        private static string ReadElementProperty(ScadaElement element, string key)
+            => element.Properties != null && element.Properties.TryGetValue(key, out var value)
+                ? value ?? string.Empty
+                : string.Empty;
 
         /// <summary>
         /// 把当前页 DataGrid 控件的行/列快照投影成一条 <c>grid</c> 消息（2Hz）。
@@ -3111,8 +3193,9 @@ namespace VisionMaster.ScadaWeb
                 // 5Hz 发送（见 PumpFrameAsync）。没有 IScadaAxisSource 时为 null。
                 var axisJson = _axisSource == null ? null : BuildAxisJson(session, page, generation);
                 var gridJson = _dataProvider == null ? null : BuildGridJson(session, page, generation);
+                var recipeJson = _values == null ? null : BuildRecipeJson(session, page, generation);
 
-                return new LiveState(true, generation, page, items, key, axisJson, gridJson);
+                return new LiveState(true, generation, page, items, key, axisJson, gridJson, recipeJson);
             }
             catch (Exception ex)
             {
@@ -3542,10 +3625,11 @@ namespace VisionMaster.ScadaWeb
             IReadOnlyList<ScadaFrameItemDto> Items,
             string PageKey,
             string? AxisJson,
-            string? GridJson)
+            string? GridJson,
+            string? RecipeJson)
         {
             public static readonly LiveState NotRunning =
-                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty, null, null);
+                new(false, 0, null, Array.Empty<ScadaFrameItemDto>(), string.Empty, null, null, null);
         }
 
         /// <summary>一拍里已序列化好的一个值项（跨会话共享；Key 用于每会话的增量基线）</summary>

@@ -30,8 +30,22 @@ namespace VisionMaster.Scada
             int index,
             out int changed,
             out string? error)
+            => TryParameterize(payload, index, out changed, out _, out error);
+
+        /// <summary>
+        /// 同 <see cref="TryParameterize(ScadaClipboardPayload?,int,out int,out string?)"/>，
+        /// 额外返回本次改写的数组根清单（<c>Ctl</c> / <c>Sta</c> / <c>ddd</c>）。
+        /// 模板保存它，插入时才能让用户选“严格替换哪些数组”。
+        /// </summary>
+        public static bool TryParameterize(
+            ScadaClipboardPayload? payload,
+            int index,
+            out int changed,
+            out IReadOnlyList<string> arrayRoots,
+            out string? error)
         {
             changed = 0;
+            arrayRoots = Array.Empty<string>();
             error = null;
 
             if (payload == null || payload.IsEmpty)
@@ -46,6 +60,8 @@ namespace VisionMaster.Scada
                 return false;
             }
 
+            var roots = new List<string>();
+
             foreach (var element in payload.Items)
             {
                 if (element == null)
@@ -59,13 +75,14 @@ namespace VisionMaster.Scada
                             continue;
 
                         if (TryParameterizeReference(binding.VariableName, binding.ArrayIndex, index,
-                                out string? name, out int arrayIndex))
+                                out string? name, out int arrayIndex, out string? root))
                         {
                             binding.VariableName = name;
                             binding.ArrayIndex = arrayIndex;
                             // 名字已经变成 Control[{i}]：原来的 Id 指向"存模板时那一个元素"，
                             // 留着它只会在名字解析失败时把所有实例悄悄绑回那一个（见展开器的 Id 回退）。
                             binding.VariableId = Guid.Empty;
+                            AddRoot(roots, root);
                             changed++;
                         }
                     }
@@ -79,11 +96,12 @@ namespace VisionMaster.Scada
                             continue;
 
                         if (TryParameterizeReference(animation.VariableName, animation.ArrayIndex, index,
-                                out string? name, out int arrayIndex))
+                                out string? name, out int arrayIndex, out string? root))
                         {
                             animation.VariableName = name;
                             animation.ArrayIndex = arrayIndex;
                             animation.VariableId = Guid.Empty;
+                            AddRoot(roots, root);
                             changed++;
                         }
                     }
@@ -102,11 +120,12 @@ namespace VisionMaster.Scada
                                 continue;
 
                             if (TryParameterizeReference(action.VariableName, action.ArrayIndex, index,
-                                    out string? name, out int arrayIndex))
+                                    out string? name, out int arrayIndex, out string? root))
                             {
                                 action.VariableName = name;
                                 action.ArrayIndex = arrayIndex;
                                 action.VariableId = Guid.Empty;
+                                AddRoot(roots, root);
                                 changed++;
                             }
                         }
@@ -120,7 +139,17 @@ namespace VisionMaster.Scada
                 return false;
             }
 
+            arrayRoots = roots;
             return true;
+        }
+
+        private static void AddRoot(List<string> roots, string? root)
+        {
+            if (string.IsNullOrWhiteSpace(root))
+                return;
+
+            if (!roots.Contains(root, StringComparer.Ordinal))
+                roots.Add(root);
         }
 
         /// <summary>
@@ -362,9 +391,8 @@ namespace VisionMaster.Scada
 
         /// <summary>
         /// 尝试把一条引用参数化：
-        /// - 数组元素（ArrayIndex == index）→ 根名 + <c>[{i}]</c>，下标清 -1；
-        /// - 名字以 <c>[index]</c> 结尾 → 把这一段换成 <c>[{i}]</c>；
-        /// - 名字以 <c>_index</c> 结尾 → 把这一段换成 <c>_{i}</c>。
+        /// - 名字里任意位置含 <c>[index]</c>（<c>Cys[0].HpTime</c> / <c>Control[0]</c>）→ 全替换成 <c>[{i}]</c>；
+        /// - 数组元素（ArrayIndex == index，名字是根名）→ 根名 + <c>[{i}]</c>，下标清 -1；
         /// 其它情况原样返回 false（不动用户配置）。
         /// </summary>
         private static bool TryParameterizeReference(
@@ -372,44 +400,41 @@ namespace VisionMaster.Scada
             int arrayIndex,
             int index,
             out string? newName,
-            out int newArrayIndex)
+            out int newArrayIndex,
+            out string? arrayRoot)
         {
             newName = variableName;
             newArrayIndex = arrayIndex;
+            arrayRoot = null;
 
-            if (arrayIndex == index)
-            {
-                if (string.IsNullOrWhiteSpace(variableName))
-                    return false;
-
-                // 正常数据是"根名 + ArrayIndex"；旧数据/手工编辑可能把下标也写进名字
-                // （Control[0] + ArrayIndex 0），直接拼会得到 Control[0][{i}]。
-                string root = variableName!;
-                string existingSuffix = $"[{index.ToString(CultureInfo.InvariantCulture)}]";
-
-                if (root.EndsWith(existingSuffix, StringComparison.Ordinal))
-                    root = root[..^existingSuffix.Length];
-
-                newName = $"{root}[{{i}}]";
-                newArrayIndex = -1;
-                return true;
-            }
-
-            if (arrayIndex >= 0 || string.IsNullOrWhiteSpace(variableName))
+            if (string.IsNullOrWhiteSpace(variableName))
                 return false;
 
             string name = variableName!;
             string bracket = $"[{index.ToString(CultureInfo.InvariantCulture)}]";
 
-            if (name.EndsWith(bracket, StringComparison.Ordinal))
+            // 威纶通模板的常见形态：地址/标签名中间带索引（Cys[0].HpTime）。
+            // 这里只替换名字，ArrayIndex 清 -1——展开后的名字自己携带下标。
+            if ((arrayIndex < 0 || arrayIndex == index)
+                && name.Contains(bracket, StringComparison.Ordinal))
             {
-                newName = name[..^bracket.Length] + "[{i}]";
+                int open = name.IndexOf('[');
+                arrayRoot = open > 0 ? name[..open].Trim() : null;
+                newName = name.Replace(bracket, "[{i}]", StringComparison.Ordinal);
+                newArrayIndex = -1;
                 return true;
             }
 
-            // 刻意不认 `Temp_0` 这类下划线后缀：它无法区分"数组/家族成员"与
-            // "恰好以数字结尾的标量"，自动改写会把 Temp_0 批量绑到 Temp_1。
-            // 需要按实例切换的独立变量，请用 Control[0] 命名或数组根 + 下标。
+            if (arrayIndex == index)
+            {
+                // 正常数据是"根名 + ArrayIndex"；旧数据/手工编辑可能把下标也写进名字
+                // （Control[0] + ArrayIndex 0），上面那支已经处理过，这里只处理纯根名。
+                arrayRoot = name.Trim();
+                newName = $"{name}[{{i}}]";
+                newArrayIndex = -1;
+                return true;
+            }
+
             return false;
         }
     }

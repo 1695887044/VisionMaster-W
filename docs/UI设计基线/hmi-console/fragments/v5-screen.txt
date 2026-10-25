@@ -1,0 +1,229 @@
+      <section class="template is-on" id="app-v5" data-app-section="v5">
+        <div class="tpl-head">
+          <h2><span>V5-01</span>轴控件的「点动模式」——连续点动 / 单步点动 + 档位 0~20</h2>
+          <p>只加一个枚举属性 <code>JogMode</code>，档位是它的参数（<code>JogStepMm</code>，0~20）。同一颗控件、同一行控件、只有一个额外属性——不再拆成两个开关来渲染。</p>
+          <div class="tpl-meta"><span>对应图元 <code>Hmi.AxisConsole</code> / <code>Hmi.AxisPanel</code>（同属 <code>AxisPanelElement</code>）</span><span>证据 <code>evidence/26-axis-jogmode.png</code></span></div>
+        </div>
+
+        <div class="screen">
+          <div class="topbar">
+            <div class="brand"><span class="logo">VM</span><b>轴控件 · 点动模式</b><small>JogMode + JogStepMm 设计稿 v5</small></div>
+            <span class="status-chip run">● 已就绪</span>
+            <span class="mode-pill">MANUAL · 手动</span>
+            <span class="spacer"></span>
+            <div class="top-stat"><small>对应图元</small><b>AxisConsole</b></div>
+            <div class="top-stat"><small>新增属性</small><b>1 个枚举</b></div>
+            <div class="top-stat"><small>档位范围</small><b>0 ~ 20 mm</b></div>
+            <span class="alarm-chip warning">待裁定</span>
+            <div class="user"><span class="dot"></span>李工</div>
+            <div class="clock">16:48:21</div>
+          </div>
+
+          <div class="shell">
+            <div class="nav">
+              <div class="nav-item"><i class="ico">▤</i>运动总览</div>
+              <div class="nav-item active"><i class="ico">⇅</i>点动与回零</div>
+              <div class="nav-item"><i class="ico">⚙</i>轴参数</div>
+              <div class="nav-item"><i class="ico">▣</i>视觉监控</div>
+              <div class="nav-item"><i class="ico">▦</i>数据追溯</div>
+              <div class="nav-item"><i class="ico">⚠</i>报警中心<span class="nav-badge">2</span></div>
+              <div class="nav-item"><i class="ico">≡</i>工艺参数</div>
+              <div class="nav-sep"></div>
+              <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+              <div class="nav-foot"><div class="conn">● ZMotion VPLC532R 在线</div><div class="conn-sub">四轴 · 100 mm 点动上限</div></div>
+            </div>
+
+            <div class="main">
+              <div class="card">
+                <div class="card-head"><b>四种样子 · 同一个控件</b><span>点动模式决定这一行怎么长，档位只在「单步」下生效</span><span class="chip ok" style="margin-left:auto">返回默认</span></div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding-top:4px">
+
+                  <!-- 形态 1：连续点动 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>① 连续点动</b><span>点住就走、松开就停（v3 现状）</span></div>
+                    <div class="axp" style="width:100%;height:300px">
+                      <div class="axp-hd"><span class="nm">AXIS-X 横梁</span><span class="axp-combo">AXIS-X ▾</span></div>
+                      <div class="axp-pos"><b>128.480</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i class="on"></i>到位</span><span><i></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>0.0</b><em>mm/s</em><span class="st">已到位</span></div>
+
+                      <div class="axp-jogmode">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b class="on">连续</b><b>单步</b></span>
+                        <span class="steps"><i>—</i></span>
+                        <span class="now cont"><em>按住</em>按 JogVelocity 走</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot">◀ 点动</span><span class="axp-btn hot">点动 ▶</span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg"></div>
+                      <div class="axp-foot"><span class="tag">Console 预设</span><span class="tag">点动按钮无角标</span></div>
+                    </div>
+                  </div>
+
+                  <!-- 形态 2：单步点动 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>② 单步点动 · 档位 1 mm</b><span>点一下走一格，不按住</span></div>
+                    <div class="axp" style="width:100%;height:300px">
+                      <div class="axp-hd"><span class="nm">AXIS-X 横梁</span><span class="axp-combo">AXIS-X ▾</span></div>
+                      <div class="axp-pos"><b>128.480</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i class="on"></i>到位</span><span><i></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>0.0</b><em>mm/s</em><span class="st">已到位</span></div>
+
+                      <div class="axp-jogmode">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b>连续</b><b class="on">单步</b></span>
+                        <span class="steps on"><i>0</i><i class="on">1</i><i>2</i><i>5</i><i>10</i><i>20</i></span>
+                        <span class="unit">mm</span>
+                        <span class="now">−3 格 · 1.000</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot sm">◀ 点动<span class="jmode">−1</span></span><span class="axp-btn hot sm">点动 ▶<span class="jmode">+1</span></span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg ok">点动 +1.000 mm 已到位 · 目标 129.480</div>
+                      <div class="axp-foot"><span class="tag">档位高亮=当前</span><span class="tag">按钮角标=步长</span></div>
+                    </div>
+                  </div>
+
+                  <!-- 形态 3：单步走完一轮 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>③ 单步 · 连点三次</b><span>每点一格，位置三连跳</span></div>
+                    <div class="axp" style="width:100%;height:300px">
+                      <div class="axp-hd"><span class="nm">AXIS-X 横梁</span><span class="axp-combo">AXIS-X ▾</span></div>
+                      <div class="axp-pos"><b>131.480</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i class="on"></i>到位</span><span><i></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i></i>报警</span><span><i></i>正限位</span><span><i></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>0.0</b><em>mm/s</em><span class="st">已到位 · 第 3 步</span></div>
+
+                      <div class="axp-jogmode">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b>连续</b><b class="on">单步</b></span>
+                        <span class="steps on"><i>0</i><i class="on">1</i><i>2</i><i>5</i><i>10</i><i>20</i></span>
+                        <span class="unit">mm</span>
+                        <span class="now">累计 +3.000</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot sm">◀ 点动<span class="jmode">−1</span></span><span class="axp-btn hot sm">点动 ▶<span class="jmode">+1</span></span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg ok">第 3 步完成 · 131.480 mm</div>
+                      <div class="axp-foot"><span class="tag">单击=一格</span><span class="tag">不累计速度</span></div>
+                    </div>
+                  </div>
+
+                  <!-- 形态 4：紧凑预设 + 动作被禁 -->
+                  <div>
+                    <div class="axp-trio-cap"><b>④ 紧凑预设 · 动作被禁</b><span>280×280，档位 0 = 不动</span></div>
+                    <div class="axp nopoints" style="width:100%;height:300px">
+                      <div class="axp-hd"><span class="nm">AXIS-Z 升降</span><span class="axp-combo">AXIS-Z ▾</span></div>
+                      <div class="axp-pos"><b>−12.500</b><span>mm</span></div>
+                      <div class="axp-lamps">
+                        <span><i class="on"></i>使能</span><span><i></i>到位</span><span><i class="on"></i>运动</span><span><i class="on"></i>原点</span>
+                        <span><i class="al"></i>报警</span><span><i></i>正限位</span><span><i class="al"></i>反限位</span><span><i class="on g"></i>急停</span>
+                      </div>
+                      <div class="axp-vel"><span>速度</span><b>12.0</b><em>mm/s</em><span class="st">反限位 · 已停</span></div>
+
+                      <div class="axp-jogmode" style="opacity:.5">
+                        <span class="lbl">点动</span>
+                        <span class="modes"><b>连续</b><b class="on">单步</b></span>
+                        <span class="steps on"><i class="on">0</i><i>1</i><i>2</i><i>5</i><i>10</i><i>20</i></span>
+                        <span class="unit">mm</span>
+                        <span class="now">档位 0 = 不点动</span>
+                      </div>
+
+                      <div class="axp-cmds">
+                        <span class="axp-btn dim">失能</span><span class="axp-btn dim">◀ 点动</span><span class="axp-btn dim">点动 ▶</span>
+                        <span class="axp-btn dim">回零</span><span class="axp-btn danger dim">停止</span><span class="axp-btn dim">清报警</span>
+                      </div>
+                      <div class="axp-msg">无反限位回退空间：先反向点动再回零</div>
+                      <div class="axp-foot"><span class="tag">Panel 预设</span><span class="tag">CanOperate=false</span></div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1.15fr .85fr;gap:12px">
+                <div class="card">
+                  <div class="card-head"><b>属性就一个：点动模式</b><span>FlatPropertyGrid · 分组「操作」</span></div>
+                  <table class="pm-table" style="width:100%">
+                    <tr><td class="k">显示操作按钮</td><td class="v">True</td><td style="width:78px"><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">点动速度</td><td class="v">10 mm/s</td><td><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">操作二次确认</td><td class="v">True</td><td><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">点动模式</td><td class="v hl">单步（JogMode = Step）</td><td><span class="tag new">新增</span></td></tr>
+                    <tr><td class="k">点动档位</td><td class="v hl">1.0 mm（0 ~ 20）</td><td><span class="tag new">新增</span></td></tr>
+                    <tr><td class="k">显示点位</td><td class="v">True</td><td><span class="tag def">既有</span></td></tr>
+                    <tr><td class="k">点位可见行数</td><td class="v">6</td><td><span class="tag def">既有</span></td></tr>
+                  </table>
+                  <div class="axp-note">为什么是一枚枚举而不是两个开关：开关组合会出现「连续 + 有档位」这种没有意义的组合；枚举只有 <b>连续</b> / <b>单步</b> 两个值，档位只在单步下生效，属性面板里不会互相打架。</div>
+                </div>
+
+                <div class="card">
+                  <div class="card-head"><b>行为口径</b><span>点动按钮怎么反应</span></div>
+                  <table class="axp-iom" style="width:100%">
+                    <tr><th style="width:96px">模式</th><th>按下</th><th>松开</th></tr>
+                    <tr><td class="ok">连续</td><td>发 JogStart（速度 = JogVelocity）</td><td>发 JogStop</td></tr>
+                    <tr><td class="ok">单步</td><td>发一次 JogMove 到 <b>当前位置 ± 档位</b></td><td>不发停止（已是一次完整动作）</td></tr>
+                    <tr><td class="no">档位 0</td><td colspan="2">单步下档位为 0：按钮置灰，pressed 无效，CommandMessage 给「档位为 0，单步点动不会动」</td></tr>
+                  </table>
+                  <div class="axp-note">安全：单步仍走原来的 <code>CheckCanRun</code>（出口 / 选轴 / 权限）与软限位，只是把「按住走」换成「点一下到目标」；三种松手（松键 / 移出 / 失去捕获）在单步下不再需要 CaptureMouse，但连续模式保留原逻辑不变。</div>
+                </div>
+              </div>
+
+              <div class="card">
+                <div class="card-head"><b>落点与约束</b><span>改的是哪几行</span></div>
+                <table class="axp-iom" style="width:100%">
+                  <tr><th style="width:150px">约定</th><th style="width:400px">取值 / 规则</th><th>为什么</th></tr>
+                  <tr><td>插入位置</td><td><code>RootGrid</code> 的 Row3（速度行）与 Row4（命令按钮区）之间，新一行 <code>.axp-jogmode</code></td><td>点动模式是点动的参数，必须紧贴点动按钮之上，读的顺序是「模式 → 按钮」</td></tr>
+                  <tr><td>行高 / 尺寸</td><td>26 px（选择器 20 + 上下各 3）；Console 470 → <b>496</b>，AxisPanel 280 → <b>306</b></td><td>触摸屏行高下限，保证 20 px 档位按钮可点不被裁切</td></tr>
+                  <tr><td>档位刻度</td><td><code>0 / 1 / 2 / 5 / 10 / 20</code> mm，滑条范围 0~20（可精确到 0.1）</td><td>按你的口径 0~20；细档只保留常用的 1/2/5，避免屏上塞十几个数字</td></tr>
+                  <tr><td>0 的含义</td><td>单步 + 档位 0 = 不点动（按钮灰、给了原因）；连续模式忽略档位</td><td>零步长仍发命令会变成「发了一条走 0 mm 的定位」，无意义且脏日志</td></tr>
+                  <tr><td>选中态</td><td>当前模式与档位用珊瑚红 <code>rgba(255,97,97,.22)</code> + 1 px 描边</td><td>与位置大字、灯同色，一眼看出「现在按了会怎么动」</td></tr>
+                  <tr><td>按钮角标</td><td>单步时两个点动键角标显示 <code>−1 / +1</code>（随档位变）；连续时不显示角标</td><td>不用低头看上面的选择器，也知道按下去走多少</td></tr>
+                  <tr><td>停止语义</td><td>连续：松手/移出/失去捕获三路 JogStop（不变）；单步：一次定位完成即结束，按钮可连点</td><td>两种模式的「停」本来就不同，不要强行统一成一种</td></tr>
+                  <tr><td>灰态</td><td><code>CanOperate=false</code> 时整行与按钮一起灰掉，不静默空跑</td><td>沿用 <code>CheckCanRun</code> 的「出口 + 选中轴 + 权限」三闸门</td></tr>
+                </table>
+              </div>
+            </div>
+
+            <div class="rail">
+              <div class="card">
+                <div class="card-head"><b>这次的改动边界</b><span>三个文件</span><span class="chip ok" style="margin-left:auto">2 属性</span></div>
+                <div class="axp-kv"><span>AxisPanelElement.cs</span><b>+1 枚举属性 + 1 数值属性</b></div>
+                <div class="axp-kv"><span>Themes/AxisPanelElement.xaml</span><b>+1 行 + 2 段样式</b></div>
+                <div class="axp-kv"><span>BuiltInElements.cs</span><b>改两个预设默认高度</b></div>
+                <div class="axp-kv"><span>ScadaChecks</span><b>+3 断言</b></div>
+                <div class="axp-kv"><span>其它图元</span><b>0 影响</b></div>
+                <div class="axp-note">枚举 <code>ScadaJogMode { Continuous, Step }</code>；属性键 <code>JogMode</code> / <code>JogStepMm</code>。存盘走枚举名（不存整数），打开旧方案时缺这两个键就按 <b>Continuous + 0</b> 兜底，旧方案行为一字不变。</div>
+              </div>
+
+              <div class="card">
+                <div class="card-head"><b>待你裁定</b><span>3 条</span><span class="chip warn" style="margin-left:auto">Q1-Q3</span></div>
+                <div class="axp-note"><b>Q1</b> 档位刻度 <code>0/1/2/5/10/20</code> 六颗够不够？要不要换成一颗可输入的数值框（精确到 0.1 mm）？</div>
+                <div class="axp-note"><b>Q2</b> 单步是按「当前位置 ± 档位」算目标，还是必须先用「定位」按钮？<b>推荐前者</b>，才叫真的「单步点动」。</div>
+                <div class="axp-note"><b>Q3</b> 单步下连点三次要不要累计（每次都在上次目标上再加一格）？<b>推荐累计</b>，图①③就是这样渲染的。</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bottombar">
+            <span>设计稿 v5 · 轴控件点动模式</span>
+            <span>预览数据为示例值</span>
+            <span class="spacer"></span>
+            <span>hmi-console · 2026-10-24</span>
+          </div>
+        </div>
+      </section>

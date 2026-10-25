@@ -1,0 +1,69 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-compile",
+  "title": "编译单条流程",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "编译成功给「流程 [X] 编译完成，版本：N」toast；失败逐条弹错误。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "主流程"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.compile",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.compile"
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "编译完成",
+      "timeout_ms": 15000
+    },
+    {
+      "n": 5,
+      "do": "assert",
+      "assert": "element_absent",
+      "target": "canvas.toolbar.errors",
+      "timeout_ms": 3000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "compile"]
+}

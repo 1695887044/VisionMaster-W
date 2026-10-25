@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>流程画布 · 连线只读 + 选中聚焦 v9（真实模板渲染 · 正交走线）</title>
+<style>
+/* ===================================================================
+   v9 设计稿（2026-10-24）
+   相对 v8 的唯一改动：算子卡 / 容器 / 泳道 / 连线 不再是"简化方块"，
+   而是照 VisionMaster/Views/FlowCanvasView.xaml 的真实模板 1:1 重画。
+   取材位置（改这里就必须回去改那里，反之亦然）：
+   · StepCardStyle        FlowCanvasView.xaml:294      圆角 10 / 边 #C9D2DE / 选中 2px #2563EB
+   · StepNodeTemplate     FlowCanvasView.xaml:438-759  156×58 + Padding 10,8 + 28 图标块 + 标题 11.5
+   · ContainerNodeTemplate :762                        圆角 12 / 1.5px #A5C0E8 / 头 46 渐变
+   · LaneNodeTemplate      :1111-1325                  泳道圆角 8 / 头 28 / #B3FFFFFF
+   · ModuleLinkTemplate    :1337-1404                  1.5 + Outline 1.6 / dash 2.5,2.5 / 4,3
+   · 颜色令牌             UI/Controls/Themes/Colors.xaml:256-438
+   · 尺寸常量             Core/Models/FlowLayoutStore.cs:278-318
+   · 分类色与图标码点     VisionMaster/Helpers/ToolboxCategoryVisuals.cs:48-67
+   画布机制（连线只读 / 选中聚焦入向+出向 / 非法常显 / 全局变量紫虚线 / 底部明细条）沿用 v8。
+   =================================================================== */
+:root{
+  /* 令牌：颜色只允许出现在这一段（R117/R140 口径，Hex 只许在这里） */
+  --bg:#F7F8FA; --grid:#C9D2DE; --card:#FFFFFF; --card-bd:#C9D2DE;
+  --ink:#0F172A; --ink2:#475569; --ink3:#94A3B8;
+  --link:#3B82F6; --link-soft:#EAF2FE; --accent:#3B82F6;
+  --order:#94A3B8; --fail:#EF4444; --fail-soft:#FEF2F2; --fail-bd:#FECACA; --fail-ink:#B91C1C;
+  --global:#7C3AED; --global-soft:#F5F3FF; --global-bd:#DDD6FE;
+  --frame-bd:#A5C0E8; --frame-hd:#EEF4FF; --lane-bd:rgba(75,130,246,.15); --lane-ink:#5A6C99;
+  --lane-tint:rgba(59,130,246,.06); --lane-head:rgba(255,255,255,.70); --lane-text:#5A6C99;
+  --label-bg:rgba(255,255,255,.95); --label-bd:#DCE4EF; --warn-bg:#FFF7E6; --warn-bd:#F3D19E; --warn-ink:#8A5A00;
+  --type-badge:#3B5B8C; --order-badge:#0F172A; --bp:#C0C4CC; --bp-on:#F56C6C; --warn2:#E6A23C;
+  --ext-bg:#FFF7E6; --ext-bd:#E6C98A; --ext-ink:#9A6B0F;
+  --collapse-bd:#C9D2DE; --collapse-ink:#475569;
+  --dim:#F1F5F9;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:13px/1.45 "Segoe UI","Microsoft YaHei UI",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+/* 真实图标字体：与 VisionMaster/App.xaml:11 的 {StaticResource Icon} 同一个 otf */
+@font-face{
+  font-family:"FA6";
+  src:url("../../../UI/Controls/Asserts/FontFamilys/Font Awesome 6 Pro-Solid-900.otf") format("opentype");
+  font-weight:900;font-style:normal;font-display:block;
+}
+#app{display:flex;flex-direction:column;height:100vh;min-height:0}
+
+header{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#fff;
+  border-bottom:1px solid var(--card-bd);flex:none;flex-wrap:wrap}
+header>b{font-size:13px;font-weight:600;letter-spacing:.2px}
+.tag{font-size:11px;padding:2px 7px;border-radius:5px;background:var(--dim);color:var(--ink2)}
+.tag.v{background:var(--link-soft);color:#1D4ED8;font-weight:600}
+.spacer{flex:1}
+.tbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tbar label{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink2);cursor:pointer;user-select:none}
+.tbar input[type=checkbox]{margin:0;accent-color:var(--accent);width:13px;height:13px}
+.legend{display:flex;align-items:center;gap:11px;padding-left:10px;border-left:1px solid var(--card-bd)}
+.lg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--ink2);white-space:nowrap}
+.lg i{display:inline-block;width:20px;height:0;border-top:2px solid currentColor;position:relative}
+.lg i.l-data{color:var(--link);border-top-width:1.5px}
+.lg i.l-out{color:var(--link);border-top-style:dashed;border-top-width:1.5px}
+.lg i.l-gvar{color:var(--global);border-top-style:dashed;border-top-width:1.6px}
+.lg i.l-order{color:var(--order);border-top-style:dashed;border-top-width:1.2px}
+.lg i.l-illegal{color:var(--fail);border-top-style:dashed;border-top-width:1.5px}
+button{font:inherit;font-size:11.5px;padding:4px 10px;border-radius:6px;cursor:pointer;
+  border:1px solid var(--card-bd);background:#fff;color:var(--ink2)}
+button:hover{background:var(--dim);color:var(--ink)}
+
+main{flex:1;display:flex;flex-direction:column;min-height:0}
+#stage{position:relative;flex:1;min-height:0;overflow:hidden}
+#cv{display:block;width:100%;height:100%;cursor:default}
+.hud{position:absolute;left:12px;top:10px;padding:7px 10px;border-radius:8px;
+  background:rgba(255,255,255,.94);border:1px solid var(--label-bd);font-size:11.5px;
+  color:var(--ink2);line-height:1.6;pointer-events:none;white-space:pre-line;
+  box-shadow:0 2px 8px rgba(15,23,42,.06)}
+.hud b{color:var(--ink);font-weight:600}
+.ro{position:absolute;right:12px;top:10px;padding:4px 9px;border-radius:999px;
+  background:rgba(241,245,249,.96);border:1px solid var(--card-bd);font-size:11px;color:var(--ink2);pointer-events:none}
+
+.cbar{flex:none;display:flex;align-items:center;gap:8px;padding:6px 14px;
+  background:#fff;border-top:1px solid var(--card-bd);font-size:11.5px;overflow:hidden}
+.pill{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:999px;
+  background:var(--dim);color:var(--ink2);white-space:nowrap}
+.pill.in{background:var(--link-soft);color:#1D4ED8}
+.pill.out{background:#EFF6FF;color:#1E40AF}
+.pill.gv{background:var(--global-soft);color:var(--global)}
+.pill.bad{background:var(--fail-soft);color:var(--fail-ink)}
+.pill .dot{width:6px;height:6px;border-radius:50%;background:currentColor;display:inline-block}
+.cbar .right{margin-left:auto;color:var(--ink3);font-variant-numeric:tabular-nums}
+
+#legendPane{flex:none;max-height:196px;display:flex;flex-direction:column;
+  background:#fff;border-top:1px solid var(--card-bd)}
+.lp-hd{display:flex;align-items:baseline;gap:10px;padding:7px 14px 5px;flex:none}
+.lp-hd .t{font-size:12px;font-weight:600}
+.lp-hd .s{font-size:11px;color:var(--ink3)}
+#lpBody{flex:1;overflow:auto;padding:0 14px 10px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:6px}
+.row{display:grid;grid-template-columns:20px 1fr;gap:7px;align-items:start;
+  padding:5px 8px;border:1px solid transparent;border-radius:7px;background:#FBFCFE}
+.row:hover{background:#fff;border-color:#BFDBFE;box-shadow:0 1px 4px rgba(59,130,246,.10)}
+.row.illegal{background:#FFF7F7;border-color:var(--fail-bd)}
+.row.illegal:hover{border-color:#FCA5A5}
+.num{width:19px;height:19px;border-radius:50%;display:grid;place-items:center;
+  font:600 10.5px/1 "Consolas",monospace;color:#fff;background:var(--link);margin-top:1px}
+.num.out{background:#1D4ED8;border-radius:6px}
+.num.var{background:var(--global);border-radius:4px}
+.num.bad{background:var(--fail)}
+.txt{min-width:0}
+.line1{font-size:11.5px;color:var(--ink);line-height:1.5;word-break:break-all}
+.line1 b{font-weight:600}
+.line1 code{font:600 11px/1 "Consolas",monospace;background:var(--dim);padding:1px 4px;border-radius:3px;color:#334155}
+.line2{font-size:10.5px;color:var(--ink3);line-height:1.55;margin-top:1px;word-break:break-all}
+.line2 .k{color:var(--ink3)}
+.line2 .v{color:var(--ink2)}
+.dir{display:inline-block;font-size:9.5px;padding:0 4px;border-radius:3px;margin-right:5px;
+  background:var(--link-soft);color:#1D4ED8;vertical-align:1px}
+.dir.out{background:#E0EDFF;color:#1E40AF}
+.dir.var{background:var(--global-soft);color:var(--global)}
+.dir.bad{background:var(--fail-soft);color:var(--fail-ink)}
+.txt-bad{color:var(--fail-ink)}
+.empty{padding:10px 2px;color:var(--ink2);font-size:11.5px;line-height:1.7}
+.empty .tip{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px 18px}
+.empty b{color:var(--ink);font-weight:600}
+.empty em{font-style:normal;color:#1D4ED8;font-weight:600}
+.boundlist{margin-top:4px;display:flex;flex-wrap:wrap;gap:4px}
+.bound{font:600 10px/1 "Consolas",monospace;padding:2px 5px;border-radius:4px;
+  background:var(--dim);color:#334155;border:1px solid var(--card-bd)}
+.bound.be{background:var(--global-soft);color:var(--global);border-color:var(--global-bd)}
+
+footer{flex:none;display:flex;gap:14px;align-items:center;padding:5px 14px;
+  background:#FBFCFE;border-top:1px solid var(--card-bd);font-size:10.5px;color:var(--ink3)}
+footer .right{margin-left:auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <b>流程画布</b>
+    <span class="tag v">v9 · 真实模板渲染</span>
+    <span class="tag">拖动绑定已移除</span>
+    <span class="spacer"></span>
+    <div class="tbar">
+      <label><input type="checkbox" id="chkFocus" checked />选中聚焦</label>
+      <label><input type="checkbox" id="chkOrder" checked />顺序链</label>
+      <label><input type="checkbox" id="chkVar" checked />全局变量节点</label>
+      <label><input type="checkbox" id="chkBind" checked />线上显示端口</label>
+      <span class="legend" title="与连线模板同源">
+        <span class="lg"><i class="l-data"></i>入向</span>
+        <span class="lg"><i class="l-out"></i>出向</span>
+        <span class="lg"><i class="l-gvar"></i>全局变量</span>
+        <span class="lg"><i class="l-order"></i>顺序</span>
+        <span class="lg"><i class="l-illegal"></i>非法</span>
+      </span>
+    </div>
+    <span class="spacer"></span>
+    <button id="btnDemo">重建演示图</button>
+    <button id="btnClear">清除选中</button>
+  </header>
+
+  <main>
+    <div id="stage">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud"></div>
+        <div class="ro">只读：连线不可拖建 · 双击算子改绑定</div>
+    </div>
+
+    <div class="cbar">
+      <span class="pill" id="stMode">未选中</span>
+      <span class="pill in" id="stIn">入向 0</span>
+      <span class="pill out" id="stOut">出向 0</span>
+      <span class="pill gv" id="stGv" hidden><span class="dot"></span>全局变量 0</span>
+      <span class="pill bad" id="stBad" hidden><span class="dot"></span>非法 0</span>
+      <span class="right" id="stFrame">—</span>
+    </div>
+
+    <section id="legendPane">
+      <div class="lp-hd">
+        <span class="t" id="lpTitle">连线明细</span>
+        <span class="s" id="lpSub">未选中：只显示执行顺序，不画数据引线</span>
+      </div>
+      <div id="lpBody"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Web 稿仅作设计媒介，不进入构建（AGENTS.md R126）</span>
+    <span class="right">真实尺寸 FlowLayoutStore.cs:278-318 · Node 156×58 · FrameHeader 46 · FramePadding 16 · LaneHeader 28 · LanePadding 14 · RowGap 28 · ColumnGap 24 · EdgeAnchorInset 12</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ===== 令牌（与 :root 同值，画布侧唯一入口；Hex 只许出现在这一块） ===== */
+const C = {
+  /* 画布 / 节点（Colors.xaml:256-283） */
+  bg:"#F7F8FA", grid:"#C9D2DE", card:"#FFFFFF", cardBd:"#C9D2DE",
+  ink:"#0F172A", ink2:"#475569", ink3:"#94A3B8",
+  link:"#3B82F6", linkSoft:"#EAF2FE", accent:"#3B82F6",
+  order:"#94A3B8", fail:"#EF4444", failSoft:"#FEF2F2", failBd:"#FECACA", failInk:"#B91C1C",
+  /* 状态点（Colors.xaml:279-283） */
+  stIdle:"#A8ABB2", stRun:"#2563EB", stOK:"#16A34A", stFail:"#EF4444", stSkip:"#CBD5E1",
+  /* 角标（Colors.xaml:287-288 / 415-416 / 419-421） */
+  orderBadge:"#0F172A", typeBadge:"#3B5B8C", extBg:"#FFF7E6", extBd:"#E6C98A", extInk:"#9A6B0F",
+  bp:"#C0C4CC", bpOn:"#F56C6C", warn2:"#E6A23C",
+  /* 容器 / 泳道（Colors.xaml:396-412） */
+  frameBd:"#A5C0E8", frameHd:"#EEF4FF", frameInk:"#3B5B8C",
+  laneTint:"rgba(59,130,246,.06)", laneBd:"rgba(59,130,246,.15)",
+  laneHead:"rgba(255,255,255,.70)", laneText:"#5A6C99", laneNeutralBg:"#F8FAFC", laneNeutralBd:"#E2E8F0",
+  collapseBd:"#C9D2DE", collapseInk:"#475569",
+  /* 连线（Colors.xaml:297-310） */
+  linkOutline:"#F7F8FA", labelBg:"rgba(255,255,255,.95)", labelInk:"#1D4ED8", orderLabelInk:"#64748B",
+  /* 逻辑五类（Colors.xaml:330-349） */
+  logic:{
+    if:{b:"#6366F1", s:"#EEF2FF", d:"#C7D2FE", t:"#4338CA"},
+    case:{b:"#8B5CF6", s:"#F5F3FF", d:"#DDD6FE", t:"#6D28D9"},
+    while:{b:"#F59E0B", s:"#FFFBEB", d:"#FDE68A", t:"#B45309"},
+    for:{b:"#10B981", s:"#ECFDF5", d:"#A7F3D0", t:"#047857"},
+    parallel:{b:"#0EA5E9", s:"#F0F9FF", d:"#BAE6FD", t:"#0369A1"},
+  },
+  /* 全局变量小节点（v9 新增语义，令牌待登记） */
+  gvar:"#7C3AED", gvarSoft:"#F5F3FF", gvarBd:"#DDD6FE",
+  /* 描边/贴纸 */
+  outLink:"#1D4ED8", halo:"#F7F8FA",
+  badBg:"#FFF5F5", badBd:"#FCA5A5", badInk:"#B91C1C",
+};
+/* 分类色（VisionMaster/Helpers/ToolboxCategoryVisuals.cs:48-67）：图标码点 + 主色，逐条对齐 */
+const CAT={
+  图像处理:{c:"#3B82F6", g:"\uf1c5"},
+  几何工具:{c:"#10B981", g:"\uf140"},
+  流程控制:{c:"#0EA5E9", g:"\uf126"},
+  逻辑判断:{c:"#8B5CF6", g:"\uf1b2"},
+  变量操作:{c:"#14B8A6", g:"\uf044"},
+  常用工具:{c:"#6B7280", g:"\uf080"},
+  测量:{c:"#F59E0B", g:"\uf545"},
+  数据处理:{c:"#64748B", g:"\uf1c0"},
+};
+const mix=(hex,r)=>{
+  const n=parseInt(hex.slice(1),16);
+  const f=(v)=>Math.round(v+(255-v)*r);
+  const R=f((n>>16)&255),G=f((n>>8)&255),B=f(n&255);
+  return "rgb("+R+","+G+","+B+")";
+};
+
+/* ===== 尺寸（全部来自 FlowLayoutStore.cs:278-318，不新增魔法数） ===== */
+const NODE_W=156, NODE_H=58;
+const ROW_GAP=28, COL_GAP=24;
+const LANE_HEAD=28, LANE_PAD=14;
+const FRAME_PAD=16, FRAME_HEADER=46;
+const ROW_H=NODE_H+ROW_GAP;
+const EDGE_INSET=12;
+/* 全局变量小节点（README §15.1 已登记建议进 FlowLayoutStore） */
+const GV_W=112, GV_H=34, GV_GAP_Y=8, GV_COL_GAP=48;
+/* 走线与标签 */
+const CH_STEP=14, CH_GAP=28, LBL_MIN_LEN=54, ARROW=7;
+const TITLE_MAX=72;       /* NodeHeaderText MaxWidth=72 */
+
+/* ===================================================================
+   演示图（拓扑与 v8 相同，仅把 icon 换成真实分类色 + FA 码点）
+   =================================================================== */
+let byId=new Map();
+
+function demoFlow(){
+  return {
+    steps:[
+      {id:"s1", title:"图像采集_0",  type:"IMG", cat:"图像处理", op:"", sub:"相机 1 · 1920×1080".slice(0,9), state:"done", comm:"", fx:0, fy:0},
+      {id:"s2", title:"图像预处理_0", type:"IMG", cat:"图像处理", op:"", sub:"高斯滤波",   state:"done", fx:0, fy:1},
+      {id:"s3", title:"模板匹配_0",  type:"IMG", cat:"图像处理", op:"", sub:"模板 3",     state:"done", fx:0, fy:2},
+      {id:"if1", title:"判断_1", kind:"group", logic:"if", state:"done", comm:"If(1>0)", fx:0, fy:3,
+        branches:[
+          {id:"b1", badge:"IF",   title:"通过",  step:{id:"p1", title:"通过_1", type:"", cat:"流程控制", op:"", sub:"指令执行", state:"done", comm:"灰度均值 > 0.5"}},
+          {id:"b2", badge:"ELSEIF", title:"记录", step:{id:"r1", title:"记录_1", type:"SET", cat:"变量操作", op:"", sub:"赋值", state:"done", comm:"写入检测结果"}},
+          {id:"b3", badge:"ELSE", title:"异常",  step:{id:"e1", title:"异常_1", type:"", cat:"流程控制", op:"", sub:"指令执行", state:"idle", comm:"", disabled:true}},
+        ]},
+      {id:"s4", title:"几何查找_0", type:"GEO", cat:"几何工具", op:"", sub:"找直线", state:"run", fx:0, fy:4},
+      {id:"lp2", title:"循环_2", kind:"group", logic:"for", state:"fail", comm:"i < 10", fx:0, fy:5,
+        branches:[
+          {id:"b4", badge:"BODY", title:"循环体", step:{id:"c1", title:"循环体_2", type:"", cat:"流程控制", op:"", sub:"循环", state:"done"}},
+          {id:"b5", badge:"BODY", title:"累计",   step:{id:"c2", title:"累计_2", type:"VAR", cat:"变量操作", op:"GT", sub:"A > B", state:"fail"}},
+        ]},
+      {id:"s5", title:"结果汇总_0", type:"", cat:"常用工具", op:"", sub:"汇总", state:"idle", fx:0, fy:6},
+      {id:"s6", title:"OK", type:"", cat:"流程控制", op:"", sub:"结束", state:"idle", fx:0, fy:7},
+    ],
+    spine:[
+      ["s1","s2"],["s2","s3"],["s3","if1"],["if1","s4"],["s4","lp2"],["lp2","s5"],["s5","s6"],
+      ["if1>p1","if1>r1"],["if1>r1","if1>e1"],["lp2>c1","lp2>c2"],
+    ],
+    refs:[
+      {from:"s3", to:"r1", port:"Score",  fromPort:"Score",  type:"double"},
+      {from:"s1", to:"r1", port:"Image",  fromPort:"Image",  type:"Image"},
+      {from:"s4", to:"c2", port:"Result", fromPort:"Result", type:"Result", illegal:true,
+       reason:"生产方在循环容器内，晚于容器本身"},
+      {from:"r1", to:"s5", port:"Items",  fromPort:"Items",  type:"List"},
+      {from:"s2", to:"s3", port:"Image",  fromPort:"Image",  type:"Image"},
+      {from:"s1", to:"s2", port:"Image",  fromPort:"Image",  type:"Image"},
+      {from:"s3", to:"s4", port:"Score",  fromPort:"Score",  type:"double"},
+      {from:"c1", to:"c2", port:"Count",  fromPort:"Count",  type:"int"},
+      {from:"s4", to:"s5", port:"Source", fromPort:"Result", type:"Result"},
+      {to:"r1", port:"DelayMs", global:"Global.DelayMs", type:"int"},
+      {to:"r1", port:"Retry",   global:"Global.Retry",   type:"int"},
+      {to:"s6", port:"Template", global:"Global.TemplatePath", type:"string"},
+    ],
+  };
+}
+
+/* ===== 布局：单列竖排；容器 = 框 + 每分支一条泳道 ===== */
+const state={flow:null};
+function buildDemo(){
+  const flow=demoFlow();
+  byId=new Map();
+  const nodes=flow.steps.map(s=>({...s}));
+  const flat=[];
+  for(const n of nodes){
+    byId.set(n.id,n); flat.push(n);
+    if(n.branches){
+      n.branches.forEach((b,i)=>{
+        const st={...b.step, branch:b, group:n};
+        byId.set(st.id,st); flat.push(st);
+      });
+    }
+  }
+  state.flow={flow,nodes,flat,refs:flow.refs,spine:flow.spine};
+  layout();
+  computeGvSlots();
+  fit();
+  selected=null; hoveredRow=null;
+  render();
+}
+
+const pos=new Map();   /* id -> {x,y,w,h,kind:"step"|"lane"|"group"} */
+function laneHeight(b){
+  /* 泳道高 = 头 28 + 内容(58) + 上下 padding 各 14 */
+  return LANE_HEAD + NODE_H + LANE_PAD;
+}
+function layout(){
+  const {nodes}=state.flow;
+  let y=0;
+  for(const n of nodes){
+    if(!n.branches){
+      pos.set(n.id,{x:0,y,w:NODE_W,h:NODE_H,kind:"step"});
+      y+=ROW_H;
+    }else{
+      const nb=n.branches.length;
+      const cols=nb>2?2:1;
+      const lanesPerCol=Math.ceil(nb/cols);
+      const laneW=NODE_W+LANE_PAD*2;
+      const w=FRAME_PAD*2+cols*laneW+(cols-1)*COL_GAP;
+      const h=FRAME_HEADER+lanesPerCol*laneHeight(n)+FRAME_PAD;
+      pos.set(n.id,{x:0,y,w,h,kind:"group"});
+      n.branches.forEach((b,i)=>{
+        const c=Math.floor(i/lanesPerCol), r=i%lanesPerCol;
+        const lx=FRAME_PAD+c*(laneW+COL_GAP);
+        const ly=y+FRAME_HEADER+r*laneHeight(n);
+        pos.set("lane:"+b.id,{x:lx,y:ly,w:laneW,h:laneHeight(n),kind:"lane",branch:b,group:n});
+        /* 分支步骤必须带上 group —— dataPorts() 靠它判断"在不在容器里"，
+           漏了就会当成顶层节点，数据线直接从容器内部横穿出去（v9 自检抓到过）。 */
+        pos.set(b.step.id,{x:lx+LANE_PAD,y:ly+LANE_HEAD,w:NODE_W,h:NODE_H,kind:"step",group:n,branch:b,lane:"lane:"+b.id});
+      });
+      y+=h+ROW_GAP;
+    }
+  }
+}
+
+/* 全局变量小节点：贴「消费算子右侧同行」；消费算子在容器里则贴容器右侧同行 */
+const gvSlots=new Map();
+const gvKey=(owner,name)=>owner+"|"+name;
+function computeGvSlots(){
+  gvSlots.clear();
+  const {flow}=state.flow;
+  const groups=new Map();
+  flow.refs.filter(r=>!r.from).forEach(r=>{
+    const own=(byId.get(r.to)&&byId.get(r.to).group)||null;
+    const host=own?own.id:r.to;
+    const key=gvKey(host,r.global);
+    if(!groups.has(key)) groups.set(key,{host,bindings:[]});
+    groups.get(key).bindings.push({port:r.port,type:r.type});
+  });
+  const used=new Map();
+  for(const [key,g] of groups){
+    const hp=pos.get(g.host); if(!hp) continue;
+    const arr=used.get(g.host)||[]; used.set(g.host,arr);
+    const x=hp.x+hp.w+GV_COL_GAP;
+    let y=hp.y+Math.min(FRAME_HEADER/2-4,18);
+    let guard=0;
+    while(arr.some(u=>y<u+GV_H+GV_GAP_Y&&u<y+GV_H+GV_GAP_Y)&&guard++<40) y+=GV_H+GV_GAP_Y;
+    arr.push(y);
+    gvSlots.set(key,{x,y,w:GV_W,h:GV_H,host:g.host,
+      label:g.bindings, name:key.split("|")[1]});
+  }
+}
+
+/* ===== 取景 ===== */
+const view={x:0,y:0,z:1};
+function contentBounds(){
+  let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;
+  const add=(r)=>{x1=Math.min(x1,r.x);y1=Math.min(y1,r.y);x2=Math.max(x2,r.x+r.w);y2=Math.max(y2,r.y+r.h);};
+  pos.forEach(add); gvSlots.forEach(add);
+  if(x1>x2) return {x:0,y:0,w:800,h:600};
+  return {x:x1,y:y1,w:x2-x1,h:y2-y1};
+}
+function fit(){
+  const b=contentBounds(), c=cv;
+  const padX=140, padY=70;
+  const z=Math.min((c.clientWidth-padX)/Math.max(b.w,1),(c.clientHeight-padY)/Math.max(b.h,1),1.05);
+  view.z=Math.max(0.15,Math.min(2.2,z));
+  view.x=(c.clientWidth-b.w*view.z)/2-b.x*view.z+40;
+  view.y=(c.clientHeight-b.h*view.z)/2-b.y*view.z+10;
+}
+const X=(x)=>x*view.z+view.x, Y=(y)=>y*view.z+view.y;
+const S=(v)=>v*view.z;
+
+/* ===================================================================
+   连线求值
+   =================================================================== */
+function listsOf(id){
+  const n=byId.get(id);
+  /* 容器（泳道/框）：一根都不画 —— 用户拍板"选中容器时不画，只在选中具体步骤时才画" */
+  if(!n||n.kind==="group") return {inList:[],outList:[],varList:[],node:n};
+  const {refs}=state.flow;
+  const wrap=(r,dir,peer)=>({
+    raw:r, dir, peer, key:dir+":"+r.from+">"+r.to+":"+r.port+":"+(r.global||r.fromPort),
+    label:dir==="var" ? r.global
+         : dir==="in" ? (r.port+" ← "+byId.get(r.from).title+"."+r.fromPort)
+                      : (r.port+" → "+byId.get(r.to).title),
+    port:r.port, fromPort:r.fromPort, type:r.type,
+    illegal:!!r.illegal, reason:r.reason||"",
+  });
+  const inList=refs.filter(r=>r.to===id&&!!r.from).map(r=>wrap(r,"in",r.from));
+  const outList=refs.filter(r=>r.from===id).map(r=>wrap(r,"out",r.to));
+  const varList=refs.filter(r=>r.to===id&&!r.from).map(r=>wrap(r,"var",null));
+  return {inList,outList,varList,node:n};
+}
+
+/* ===================================================================
+   正交走线：出口 → 通道 → 入口     side: R/L/T/B
+   =================================================================== */
+function anchorOf(id,side){
+  const p=(id&&typeof id==="object")?id:pos.get(id);
+  if(!p) return null;
+  const w=p.w,h=p.h;
+  /* 容器/泳道：侧边锚在头带中部（与代码 EdgeMidpoint 口径一致） */
+  const sideY=p.kind==="group" ? p.y+FRAME_HEADER/2
+            : p.kind==="lane"  ? p.y+LANE_HEAD/2
+            : p.y+h/2;
+  if(side==="R") return {x:p.x+w,y:sideY,side};
+  if(side==="L") return {x:p.x,y:sideY,side};
+  if(side==="T") return {x:p.x+w/2,y:p.y,side};
+  return {x:p.x+w/2,y:p.y+h,side};
+}
+function pickSides(sP,tP){
+  const sCx=sP.x+sP.w/2, tCx=tP.x+tP.w/2, sCy=sP.y+sP.h/2, tCy=tP.y+tP.h/2;
+  if(Math.abs(sCx-tCx)<NODE_W*0.8) return tCy>sCy?{s:"B",t:"T"}:{s:"T",t:"B"};
+  if(Math.abs(sCy-tCy)<NODE_H*0.8) return tCx>sCx?{s:"R",t:"L"}:{s:"L",t:"R"};
+  if(tCy>sCy+ROW_GAP*0.6) return {s:"B",t:"L"};
+  return {s:"R",t:"T"};
+}
+function segPenalty(x1,y1,x2,y2,skipIds){
+  let pen=0;
+  const minX=Math.min(x1,x2),maxX=Math.max(x1,x2);
+  const minY=Math.min(y1,y2),maxY=Math.max(y1,y2);
+  pos.forEach((p,id)=>{
+    if(skipIds&&skipIds.has(id)) return;
+    if(p.kind!=="step"){
+      const pad=4;
+      /* 容器/泳道只判"整体落进内区"：贴边外不算穿 */
+      if(minX>p.x-pad&&maxX<p.x+p.w+pad&&minY>p.y-pad&&maxY<p.y+p.h+pad) pen+=1;
+      return;
+    }
+    const pad=-2;
+    if(maxX>p.x-pad&&minX<p.x+p.w+pad&&maxY>p.y-pad&&minY<p.y+p.h+pad) pen+=2;
+  });
+  return pen;
+}
+function pathScore(pts,skipIds){
+  let n=0,len=0;
+  for(let i=0;i<pts.length-1;i++){
+    const p=pts[i],q=pts[i+1];
+    n+=segPenalty(p.x,p.y,q.x,q.y,skipIds);
+    len+=Math.hypot(q.x-p.x,q.y-p.y);
+  }
+  return {hit:n,fold:pts.length,len,score:n*1000+pts.length*6+len*0.02};
+}
+function route(sP,tP,side){
+  const a=anchorOf(sP,side.s), b=anchorOf(tP,side.t);
+  if(!a||!b) return [];
+  const skip=new Set([sP.id,tP.id]);
+  const sB=sP.y+sP.h, tB=tP.y+tP.h;
+  const bandX1=Math.min(sP.x,tP.x), bandX2=Math.max(sP.x+sP.w,tP.x+tP.w);
+  const sCx=sP.x+sP.w/2, tCx=tP.x+tP.w/2, sCy=sP.y+sP.h/2, tCy=tP.y+tP.h/2;
+
+  /* ① 同列且目标在下方：B → T 直连（无中间横拉 → 不切兄弟） */
+  if(Math.abs(sCx-tCx)<NODE_W*0.8){
+    if(tP.y>sB+2) return [a,{x:a.x,y:tP.y},b];
+    if(tB<sP.y-2) return [{x:anchorOf(sP,"T").x,y:sP.y},{x:anchorOf(sP,"T").x,y:sP.y},b]; /* 向上：交给通道 */
+  }
+  /* ② 同行：直横连（v8 这条实现有冗余，v9 重写） */
+  if(Math.abs(sCy-tCy)<NODE_H*0.8){
+    const midX=(a.x+b.x)/2;
+    return [a,{x:midX,y:a.y},{x:midX,y:b.y},b];
+  }
+  /* ③ 斜向：三候选通道，取打分最优 */
+  const chRight=bandX2+Math.max(CH_GAP,24);
+  const chLeft =bandX1-Math.max(CH_GAP,24);
+  const chMid  =(bandX1+bandX2)/2;
+  const cands=[chRight,chLeft,chMid].map(cx=>{
+    const pts=[a,{x:cx,y:a.y},{x:cx,y:b.y},b];
+    return {pts,sc:pathScore(pts,skip)};
+  });
+  cands.sort((p,q)=>p.sc.score-q.sc.score);
+  return cands[0].pts;
+}
+function routeWithOffset(sP,tP,off){
+  const sides=pickSides(sP,tP);
+  const a=anchorOf(sP,sides.s), b=anchorOf(tP,sides.t);
+  if(!a||!b) return [];
+  const A=(sides.s==="R"||sides.s==="L")?{...a,y:a.y+(off||0)}:{...a,x:a.x+(off||0)};
+  const B=(sides.t==="R"||sides.t==="L")?{...b,y:b.y+(off||0)}:{...b,x:b.x+(off||0)};
+  const pts=route(sP,tP,sides);
+  if(!pts.length) return [A,B];
+  const out=pts.map(p=>({...p}));
+  out[0]=A; out[out.length-1]=B;
+  if(out.length>=3){
+    if(Math.abs(out[0].x-out[1].x)<0.5) out[1]={...out[1],x:A.x};
+    if(Math.abs(out[0].y-out[1].y)<0.5) out[1]={...out[1],y:A.y};
+    const last=out.length-1;
+    if(Math.abs(out[last].x-out[last-1].x)<0.5) out[last-1]={...out[last-1],x:B.x};
+    if(Math.abs(out[last].y-out[last-1].y)<0.5) out[last-1]={...out[last-1],y:B.y};
+  }
+  return out;
+}
+
+/* 给定已算好的两端锚点（可能是容器框边，而不是算子中心）做正交路由。
+   端口侧向：R → 竖段在右侧；L → 竖段在左侧；T/B → 竖段沿中心线（同列直连）。 */
+/* 给定已算好的两端锚点（可能是容器框边，而不是算子中心）做正交路由。
+   端口侧向：R → 竖段在出侧外侧；L → 竖段在最左侧外；T/B → 竖段沿中心线（同列直连）。
+   通道 X 取「所有端点里最右（或最左）+ CH_GAP」，保证竖段永远落在所有节点右/左之外。 */
+function routeBetween(A,B,off,via){
+  if(!A||!B) return [];
+  const o=off||0;
+  const a=(A.side==="R"||A.side==="L")?{x:A.x,y:A.y+o}:{x:A.x+o,y:A.y};
+  const b=(B.side==="R"||B.side==="L")?{x:B.x,y:B.y+o}:{x:B.x+o,y:B.y};
+  if(Math.abs(a.x-b.x)<0.5&&Math.abs(a.y-b.y)<0.5) return [a,b];
+  /* 同列（顶/底出）→ 直接竖直 */
+  if((A.side==="T"||A.side==="B")&&(B.side==="T"||B.side==="B")){
+    const my=(a.y+b.y)/2;
+    return [a,{x:a.x,y:my},{x:b.x,y:my},b];
+  }
+  /* 左右出：竖段统一放在两端的"外侧"。右侧出占多数时取 max+gap；
+     有一端是从左边进（side L）时取 min-gap。gap 至少 CH_GAP。
+     dataPorts 已经把端点 x 定在画布外通道上（x = 右边缘 + CH_GAP），
+     这里若再加一次 gap，竖段就掉进两框之间、贴着容器右边框走 → 视为穿过
+     容器。判据：两端 x 相同即说明调用方已给定通道，直接沿用。 */
+  /* 调用方给了航点（via=[{x,y},…]）就按航点走直角折线：
+     用于"从画布级通道进入容器、再贴着容器内壁横贯到目标"这类绕行，
+     比通用三选一通道更可控。航点按 x/y 对齐补成直角。 */
+  if(via&&via.length){
+    const out=[a];
+    let cur=a;
+    via.forEach(w=>{
+      if(Math.abs(cur.x-w.x)>0.5) out.push({x:w.x,y:cur.y});
+      out.push({x:w.x,y:w.y});
+      cur={x:w.x,y:w.y};
+    });
+    if(Math.abs(cur.x-b.x)>0.5) out.push({x:b.x,y:cur.y});
+    out.push(b);
+    return out;
+  }
+  let cx;
+  if(Math.abs(a.x-b.x)<0.5) cx=a.x;
+  else if((A.side!=="L")&&(B.side!=="L")) cx=Math.max(a.x,b.x)+CH_GAP;
+  else if((A.side==="L")&&(B.side==="L")) cx=Math.min(a.x,b.x)-CH_GAP;
+  else cx=Math.max(a.x,b.x)+CH_GAP;      /* 一侧左一侧右：右绕更安全 */
+  return [a,{x:cx,y:a.y},{x:cx,y:b.y},b];
+}
+function labelAt(pts){
+  let best=null,bestLen=-1;
+  for(let i=0;i<pts.length-1;i++){
+    const p=pts[i],q=pts[i+1];
+    const len=Math.hypot(q.x-p.x,q.y-p.y);
+    if(len>bestLen){bestLen=len;best={x1:p.x,y1:p.y,x2:q.x,y2:q.y,len};}
+  }
+  if(!best) return null;
+  const mx=(best.x1+best.x2)/2, my=(best.y1+best.y2)/2;
+  return {x:mx,y:my,vertical:Math.abs(best.y2-best.y1)>Math.abs(best.x2-best.x1),len:best.len};
+}
+
+/* ===================================================================
+   绘制基元
+   =================================================================== */
+const cv=document.getElementById("cv");
+const ctx=cv.getContext("2d");
+let dpr=1;
+function resize(){
+  dpr=Math.max(1,Math.min(2.5,window.devicePixelRatio||1));
+  cv.width=Math.round(cv.clientWidth*dpr);
+  cv.height=Math.round(cv.clientHeight*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+function rr(x,y,w,h,r){
+  const rad=Math.max(0,Math.min(r,Math.min(w,h)/2));
+  ctx.beginPath();
+  ctx.moveTo(x+rad,y); ctx.arcTo(x+w,y,x+w,y+h,rad); ctx.arcTo(x+w,y+h,x,y+h,rad);
+  ctx.arcTo(x,y+h,x,y,rad); ctx.arcTo(x,y,x+w,y,rad); ctx.closePath();
+}
+function grid(){
+  const st=24;
+  if(view.z*st<7) return;
+  ctx.save();
+  ctx.fillStyle=C.grid;
+  const x0=Math.floor(-view.x/view.z/st)*st, y0=Math.floor(-view.y/view.z/st)*st;
+  for(let gx=x0;X(gx)<cv.clientWidth;gx+=st)for(let gy=y0;Y(gy)<cv.clientHeight;gy+=st){
+    ctx.beginPath();
+    ctx.arc(Math.round(X(gx)),Math.round(Y(gy)),Math.max(0.7,S(0.7)),0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+function strokePoly(pts,color,width,dash){
+  if(!pts||pts.length<2) return;
+  ctx.save();
+  ctx.strokeStyle=color; ctx.lineWidth=width;
+  ctx.setLineDash(dash||[]);
+  ctx.lineCap="round"; ctx.lineJoin="round";
+  ctx.beginPath();
+  pts.forEach((p,i)=>i?ctx.lineTo(X(p.x),Y(p.y)):ctx.moveTo(X(p.x),Y(p.y)));
+  ctx.stroke();
+  ctx.restore();
+}
+/* 真实模板的 OutlineBrush/OutlineThickness：先画底色宽线，再画本色细线（交叉处断口） */
+function wire(pts,color,width,dash){
+  strokePoly(pts,C.linkOutline,width+1.6,null);
+  strokePoly(pts,color,width,dash);
+}
+function arrowHead(pts,color){
+  if(!pts||pts.length<2) return;
+  const p=pts[pts.length-1], q=pts[pts.length-2];
+  if(!p||!q||(p.x===q.x&&p.y===q.y)) return;
+  const ang=Math.atan2(Y(p.y)-Y(q.y),X(p.x)-X(q.x));
+  const L=S(ARROW);
+  ctx.save();
+  ctx.fillStyle=color;
+  ctx.beginPath();
+  ctx.moveTo(X(p.x),Y(p.y));
+  ctx.lineTo(X(p.x)-L*Math.cos(ang-0.42),Y(p.y)-L*Math.sin(ang-0.42));
+  ctx.lineTo(X(p.x)-L*Math.cos(ang+0.42),Y(p.y)-L*Math.sin(ang+0.42));
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+/* 线上端口标签：真实模板口径 TextBackground=F2 白 / TextPadding 5,1 / 圆角 4 / 10.5 SemiBold 深蓝 */
+function wireLabel(pts,text,color,strong){
+  if(!text) return;
+  const at=labelAt(pts); if(!at) return;
+  if(at.len*view.z<LBL_MIN_LEN) return;
+  ctx.save();
+  ctx.font=`600 ${Math.round(10.5*Math.min(1.15,view.z))}px "Consolas","Microsoft YaHei UI",monospace`;
+  const pad=5, tw=ctx.measureText(text).width, h=(10.5+2)+6;
+  const w=tw+pad*2;
+  const cx=X(at.x), cy=Y(at.y);
+  ctx.translate(cx,cy);
+  const bw=at.vertical?h:w, bh=at.vertical?w:h;
+  rr(-bw/2,-bh/2,bw,bh,4);
+  ctx.fillStyle=C.labelBg; ctx.fill();
+  ctx.lineWidth=1; ctx.strokeStyle=strong?color:C.labelBd; ctx.stroke();
+  ctx.fillStyle=strong?color:C.labelInk;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  if(at.vertical){ ctx.rotate(-Math.PI/2); }
+  ctx.fillText(text,0,0.5);
+  ctx.restore();
+}
+/* 编号徽标：入向圆、出向方、全局变量紫方 */
+function badge(x,y,text,kind){
+  const r=kind==="in"?8:7.5;
+  ctx.save();
+  ctx.translate(X(x),Y(y));
+  ctx.scale(Math.min(1.15,Math.max(0.8,view.z)),Math.min(1.15,Math.max(0.8,view.z)));
+  ctx.beginPath();
+  if(kind==="in") ctx.arc(0,0,r,0,Math.PI*2);
+  else rr(-r,-r,r*2,r*2,kind==="out"?4:3.5);
+  ctx.fillStyle=kind==="var"?C.gvar:kind==="out"?C.outLink:C.link;
+  ctx.fill();
+  ctx.lineWidth=1.6; ctx.strokeStyle=C.white; ctx.stroke();
+  ctx.fillStyle=C.white;
+  ctx.font=`700 ${kind==="in"?10:9.5}px "Consolas",monospace`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(text,0,0.5);
+  ctx.restore();
+}
+function innerPos(id,where){
+  const p=pos.get(id);
+  if(where==="seq")  return {x:p.x+10,y:p.y+10};
+  if(where==="in")   return {x:p.x+p.w-11,y:p.y+11};
+  if(where==="out")  return {x:p.x+p.w-27,y:p.y+11};
+  return {x:p.x+p.w/2,y:p.y+p.h/2};
+}
+/* 连线徽标位置：贴在卡片自身的右/左/上/下边框内侧（像素口径，随缩放）。
+   入向徽标贴右边缘内侧（← 线从右侧通道进来），出向徽标贴右下内侧竖排。 */
+function chBadgePos(id,where){
+  const p=pos.get(id);
+  if(where==="in")  return {x:p.x+p.w-14,y:p.y+p.h-14};
+  if(where==="out") return {x:p.x+p.w-14,y:p.y+p.h+6};
+  return {x:p.x+p.w/2,y:p.y+p.h/2};
+}
+/* 按像素截断（真实模板 MaxWidth=72） */
+function clipPx(s,maxPx){
+  if(!s) return "";
+  if(ctx.measureText(s).width<=maxPx) return s;
+  let cut=s;
+  while(cut.length>1&&ctx.measureText(cut+"…").width>maxPx) cut=cut.slice(0,-1);
+  return cut+"…";
+}
+
+/* ===================================================================
+   真实模板绘制：算子卡 / 泳道 / 容器
+   =================================================================== */
+const stateColor=(s)=>s==="run"?C.stRun:s==="fail"?C.stFail:s==="done"?C.stOK:s==="skip"?C.stSkip:C.stIdle;
+const LOGIC_LABEL={if:"IF",case:"CASE",while:"WHILE",for:"FOR",parallel:"PAR"};
+
+function drawCard(n,p,opts){
+  const o=opts||{};
+  const x=X(p.x),y=Y(p.y),w=S(p.w),h=S(p.h);
+  const fail=n.state==="fail";
+  ctx.save();
+  if(n.disabled) ctx.globalAlpha=0.45;
+  /* 卡片本体：圆角 10 / 边 1px 冷灰；失败换底；选中 2px 亮蓝 */
+  rr(x,y,w,h,10);
+  ctx.fillStyle=fail?C.failSoft:C.card; ctx.fill();
+  ctx.lineWidth=o.focused?2:1;
+  ctx.strokeStyle=fail?C.stFail:(o.focused?C.stRun:C.cardBd);
+  ctx.stroke();
+  /* 图标块 28×28 圆角 8，底/边 = 分类色混白 */
+  const cat=CAT[n.cat]||{c:C.catFallback,g:"\uf1b3"};
+  const ib=S(28), ix=x+S(10), iy=y+h/2-ib/2;
+  rr(ix,iy,ib,ib,8);
+  ctx.fillStyle=mix(cat.c,0.88); ctx.fill();
+  ctx.lineWidth=1; ctx.strokeStyle=mix(cat.c,0.65); ctx.stroke();
+  ctx.fillStyle=cat.c;
+  ctx.font=`${Math.round(14*Math.min(1.2,view.z))}px "FA6","Microsoft YaHei UI",sans-serif`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(cat.g,ix+ib/2,iy+ib/2+0.5);
+  /* 标题行：标题 11.5 SemiBold + TypeBadge + OpBadge */
+  let tx=ix+ib+S(8);
+  let ty=y+S(20);
+  ctx.textAlign="left"; ctx.textBaseline="middle";
+  ctx.fillStyle=C.ink;
+  ctx.font=`600 ${Math.round(11.5*Math.min(1.2,view.z))}px "Microsoft YaHei UI",sans-serif`;
+  const title=clipPx(n.title,S(TITLE_MAX)*(view.z<0.85?1.35:1));
+  ctx.fillText(title,tx,ty);
+  tx+=ctx.measureText(title).width+S(4);
+  if(n.type){
+    const bh=S(14);
+    ctx.font=`700 ${Math.round(8*Math.min(1.25,view.z))}px "Consolas",monospace`;
+    const tw=ctx.measureText(n.type).width+S(8);
+    rr(tx,ty-bh/2,tw,bh,3);
+    ctx.fillStyle=C.typeBadge; ctx.fill();
+    ctx.fillStyle=C.white; ctx.textAlign="center";
+    ctx.fillText(n.type,tx+tw/2,ty+0.5);
+    tx+=tw+S(4);
+  }
+  if(n.op){
+    const bh=S(14);
+    ctx.font=`700 ${Math.round(8*Math.min(1.25,view.z))}px "Consolas",monospace`;
+    const tw=ctx.measureText(n.op).width+S(8);
+    rr(tx,ty-bh/2,tw,bh,4);
+    ctx.fillStyle=C.logic.case.s; ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle=C.logic.case.d; ctx.stroke();
+    ctx.fillStyle=C.logic.case.t; ctx.textAlign="center";
+    ctx.fillText(n.op,tx+tw/2,ty+0.5);
+  }
+  /* 副标题 9px 浅灰（右侧让出 30px 给状态槽） */
+  ctx.textAlign="left";
+  ctx.fillStyle=C.ink3;
+  ctx.font=`${Math.round(9*Math.min(1.25,view.z))}px "Microsoft YaHei UI",sans-serif`;
+  const subMax=Math.max(S(30),w-(ix-x)-ib-S(8)-S(30));
+  ctx.fillText(clipPx(n.sub||"",subMax),ix+ib+S(8),y+h/2+S(11));
+  /* 右上状态点 7×7 + 断点圈 8×8（Margin 0,7,8,0 / 0,14,4,0） */
+  const sdot=S(7);
+  ctx.beginPath();
+  ctx.arc(x+w-S(8)-sdot/2,y+S(7)+sdot/2,sdot/2,0,Math.PI*2);
+  ctx.fillStyle=stateColor(n.state); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x+w-S(4)-S(4),y+S(14)+S(4),S(4),0,Math.PI*2);
+  ctx.lineWidth=1.2; ctx.strokeStyle=n.bp?C.bpOn:C.bp; ctx.stroke();
+  /* 执行序号：左上 16×14 圆角 4（Margin -7,-7,0,0） */
+  if(o.seq!=null){
+    const bwd=S(16),bhd=S(14);
+    rr(x-S(7),y-S(7),bwd,bhd,4);
+    ctx.fillStyle=C.orderBadge; ctx.fill();
+    ctx.fillStyle=C.white;
+    ctx.font=`700 ${Math.round(8*Math.min(1.25,view.z))}px "Consolas",monospace`;
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(String(o.seq),x-S(7)+bwd/2,y-S(7)+bhd/2+0.5);
+  }
+  /* 外链角标：左下 12 高圆角 6（Margin 10,0,0,2） */
+  if(o.ext){
+    const bh2=S(12);
+    ctx.font=`600 ${Math.round(8*Math.min(1.25,view.z))}px "Consolas",monospace`;
+    const tw=ctx.measureText(String(o.ext)).width+S(8);
+    const bx=x+S(10), byy=y+h-S(2)-bh2;
+    rr(bx,byy,tw,bh2,6);
+    ctx.fillStyle=C.extBg; ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle=C.extBd; ctx.stroke();
+    ctx.fillStyle=C.extInk; ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(String(o.ext),bx+tw/2,byy+bh2/2+0.5);
+  }
+  /* 耗时：右下 8px（Margin 0,0,8,5） */
+  if(n.ms){
+    ctx.textAlign="right"; ctx.textBaseline="alphabetic";
+    ctx.fillStyle=C.ink3;
+    ctx.font=`${Math.round(8*Math.min(1.25,view.z))}px "Consolas",monospace`;
+    ctx.fillText(n.ms,x+w-S(8),y+h-S(5));
+  }
+  ctx.restore();
+}
+
+/* ===================================================================
+   真实模板绘制：泳道（LaneNodeTemplate :1111-1325）
+   =================================================================== */
+function drawLane(b,p){
+  const lane=pos.get(p.y!==undefined?"lane:"+b.id:"lane:"+b.id);
+  const lp=lane||p;
+  const x=X(lp.x),y=Y(lp.y),w=S(lp.w),h=S(lp.h);
+  const lg=C.logic[(lp.group&&lp.group.logic)||"if"]||C.logic.if;
+  const neutral=b.badge==="ELSE";
+  ctx.save();
+  rr(x,y,w,h,8);
+  ctx.fillStyle=neutral?C.laneNeutralBg:C.laneTint; ctx.fill();
+  ctx.lineWidth=1; ctx.strokeStyle=neutral?C.laneNeutralBd:C.laneBd; ctx.stroke();
+  /* 泳道头 28 高：70% 白 + 底边 1px + 圆角 7,7,0,0 */
+  ctx.save();
+  rr(x,y,w,S(LANE_HEAD),7);
+  ctx.clip();
+  ctx.fillStyle=C.laneHead; ctx.fillRect(x,y,w,S(LANE_HEAD));
+  ctx.restore();
+  ctx.beginPath(); ctx.moveTo(x,y+S(LANE_HEAD)); ctx.lineTo(x+w,y+S(LANE_HEAD));
+  ctx.lineWidth=1; ctx.strokeStyle=lg.d; ctx.stroke();
+  /* 徽标 H16 圆角 4 + 名 9.5 SemiBold + 计数 8.5 */
+  const bh=S(16);
+  ctx.font=`700 ${Math.round(8*Math.min(1.25,view.z))}px "Consolas",monospace`;
+  const bt=b.badge||"BODY";
+  const bw=ctx.measureText(bt).width+S(10);
+  rr(x+S(8),y+S(LANE_HEAD)/2-bh/2,bw,bh,4);
+  ctx.fillStyle=neutral?C.laneNeutralBd:lg.b; ctx.fill();
+  ctx.fillStyle=C.white; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(bt,x+S(8)+bw/2,y+S(LANE_HEAD)/2+0.5);
+  ctx.textAlign="left";
+  ctx.fillStyle=neutral?C.laneNeutralText:C.laneText;
+  ctx.font=`600 ${Math.round(9.5*Math.min(1.2,view.z))}px "Microsoft YaHei UI",sans-serif`;
+  const nm=b.title||"";
+  ctx.fillText(nm,x+S(8)+bw+S(6),y+S(LANE_HEAD)/2);
+  ctx.fillStyle=C.ink3;
+  ctx.font=`${Math.round(8.5*Math.min(1.2,view.z))}px "Consolas",monospace`;
+  ctx.fillText("1 算子",x+S(8)+bw+S(6)+ctx.measureText(nm).width+S(6),y+S(LANE_HEAD)/2);
+  ctx.restore();
+}
+
+/* ===================================================================
+   真实模板绘制：容器（框 + 渐变组头六列 + 泳道）
+   =================================================================== */
+function drawGroup(id,n,p,focusSet){
+  const x=X(p.x),y=Y(p.y),w=S(p.w),h=S(p.h);
+  const lg=C.logic[n.logic||"if"]||C.logic.if;
+  const fail=n.state==="fail";
+  ctx.save();
+  /* 框体：圆角 12 / 边 1.5px / 失败换色 / 选中 2px */
+  rr(x,y,w,h,12);
+  ctx.fillStyle=fail?C.failSoft:C.card; ctx.fill();
+  ctx.lineWidth=focusSet&&focusSet.has(id)?2:1.5;
+  ctx.strokeStyle=focusSet&&focusSet.has(id)?C.stRun:(fail?C.stFail:C.frameBd);
+  ctx.stroke();
+  /* 组头 46 高：类型 soft → 白 的横向渐变（真实 0=soft、0.76=白）+ 底边 1px */
+  ctx.save();
+  rr(x,y,w,S(FRAME_HEADER),10);
+  ctx.clip();
+  const g=ctx.createLinearGradient(x,0,x+w,0);
+  g.addColorStop(0,lg.s); g.addColorStop(0.76,C.white);
+  ctx.fillStyle=g; ctx.fillRect(x,y,w,S(FRAME_HEADER));
+  ctx.restore();
+  ctx.beginPath(); ctx.moveTo(x,y+S(FRAME_HEADER)); ctx.lineTo(x+w,y+S(FRAME_HEADER));
+  ctx.lineWidth=1; ctx.strokeStyle=fail?C.failBd:lg.d; ctx.stroke();
+  /* 六列组头：色条 4×26 / 类型徽标 H20 / 标题 12.5 / 条件胶囊 H20 / 统计 8.5 / 状态点 */
+  const cy=y+S(FRAME_HEADER)/2;
+  ctx.fillStyle=fail?C.stFail:lg.b;
+  ctx.fillRect(x+S(9),cy-S(13),S(4),S(26));
+  let bx=x+S(9+4+6);
+  const tag=LOGIC_LABEL[n.logic||"if"];
+  ctx.font=`700 ${Math.round(9*Math.min(1.2,view.z))}px "Consolas",monospace`;
+  const tw=ctx.measureText(tag).width+S(10);
+  rr(bx,cy-S(10),tw,S(20),5);
+  ctx.fillStyle=fail?C.stFail:lg.b; ctx.fill();
+  ctx.fillStyle=C.white; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(tag,bx+tw/2,cy+0.5);
+  bx+=tw+S(6);
+  ctx.textAlign="left"; ctx.fillStyle=fail?C.failInk:C.ink;
+  ctx.font=`600 ${Math.round(12.5*Math.min(1.2,view.z))}px "Microsoft YaHei UI",sans-serif`;
+  ctx.fillText(n.title,bx,cy);
+  bx+=ctx.measureText(n.title).width+S(4);
+  if(n.comm){
+    ctx.font=`${Math.round(9*Math.min(1.2,view.z))}px "Consolas",monospace`;
+    const cw=ctx.measureText(n.comm).width+S(10);
+    rr(bx,cy-S(10),cw,S(20),5);
+    ctx.fillStyle=C.card; ctx.fill();
+    ctx.lineWidth=1; ctx.strokeStyle=fail?C.failBd:C.frameBd; ctx.stroke();
+    ctx.fillStyle=C.frameInk; ctx.textAlign="center";
+    ctx.fillText(n.comm,bx+cw/2,cy+0.5);
+    bx+=cw+S(6);
+  }
+  ctx.textAlign="left"; ctx.fillStyle=C.ink3;
+  ctx.font=`${Math.round(8.5*Math.min(1.2,view.z))}px "Consolas",monospace`;
+  ctx.fillText(n.branches.length+" 分支 · "+countSteps(n)+" 算子",bx,cy);
+  /* 右上：状态点（Margin 0,0,28,0）+ 折叠钮 18×18（Margin 0,14,6,0） */
+  const sdot=S(7);
+  ctx.beginPath();
+  ctx.arc(x+w-S(28)-sdot/2,cy,sdot/2,0,Math.PI*2);
+  ctx.fillStyle=stateColor(n.state); ctx.fill();
+  const cb=S(18);
+  rr(x+w-S(6)-cb,y+S(14),cb,cb,5);
+  ctx.fillStyle=C.card; ctx.fill();
+  ctx.lineWidth=1; ctx.strokeStyle=C.collapseBd; ctx.stroke();
+  ctx.fillStyle=C.collapseInk;
+  ctx.font=`${Math.round(10*Math.min(1.2,view.z))}px "FA6","Microsoft YaHei UI",sans-serif`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText("\uf077",x+w-S(6)-cb/2,y+S(14)+cb/2+0.5);
+  /* 容器内泳道（本容器的分支） */
+  n.branches.forEach(b=>{
+    const lp=pos.get("lane:"+b.id);
+    if(lp) drawLane(b,lp);
+  });
+  /* 容器序号 24×18（Margin -9,-9,0,0） */
+  const ow=S(24),oh=S(18);
+  rr(x-S(9),y-S(9),ow,oh,5);
+  ctx.fillStyle=C.orderBadge; ctx.fill();
+  ctx.fillStyle=C.white;
+  ctx.font=`700 ${Math.round(9*Math.min(1.25,view.z))}px "Consolas",monospace`;
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(String(p.seq||1),x-S(9)+ow/2,y-S(9)+oh/2+0.5);
+  ctx.restore();
+}
+function countSteps(n){ return n.branches.filter(b=>b.step).length; }
+
+/* 顺序序号：按 spine 拓扑给每个顶层节点编号 */
+function seqMap(){
+  const m=new Map();
+  let i=0;
+  state.flow.spine.forEach(([a])=>{
+    const id=a.includes(">")?null:a;
+    if(id&&!m.has(id)) m.set(id,++i);
+  });
+  return m;
+}
+
+/* ---- 节点卡 ---- */
+function drawCards(){
+  const focusSet=focusIds();
+  const seqs=seqMap();
+  const ext=new Map();
+  state.flow.refs.filter(r=>!r.from&&r.to).forEach(r=>{
+    ext.set(r.to,(ext.get(r.to)||0)+1);
+  });
+  pos.forEach((p,id)=>{
+    if(p.kind==="lane") return;
+    const n=byId.get(id); if(!n) return;
+    if(p.kind==="group"){ p.seq=seqs.get(id); drawGroup(id,n,p,focusSet); return; }
+    drawCard(n,p,{focused:focusSet.has(id)&&id===selected,seq:seqs.get(id),ext:ext.get(id)||0,bp:!!n.bp});
+  });
+}
+
+/* ---- 焦点集合：选中 + 入向来源 + 出向下游 ---- */
+function focusIds(){
+  const s=new Set();
+  if(!selected) return s;
+  const n=byId.get(selected); if(!n||n.kind==="group") return s;
+  s.add(selected);
+  const {refs}=state.flow;
+  refs.forEach(r=>{
+    if(r.from===selected&&r.to) s.add(r.to);
+    if(r.to===selected&&r.from) s.add(r.from);
+  });
+  return s;
+}
+
+/* ---- 顺序链（真实顺序链样式：灰 1.2 dash 2.5,2.5） ---- */
+/* 端口处：两端都在容器内 → 走泳道竖线；一端在容器内 → 改从容器框边出入（不穿兄弟泳道） */
+function spinePorts(fromId,toId,pa,pb){
+  const inA=!!pa.group, inB=!!pb.group;
+  const sameGroup=inA&&inB&&pa.group===pb.group;
+  const ga=pos.get(pa.group?pa.group.id:fromId), gb=pos.get(pb.group?pb.group.id:toId);
+  /* 同一容器内的分支链：泳道竖线（只在容器内，允许穿本容器） */
+  if(sameGroup) return {A:anchorOf(fromId,"B"),B:anchorOf(toId,"T"),inside:true};
+  /* 顶层之间：直连 */
+  if(!inA&&!inB) return {A:anchorOf(fromId,"B"),B:anchorOf(toId,"T")};
+  /* 跨容器：一律从容器框的顶/底边出入，避免穿兄弟泳道 */
+  if(inA&&!inB) return {A:{x:ga.x+ga.w/2,y:ga.y+ga.h,side:"B"}, B:anchorOf(toId,"T"), viaGroup:ga};
+  if(!inA&&inB) return {A:anchorOf(fromId,"B"), B:{x:gb.x+gb.w/2,y:gb.y,side:"T"}, viaGroup:gb};
+  return {A:{x:ga.x+ga.w/2,y:ga.y+ga.h,side:"B"}, B:{x:gb.x+gb.w/2,y:gb.y,side:"T"}, viaGroup:gb};
+}
+function drawSpine(){
+  const {flow}=state.flow;
+  for(const [a,b] of flow.spine){
+    const fromId=a.includes(">")?a.split(">")[1]:a;
+    const toId=b.includes(">")?b.split(">")[1]:b;
+    const pa=pos.get(fromId), pb=pos.get(toId);
+    if(!pa||!pb) continue;
+    const pr=spinePorts(fromId,toId,pa,pb);
+    const A=pr.A, B=pr.B;
+    if(!A||!B) continue;
+    const pts=[A,{x:A.x,y:(A.y+B.y)/2},{x:B.x,y:(A.y+B.y)/2},B];
+    wire(pts,C.order,1.2,[2.5,2.5]);
+    arrowHead(pts,C.order);
+  }
+}
+
+/* ---- 非法线（常显，标签移到端点之外） ---- */
+function drawIllegal(){
+  const {flow}=state.flow;
+  for(const r of flow.refs){
+    if(!r.illegal) continue;
+    const sP=pos.get(r.from), tP=pos.get(r.to);
+    if(!sP||!tP) continue;
+    const pts=route(sP,tP,pickSides(sP,tP));
+    if(!pts.length) continue;
+    wire(pts,C.fail,1.5,[4,3]);
+    arrowHead(pts,C.fail);
+    const text=`⚠ ${r.port} ← ${byId.get(r.from).title}.${r.fromPort}`;
+    const at=labelAt(pts);
+    if(at){
+      ctx.save();
+      ctx.font=`600 10.5px "Consolas","Microsoft YaHei UI",monospace`;
+      const tw=ctx.measureText(text).width, w=tw+12, h=17;
+      const cx=X(at.x), cy=Y(at.y)-h-6;
+      const x=Math.min(Math.max(cx-w/2,4),cv.clientWidth-w-4);
+      rr(x,cy,w,h,4);
+      ctx.fillStyle=C.badBg; ctx.fill();
+      ctx.lineWidth=1; ctx.strokeStyle=C.badBd; ctx.stroke();
+      ctx.fillStyle=C.badInk; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(text,x+w/2,cy+h/2+0.5);
+      ctx.restore();
+    }
+  }
+}
+
+/* 数据线端点：容器内步骤必须先出容器框，避免横穿兄弟泳道。
+   返回 {A,B}（世界坐标锚点对象，side 表示进出方向），A 为起点、B 为终点，
+   可选 via=[{x,y}…] 表示必须经过的直角航点。
+   判据全部用「端点属于哪个容器/泳道」，不看坐标猜测。 */
+function dataPorts(sP,tP){
+  const ga=sP.group?pos.get(sP.group.id):null;
+  const gb=tP.group?pos.get(tP.group.id):null;
+  /* 竖通道 x：取两侧框（有容器取容器框，无容器取卡片）最右边界 + CH_GAP，
+     并把**沿途经过的容器**一起算进来 —— 单列竖排下，一条从顶层算子出发、
+     跨过中间容器的线，如果只按两端算 x，竖段会正好落在中间容器内部
+     （v9 自检抓到：结果汇总_0 的入向线竖段 x=184 穿过 循环_2）。 */
+  const yTop=Math.min(sP.y, tP.y), yBot=Math.max(sP.y+sP.h, tP.y+tP.h);
+  let xRight=Math.max(ga?ga.x+ga.w:sP.x+sP.w, gb?gb.x+gb.w:tP.x+tP.w);
+  pos.forEach((v)=>{ if(v.kind!=="group") return;
+    if(v.y+v.h<yTop-0.5||v.y>yBot+0.5) return;
+    xRight=Math.max(xRight, v.x+v.w); });
+  const RCh=xRight+CH_GAP;
+  /* 泳道中线：同容器多分支时用来把横段压在各泳道自己那一层 */
+  const laneOf=(p)=>{ let best=null;
+    pos.forEach((v,k)=>{ if(k.indexOf("lane:")!==0) return;
+      if(p.y>=v.y-0.5&&p.y<=v.y+v.h+0.5) best=v; });
+    return best; };
+
+  /* ① 两端都在顶层：右出 → 右入，全程走 RCh */
+  if(!ga&&!gb)
+    return {A:{x:RCh,y:sP.y+sP.h/2,side:"R"},
+            B:{x:RCh,y:tP.y+tP.h/2,side:"R"}};
+
+  /* ② 同一容器的两个分支：出框到 RCh，各自按泳道中线横回来进卡片右侧 */
+  if(ga&&gb&&ga===gb){
+    const la=laneOf(sP), lb=laneOf(tP);
+    const ay=la?la.y+la.h/2:ga.y+ga.h/2;
+    const by=lb?lb.y+lb.h/2:gb.y+gb.h/2;
+    return {A:{x:RCh,y:ay,side:"R"}, B:{x:RCh,y:by,side:"R"}};
+  }
+
+  /* ③ 源在容器内、目标在顶层：先沿源泳道横出到容器右边界，再走 RCh 下行进目标右侧 */
+  if(ga&&!gb){
+    const la=laneOf(sP);
+    const ay=la?la.y+la.h/2:ga.y+ga.h/2;
+    return {A:{x:RCh,y:ay,side:"R"}, B:{x:RCh,y:tP.y+tP.h/2,side:"R"}};
+  }
+
+  /* ④ 目标在容器内（源在顶层，或源在另一个容器）：
+     沿容器的**组头带中线**（y = 容器顶 + FRAME_HEADER/2，这段不属于任何泳道）
+     横贯进容器，再下到目标所在泳道中线、从其卡片右侧进入。
+     竖段一律在 RCh，不穿任何框；横段只走组头带与目标泳道自己那一层。 */
+  if(gb){
+    const yHead=gb.y+FRAME_HEADER/2;
+    const lb=laneOf(tP);
+    const by=lb?lb.y+lb.h/2:tP.y+tP.h/2;
+    const ay=ga?ga.y+ga.h/2:sP.y+sP.h/2;
+    return {A:{x:RCh,y:ay,side:"R"},
+            B:{x:RCh-0.5,y:by,side:"L"},
+            via:[[RCh,yHead],[gb.x+gb.w-FRAME_PAD,yHead],
+                 [gb.x+gb.w-FRAME_PAD,by],[RCh-0.5,by]]};
+  }
+
+  /* ⑤ 兜底：两端都在容器外（理论上到不了）→ 右出右入 */
+  return {A:{x:RCh,y:sP.y+sP.h/2,side:"R"},
+          B:{x:RCh,y:tP.y+tP.h/2,side:"R"}};
+}
+
+/* ---- 当前选中的入向 / 出向 / 全局变量 ---- */
+let hoveredRow=null;
+function drawFocused(rows){
+  const {inList,outList,varList}=rows;
+
+  /* 1) 入向：同目标多源按 CH_STEP 均分通道 */
+  const byEntry=new Map();
+  inList.forEach(it=>{
+    const key=it.raw.to;
+    const arr=byEntry.get(key)||[]; arr.push(it); byEntry.set(key,arr);
+  });
+  byEntry.forEach((arr)=>{
+    arr.forEach((it,i)=>{
+      const sP=pos.get(it.raw.from), tP=pos.get(it.raw.to);
+      if(!sP||!tP) return;
+      const n=arr.length;
+      const off=(i-(n-1)/2)*CH_STEP;
+      const d0=dataPorts(sP,tP);
+      if(!d0.A||!d0.B) return;
+      const pts=routeBetween(d0.A,d0.B,off,d0.via);
+      if(!pts.length) return;
+      const hot=hoveredRow===("in:"+i);
+      wire(pts,C.link,hot?2.6:1.5,null);
+      arrowHead(pts,C.link);
+      if(ui.bind) wireLabel(pts,`${it.fromPort} → ${it.port}`,C.link,hot);
+      const ap=chBadgePos(it.raw.to,"in");
+      badge(ap.x,ap.y+(n>1?off*0.6:0),String(i+1),"in");
+    });
+  });
+
+  /* 2) 出向：从选中算子的右侧通道出（沿右侧列竖排，颜色同为数据蓝，
+        与入向区分靠方角徽标 ⒶⒷⒸ；v9 修 v8 的徽标重叠） */
+  outList.forEach((it,i)=>{
+    const sP=pos.get(it.raw.from), tP=pos.get(it.raw.to);
+    if(!sP||!tP) return;
+    const d0=dataPorts(sP,tP);
+    if(!d0.A||!d0.B) return;
+    const pts=routeBetween(d0.A,d0.B,0,d0.via);
+    if(!pts.length) return;
+    const hot=hoveredRow===("out:"+i);
+    wire(pts,C.link,hot?2.6:1.5,null);
+    arrowHead(pts,C.link);
+    if(ui.bind) wireLabel(pts,`${it.fromPort} → ${it.port}`,C.link,hot);
+    /* 出向徽标贴在通道竖段的源端外侧，沿竖直方向错开，避免与入向数字混位 */
+    const ap=chBadgePos(it.raw.from,"out");
+    badge(ap.x,ap.y+i*S(18),LETTER(i),"out");
+  });
+
+  /* 3) 全局变量：从选中算子右侧出，接到紫色小节点左侧 */
+  varList.forEach((it,i)=>{
+    const own=byId.get(it.raw.to);
+    const host=(own&&own.group)?own.group.id:it.raw.to;
+    const slot=gvSlots.get(gvKey(host,it.raw.global));
+    if(!slot) return;
+    /* 源在容器内时，先出容器右边缘；否则直接取算子右边 */
+    const srcNode=byId.get(it.raw.to);
+    const grp=(srcNode&&srcNode.group)?pos.get(srcNode.group.id):null;
+    const A=grp?{x:grp.x+grp.w,y:grp.y+grp.h/2,side:"R"}:anchorOf(it.raw.to,"R");
+    if(!A) return;
+    const B={x:slot.x,y:slot.y+slot.h/2,side:"L"};
+    const pts=(Math.abs(B.y-A.y)<2)?[A,B]:[A,{x:(A.x+B.x)/2,y:A.y},{x:(A.x+B.x)/2,y:B.y},B];
+    const hot=hoveredRow===("var:"+i);
+    wire(pts,C.gvar,hot?2.4:1.6,[5,3]);
+    arrowHead(pts,C.gvar);
+    if(ui.bind) wireLabel(pts,it.port,C.gvar,hot);
+    badge(B.x-S(14),B.y-S(6)-i*S(12),"G"+(i+1),"var");
+  });
+}
+const LETTER=(i)=>String.fromCharCode(65+i);
+
+/* ---- 全局变量小节点 ---- */
+function drawGvNodes(){
+  if(!ui.varNodes) return;
+  gvSlots.forEach(s=>{
+    const x=X(s.x),y=Y(s.y),w=S(s.w),h=S(s.h);
+    ctx.save();
+    rr(x,y,w,h,6);
+    ctx.fillStyle=C.gvarSoft; ctx.fill();
+    ctx.lineWidth=1.2; ctx.strokeStyle=C.gvarBd; ctx.stroke();
+    /* 左侧 3px 紫色条（画完必须 beginPath，否则下一次 stroke 会重画一遍） */
+    ctx.beginPath(); ctx.moveTo(x+S(1.5),y+S(1)); ctx.lineTo(x+S(1.5),y+h-S(1));
+    ctx.lineWidth=3; ctx.strokeStyle=C.gvar; ctx.stroke();
+    ctx.beginPath();
+    ctx.fillStyle=C.gvar;
+    ctx.font=`600 ${Math.round(10.5*Math.min(1.2,view.z))}px "Consolas","Microsoft YaHei UI",monospace`;
+    ctx.textAlign="left"; ctx.textBaseline="middle";
+    const nm=s.name.replace(/^Global\./,"");
+    ctx.fillText(nm.length>14?nm.slice(0,13)+"…":nm,x+S(10),y+h*0.34);
+    ctx.fillStyle=C.laneText;
+    ctx.font=`${Math.round(9*Math.min(1.2,view.z))}px "Microsoft YaHei UI",sans-serif`;
+    const ports=s.label.map(b=>b.port).join(" / ");
+    ctx.fillText(("全局变量 · "+ports).slice(0,26),x+S(10),y+h*0.72);
+    ctx.restore();
+  });
+}
+
+/* ===================================================================
+   主渲染
+   =================================================================== */
+const ui={focus:true,order:true,varNodes:true,bind:true};
+let selected=null;
+let lastFrame=0, dirtyFlag=true;
+const markDirty=()=>{dirtyFlag=true;};
+
+function render(){
+  const t0=performance.now();
+  ctx.clearRect(0,0,cv.clientWidth,cv.clientHeight);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,cv.clientWidth,cv.clientHeight);
+  grid();
+
+  const rows=selected?listsOf(selected):{inList:[],outList:[],varList:[]};
+  const selNode=selected?byId.get(selected):null;
+  const focusing=!!(selNode&&selNode.kind!=="group"&&ui.focus);
+  const bad=state.flow.refs.filter(r=>r.illegal).length;
+
+  if(ui.order) drawSpine();
+  drawCards();
+  drawGvNodes();
+  if(ui.focus&&focusing) drawFocused(rows);
+  drawIllegal();     /* 常显，最后画，永远压在最上层 */
+
+  /* HUD */
+  const hud=document.getElementById("hud");
+  if(!selNode){
+    hud.innerHTML=`未选中 · 只画顺序链与非法线\n`
+      +`节点 <b>${pos.size}</b> · 非法 <b>${bad}</b> 根 · 一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×\n`
+      +`点任意算子查看它的入向 / 出向`;
+  }else if(selNode.kind==="group"){
+    hud.innerHTML=`已选中容器 <b>${selNode.title}</b>\n容器不画数据引线（只看内部算子选中态）\n`
+      +`非法 <b>${bad}</b> 根（始终显示） · 一帧 <b>${lastFrame.toFixed(1)}</b> ms`;
+  }else{
+    const nLinks=rows.inList.length+rows.outList.length+rows.varList.length;
+    hud.innerHTML=`已选中 <b>${selNode.title}</b>\n`
+      +`入向 <b>${rows.inList.length}</b> · 出向 <b>${rows.outList.length}</b> · 全局变量 <b>${rows.varList.length}</b>\n`
+      +`引线 <b>${nLinks}</b> 根 · 非法常显 <b>${bad}</b> 根\n`
+      +`一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`;
+  }
+
+  /* 底部状态条 */
+  document.getElementById("stMode").textContent = selNode?("选中："+selNode.title+(selNode.kind==="group"?"（容器）":"")):"未选中";
+  document.getElementById("stIn").textContent  = `入向 ${rows?rows.inList.length:0}`;
+  document.getElementById("stOut").textContent = `出向 ${rows?rows.outList.length:0}`;
+  const gvPill=document.getElementById("stGv"), badPill=document.getElementById("stBad");
+  const nVar=rows?rows.varList.length:0;
+  if(nVar>0){ gvPill.hidden=false; gvPill.innerHTML=`<span class="dot"></span>全局变量 ${nVar}`; }
+  else gvPill.hidden=true;
+  if(bad>0){ badPill.hidden=false; badPill.innerHTML=`<span class="dot"></span>非法 ${bad}（常显）`; }
+  else badPill.hidden=true;
+  document.getElementById("stFrame").textContent=`一帧 ${lastFrame.toFixed(1)} ms`;
+
+  dirtyFlag=false;
+}
+
+/* ===================================================================
+   底部明细条
+   =================================================================== */
+const esc=(s)=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function refreshSide(){
+  const title=document.getElementById("lpTitle"), sub=document.getElementById("lpSub"),
+        box=document.getElementById("lpBody");
+  if(!selected){
+    title.textContent="连线明细";
+    sub.textContent="未选中：只显示执行顺序（灰虚线），不画任何数据引线";
+    box.innerHTML=`<div class="empty"><div class="tip">
+      <div><b>画布只读</b><br>两端连接点与拖线手势已移除；新增 / 修改绑定走双击算子打开的数据绑定弹窗。</div>
+      <div><b>选中一个算子</b><br>同时显示它的<em>入向</em>与<em>出向</em>引线，线上标端口名；其余引线全隐。多选只认最后点到的那个。</div>
+      <div><b>选中容器 / 空白</b><br>容器（泳道框）被选中时不画任何数据引线；点空白取消选中。非法线始终显示。</div>
+    </div></div>`;
+    return;
+  }
+  const n=byId.get(selected);
+  if(n.kind==="group"){
+    title.textContent="选中："+n.title+"（容器）";
+    sub.textContent="容器不画数据引线；请选中容器内的具体算子";
+    box.innerHTML=`<div class="empty">容器只是布局分组。<b>选中内部的算子</b>才看它的绑定。</div>`;
+    return;
+  }
+  const rows=listsOf(selected);
+  const total=rows.inList.length+rows.outList.length+rows.varList.length;
+  title.textContent="选中："+n.title;
+  sub.textContent=`入向 ${rows.inList.length} · 出向 ${rows.outList.length} · 全局变量 ${rows.varList.length} · 合计 ${total} 条`;
+  if(!total){
+    box.innerHTML=`<div class="empty">该算子没有任何数据绑定。绑定入口：双击算子 → 数据绑定。</div>`;
+    return;
+  }
+  const rowOf=(it,idx)=>{
+    const bad=it.illegal;
+    const numCls = it.dir==="in"?"num":it.dir==="out"?"num out":"num var";
+    const numTxt = it.dir==="in"?String(idx+1):it.dir==="out"?LETTER(idx):("G"+(idx+1));
+    const tag = it.dir==="in"?"入":it.dir==="out"?"出":"变量";
+    const line1 = it.dir==="var"
+      ? `<b>${esc(it.raw.global)}</b> → <code>${esc(it.port)}</code>`
+      : it.dir==="in"
+        ? `<b>${esc(byId.get(it.raw.from).title)}.${esc(it.fromPort)}</b> → <code>${esc(it.port)}</code>`
+        : `<b>${esc(n.title)}.${esc(it.fromPort)}</b> → <code>${esc(it.port)}</code>`;
+    const src = it.dir==="var" ? `来源：全局变量 ${esc(it.raw.global)}`
+      : it.dir==="in" ? `来源：${esc(byId.get(it.raw.from).title)} · 端口 ${esc(it.fromPort)}`
+      : `去向：${esc(byId.get(it.raw.to).title)} · 端口 ${esc(it.port)}`;
+    const typ=`类型 <span class="v">${esc(it.type||"—")}</span>`;
+    const extra = bad ? ` · <span class="txt-bad">⚠ ${esc(it.reason)}</span>` : "";
+    return `<div class="row${bad?" illegal":""}" data-k="${it.dir}">
+      <div class="${bad?"num bad":numCls}">${numTxt}</div>
+      <div class="txt">
+        <div class="line1"><span class="dir ${it.dir}">${tag}</span>${line1}</div>
+        <div class="line2"><span class="k">${src}</span> · ${typ}${extra}</div>
+      </div>
+    </div>`;
+  };
+  const parts=[];
+  if(rows.inList.length) parts.push(...rows.inList.map((it,i)=>rowOf(it,i)));
+  if(rows.outList.length) parts.push(...rows.outList.map((it,i)=>rowOf(it,i)));
+  if(rows.varList.length) parts.push(...rows.varList.map((it,i)=>rowOf(it,i)));
+  box.innerHTML=`<div class="grid">${parts.join("")}</div>`;
+}
+
+/* ===================================================================
+   交互
+   =================================================================== */
+function pointerPos(e){
+  const r=cv.getBoundingClientRect();
+  return {x:e.clientX-r.left,y:e.clientY-r.top};
+}
+function hit(p){
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  let best=null,bestArea=Infinity;
+  pos.forEach((b,id)=>{
+    if(b.kind==="lane") return;
+    if(wx>=b.x&&wx<=b.x+b.w&&wy>=b.y&&wy<=b.y+b.h){
+      const area=b.w*b.h;
+      if(!best||area<bestArea){best=id;bestArea=area;}
+    }
+  });
+  return best;
+}
+let drag=null;
+cv.addEventListener("mousedown",e=>{
+  const p=pointerPos(e);
+  if(e.button===1||e.altKey){drag={x:p.x,y:p.y};return;}
+  const id=hit(p);
+  if(id!==selected){selected=id;hoveredRow=null;refreshSide();}
+  markDirty();
+});
+window.addEventListener("mousemove",e=>{
+  if(!drag) return;
+  const p=pointerPos(e);
+  view.x+=p.x-drag.x; view.y+=p.y-drag.y; drag.x=p.x; drag.y=p.y; markDirty();
+});
+window.addEventListener("mouseup",()=>drag=null);
+cv.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const p=pointerPos(e);
+  const wx=(p.x-view.x)/view.z, wy=(p.y-view.y)/view.z;
+  view.z=Math.max(0.15,Math.min(2.2,view.z*Math.exp(-e.deltaY*0.0015)));
+  view.x=p.x-wx*view.z; view.y=p.y-wy*view.z; markDirty();
+},{passive:false});
+
+document.getElementById("lpBody").addEventListener("mouseover",e=>{
+  const row=e.target.closest?e.target.closest(".row"):null; if(!row) return;
+  const k=row.dataset.k;
+  const gi=[...row.parentElement.querySelectorAll('[data-k="'+k+'"]')].indexOf(row);
+  hoveredRow=k+":"+gi;
+  markDirty();
+});
+document.getElementById("lpBody").addEventListener("mouseleave",()=>{hoveredRow=null;markDirty();});
+
+document.getElementById("btnClear").onclick=()=>{selected=null;hoveredRow=null;refreshSide();markDirty();};
+document.getElementById("btnDemo").onclick=()=>{buildDemo();refreshSide();};
+document.getElementById("chkFocus").onchange=e=>{ui.focus=e.target.checked;markDirty();};
+document.getElementById("chkOrder").onchange=e=>{ui.order=e.target.checked;markDirty();};
+document.getElementById("chkVar").onchange=e=>{ui.varNodes=e.target.checked;markDirty();};
+document.getElementById("chkBind").onchange=e=>{ui.bind=e.target.checked;markDirty();};
+
+window.addEventListener("resize",()=>{resize();markDirty();});
+
+/* ===================================================================
+   启动
+   =================================================================== */
+function loop(){
+  if(dirtyFlag){
+    const t0=performance.now();
+    render();
+    lastFrame=performance.now()-t0;
+    document.getElementById("stFrame").textContent=`一帧 ${lastFrame.toFixed(1)} ms`;
+  }
+  requestAnimationFrame(loop);
+}
+resize();
+buildDemo();
+refreshSide();
+loop();
+
+const q=new URLSearchParams(location.search);
+const want=q.get("sel");
+if(want){
+  setTimeout(()=>{
+    const found=[...byId.values()].find(x=>x.title===want);
+    if(found){selected=found.id;refreshSide();markDirty();}
+  },200);
+}
+})();
+</script>
+</body>
+</html>

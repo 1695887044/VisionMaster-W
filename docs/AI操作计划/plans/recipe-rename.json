@@ -1,0 +1,90 @@
+{
+  "schema": "vm-plan/1",
+  "id": "recipe-rename",
+  "title": "重命名一份配方",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "改名走右侧内联输入框 + 「重命名」按钮，不弹窗；成功判据是状态行出现「已重命名」。",
+  "params": {
+    "old_name": {
+      "type": "string",
+      "required": true,
+      "example": "产品A"
+    },
+    "new_name": {
+      "type": "string",
+      "required": true,
+      "example": "产品A_v2"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.system",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.system",
+      "expect": {
+        "element": "app.menu.system.recipe",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.system.recipe",
+      "expect": {
+        "window": "dialog.recipe",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.recipe.row",
+      "target_name": "${old_name}"
+    },
+    {
+      "n": 5,
+      "do": "type",
+      "target": "dialog.recipe.rename_input",
+      "text": "${new_name}",
+      "clear": true
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.recipe.rename"
+    },
+    {
+      "n": 7,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "dialog.recipe.row",
+      "name_contains": "${new_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["recipe", "rename"]
+}

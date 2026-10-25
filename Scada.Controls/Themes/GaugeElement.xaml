@@ -47,6 +47,15 @@
                             Stroke="{TemplateBinding ScaleColor}"
                             StrokeThickness="1.5" />
 
+                        <!-- Ring / Plus：环形进度弧（隐藏指针）；Classic 时由代码收起 -->
+                        <Path
+                            x:Name="Progress"
+                            Data="{TemplateBinding ProgressGeometry}"
+                            Stroke="{TemplateBinding ProgressColor}"
+                            StrokeThickness="10"
+                            StrokeStartLineCap="Round"
+                            StrokeEndLineCap="Round" />
+
                         <!--
                             指针：一根线 + 中心一个轴环，同属一份几何。
                             Fill 与 Stroke 同时设成 Fill——线只有描边（无面积），轴环则描边加填充，

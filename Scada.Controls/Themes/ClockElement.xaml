@@ -46,8 +46,28 @@
                             Foreground="{TemplateBinding Foreground}"
                             FontFamily="{TemplateBinding FontFamily}"
                             FontSize="{TemplateBinding FontSize}"
-                            TextAlignment="Center"
-                            TextTrimming="CharacterEllipsis" />
+                            TextAlignment="{TemplateBinding TextAlignment}"
+                            TextTrimming="CharacterEllipsis">
+                            <!--
+                                空标签必须整行收起：TextBlock 即使 Text=""，量出来的仍是**一行行高**
+                                （FontSize=22 时约 28px），Auto 行不会自然塌掉。不收的话，
+                                时间行（* 行）只剩 44-28=16px，22px 的字垂直居中后会溢出到行外，
+                                看上去就是"时间贴在框顶、不在中间"。
+                            -->
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="{x:Null}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>

@@ -73,6 +73,7 @@
     imageToken: '',
     axis: null,
     grid: null,
+    recipe: null,
     user: '',
     refreshing: false,
     loginBusy: false,
@@ -686,6 +687,31 @@
     var width = toNumber(pick(raw, 'Width', 'width'), 0);
     var height = toNumber(pick(raw, 'Height', 'height'), 0);
 
+    // 方案级文本列表（P1-1）：ComboBox 按 StateListId 解析。
+    // 页面快照自带一份；基座/弹窗不单独使用，顶层页有就够。
+    var stateListsRaw = pick(raw, 'StateLists', 'stateLists') || [];
+    var stateLists = [];
+    for (var s = 0; s < stateListsRaw.length; s++) {
+      var rawList = stateListsRaw[s];
+      if (!rawList) continue;
+      var entriesRaw = pick(rawList, 'Entries', 'entries') || [];
+      var entries = [];
+      for (var e = 0; e < entriesRaw.length; e++) {
+        var rawEntry = entriesRaw[e];
+        if (!rawEntry) continue;
+        entries.push({
+          Value: toNumber(pick(rawEntry, 'Value', 'value'), 0),
+          Text: toText(pick(rawEntry, 'Text', 'text'), ''),
+        });
+      }
+      stateLists.push({
+        StateListId: toText(pick(rawList, 'StateListId', 'stateListId'), ''),
+        Name: toText(pick(rawList, 'Name', 'name'), ''),
+        DefaultText: toText(pick(rawList, 'DefaultText', 'defaultText'), '—'),
+        Entries: entries,
+      });
+    }
+
     // 基座只递归一层（模型本身就禁止基座再套基座）。
     // 多基座按数组序叠加：后一只画在前一只之上；单基座旧消息回退到 BasePage。
     var bases = [];
@@ -712,6 +738,7 @@
       BasePage: bases.length > 0 ? bases[0] : null,
       BasePages: bases,
       Elements: elements,
+      StateLists: stateLists,
     };
 
     page.pageId = page.PageId;
@@ -723,6 +750,7 @@
     page.basePage = page.BasePage;
     page.basePages = page.BasePages;
     page.elements = page.Elements;
+    page.stateLists = page.StateLists;
 
     return page;
   }
@@ -1523,6 +1551,7 @@
       reset: typeof result.reset === 'function' ? result.reset : null,
       updateAxis: typeof result.updateAxis === 'function' ? result.updateAxis : null,
       updateGrid: typeof result.updateGrid === 'function' ? result.updateGrid : null,
+      updateRecipe: typeof result.updateRecipe === 'function' ? result.updateRecipe : null,
       dispose: typeof result.dispose === 'function' ? result.dispose : null,
       childrenHost: result.childrenHost || null,
       childrenOrigin: result.childrenOrigin || null,
@@ -1679,8 +1708,8 @@
     fit();
     updateTopbar();
 
-    // 轴/表格消息可能先于结构重建到达；重建后把最近一份补发给新渲染器。
-    if (state.axis || state.grid) {
+    // 轴/表格/配方消息可能先于结构重建到达；重建后把最近一份补发给新渲染器。
+    if (state.axis || state.grid || state.recipe) {
       for (var ar = 0; ar < state.records.length; ar++) {
         var axisRec = state.records[ar];
         if (!axisRec) continue;
@@ -1693,6 +1722,11 @@
         if (state.grid && typeof axisRec.updateGrid === 'function') {
           try { axisRec.updateGrid(state.grid); }
           catch (err) { warnOnce('grid:' + (axisRec.el && axisRec.el.TypeKey), '[SCADA Web] 表格渲染失败：', err); }
+        }
+
+        if (state.recipe && typeof axisRec.updateRecipe === 'function') {
+          try { axisRec.updateRecipe(state.recipe); }
+          catch (err) { warnOnce('recipe:' + (axisRec.el && axisRec.el.TypeKey), '[SCADA Web] 配方渲染失败：', err); }
         }
       }
     }
@@ -2914,6 +2948,20 @@
           catch (err) {
             warnOnce('grid:' + (gridRecord.el && gridRecord.el.TypeKey),
               '[SCADA Web] 表格渲染失败：', err);
+          }
+        }
+        return;
+
+      case 'recipe':
+        if (state.page && message.pageId && String(message.pageId) !== String(state.page.PageId)) return;
+        state.recipe = message;
+        for (var recipeIndex = 0; recipeIndex < state.records.length; recipeIndex++) {
+          var recipeRecord = state.records[recipeIndex];
+          if (!recipeRecord || typeof recipeRecord.updateRecipe !== 'function') continue;
+          try { recipeRecord.updateRecipe(message); }
+          catch (err) {
+            warnOnce('recipe:' + (recipeRecord.el && recipeRecord.el.TypeKey),
+              '[SCADA Web] 配方渲染失败：', err);
           }
         }
         return;

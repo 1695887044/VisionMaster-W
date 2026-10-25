@@ -297,6 +297,39 @@ namespace VisionMaster.Services
             }
         }
 
+        /// <summary>
+        /// 读方案图片的<b>原始字节</b>（GIF 动图要自己逐帧解码，位图通道只剩首帧）。
+        /// 与 <see cref="TryLoad"/> 共用同一条路径校验与缓存无关（字节不缓存：动图由控件自己持有解码结果）。
+        /// </summary>
+        public static bool TryReadBytes(
+            string? solutionFilePath,
+            string? relativePath,
+            out byte[]? bytes,
+            out string error)
+        {
+            bytes = null;
+
+            if (!TryResolve(solutionFilePath, relativePath, out var absolutePath, out error))
+                return false;
+
+            if (!File.Exists(absolutePath))
+            {
+                error = "图片文件不存在：" + relativePath;
+                return false;
+            }
+
+            try
+            {
+                bytes = File.ReadAllBytes(absolutePath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "图片读取失败：" + ex.Message;
+                return false;
+            }
+        }
+
         /// <summary>清缓存（方案关闭/删除图片后调用；断言里也用它隔离用例）</summary>
         public static void ClearCache()
         {

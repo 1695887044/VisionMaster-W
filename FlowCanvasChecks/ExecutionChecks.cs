@@ -112,6 +112,41 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  [E2b] A5：Return 是指令性正常出口，只能走 Info —— 不许用 Warn
+        //       旧实现是 Logger.Warn("执行 Return，主流程即将终止！")：
+        //       一条拿 Return 做正常收尾的流程，每跑一轮就吐一条 [WARN]，
+        //       把告警级别淹掉（运维习惯性忽略 WARN 比没有日志更糟）。
+        //       判据是"三件事同时成立"：Info 里有、Warns 里没有、节点终态仍是 Success——
+        //       第三条防止有人为了消 WARN 把 Return 从正常出口改判成失败。
+        // ==================================================================
+        internal static void ReturnIsAnInfoNotAWarn()
+        {
+            Section("[E2b] A5 Return 走 Info 不走 Warn");
+
+            CountingPlugin.Reset();
+            var marker = new ActionStep("A", "计数", TypeOf(new CountingPlugin()), "Return 前计数");
+            var ret = new ActionStep("R", "Return", "BuiltIn_Return", "返回");
+
+            var run = ExecHarness.Prepare(new StepModel[] { marker, ret });
+            Check("含 Return 的图纸编译通过", run.Compiled, run.Errors);
+            if (!run.Compiled) return;
+
+            var log = new StubLog();
+            run.Engine!.Run(run.NewContext(log));
+
+            Check("Return 留下一条 Info（现场仍看得见按指令收尾）",
+                log.Infos.Any(m => m.Contains("Return") && m.Contains("正常终止")),
+                log.Infos.Count == 0 ? "(无 Info)" : string.Join(" | ", log.Infos));
+            Check("Return 不再产生 Warn（旧实现此处必红）",
+                !log.Warns.Any(w => w.Contains("Return")),
+                log.Warns.Count == 0 ? "(无 Warn)" : string.Join(" | ", log.Warns));
+            Check("Return 节点终态仍是 Success（不是被降成失败）",
+                ret.State == StepState.Success, $"State={ret.State}");
+            Check("Return 之后的节点一个都不跑", CountingPlugin.Runs == 1,
+                $"runs={CountingPlugin.Runs}（Return 前那一步是 1）");
+        }
+
+        // ==================================================================
         //  [E3] A2 + B1：容器节点自己上报运行状态，且靠编译期反向指针零查找
         // ==================================================================
         internal static void ContainerStatesReportedAndBlueprintLinked()

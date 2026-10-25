@@ -196,6 +196,45 @@
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
 
+    <!--  点动模式胶囊：连续 / 单步 两颗。
+          选中态只靠 IsChecked 的真实值，由代码算好（IsContinuousJog / IsStepJog），模板里不写 DataTrigger——
+          本环境的 DataTrigger 不触发，写了等于没写。  -->
+    <Style x:Key="AxisJogModeToggle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border
+                        x:Name="Chip"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="4">
+                        <ContentPresenter
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            TextElement.Foreground="{TemplateBinding Foreground}" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <!--  IsChecked 的触发器是本环境能用的（普通 Trigger 而非 DataTrigger） -->
+            <Trigger Property="IsChecked" Value="True">
+                <Setter Property="Background" Value="{StaticResource HmiSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource HmiAccentBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.4" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style TargetType="{x:Type local:AxisPanelElement}">        <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
         <Setter Property="FontFamily" Value="Microsoft YaHei" />
@@ -213,6 +252,7 @@
                         CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
                         <Grid x:Name="RootGrid" Margin="{TemplateBinding Padding}">
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
@@ -458,11 +498,106 @@
                                     ToolTip="{TemplateBinding StatusText}" />
                             </StackPanel>
 
-                            <!--  操作按钮（ShowCommands=false 时整块收起）。
-                                  整块 IsEnabled 绑 CanOperate：没有命令出口/没选轴/权限不够时一起灰掉，
-                                  比"按下去没反应"诚实。  -->
+                            <!--  点动模式行（连续 / 单步 + 步长输入）。
+                                  ShowCommands=false 时一并收起：纯监视面板不该出现任何会动机构的入口。
+                                  连续档下步长框只读、显示"—"：它这时候不生效，可编辑反而误导。  -->
                             <StackPanel
                                 Grid.Row="4"
+                                Margin="12,0,12,6"
+                                Visibility="{TemplateBinding CommandsVisibility}">
+                                <!--  运动中：只给一行提示，机构的指令还在跑，这时候再发点动会抢轴  -->
+                                <Border
+                                    Margin="0,0,0,4"
+                                    Padding="6,2"
+                                    Background="{StaticResource HmiWarningBannerBrush}"
+                                    CornerRadius="4"
+                                    Visibility="{TemplateBinding MovingBannerVisibility}">
+                                    <TextBlock
+                                        FontSize="10"
+                                        Foreground="{StaticResource HmiWarningBrush}"
+                                        Text="运动中 · 点动已锁（到位或停止后自动放开）"
+                                        TextTrimming="CharacterEllipsis"
+                                        ToolTip="停止 / 清报警 / 失能 / 回零不受影响" />
+                                </Border>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{TemplateBinding MutedColor}"
+                                        Text="点动" />
+
+                                    <!--  模式胶囊：两颗 ToggleButton 自绘，点击交给代码（不用 Trigger）  -->
+                                    <Border
+                                        Grid.Column="1"
+                                        Margin="6,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource HmiTrackBrush}"
+                                        CornerRadius="4">
+                                        <StackPanel Orientation="Horizontal">
+                                            <ToggleButton
+                                                x:Name="BtnJogContinuous"
+                                                Padding="7,2"
+                                                FontSize="10"
+                                                Foreground="{TemplateBinding Foreground}"
+                                                IsChecked="{Binding IsContinuousJog, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                Style="{StaticResource AxisJogModeToggle}"
+                                                ToolTip="按住点动键连续走，松手停"
+                                                Content="连续" />
+                                            <ToggleButton
+                                                x:Name="BtnJogStep"
+                                                Padding="7,2"
+                                                FontSize="10"
+                                                Foreground="{TemplateBinding Foreground}"
+                                                IsChecked="{Binding IsStepJog, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                Style="{StaticResource AxisJogModeToggle}"
+                                                ToolTip="按一下走一个步长（当前位置 ± 步长），不连走"
+                                                Content="单步" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!--  步长：手填只产文本，代码里再按 0~50 / 0.1 一档解析（宽进严出）  -->
+                                    <StackPanel
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Right"
+                                        Orientation="Horizontal">
+                                        <TextBox
+                                            x:Name="JogStepBox"
+                                            Width="46"
+                                            Padding="4,1"
+                                            VerticalContentAlignment="Center"
+                                            FontFamily="Cascadia Mono, Consolas"
+                                            FontSize="10"
+                                            Foreground="{TemplateBinding Foreground}"
+                                            IsEnabled="{TemplateBinding IsStepFieldEditable}"
+                                            Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                            BorderBrush="{StaticResource HmiBorderBrush}"
+                                            BorderThickness="1"
+                                            Text="{Binding JogStepText, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                            TextAlignment="Right"
+                                            ToolTip="单步点动的步长：0 ~ 50 mm，精度 0.1 mm" />
+                                        <TextBlock
+                                            Margin="4,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontSize="10"
+                                            Foreground="{TemplateBinding MutedColor}"
+                                            Text="mm" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <!--  操作按钮（ShowCommands=false 时整块收起）。
+                                  容器绑 CanOperate：没有命令出口/没选轴/权限不够时一起灰掉，比"按下去没反应"诚实。
+                                  两颗点动键另外单独绑 CanJog（= CanOperate && !IsMoving）：
+                                  运动中必须拦住点动，但停止/清报警/失能/回零不能跟着灰——那是安全动作。  -->
+                            <StackPanel
+                                Grid.Row="5"
                                 Margin="12,0,12,10"
                                 Visibility="{TemplateBinding CommandsVisibility}">
                                 <Grid IsEnabled="{TemplateBinding CanOperate}">
@@ -490,6 +625,7 @@
                                         Grid.Column="1"
                                         Margin="0,0,5,4"
                                         Content="◀ 点动"
+                                        IsEnabled="{TemplateBinding CanJog}"
                                         Style="{StaticResource AxisCommandButton}" />
 
                                     <Button
@@ -498,6 +634,7 @@
                                         Grid.Column="2"
                                         Margin="0,0,0,4"
                                         Content="点动 ▶"
+                                        IsEnabled="{TemplateBinding CanJog}"
                                         Style="{StaticResource AxisCommandButton}" />
 
                                     <Button
@@ -539,7 +676,7 @@
                                   ShowPoints=false 时整块收起（轴面板的紧凑预设）。  -->
                             <StackPanel
                                 x:Name="PointsPanel"
-                                Grid.Row="5"
+                                Grid.Row="6"
                                 Margin="12,0,12,10"
                                 Visibility="{TemplateBinding PointsVisibility}">
                                 <Grid

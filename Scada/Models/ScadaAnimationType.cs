@@ -40,6 +40,12 @@ namespace VisionMaster.Scada
         /// 与可见性分开：禁用仍占布局、仍可见，只是点不动并给出原因。
         /// </summary>
         Enable = 5,
+
+        /// <summary>对角线移动：变量在范围内同时线性改变 X 与 Y（EndX/EndY 是终点）</summary>
+        DiagonalMove = 6,
+
+        /// <summary>比例移动：变量在范围内同时改变宽高（EndX/EndY 是目标宽高，保持中心不动）</summary>
+        ProportionalMove = 7,
     }
 
     /// <summary>
@@ -60,6 +66,8 @@ namespace VisionMaster.Scada
             ScadaAnimationType.VerticalMove => "垂直移动",
             ScadaAnimationType.Visibility => "可见性",
             ScadaAnimationType.Enable => "启用对象",
+            ScadaAnimationType.DiagonalMove => "对角线移动",
+            ScadaAnimationType.ProportionalMove => "比例移动",
             // 高版本软件存下的动画类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动画上，不该让整张画面打不开。
             _ => $"未知动画({(int)type})",

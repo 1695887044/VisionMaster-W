@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
 using System.Windows.Controls;
@@ -34,6 +35,14 @@ namespace VisionMaster.Views.Controls
         /// <summary>当前选中的模板名（插入撤销记录/诊断文案用）</summary>
         public string? SelectedTemplateName => _viewModel.SelectedTemplate?.Name;
 
+        /// <summary>当前选中的模板 Id（关联实例元数据用）</summary>
+        public Guid SelectedTemplateId => _viewModel.SelectedTemplate?.TemplateId ?? Guid.Empty;
+
+        /// <summary>当前模板 Revision（关联实例元数据用）</summary>
+        public int SelectedTemplateRevision => SelectedTemplateId == Guid.Empty
+            ? 0
+            : ScadaTemplateStore.Shared.GetRevision(SelectedTemplateId);
+
         /// <summary>按当前表单内容生成展开计划；失败时把原因写进 StatusText 并返回 false。</summary>
         public bool TryBuildPlan(
             out ScadaTemplateExpansionPlan? plan,
@@ -59,6 +68,7 @@ namespace VisionMaster.Views.Controls
         private string _gapYText = "20";
         private string _originXText = "0";
         private string _originYText = "0";
+        private bool _strictReplacement;
         private string _statusText = "确认后会在当前画面按上面的参数生成实例；任何一个变量解析失败都不会插入。";
 
         public ScadaBatchInsertTemplateViewModel(
@@ -71,6 +81,8 @@ namespace VisionMaster.Views.Controls
 
             if (_selectedTemplate != null)
                 _startIndexText = _selectedTemplate.ParameterIndex.ToString(CultureInfo.InvariantCulture);
+
+            LoadArrayRoots(_selectedTemplate);
         }
 
         public IReadOnlyList<ScadaTemplateInfo> Templates { get; }
@@ -86,6 +98,7 @@ namespace VisionMaster.Views.Controls
                 // 模板保存时选的下标作为默认起始序号：从 Control[3] 参数化的模板，
                 // 默认就应该从 3 开始，而不是静默生成 Control[0]。
                 StartIndexText = value?.ParameterIndex.ToString(CultureInfo.InvariantCulture) ?? "0";
+                LoadArrayRoots(value);
                 RaisePropertyChanged(nameof(TemplateSummary));
             }
         }
@@ -93,6 +106,44 @@ namespace VisionMaster.Views.Controls
         public string TemplateSummary => SelectedTemplate == null
             ? "请选择模板"
             : $"{SelectedTemplate.Name} · {SelectedTemplate.ItemCount} 个图元";
+
+        /// <summary>模板里可做严格选择的数组根（Ctl / Sta / ddd）。</summary>
+        public ObservableCollection<ScadaArrayRootOption> ArrayRoots { get; } = new();
+
+        public bool HasArrayRoots => ArrayRoots.Count > 0;
+
+        /// <summary>严格替换开关：关 = 所有数组根都跟实例序号走。</summary>
+        public bool StrictReplacement
+        {
+            get => _strictReplacement;
+            set
+            {
+                if (!SetProperty(ref _strictReplacement, value))
+                    return;
+
+                RaisePropertyChanged(nameof(StrictRootsVisible));
+            }
+        }
+
+        /// <summary>只有“开了严格 + 模板确实有数组根”时才显示勾选清单。</summary>
+        public bool StrictRootsVisible => StrictReplacement && HasArrayRoots;
+
+        private void LoadArrayRoots(ScadaTemplateInfo? template)
+        {
+            ArrayRoots.Clear();
+
+            if (template != null)
+            {
+                foreach (string root in ScadaTemplateStore.Shared.GetArrayRoots(template.TemplateId))
+                    ArrayRoots.Add(new ScadaArrayRootOption(root));
+            }
+
+            if (ArrayRoots.Count == 0)
+                StrictReplacement = false;
+
+            RaisePropertyChanged(nameof(HasArrayRoots));
+            RaisePropertyChanged(nameof(StrictRootsVisible));
+        }
 
         public string CountText
         {
@@ -234,6 +285,30 @@ namespace VisionMaster.Views.Controls
             if (!TryDouble(OriginYText, "起点 Y", out double originY, out error))
                 return false;
 
+            HashSet<string>? arrayRoots = null;
+            HashSet<string>? selectedRoots = null;
+            int originalIndex = 0;
+
+            if (StrictReplacement)
+            {
+                if (ArrayRoots.Count == 0)
+                {
+                    error = "该模板没有数组根清单，不能使用严格替换；请重新存一次模板";
+                    return false;
+                }
+
+                arrayRoots = ArrayRoots
+                    .Select(r => r.Name)
+                    .ToHashSet(StringComparer.Ordinal);
+
+                selectedRoots = ArrayRoots
+                    .Where(r => r.IsSelected)
+                    .Select(r => r.Name)
+                    .ToHashSet(StringComparer.Ordinal);
+
+                originalIndex = SelectedTemplate?.ParameterIndex ?? 0;
+            }
+
             options = new ScadaTemplateExpansionOptions
             {
                 Count = count,
@@ -243,6 +318,10 @@ namespace VisionMaster.Views.Controls
                 GapY = gapY,
                 OriginX = originX,
                 OriginY = originY,
+                StrictArrayReplacement = StrictReplacement,
+                ArrayRoots = arrayRoots,
+                SelectedArrayRoots = selectedRoots,
+                OriginalIndex = originalIndex,
             };
 
             return true;

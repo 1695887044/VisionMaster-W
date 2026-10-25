@@ -399,6 +399,37 @@ namespace VisionMaster.ViewModels
                 : null;
 
         /// <summary>
+        /// 方案图片原始字节解析器（相对路径 → 文件内容），交给画布注入给 Hmi.Gif。
+        /// 动图必须自己逐帧解码，位图那条通道只剩首帧；失败返回 null（图元显示占位）。
+        /// </summary>
+        public Func<string, byte[]?> ResolveImageBytes
+            => relativePath => SolutionAssetService.TryReadBytes(
+                    _workspace.CurrentSolution?.SolutionFilePath,
+                    relativePath,
+                    out var bytes,
+                    out _)
+                ? bytes
+                : null;
+
+        /// <summary>
+        /// 方案级文本列表解析器（Id → 列表），交给画布注入给 Hmi.ComboBox。
+        /// 列表被删/Id 坏时返回 null，控件显示“未找到文本列表”，不抛。
+        /// </summary>
+        public Func<Guid, ScadaStateList?> ResolveStateList
+            => id => Document.StateLists.FirstOrDefault(list => list.StateListId == id);
+
+        /// <summary>
+        /// 画面解析器（Id → 画面），交给画布注入给 Hmi.SubPage。
+        /// 目标被删/Id 坏时返回 null，控件显示“未找到画面”，不抛。
+        /// </summary>
+        public Func<Guid, ScadaPage?> ResolvePage
+            => id => Document.FindPage(id);
+
+        /// <summary>画面名解析器（名字 → 画面），SubPage FollowVariable 用。</summary>
+        public Func<string, ScadaPage?> ResolvePageByName
+            => name => Document.FindPageByName(name);
+
+        /// <summary>
         /// 当前页背景图（解析成位图给画布；null = 只用背景色）。
         /// 解析失败（方案未保存 / 文件缺失 / 解码失败）时返回 null，画布回退背景色——
         /// 编辑器不因此弹窗，属性面板那一行会显示“缺失”。
@@ -1375,7 +1406,8 @@ namespace VisionMaster.ViewModels
             bool groupAll = false,
             Guid templateId = default,
             int templateIndex = -1,
-            int templateRevision = 0)
+            int templateRevision = 0,
+            IReadOnlyList<string>? templateStrictRoots = null)
         {
             if (_selectedPage is not { } page)
                 return Array.Empty<ScadaElement>();
@@ -1385,7 +1417,7 @@ namespace VisionMaster.ViewModels
 
             var created = ScadaClipboard.Materialize(
                 page, payload, offsetX, offsetY, label, groupAll,
-                templateId, templateIndex, templateRevision);
+                templateId, templateIndex, templateRevision, templateStrictRoots);
 
             if (created.Count > 0)
                 ApplySelection(created);
@@ -1427,21 +1459,20 @@ namespace VisionMaster.ViewModels
                     templateRevision: templateRevision).Count > 0;
             }
 
-            // 参数化模板拖入时问一次实例序号：用户想"把 0 换成 1"最自然的入口就是这里，
-            // 不必为了一个实例去开批量插入对话框。
+            // 参数化模板拖入时问一次实例序号 + 严格替换范围：
+            // 用户想"把 0 换成 1"最自然的入口就是这里，不必为了一个实例去开批量插入对话框。
             int defaultIndex = ScadaTemplateStore.Shared.GetParameterIndex(templateId);
-            var (indexConfirmed, indexText) = EasyDialog.ShowTextInputSync(
-                "插入模板序号（{i} 的值）",
-                defaultIndex.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            var arrayRoots = ScadaTemplateStore.Shared.GetArrayRoots(templateId);
+            var insertEditor = new ScadaTemplateInsertOptionsEditor(defaultIndex, arrayRoots);
 
-            if (!indexConfirmed)
+            if (!EasyDialog.ShowSync("插入模板", insertEditor))
                 return false;
 
-            if (!int.TryParse(indexText.Trim(), System.Globalization.NumberStyles.Integer,
-                    System.Globalization.CultureInfo.InvariantCulture, out int instanceIndex)
-                || instanceIndex < 0)
+            if (!insertEditor.TryApply(
+                    out int instanceIndex, out bool strictReplacement,
+                    out var selectedArrayRoots, out string? optionError))
             {
-                EasyDialog.ShowSync("插入模板失败", "实例序号必须是非负整数");
+                EasyDialog.ShowSync("插入模板失败", optionError ?? "插入参数无效");
                 return false;
             }
 
@@ -1453,6 +1484,12 @@ namespace VisionMaster.ViewModels
                 Columns = 1,
                 OriginX = originX,
                 OriginY = originY,
+                StrictArrayReplacement = strictReplacement,
+                ArrayRoots = strictReplacement
+                    ? arrayRoots.ToHashSet(StringComparer.Ordinal)
+                    : null,
+                SelectedArrayRoots = selectedArrayRoots,
+                OriginalIndex = defaultIndex,
             };
 
             if (!ScadaTemplateExpansion.TryPlan(payload, options, resolver,
@@ -1468,9 +1505,18 @@ namespace VisionMaster.ViewModels
                     + Environment.NewLine + Environment.NewLine + "仍要插入吗？"))
                 return false;
 
+            IReadOnlyList<string>? strictRoots = null;
+
+            if (options.StrictArrayReplacement)
+            {
+                strictRoots = options.SelectedArrayRoots != null
+                    ? options.SelectedArrayRoots.ToList()
+                    : options.ArrayRoots?.ToList();
+            }
+
             if (!ScadaTemplateBatchInserter.TryInsert(
                     page, plan, options, name, out var created, out string? error,
-                    templateId, templateRevision))
+                    templateId, templateRevision, strictRoots))
             {
                 EasyDialog.ShowSync("插入模板失败", error ?? "插入模板失败");
                 return false;
@@ -1517,10 +1563,11 @@ namespace VisionMaster.ViewModels
 
             // 真实绑定存的是具体下标/具体变量名，不会自己变成 {i}。
             // 这里让用户选：数组下标参数化、名称/界面文字查找替换，或都留空按原样存。
-            if (!TryParameterizePayload(payload, out int parameterIndex))
+            if (!TryParameterizePayload(payload, out int parameterIndex, out var arrayRoots))
                 return false;
 
-            if (!ScadaTemplateStore.Shared.TrySave(value, payload, parameterIndex, out _, out string? error))
+            if (!ScadaTemplateStore.Shared.TrySave(
+                    value, payload, parameterIndex, arrayRoots, out _, out string? error))
             {
                 EasyDialog.ShowSync("存为模板失败", error ?? "模板保存失败");
                 return false;
@@ -1533,9 +1580,13 @@ namespace VisionMaster.ViewModels
         /// 存/更新模板前的参数化确认：数组下标 + 多行名称/文字替换。
         /// 返回 false 表示用户取消或参数化失败；成功时 <paramref name="parameterIndex"/> 是落库的默认起始序号。
         /// </summary>
-        private bool TryParameterizePayload(ScadaClipboardPayload payload, out int parameterIndex)
+        private bool TryParameterizePayload(
+            ScadaClipboardPayload payload,
+            out int parameterIndex,
+            out IReadOnlyList<string> arrayRoots)
         {
             parameterIndex = 0;
+            arrayRoots = Array.Empty<string>();
 
             int? detected = DetectTemplateIndex(payload);
             var parameterizeEditor = new ScadaTemplateParameterizeEditor(detected);
@@ -1545,7 +1596,7 @@ namespace VisionMaster.ViewModels
 
             if (!parameterizeEditor.TryApply(
                     payload, out int changed, out var changes,
-                    out parameterIndex, out string? parameterError))
+                    out parameterIndex, out arrayRoots, out string? parameterError))
             {
                 EasyDialog.ShowSync("参数化失败", parameterError ?? "参数化失败");
                 return false;
@@ -1598,7 +1649,7 @@ namespace VisionMaster.ViewModels
 
             // 与"存为模板"共用同一套参数化编辑器：直接 capture 当前选中会把实例上的
             // 具体名字（Cylinder1_Manual）写回模板定义，下一次展开就全绑同一个变量。
-            if (!TryParameterizePayload(payload, out int parameterIndex))
+            if (!TryParameterizePayload(payload, out int parameterIndex, out var arrayRoots))
             {
                 error = "已取消";
                 return false;
@@ -1619,7 +1670,7 @@ namespace VisionMaster.ViewModels
             }
 
             return ScadaTemplateStore.Shared.TryUpdate(
-                templateId, payload, parameterIndex, out _, out error);
+                templateId, payload, parameterIndex, arrayRoots, out _, out error);
         }
 
         /// <summary>
@@ -1646,7 +1697,9 @@ namespace VisionMaster.ViewModels
             var result = ScadaTemplateInstanceRefresher.Refresh(
                 Document, templateId, payload,
                 revision ?? ScadaTemplateStore.Shared.GetRevision(templateId),
-                resolver);
+                resolver,
+                arrayRootsManifest: ScadaTemplateStore.Shared.GetArrayRoots(templateId),
+                originalIndex: ScadaTemplateStore.Shared.GetParameterIndex(templateId));
 
             if (result.Instances.Count > 0 && selectedIds.Count > 0)
             {
@@ -1800,9 +1853,19 @@ namespace VisionMaster.ViewModels
                         + Environment.NewLine + Environment.NewLine + "仍要插入吗？"))
                     return;
 
+                IReadOnlyList<string>? strictRoots = null;
+
+                if (options.StrictArrayReplacement)
+                {
+                    strictRoots = options.SelectedArrayRoots != null
+                        ? options.SelectedArrayRoots.ToList()
+                        : options.ArrayRoots?.ToList();
+                }
+
                 if (!ScadaTemplateBatchInserter.TryInsert(
                         page, plan, options, editor.SelectedTemplateName,
-                        out var created, out string? insertError))
+                        out var created, out string? insertError,
+                        editor.SelectedTemplateId, editor.SelectedTemplateRevision, strictRoots))
                 {
                     EasyDialog.ShowSync("批量插入失败", insertError ?? "批量插入失败");
                     return;

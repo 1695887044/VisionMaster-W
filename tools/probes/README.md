@@ -35,7 +35,7 @@ $project = Join-Path (Join-Path 'tools\probes' $p.dir) $p.project
 
 ---
 
-## 2. 已登记探针（10 个）
+## 2. 已登记探针（15 个，唯一事实源 `probes.json`）
 
 | 登记名 | 目录 | 工程文件 | 运行方式 | 用途 |
 | --- | --- | --- | --- | --- |
@@ -47,9 +47,13 @@ $project = Join-Path (Join-Path 'tools\probes' $p.dir) $p.project
 | `BeadViewProbe` | `tools/probes/_BeadViewProbe` | `_BeadViewProbe.csproj` | `dotnet run` | 胶路检测配置视图 |
 | `ScadaEditorProbe` | `tools/probes/_ScadaEditorProbe` | `_ScadaEditorProbe.csproj` | `dotnet run` | 组态编辑器框选 / 拖拽 / 版式 |
 | `ScadaUiProbe` | `tools/probes/_ScadaUiProbe` | `_ScadaUiProbe.csproj` | `dotnet run` | 组态 UI 出图（`--all` / `--toolbox` / `--editor` / `--glyphs` / `--solution` / `--flow-manager` / `--flow-list`），出图落 `docs/UI设计基线/app-shell/evidence/` |
+| `RecipeUiProbe` | `tools/probes/_RecipeUiProbe` | `_RecipeUiProbe.csproj` | `dotnet run` | 配方管理弹窗出图（六态离屏渲染），出图落 `docs/UI设计基线/recipe-manager/evidence/` |
 | `ChartProbe5` | `tools/probes/_ChartProbe5` | `_ChartProbe5.csproj` | 构建后启 exe（net48） | 趋势曲线（ScottPlot）渲染 |
 | `WebProbe5` | `tools/probes/_WebProbe5` | `WebProbe5.csproj` | `dotnet run` | SCADA 运行态 Web 客户端（M0 初版） |
 | `WebProbe6` | `tools/probes/_WebProbe6` | `WebProbe6.csproj` | `dotnet run` | SCADA 运行态 Web 客户端（当前版） |
+| `MotionSimProbe` | `tools/probes/_MotionSimProbe` | `MotionSimProbe.csproj` | `dotnet run` | 产线仿真 P0 出口验证（真驱动 SimMotionCard，期望 `RESULT: ALL_OK`） |
+| `CameraSimProbe` | `tools/probes/_CameraSimProbe` | `CameraSimProbe.csproj` | `dotnet run` | 产线仿真 P1 出口验证（真驱动 SimCameraDevice，期望 `RESULT: ALL_OK`） |
+| `ScadaAlarmUiProbe` | `tools/probes/_ScadaAlarmUiProbe` | `_ScadaAlarmUiProbe.csproj` | `dotnet run` | 报警配置弹窗出图（九态，`--states=filled,stale,...`），出图落 `artifacts/render/<yyyyMMdd>/scada-alarm-config/` |
 
 ### 旧路径 → 新路径对照
 

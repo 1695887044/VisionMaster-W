@@ -1,0 +1,2206 @@
+<div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>班次入口：一眼判断"这条线正不正常、这一件有没有问题、要不要人介入"。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>阵列图：<code>Hmi.Panel</code>（背景）+ <code>Hmi.Line</code>（基板轮廓）+ 缺陷点由变量驱动</li><li>判定大字 + SN 卡：<code>Hmi.Text</code> ×2</li><li>趋势：<code>Hmi.MultiTrend</code>；KPI：<code>Hmi.KpiBoard</code></li></ul></div>
+    <div class="note-card"><h3>跳转关系</h3><ul><li>判定卡"看监控画面" → 监控画面</li><li>报警 chip → 报警中心</li><li>设备"手动操作 →" → 手动操作</li></ul></div>
+  </div>
+</section>
+
+<!-- A-2 监控画面 -->
+<section class="screen-page" id="a-monitor" data-page="monitor">
+  <div class="tpl-head">
+    <div><h2><span>A-02</span>监控画面 · 实时图 + 金样对照</h2>
+      <p>左：流程实时产出的检测图（<code>Hmi.ImageView</code> 绑图像变量）；右：金样基准图（<code>Hmi.Picture</code> 绑方案内相对路径）；下方：参数与缺陷列表。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>双图对照</span><span><b>右栏</b>参数 + 缺陷明细</span><span><b>出口</b>数据追溯</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>BGA 焊球全检 · 3# 线</b><small>A 方案 · 实时监控</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前步</span><b>7/11 缺陷量化</b></div>
+      <div class="top-stat"><span>图像帧号</span><b>#1,284,031</b></div>
+      <div class="top-stat"><span>曝光</span><b>3.2 ms</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>张三</b></div>
+      <div class="clock">14:32:09</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item active" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">8 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>实时检测图 · Live</b><span>图像采集（Folder 模式）→ 预处理 → 匹配 → 差分</span></div>
+              <div class="row"><span class="chip ok">已刷新</span><span class="chip warn">ImageView</span></div></div>
+            <div class="image-stage">
+              <img src="../../../Image/images/bga_14x14_defects.png" alt="BGA 实时检测图（样图示意）">
+              <span class="stage-tag"><i></i>Hmi.ImageView · 绑定图像变量</span>
+              <span class="placeholder-note">离屏渲染无数据泵，显示"无图像"占位；真机由流程产出驱动</span>
+            </div>
+            <div class="legend-inline" style="margin-top:8px;">
+              <span>帧号 <b style="font-family:var(--mono);color:var(--c-text-2)">#1,284,031</b></span>
+              <span>采集耗时 <b style="font-family:var(--mono);color:var(--c-text-2)">42 ms</b></span>
+              <span>算法耗时 <b style="font-family:var(--mono);color:var(--c-text-2)">186 ms</b></span>
+              <span style="margin-left:auto;">Hmi.Picture 显示样图作对照</span>
+            </div>
+          </section>
+          <section class="card" style="width:520px;flex:none;">
+            <div class="card-head"><div><b>金样基准图</b><span>bga_14x14_model.png · 方案内 Image\ 相对路径</span></div><span class="chip">Hmi.Picture</span></div>
+            <div class="image-stage">
+              <img src="../../../Image/images/bga_14x14_model.png" alt="BGA 金样基准图">
+              <span class="stage-tag"><i></i>SourcePath = Image\bga_14x14_model.png</span>
+            </div>
+            <div style="margin-top:9px;">
+              <div class="field"><span>匹配分数（MinScore 0.60）</span><b>0.94</b></div>
+              <div class="field"><span>匹配位姿 R / C</span><b>185.42 / 240.11</b></div>
+              <div class="field"><span>ROI（矩形）</span><b>240,185,0,205,165</b></div>
+            </div>
+          </section>
+        </div>
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>检测参数</b><span>当前生效值 · 只读</span></div><span class="card-link" data-nav="recipe">去工艺参数 →</span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 22px;">
+              <div class="field"><span>差分阈值 Threshold</span><b>30</b></div>
+              <div class="field"><span>最小面积 MinArea</span><b>8 px</b></div>
+              <div class="field"><span>环境噪声底 AmbientFloor</span><b>8</b></div>
+              <div class="field"><span>闭合半径 CloseRadius</span><b>1</b></div>
+              <div class="field"><span>最大缺陷片数 MaxDefectCount</span><b>10</b></div>
+              <div class="field"><span>像素当量</span><b>0.032 mm/px</b></div>
+            </div>
+            <div class="row" style="margin-top:auto;padding-top:9px;">
+              <span class="btn">重拍一张</span><span class="btn">锁定当前帧</span><span class="btn">导出本帧</span>
+            </div>
+          </section>
+          <section class="card" style="width:520px;flex:none;">
+            <div class="card-head"><div><b>缺陷列表</b><span>本件 2 处 · 按面积排序</span></div><span class="chip danger">2</span></div>
+            <div class="data-table">
+              <div class="data-row head" style="grid-template-columns:52px 70px 74px 1fr 66px;">
+                <span>编号</span><span>类型</span><span>面积 px</span><span>位置 R / C</span><span>判定</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:52px 70px 74px 1fr 66px;">
+                <span class="mono">D-021</span><span>缺球</span><span class="mono">214</span><span class="mono">150.4 / 352.8</span><span class="ng">NG</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:52px 70px 74px 1fr 66px;">
+                <span class="mono">D-022</span><span>桥连</span><span class="mono">96</span><span class="mono">296.1 / 500.7</span><span class="warn">复检</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:52px 70px 74px 1fr 66px;color:var(--c-text-3);">
+                <span>—</span><span>—</span><span>—</span><span>其余 194 球正常</span><span class="ok">OK</span>
+              </div>
+            </div>
+            <div class="row" style="margin-top:auto;padding-top:9px;"><span class="chip">Hmi.DataGrid · 5 列</span><span class="card-link" data-nav="trace">进数据追溯 →</span></div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:236px;flex:none;">
+          <div class="card-head"><div><b>步序</b><span>当前步 7/11</span></div><span class="chip ok">正常</span></div>
+          <div class="steps" style="flex-wrap:wrap;gap:6px 0;">
+            <div class="step done"><i>✓</i><span>采集</span></div><span class="step-line on"></span>
+            <div class="step done"><i>✓</i><span>预处理</span></div><span class="step-line on"></span>
+            <div class="step done"><i>✓</i><span>定位</span></div><span class="step-line on"></span>
+            <div class="step on"><i>7</i><span>量化</span></div>
+          </div>
+          <div class="field" style="margin-top:10px;"><span>本步耗时</span><b>186 ms</b></div>
+          <div class="field"><span>整件节拍</span><b>1.28 s</b></div>
+        </section>
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>最多 3 条</span></div><span class="chip danger" data-nav="alarm">查看全部</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:17</span><span class="name">定位分数偏低</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:28:03</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>图像采集</b><span>Folder 模式逐张轮播</span></div><span class="chip">候选复合卡</span></div>
+          <div class="detail-row"><span>目录</span><b>…\Image\images</b></div>
+          <div class="detail-row"><span>当前索引 / 总数</span><b>128 / 209</b></div>
+          <div class="detail-row"><span>轮播方式</span><b>FileIndex 自增</b></div>
+          <div class="detail-row"><span>超时</span><b>3,000 ms</b></div>
+          <div class="card-link" style="margin-top:auto;padding-top:8px;">采集参数在流程栏配置 →</div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>相机已连接 · 42 ms/帧</span>
+      <span>算法 186 ms · 节拍 1.28 s</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-BGA焊球全检.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>回答"哪里不正常"：把算法看到的画面直接摆出来，不给操作员猜。</p></div>
+    <div class="note-card"><h3>已知偏差</h3><ul><li><code>Hmi.ImageView</code> 在本探针离屏渲染里恒显示"无图像"（无运行态数据泵），设计稿并列 <code>Hmi.Picture</code> 金样做对照。</li><li>真机需在 <code>VisionMaster.exe</code> 里验出图。</li></ul></div>
+    <div class="note-card"><h3>跳转关系</h3><ul><li>缺陷列表 → 数据追溯</li><li>去工艺参数 → 参数页</li><li>左导航 8 项全局可达</li></ul></div>
+  </div>
+</section>
+
+<!-- A-3 数据追溯 -->
+<section class="screen-page" id="a-trace" data-page="trace">
+  <div class="tpl-head">
+    <div><h2><span>A-03</span>数据追溯 · 逐件明细</h2>
+      <p>每一件都有 SN（流程内 C# 脚本随机生成），表格逐行留痕；右侧是本批统计与导出入口。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>SN + 明细表</span><span><b>右栏</b>本批统计</span><span><b>出口</b>CSV / Excel</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>BGA 焊球全检 · 3# 线</b><small>A 方案 · 数据追溯</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>本班已检</span><b>12,480</b></div>
+      <div class="top-stat"><span>留痕行数</span><b>12,480</b></div>
+      <div class="top-stat"><span>查询</span><b>最近 200 行</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>张三</b></div>
+      <div class="clock">14:32:11</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item active" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">8 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:none;">
+          <section class="card" style="flex:1;">
+            <div class="card-head"><div><b>当前工件</b><span>由流程「生成产品 SN」步骤写入全局变量</span></div><span class="chip ok">OK</span></div>
+            <div style="display:flex;gap:13px;align-items:center;">
+              <div class="sn-card" style="flex:1;"><span>SN</span><b>BGA-000427-A19F</b><small>配方 P-FCBGA-14x14</small></div>
+              <div class="sn-card" style="flex:1;"><span>检测时间</span><b style="font-size:14px;">14:32:08</b><small>节拍 1.28 s</small></div>
+              <div class="sn-card" style="flex:1;"><span>缺陷 / 面积</span><b style="font-size:14px;">2 / 310 px</b><small>0.084 mm²</small></div>
+            </div>
+          </section>
+          <section class="card" style="width:360px;flex:none;">
+            <div class="card-head"><div><b>查询</b><span>按 SN / 结果 / 时间</span></div><span class="chip">Hmi.TextField ×2</span></div>
+            <div class="row" style="margin-bottom:7px;"><span class="input-mock" style="flex:1;justify-content:flex-start;">BGA-000427</span><span class="btn primary">查询</span></div>
+            <div class="row"><span class="select-mock" style="flex:1;">全部结果<i>▾</i></span><span class="select-mock" style="flex:1;">今天<i>▾</i></span></div>
+          </section>
+        </div>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>检测明细（最近 10 行）</b><span>NewestFirst · 斑马纹 · 行高 32</span></div>
+            <div class="row"><span class="chip ok">Hmi.DataGrid · 8 列</span><span class="btn">导出 CSV</span><span class="btn">导出 Excel</span></div></div>
+          <div class="data-table">
+            <div class="data-row head" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span>SN</span><span>缺陷片数</span><span>缺陷面积 px</span><span>面积 mm²</span><span>定位分数</span><span>配方</span><span>判定</span><span>时间</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000427-A19F</span><span class="mono">2</span><span class="mono">310</span><span class="mono">0.084</span><span class="mono">0.94</span><span class="mono">P-FCBGA-14x14</span><span class="ok">OK</span><span class="mono">14:32:08</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000426-7C3D</span><span class="mono">7</span><span class="mono">1,024</span><span class="mono">0.278</span><span class="mono">0.91</span><span class="mono">P-FCBGA-14x14</span><span class="ng">NG</span><span class="mono">14:32:07</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000425-1B8E</span><span class="mono">1</span><span class="mono">96</span><span class="mono">0.026</span><span class="mono">0.93</span><span class="mono">P-FCBGA-14x14</span><span class="warn">复检</span><span class="mono">14:32:06</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000424-9F02</span><span class="mono">0</span><span class="mono">0</span><span class="mono">0.000</span><span class="mono">0.96</span><span class="mono">P-FCBGA-14x14</span><span class="ok">OK</span><span class="mono">14:32:05</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000423-44A7</span><span class="mono">0</span><span class="mono">0</span><span class="mono">0.000</span><span class="mono">0.95</span><span class="mono">P-FCBGA-14x14</span><span class="ok">OK</span><span class="mono">14:32:04</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000422-C0B1</span><span class="mono">12</span><span class="mono">2,048</span><span class="mono">0.556</span><span class="mono">0.88</span><span class="mono">P-FCBGA-14x14</span><span class="ng">NG</span><span class="mono">14:32:03</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000421-2E5F</span><span class="mono">0</span><span class="mono">0</span><span class="mono">0.000</span><span class="mono">0.97</span><span class="mono">P-FCBGA-14x14</span><span class="ok">OK</span><span class="mono">14:32:02</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000420-8D6C</span><span class="mono">3</span><span class="mono">512</span><span class="mono">0.139</span><span class="mono">0.92</span><span class="mono">P-FCBGA-14x14</span><span class="warn">复检</span><span class="mono">14:32:01</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000419-5A13</span><span class="mono">0</span><span class="mono">0</span><span class="mono">0.000</span><span class="mono">0.95</span><span class="mono">P-FCBGA-14x14</span><span class="ok">OK</span><span class="mono">14:32:00</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:214px 84px 92px 96px 92px 112px 66px 74px;">
+              <span class="mono">BGA-000418-6B90</span><span class="mono">0</span><span class="mono">0</span><span class="mono">0.000</span><span class="mono">0.96</span><span class="mono">P-FCBGA-14x14</span><span class="ok">OK</span><span class="mono">14:31:59</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;font-size:9px;color:var(--c-text-3);">
+            <span>显示缓冲 200 行；断电即失，留痕以 History\ 下 CSV 为准</span>
+            <span class="spacer"></span>
+            <span class="btn">上一页</span><span class="btn">1 / 62</span><span class="btn">下一页</span>
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:250px;flex:none;">
+          <div class="card-head"><div><b>本批统计</b><span>本班 12,480 件</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>OK</span><b>12,376</b></div>
+            <div class="stat"><span>NG</span><b class="danger">104</b></div>
+            <div class="stat"><span>待复检</span><b class="warn">32</b></div>
+            <div class="stat"><span>良率</span><b>99.17<small style="font-size:10px;color:var(--c-text-3)">%</small></b></div>
+          </div>
+          <div style="margin-top:9px;">
+            <div style="font-size:8.5px;color:var(--c-text-3);margin-bottom:4px;">缺陷类型分布</div>
+            <div class="progress" style="margin-bottom:5px;"><i class="ok" style="width:58%"></i></div>
+            <div class="progress" style="margin-bottom:5px;"><i class="warn" style="width:26%"></i></div>
+            <div class="progress"><i style="width:16%"></i></div>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>留痕落点</b><span>方案文件夹内</span></div><span class="chip ok">相对路径</span></div>
+          <div class="detail-row"><span>CSV 账本</span><b>History\…</b></div>
+          <div class="detail-row"><span>图片资产</span><b>Image\…</b></div>
+          <div class="detail-row"><span>报警历史</span><b>Alarms\…</b></div>
+          <div class="detail-row"><span>运行日志</span><b>Logs\…</b></div>
+          <div style="font-size:8.5px;color:var(--c-text-3);margin-top:8px;">整包方案目录可整体拷贝搬迁，路径不断链。</div>
+        </section>
+        <section class="card alarm-card" style="height:200px;">
+          <div class="card-head"><div><b>报警</b><span>与追溯双向</span></div><span class="chip danger" data-nav="alarm">2 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:17</span><span class="name">定位分数偏低</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:25:11</span><span class="name">连续 3 件复检</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>数据库已连接 · 12 ms</span>
+      <span>留痕模式：逐件</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-BGA焊球全检.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>回答"偶发还是趋势、怎么追溯"：按 SN 查一件，按批看分布。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.DataGrid</code> 列键 <code>GridColumns</code>（JSON：Header / Variable / Width / Align / Format / Monospace）</li><li>采行信号 <code>SampleVariable</code> 吃上升沿，图元只读不复位</li><li>SN 卡 <code>Hmi.Text</code>；查询 <code>Hmi.TextField</code> + <code>Hmi.ComboBox</code></li></ul></div>
+    <div class="note-card"><h3>已知边界</h3><ul><li>表格是显示缓冲（默认 200 行），断电即失</li><li>留痕以 <code>History\</code> 下 CSV 为准，导出走 ExcelExport 插件</li></ul></div>
+  </div>
+</section>
+
+<!-- A-4 手动操作 -->
+<section class="screen-page" id="a-manual" data-page="manual">
+  <div class="tpl-head">
+    <div><h2><span>A-04</span>手动操作 · 轴控与调试</h2>
+      <p>单台设备的启停与点动，与自动页的分工是"单台" vs "整批"。运行态动轴必须二次确认 + 联锁条件同屏。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>三轴点动盘</span><span><b>右栏</b>联锁 + 权限</span><span><b>安全</b>二次确认</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>BGA 焊球全检 · 3# 线</b><small>A 方案 · 手动操作</small></div></div>
+      <span class="status-chip warn"><i></i>手动 · 已暂停</span>
+      <span class="mode-pill">MANUAL · 手动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前步</span><b>已暂停 · 7/11</b></div>
+      <div class="top-stat"><span>轴状态</span><b>已使能</b></div>
+      <div class="top-stat"><span>安全门</span><b>闭合</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>张三 · 工程师</b></div>
+      <div class="clock">14:35:42</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item active" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>返回自动</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">8 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>三轴点动盘</b><span>正/负向点动 · 速度 5 mm/s · 按住才动</span></div>
+              <div class="row"><span class="chip ok">已回零</span><span class="chip">Hmi.AxisConsole</span></div></div>
+            <div style="display:flex;gap:16px;flex:1;min-height:0;">
+              <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:12px;">
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+                  <div class="btn" style="height:56px;font-size:11px;">Y+</div>
+                  <div class="btn" style="height:56px;font-size:11px;background:rgba(56,189,248,.1);border-color:rgba(56,189,248,.4);color:#BAE6FD;">Z+</div>
+                  <div class="btn" style="height:56px;font-size:11px;">X+</div>
+                  <div class="btn" style="height:56px;font-size:11px;">Y−</div>
+                  <div class="btn" style="height:56px;font-size:11px;">原点</div>
+                  <div class="btn" style="height:56px;font-size:11px;">X−</div>
+                </div>
+                <div class="row" style="justify-content:center;gap:10px;">
+                  <span class="btn danger" style="height:44px;padding:0 22px;font-size:11px;">紧急停止</span>
+                  <span class="btn ok" style="height:44px;padding:0 22px;font-size:11px;">伺服使能</span>
+                  <span class="btn" style="height:44px;padding:0 22px;font-size:11px;">清报警</span>
+                </div>
+                <div style="font-size:8.5px;color:var(--c-text-3);text-align:center;">点动为瞬时动作：按下启动、松开即停；回零需长按 0.5 s。</div>
+              </div>
+              <div style="width:320px;flex:none;display:flex;flex-direction:column;gap:9px;">
+                <div class="card" style="padding:10px;background:var(--c-surface-2);">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9px;color:var(--c-text-3);">X 轴位置</span><span style="font-family:var(--mono);font-size:8.5px;color:#86EFAC;">使能</span></div>
+                  <div style="font-family:var(--mono);font-size:28px;color:var(--c-text);">240.116 <small style="font-size:11px;color:var(--c-text-3)">mm</small></div>
+                </div>
+                <div class="card" style="padding:10px;background:var(--c-surface-2);">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9px;color:var(--c-text-3);">Y 轴位置</span><span style="font-family:var(--mono);font-size:8.5px;color:#86EFAC;">使能</span></div>
+                  <div style="font-family:var(--mono);font-size:28px;color:var(--c-text);">185.402 <small style="font-size:11px;color:var(--c-text-3)">mm</small></div>
+                </div>
+                <div class="card" style="padding:10px;background:var(--c-surface-2);">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9px;color:var(--c-text-3);">Z 轴位置</span><span style="font-family:var(--mono);font-size:8.5px;color:#FCD34D;">到位</span></div>
+                  <div style="font-family:var(--mono);font-size:28px;color:var(--c-text);">12.500 <small style="font-size:11px;color:var(--c-text-3)">mm</small></div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="card" style="width:420px;flex:none;">
+            <div class="card-head"><div><b>单设备调试</b><span>相机 / 光源 / 传送</span></div><span class="chip">Hmi.BitButton ×4</span></div>
+            <div class="field"><span>相机软触发</span><b><span class="btn primary">触发一次</span></b></div>
+            <div class="field"><span>光源通道 1（同轴）</span><b><span class="switch-mock"><i></i></span></b></div>
+            <div class="field"><span>光源通道 2（环形）</span><b><span class="switch-mock off"><i></i></span></b></div>
+            <div class="field"><span>传送带正转</span><b><span class="btn">启动</span></b></div>
+            <div class="field"><span>剔除气缸</span><b><span class="btn">动作一次</span></b></div>
+            <div class="field"><span>读码器（备用工位）</span><b><span class="chip">未接入</span></b></div>
+            <div style="font-size:8.5px;color:var(--c-text-3);margin-top:auto;padding-top:9px;">手动命令与自动动作表走同一执行器，软限位/未使能/未回零判据只有一份。</div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:220px;flex:none;">
+          <div class="card-head"><div><b>联锁条件</b><span>不满足则动作按钮置灰</span></div><span class="chip ok">5/5</span></div>
+          <div class="detail-row"><span>安全门闭合</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>无急停</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>伺服使能</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>三轴已回零</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>无未确认严重报警</span><b><span class="lamp on"></span> 满足</b></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>权限</b><span>运行期持续鉴权</span></div><span class="chip">工程师</span></div>
+          <div class="detail-row"><span>点动 / 回零</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>改工艺参数</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>改配方</span><b class="warn">需管理员</b></div>
+          <div class="detail-row"><span>清报警</span><b class="ok">允许</b></div>
+          <div style="font-size:8.5px;color:var(--c-text-3);margin-top:8px;">每条运行命令记操作者 / 会话 / IP。</div>
+        </section>
+        <section class="card alarm-card" style="height:190px;">
+          <div class="card-head"><div><b>报警</b><span>手动模式下照常刷新</span></div><span class="chip danger">2 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:17</span><span class="name">定位分数偏低</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:35:39</span><span class="name">切入手动模式</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>轴控已连接 · 1 ms</span>
+      <span>手动模式 · 批次已暂停</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-BGA焊球全检.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>现场调试、卡料清理、单设备启停。绝不在这里做整批流程操作。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>轴位置/点动：<code>Hmi.AxisConsole</code>（状态 + 操作 + 点位表）或 <code>Hmi.AxisPanel</code> 紧凑版</li><li>点位/联锁：<code>Hmi.AxisPointTable</code>（旧）/ <code>Hmi.Indicator</code></li><li>设备开关：<code>Hmi.BitButton</code>、<code>Hmi.SelectorSwitch</code></li></ul></div>
+    <div class="note-card"><h3>安全口径</h3><ul><li>点动按住才动，松开/移出立即停</li><li>回零长按 0.5 s；紧急停止永远可点</li><li>权限在按下前判，不靠事后校验</li></ul></div>
+  </div>
+</section>
+
+<!-- A-5 工艺参数 -->
+<section class="screen-page" id="a-recipe" data-page="recipe">
+  <div class="tpl-head">
+    <div><h2><span>A-05</span>工艺参数 · 配方与阈值</h2>
+      <p>换型改的是参数，不是程序。自动模式下配方只读；切手动 + 暂停批次后才可编辑。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>阈值表</span><span><b>右栏</b>配方信息</span><span><b>权限</b>自动态只读</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>BGA 焊球全检 · 3# 线</b><small>A 方案 · 工艺参数</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前配方</span><b>P-FCBGA-14x14</b></div>
+      <div class="top-stat"><span>编辑态</span><b>只读</b></div>
+      <div class="top-stat"><span>版本</span><b>R3.2</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>李四</b></div>
+      <div class="clock">14:33:20</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item active" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">8 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>检测阈值</b><span>当前生效值 · 自动模式只读</span></div>
+              <div class="row"><span class="chip warn">只读</span><span class="btn">切手动后可编辑</span></div></div>
+            <div class="data-table">
+              <div class="data-row head" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>参数</span><span>当前值</span><span>说明</span><span>范围</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>差分阈值 Threshold</span><span class="input-mock">30</span><span style="color:var(--c-text-3);">低于此灰差判为噪声</span><span class="mono" style="color:var(--c-text-3);">1 – 80</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>最小面积 MinArea</span><span class="input-mock">8 px</span><span style="color:var(--c-text-3);">小于此面积不计缺陷</span><span class="mono" style="color:var(--c-text-3);">1 – 200</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>环境噪声底 AmbientFloor</span><span class="input-mock">8</span><span style="color:var(--c-text-3);">金样自身噪声扣除</span><span class="mono" style="color:var(--c-text-3);">0 – 40</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>最大缺陷片数</span><span class="input-mock">10</span><span style="color:var(--c-text-3);">超过直接判 NG</span><span class="mono" style="color:var(--c-text-3);">0 – 64</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>定位最小分数 MinScore</span><span class="input-mock">0.60</span><span style="color:var(--c-text-3);">低于则定位失败</span><span class="mono" style="color:var(--c-text-3);">0.3 – 0.95</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>像素当量</span><span class="input-mock">0.032 mm/px</span><span style="color:var(--c-text-3);">标定产物，不建议手改</span><span class="mono" style="color:var(--c-text-3);">0.001 – 1</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:250px 140px 1fr 130px;">
+                <span>闭合半径 CloseRadius</span><span class="input-mock">1</span><span style="color:var(--c-text-3);">去掉细碎毛刺</span><span class="mono" style="color:var(--c-text-3);">0 – 5</span>
+              </div>
+            </div>
+          </section>
+          <section class="card" style="width:430px;flex:none;">
+            <div class="card-head"><div><b>分级规则</b><span>缺陷片数 → 判定</span></div><span class="chip">Hmi.Text</span></div>
+            <div class="detail-row"><span>0 片</span><b class="ok">OK 放行</b></div>
+            <div class="detail-row"><span>1 ~ 3 片</span><b class="warn">复检（人工确认）</b></div>
+            <div class="detail-row"><span>&gt; 3 片</span><b class="ng">NG 剔除</b></div>
+            <div class="detail-row"><span>定位失败 / 分数不足</span><b class="ng">NG 剔除</b></div>
+            <div style="margin-top:10px;font-size:8.5px;color:var(--c-text-3);line-height:1.6;">
+              分级由流程里 Utility 插件按缺陷片数判定后再写全局变量，画面只显示，不参与判定。
+            </div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:260px;flex:none;">
+          <div class="card-head"><div><b>配方</b><span>Hmi.RecipePanel（只读）</span></div><span class="chip">3 套可用</span></div>
+          <div class="select-mock" style="width:100%;margin-bottom:9px;">P-FCBGA-14x14 · 球径 0.45 mm<i>▾</i></div>
+          <div class="detail-row"><span>焊球总数</span><b>196</b></div>
+          <div class="detail-row"><span>球径 / 间距</span><b>0.45 / 0.80 mm</b></div>
+          <div class="detail-row"><span>视场</span><b>480 × 369 px</b></div>
+          <div class="detail-row"><span>基准图</span><b>Image\bga_14x14_model.png</b></div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn">切换配方</span><span class="btn">另存为</span></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>换型检查单</b><span>切配方前逐项确认</span></div><span class="chip warn">3/5</span></div>
+          <div class="detail-row"><span>批次已暂停</span><b class="ok">已暂停</b></div>
+          <div class="detail-row"><span>已切手动模式</span><b class="warn">否</b></div>
+          <div class="detail-row"><span>相机已标定</span><b class="ok">有效</b></div>
+          <div class="detail-row"><span>金样图已更新</span><b class="ok">有效</b></div>
+          <div class="detail-row"><span>首件确认</span><b class="warn">待做</b></div>
+        </section>
+        <section class="card alarm-card" style="height:180px;">
+          <div class="card-head"><div><b>报警</b><span>参数类报警</span></div><span class="chip danger">2 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:17</span><span class="name">定位分数偏低</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:28:03</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 8 ms</span>
+      <span>自动模式 · 配方只读</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-BGA焊球全检.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>换型与调参的唯一入口，把"改什么、改多少、谁允许改"写在同一屏。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>阈值表：<code>Hmi.DataGrid</code>（只读）/ <code>Hmi.TextField</code> + <code>Hmi.IOField</code></li><li>配方信息：<code>Hmi.RecipePanel</code>（只读）+ <code>Hmi.ComboBox</code></li><li>检查单：<code>Hmi.Indicator</code> ×5</li></ul></div>
+    <div class="note-card"><h3>交互口径</h3><ul><li>自动模式下整块只读，按钮置灰</li><li>切手动点击 → 二次确认 → 批次暂停</li><li>改完参数必须首件确认后才恢复自动</li></ul></div>
+  </div>
+</section>
+
+<!-- A-6 报警日志 -->
+<section class="screen-page" id="a-alarm" data-page="alarm">
+  <div class="tpl-head">
+    <div><h2><span>A-06</span>报警中心 · 实时 + 历史</h2>
+      <p>报警条固定在全页面可见；本页是完整版：当前报警逐条确认、统计、跳转到历史与操作审计。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>报警条 + 列表</span><span><b>右栏</b>统计 + 确认</span><span><b>出口</b>审计</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>BGA 焊球全检 · 3# 线</b><small>A 方案 · 报警中心</small></div></div>
+      <span class="status-chip warn"><i></i>有未确认报警</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>报警总数</span><b>5 条</b></div>
+      <div class="top-stat"><span>未确认</span><b>2 条</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>张三</b></div>
+      <div class="clock">14:34:05</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item active" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">8 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <section class="card" style="height:104px;flex:none;">
+          <div class="card-head"><div><b>报警条 · 全页面固定</b><span>顶栏下方 / 严重优先 / 最多 3 条</span></div><span class="chip">Hmi.AlarmBanner</span></div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:9px 12px;">
+            <span class="chip warn">警告</span>
+            <b style="font-size:11px;">定位分数偏低 · 0.58 &lt; 0.60</b>
+            <span class="mono" style="font-family:var(--mono);font-size:9.5px;color:var(--c-text-3);">14:30:17</span>
+            <span class="spacer"></span>
+            <span style="font-size:9.5px;color:var(--c-text-3);">2 条未确认</span>
+            <span class="btn">确认本条</span><span class="btn primary">查看全部</span>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>当前报警</b><span>按严重度排序 · 可逐条确认</span></div>
+            <div class="row"><span class="btn">全部确认</span><span class="chip">Hmi.AckButton</span></div></div>
+          <div class="data-table">
+            <div class="data-row head" style="grid-template-columns:70px 82px 1fr 120px 96px 90px;">
+              <span>严重度</span><span>时间</span><span>报警名称</span><span>来源</span><span>状态</span><span>操作</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 120px 96px 90px;">
+              <span class="warn">警告</span><span class="mono">14:30:17</span><span>定位分数偏低（0.58 &lt; 0.60）</span><span class="mono">BgaMatchScore</span><span class="ng">激活</span><span class="btn">确认</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 120px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:28:03</span><span>配方切换完成（P-FCBGA-14x14）</span><span class="mono">RecipeName</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 120px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:25:11</span><span>连续 3 件进入复检</span><span class="mono">BgaDefectCount</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 120px 96px 90px;">
+              <span style="color:#FCA5A5">严重</span><span class="mono">14:12:40</span><span>设备故障挂起（已复位）</span><span class="mono">BgaLineFault</span><span style="color:var(--c-text-3);">已恢复</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 120px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:02:18</span><span>班次开始</span><span class="mono">SystemReady</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+          </div>
+          <div style="margin-top:auto;padding-top:9px;font-size:8.5px;color:var(--c-text-3);">
+            报警定义在方案 SCADA 配置里：Kind（High / HighHigh / Low / LowLow / BoolOn / BoolOff / Stale）+ Severity（Info / Warning / Critical）+ 死区 + 延迟。
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:286px;flex:none;">
+          <div class="card-head"><div><b>报警统计</b><span>本班</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>总数</span><b>18</b></div>
+            <div class="stat"><span>未确认</span><b class="warn">2</b></div>
+            <div class="stat"><span>严重</span><b class="danger">1</b></div>
+            <div class="stat"><span>已恢复</span><b>15</b></div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="field"><span>平均确认耗时</span><b>26 s</b></div>
+            <div class="field"><span>最频繁报警</span><b>定位分数偏低</b></div>
+            <div class="field"><span>最近 24 h 报警</span><b>41 条</b></div>
+          </div>
+        </section>
+        <section class="card" style="height:210px;flex:none;">
+          <div class="card-head"><div><b>确认与跳转</b><span>确认后仍留历史</span></div><span class="chip">Hmi.AckButton</span></div>
+          <div class="row" style="gap:8px;">
+            <span class="btn primary" style="height:28px;">确认选中</span>
+            <span class="btn" style="height:28px;">全部确认</span>
+          </div>
+          <div class="field" style="margin-top:9px;"><span>查看报警历史</span><b class="card-link">Alarms\ →</b></div>
+          <div class="field"><span>查看操作记录</span><b class="card-link">审计 →</b></div>
+          <div class="field"><span>查看对应图像</span><b class="card-link" data-nav="monitor">监控画面 →</b></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>处置提示</b><span>每条报警带原因与措施</span></div><span class="chip">配置可见</span></div>
+          <div style="font-size:9.5px;color:var(--c-text-2);line-height:1.7;">
+            <b style="color:var(--c-text);">定位分数偏低</b><br>
+            原因：金样与实拍差异过大 / 光源衰减 / 板子偏移超范围<br>
+            措施：先看监控画面确认图像 → 检查光源亮度 → 必要时重做标定
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 8 ms</span>
+      <span>报警保留：90 天 · 可导 CSV</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-BGA焊球全检.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>回答"怎么处置、有没有人管"：报警条负责打断，本页负责闭环。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.AlarmBanner</code>（MaxRows / EmptyText / Normal / Info / Warning / Critical 色）</li><li><code>Hmi.AckButton</code>（Scope = All / 单条）</li><li>列表 <code>Hmi.DataGrid</code>；统计 <code>Hmi.KpiBoard</code></li></ul></div>
+    <div class="note-card"><h3>闭环口径</h3><ul><li>确认 ≠ 消除，激活态需条件恢复</li><li>每条报警带 Cause / Remedy 字段</li><li>操作记录是审计终点，不可改</li></ul></div>
+  </div>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 方案 B · 包装线全检追溯                                            -->
+<!-- ================================================================ -->
+
+<section class="template" id="app-b" data-app-section="b">
+<section class="screen-page is-on" id="b-overview" data-page="overview">
+  <div class="tpl-head">
+    <div><h2><span>B-01</span>总览 · 三工位产线</h2>
+      <p>把三个工位串成一条线看：工位链路、节拍、本件判定、产量与良率。任一工位异常立刻可见。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>工位链路 + 判定</span><span><b>右栏</b>报警 + KPI</span><span><b>出口</b>监控画面</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>包装线全检追溯 · 2# 线</b><small>B 方案 · 三工位协同</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前工位</span><b>ST2 装盒</b></div>
+      <div class="top-stat"><span>节拍</span><b>2.40 s</b></div>
+      <div class="top-stat"><span>本件</span><b>OK</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王五</b></div>
+      <div class="clock">14:32:08</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item active" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">11 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <section class="card" style="height:300px;flex:none;">
+          <div class="card-head"><div><b>产线链路</b><span>ST1 泡罩 → ST2 装盒 → ST3 贴标 → 剔除</span></div>
+            <div class="legend-inline"><span><i class="run"></i>运行</span><span><i class="stop"></i>待机</span><span><i class="alarm"></i>故障</span></div></div>
+          <div style="flex:1;min-height:0;">
+            <svg class="stage" viewBox="0 0 1180 190" preserveAspectRatio="xMidYMid meet" role="img" aria-label="包装线三工位链路">
+              <line x1="60" y1="150" x2="1120" y2="150" stroke="#2A3745" stroke-width="10" stroke-linecap="round"/>
+              <line x1="60" y1="150" x2="1120" y2="150" stroke="#222D38" stroke-width="6" stroke-linecap="round"/>
+              <g>
+                <rect x="96" y="34" width="220" height="104" rx="9" fill="#1B242D" stroke="#3A4A5C" stroke-width="2"/>
+                <text x="206" y="62" text-anchor="middle" fill="#E6EEF7" font-size="13" font-weight="600">ST1 · 泡罩检测</text>
+                <text x="206" y="84" text-anchor="middle" fill="#7C8A99" font-size="10">差分 + 斑点 · 缺陷 0 片</text>
+                <circle cx="126" cy="118" r="5" fill="#22C55E"/><text x="138" y="122" fill="#86EFAC" font-size="9.5">OK</text>
+                <text x="206" y="122" text-anchor="middle" fill="#7C8A99" font-size="9" font-family="Consolas">0.78 s</text>
+              </g>
+              <g>
+                <rect x="390" y="22" width="240" height="128" rx="9" fill="#1B242D" stroke="#38BDF8" stroke-width="2"/>
+                <text x="510" y="52" text-anchor="middle" fill="#E6EEF7" font-size="13" font-weight="600">ST2 · 装盒比对</text>
+                <text x="510" y="74" text-anchor="middle" fill="#7C8A99" font-size="10">YOLO 检测 + OCR 读码</text>
+                <circle cx="420" cy="110" r="5" fill="#38BDF8"/><text x="432" y="114" fill="#BAE6FD" font-size="9.5">运行中</text>
+                <text x="510" y="134" text-anchor="middle" fill="#7C8A99" font-size="9" font-family="Consolas">0.92 s</text>
+              </g>
+              <g>
+                <rect x="704" y="34" width="220" height="104" rx="9" fill="#1B242D" stroke="#3A4A5C" stroke-width="2"/>
+                <text x="814" y="62" text-anchor="middle" fill="#E6EEF7" font-size="13" font-weight="600">ST3 · 贴标读码</text>
+                <text x="814" y="84" text-anchor="middle" fill="#7C8A99" font-size="10">几何关系 + 条码识别</text>
+                <circle cx="734" cy="118" r="5" fill="#22C55E"/><text x="746" y="122" fill="#86EFAC" font-size="9.5">OK</text>
+                <text x="814" y="122" text-anchor="middle" fill="#7C8A99" font-size="9" font-family="Consolas">0.70 s</text>
+              </g>
+              <g>
+                <rect x="988" y="52" width="132" height="68" rx="8" fill="#1B242D" stroke="#F59E0B" stroke-width="2"/>
+                <text x="1054" y="80" text-anchor="middle" fill="#FCD34D" font-size="11.5" font-weight="600">剔除工位</text>
+                <text x="1054" y="100" text-anchor="middle" fill="#7C8A99" font-size="9">本件放行</text>
+              </g>
+              <g stroke="#38BDF8" stroke-width="2" fill="none">
+                <path d="M316 86 H388"/><path d="M630 86 H702"/><path d="M924 86 H986"/>
+              </g>
+              <g fill="#38BDF8"><polygon points="386,82 396,86 386,90"/><polygon points="700,82 710,86 700,90"/><polygon points="984,82 994,86 984,90"/></g>
+              <g fill="#1B242D" stroke="#2A3745"><rect x="360" y="140" width="34" height="20" rx="3"/><rect x="400" y="140" width="34" height="20" rx="3"/></g>
+              <text x="1070" y="176" text-anchor="end" fill="#7C8A99" font-size="9">Hmi.Panel + Hmi.Line + Hmi.Lamp 组合</text>
+            </svg>
+          </div>
+        </section>
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>本件判定</b><span>三工位全 OK 才放行</span></div><span class="chip ok">OK</span></div>
+            <div class="result-badge">OK</div>
+            <div class="sn-card" style="margin-top:10px;"><span>当前工件 SN</span><b>SYN-000427-A19F</b><small>配方 P-PACK-A · 第 427 件</small></div>
+            <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:0 20px;">
+              <div class="field"><span>ST1 缺陷片数</span><b>0</b></div>
+              <div class="field"><span>ST2 装盒分数</span><b>0.93</b></div>
+              <div class="field"><span>ST3 条码</span><b>6920123456</b></div>
+              <div class="field"><span>节拍</span><b>2.40 s</b></div>
+            </div>
+          </section>
+          <section class="card" style="width:430px;flex:none;">
+            <div class="card-head"><div><b>工位状态</b><span>灯 + 节拍 + 良率</span></div><span class="chip">Hmi.Lamp ×3</span></div>
+            <div class="field"><span><span class="lamp on"></span> ST1 泡罩</span><b>OK · 5,120</b></div>
+            <div class="field"><span><span class="lamp on"></span> ST2 装盒</span><b>OK · 5,116</b></div>
+            <div class="field"><span><span class="lamp on"></span> ST3 贴标</span><b>OK · 5,112</b></div>
+            <div class="field"><span>整线良率</span><b>99.06 %</b></div>
+            <div class="field"><span>本班产量</span><b>5,112 件</b></div>
+            <div class="field"><span>当前配方</span><b>P-PACK-A</b></div>
+            <div style="margin-top:8px;"><div class="progress"><i class="ok" style="width:73%"></i></div>
+              <div style="display:flex;justify-content:space-between;font-size:8.5px;color:var(--c-text-3);margin-top:4px;"><span>本班进度</span><span>5,112 / 7,000</span></div></div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card kpi-card">
+          <div class="card-head"><div><b>产线 KPI</b><span>08:00–16:00</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>产量</span><b>5,112</b><em>目标 7,000</em></div>
+            <div class="kpi"><span>良率</span><b>99.06<small>%</small></b><em>↑ 0.2%</em></div>
+            <div class="kpi"><span>节拍</span><b>2.40<small>s</small></b><em>目标 2.5</em></div>
+            <div class="kpi"><span>停机</span><b>8<small>min</small></b><em>↓ 6 min</em></div>
+          </div>
+        </section>
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>按严重度排序</span></div><span class="chip danger" data-nav="alarm">2 条未确认</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:41</span><span class="name">ST3 贴标偏移</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:22:07</span><span class="name">ST1 连续 2 件复检</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:02:18</span><span class="name">班次开始</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>工位详情 →</b><span>点任意工位下钻</span></div><span class="card-link" data-nav="monitor">监控画面 →</span></div>
+          <div class="detail-row"><span>ST1 · 泡罩检测</span><b>0.78 s</b></div>
+          <div class="detail-row"><span>ST2 · 装盒比对</span><b>0.92 s</b></div>
+          <div class="detail-row"><span>ST3 · 贴标读码</span><b>0.70 s</b></div>
+          <div class="detail-row"><span>输送 / 剔除</span><b>2.40 s</b></div>
+          <div class="detail-row"><span>整线节拍</span><b>2.40 s</b></div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 11 ms</span>
+      <span>自动模式 · 三工位协同</span>
+      <span>启动许可 6/6</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-包装线全检追溯.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>整线视角：把三工位当成一条流水，异常工位一眼定位。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>链路图：<code>Hmi.Panel</code> + <code>Hmi.Line</code> + <code>Hmi.Lamp</code></li><li>判定与 SN：<code>Hmi.Text</code></li><li>工位卡：仓库无复合卡，用 <code>Hmi.Panel</code> + <code>Hmi.IOField</code> 叠加（候选）</li></ul></div>
+    <div class="note-card"><h3>跳转关系</h3><ul><li>工位卡 → 监控画面（该工位）</li><li>报警 chip → 报警中心</li><li>判定卡 → 数据追溯</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="b-monitor" data-page="monitor">
+  <div class="tpl-head">
+    <div><h2><span>B-02</span>监控画面 · 三工位现场图</h2>
+      <p>三个工位各一张现场图 + 逐工位指标；主图用 <code>Hmi.ImageView</code> 绑运行期图像变量，其余为 <code>Hmi.Picture</code> 样图。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>三图并列</span><span><b>右栏</b>工位指标</span><span><b>出口</b>数据追溯</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>包装线全检追溯 · 2# 线</b><small>B 方案 · 实时监控</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前工位</span><b>ST2 装盒</b></div>
+      <div class="top-stat"><span>帧号</span><b>#884,120</b></div>
+      <div class="top-stat"><span>曝光</span><b>4.0 ms</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王五</b></div>
+      <div class="clock">14:32:09</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item active" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">11 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>ST1 · 泡罩检测</b><span>差分 + 斑点 · Box 型</span></div><span class="chip ok">OK</span></div>
+            <div class="image-stage"><img src="../../../Image/images/blister/blister_01.png" alt="泡罩实时图">
+              <span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+            <div class="field"><span>缺陷片数</span><b>0</b></div>
+            <div class="field"><span>耗时</span><b>0.78 s</b></div>
+          </section>
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>ST2 · 装盒比对</b><span>YOLO + OCR</span></div><span class="chip ok">OK</span></div>
+            <div class="image-stage"><img src="../../../Image/images/packaging/cookie_box_01.png" alt="装盒实时图">
+              <span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+            <div class="field"><span>装盒分数</span><b>0.93</b></div>
+            <div class="field"><span>OCR 文本</span><b>BJ-2601-A</b></div>
+          </section>
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>ST3 · 贴标读码</b><span>几何关系 + 条码</span></div><span class="chip warn">偏移</span></div>
+            <div class="image-stage"><img src="../../../Image/images/label/label_01.png" alt="贴标实时图">
+              <span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+            <div class="field"><span>贴标偏移</span><b>0.42 mm</b></div>
+            <div class="field"><span>条码</span><b>6920123456</b></div>
+          </section>
+        </div>
+        <section class="card" style="height:250px;flex:none;">
+          <div class="card-head"><div><b>当前工位参数 · ST2</b><span>只读</span></div><span class="card-link" data-nav="recipe">去工艺参数 →</span></div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0 22px;">
+            <div class="field"><span>置信度阈值</span><b>0.45</b></div>
+            <div class="field"><span>IoU 阈值</span><b>0.50</b></div>
+            <div class="field"><span>最小检测框</span><b>24 px</b></div>
+            <div class="field"><span>OCR 最小字高</span><b>12 px</b></div>
+            <div class="field"><span>匹配 MinScore</span><b>0.65</b></div>
+            <div class="field"><span>搜索范围</span><b>全图</b></div>
+            <div class="field"><span>极性</span><b>Both</b></div>
+            <div class="field"><span>曝光 / 增益</span><b>4.0 ms / 1.0</b></div>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn">重拍一张</span><span class="btn">锁定当前帧</span><span class="btn">导出本帧</span></div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:250px;flex:none;">
+          <div class="card-head"><div><b>工位节拍</b><span>最近 10 件</span></div><span class="chip">Hmi.MultiTrend</span></div>
+          <div style="flex:1;min-height:0;">
+            <svg class="stage" viewBox="0 0 300 140" preserveAspectRatio="none" role="img" aria-label="工位节拍趋势">
+              <g stroke="#222D38"><line x1="0" y1="30" x2="300" y2="30"/><line x1="0" y1="70" x2="300" y2="70"/><line x1="0" y1="110" x2="300" y2="110"/></g>
+              <polyline fill="none" stroke="#38BDF8" stroke-width="2" points="0,84 30,80 60,86 90,78 120,82 150,76 180,80 210,74 240,78 270,80 300,76"/>
+              <polyline fill="none" stroke="#22C55E" stroke-width="2" stroke-dasharray="4 4" points="0,60 30,58 60,62 90,56 120,60 150,54 180,58 210,52 240,56 270,58 300,54"/>
+            </svg>
+          </div>
+        </section>
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>最多 3 条</span></div><span class="chip danger" data-nav="alarm">查看全部</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:41</span><span class="name">ST3 贴标偏移</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:22:07</span><span class="name">ST1 连续 2 件复检</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>工位切换</b><span>点击切换主图</span></div><span class="chip">Hmi.SelectorSwitch</span></div>
+          <div class="detail-row"><span>ST1 泡罩</span><b><span class="lamp on"></span> OK</b></div>
+          <div class="detail-row"><span>ST2 装盒</span><b><span class="lamp on"></span> OK</b></div>
+          <div class="detail-row"><span>ST3 贴标</span><b><span class="lamp warn"></span> 偏移</b></div>
+          <div class="card-link" style="margin-top:auto;padding-top:8px;" data-nav="trace">进数据追溯 →</div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>3 台相机已连接</span>
+      <span>算法合计 2.40 s/件</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-包装线全检追溯.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>现场排查：看得到每个工位实际拍到了什么。</p></div>
+    <div class="note-card"><h3>已知偏差</h3><p>三张图里主图用 <code>Hmi.ImageView</code>（离屏渲染显示占位），侧图用 <code>Hmi.Picture</code> 显示样图。</p></div>
+    <div class="note-card"><h3>跳转关系</h3><ul><li>参数 → 工艺参数</li><li>工位 → 数据追溯</li><li>报警 → 报警中心</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="b-trace" data-page="trace">
+  <div class="tpl-head">
+    <div><h2><span>B-03</span>数据追溯 · 件级追踪</h2>
+      <p>每件一个 SN，三工位结果并表；这是产线追溯的主战场。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>SN + 8 列表</span><span><b>右栏</b>本批统计</span><span><b>出口</b>MES 上传</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>包装线全检追溯 · 2# 线</b><small>B 方案 · 数据追溯</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>本班已检</span><b>5,112</b></div>
+      <div class="top-stat"><span>MES 上传</span><b>正常</b></div>
+      <div class="top-stat"><span>留痕</span><b>逐件</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王五</b></div>
+      <div class="clock">14:32:11</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item active" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">11 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:none;">
+          <section class="card" style="flex:1;">
+            <div class="card-head"><div><b>当前工件</b><span>C# 脚本生成 SN</span></div><span class="chip ok">OK</span></div>
+            <div style="display:flex;gap:13px;">
+              <div class="sn-card" style="flex:1;"><span>SN</span><b>SYN-000427-A19F</b><small>配方 P-PACK-A</small></div>
+              <div class="sn-card" style="flex:1;"><span>三工位</span><b style="font-size:14px;">OK / OK / OK</b><small>全数通过</small></div>
+              <div class="sn-card" style="flex:1;"><span>检测时间</span><b style="font-size:14px;">14:32:08</b><small>节拍 2.40 s</small></div>
+            </div>
+          </section>
+          <section class="card" style="width:360px;flex:none;">
+            <div class="card-head"><div><b>查询</b><span>SN / 结果 / 工位</span></div><span class="chip">Hmi.TextField</span></div>
+            <div class="row" style="margin-bottom:7px;"><span class="input-mock" style="flex:1;justify-content:flex-start;">SYN-000427</span><span class="btn primary">查询</span></div>
+            <div class="row"><span class="select-mock" style="flex:1;">全部工位<i>▾</i></span><span class="select-mock" style="flex:1;">今天<i>▾</i></span></div>
+          </section>
+        </div>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>件级追溯（最近 10 行）</b><span>8 列 · 采行信号上升沿</span></div>
+            <div class="row"><span class="chip ok">Hmi.DataGrid</span><span class="btn">上传 MES</span><span class="btn">导出 CSV</span></div></div>
+          <div class="data-table">
+            <div class="data-row head" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span>SN</span><span>ST1</span><span>泡罩缺陷</span><span>ST2</span><span>装盒分数</span><span>ST3</span><span>条码</span><span>判定</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000427-A19F</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.93</span><span class="ok">OK</span><span class="mono">6920123456</span><span class="ok">OK</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000426-7C3D</span><span class="ok">OK</span><span class="mono">0</span><span class="ng">NG</span><span class="mono">0.41</span><span class="ok">OK</span><span class="mono">6920123455</span><span class="ng">NG</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000425-1B8E</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.90</span><span class="warn">偏移</span><span class="mono">6920123454</span><span class="warn">复检</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000424-9F02</span><span class="warn">2 片</span><span class="mono">2</span><span class="ok">OK</span><span class="mono">0.95</span><span class="ok">OK</span><span class="mono">6920123453</span><span class="warn">复检</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000423-44A7</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.94</span><span class="ok">OK</span><span class="mono">6920123452</span><span class="ok">OK</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000422-C0B1</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.92</span><span class="ok">OK</span><span class="mono">6920123451</span><span class="ok">OK</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000421-2E5F</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.96</span><span class="ok">OK</span><span class="mono">6920123450</span><span class="ok">OK</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000420-8D6C</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.93</span><span class="ok">OK</span><span class="mono">6920123449</span><span class="ok">OK</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000419-5A13</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.94</span><span class="ok">OK</span><span class="mono">6920123448</span><span class="ok">OK</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:210px 70px 96px 70px 96px 70px 120px 74px;">
+              <span class="mono">SYN-000418-6B90</span><span class="ok">OK</span><span class="mono">0</span><span class="ok">OK</span><span class="mono">0.95</span><span class="ok">OK</span><span class="mono">6920123447</span><span class="ok">OK</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;font-size:9px;color:var(--c-text-3);">
+            <span>显示缓冲 200 行；留痕以 History\ 下 CSV 为准</span><span class="spacer"></span>
+            <span class="btn">上一页</span><span class="btn">1 / 26</span><span class="btn">下一页</span>
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:240px;flex:none;">
+          <div class="card-head"><div><b>本批统计</b><span>5,112 件</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>OK</span><b>5,064</b></div>
+            <div class="stat"><span>NG</span><b class="danger">48</b></div>
+            <div class="stat"><span>复检</span><b class="warn">18</b></div>
+            <div class="stat"><span>良率</span><b>99.06</b></div>
+          </div>
+        </section>
+        <section class="card" style="height:210px;flex:none;">
+          <div class="card-head"><div><b>MES 上传</b><span>ResultUpload 插件</span></div><span class="chip ok">正常</span></div>
+          <div class="detail-row"><span>最后上传</span><b>14:32:08</b></div>
+          <div class="detail-row"><span>待上传</span><b>0 件</b></div>
+          <div class="detail-row"><span>失败重试</span><b>0 次</b></div>
+          <div class="row" style="margin-top:auto;padding-top:8px;"><span class="btn">手动重传</span><span class="btn">查看日志</span></div>
+        </section>
+        <section class="card alarm-card" style="height:200px;">
+          <div class="card-head"><div><b>报警</b><span>与追溯双向</span></div><span class="chip danger" data-nav="alarm">2 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:41</span><span class="name">ST3 贴标偏移</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:22:07</span><span class="name">ST1 连续 2 件复检</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>数据库已连接 · 16 ms</span>
+      <span>MES 已连接 · 待传 0</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-包装线全检追溯.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>追溯：这一件是谁做的、三个工位各自看到了什么、结果去哪了。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.DataGrid</code> 8 列，列键 <code>GridColumns</code></li><li><code>SampleVariable=PkgRowPush</code> 吃上升沿；<code>AckVariable</code> 累加计数</li><li>SN 卡 / 判定 <code>Hmi.Text</code></li></ul></div>
+    <div class="note-card"><h3>落地提示</h3><ul><li>列宽 0 = 吃余量；最多 12 列</li><li>Variable 为空的行会被丢弃</li><li>导出走 ExcelExport，留痕走 History\ CSV</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="b-manual" data-page="manual">
+  <div class="tpl-head">
+    <div><h2><span>B-04</span>手动操作 · 工位单步调试</h2>
+      <p>三工位可单独启停/单步，输送与剔除单动；运行态动设备必须二次确认。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>工位单动</span><span><b>右栏</b>联锁 + 权限</span><span><b>安全</b>二次确认</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>包装线全检追溯 · 2# 线</b><small>B 方案 · 手动操作</small></div></div>
+      <span class="status-chip warn"><i></i>手动 · 已暂停</span>
+      <span class="mode-pill">MANUAL · 手动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前工位</span><b>ST2 装盒</b></div>
+      <div class="top-stat"><span>输送</span><b>停机</b></div>
+      <div class="top-stat"><span>安全门</span><b>闭合</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王五 · 工程师</b></div>
+      <div class="clock">14:35:42</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item active" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>返回自动</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">11 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>工位单动</b><span>单步执行 / 连续运行 / 复位</span></div><span class="chip">Hmi.BitButton</span></div>
+            <div class="data-table">
+              <div class="data-row head" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>工位</span><span>状态</span><span>说明</span><span>操作</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>ST1 · 泡罩检测</span><span class="ok">待机</span><span style="color:var(--c-text-3);">差分 + 斑点</span>
+                <span class="row"><span class="btn">单步</span><span class="btn">连续</span><span class="btn">复位</span></span>
+              </div>
+              <div class="data-row" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>ST2 · 装盒比对</span><span class="ok">待机</span><span style="color:var(--c-text-3);">YOLO + OCR</span>
+                <span class="row"><span class="btn">单步</span><span class="btn">连续</span><span class="btn">复位</span></span>
+              </div>
+              <div class="data-row" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>ST3 · 贴标读码</span><span class="ok">待机</span><span style="color:var(--c-text-3);">几何关系 + 条码</span>
+                <span class="row"><span class="btn">单步</span><span class="btn">连续</span><span class="btn">复位</span></span>
+              </div>
+              <div class="data-row" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>输送带</span><span>停机</span><span style="color:var(--c-text-3);">正/反转</span>
+                <span class="row"><span class="btn">正转</span><span class="btn">反转</span><span class="btn danger">急停</span></span>
+              </div>
+              <div class="data-row" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>剔除气缸</span><span>原位</span><span style="color:var(--c-text-3);">动作一次</span>
+                <span class="row"><span class="btn">动作一次</span><span class="btn">回原位</span><span class="btn">测试 OK</span></span>
+              </div>
+              <div class="data-row" style="grid-template-columns:180px 90px 1fr 300px;">
+                <span>三色灯 / 蜂鸣</span><span class="ok">正常</span><span style="color:var(--c-text-3);">灯语测试</span>
+                <span class="row"><span class="btn">绿灯</span><span class="btn">黄灯</span><span class="btn">红灯</span></span>
+              </div>
+            </div>
+            <div class="row" style="margin-top:auto;padding-top:10px;">
+              <span class="btn danger" style="height:38px;padding:0 20px;">整线紧急停止</span>
+              <span class="btn ok" style="height:38px;padding:0 20px;">安全复位</span>
+              <span class="btn" style="height:38px;padding:0 20px;">清报警</span>
+            </div>
+          </section>
+          <section class="card" style="width:400px;flex:none;">
+            <div class="card-head"><div><b>当前选中工位 · ST2</b><span>参数微调（仅手动）</span></div><span class="chip">只读示例</span></div>
+            <div class="field"><span>置信度阈值</span><b><span class="input-mock">0.45</span></b></div>
+            <div class="field"><span>IoU 阈值</span><b><span class="input-mock">0.50</span></b></div>
+            <div class="field"><span>OCR 最小字高</span><b><span class="input-mock">12</span></b></div>
+            <div class="field"><span>曝光</span><b><span class="input-mock">4.0 ms</span></b></div>
+            <div class="field"><span>触发方式</span><b><span class="select-mock">软触发<i>▾</i></span></b></div>
+            <div style="font-size:8.5px;color:var(--c-text-3);margin-top:auto;padding-top:9px;">手动微调只在本次试运行内生效，回自动模式一律回落到配方值。</div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:220px;flex:none;">
+          <div class="card-head"><div><b>联锁条件</b><span>不满足则按钮置灰</span></div><span class="chip ok">5/5</span></div>
+          <div class="detail-row"><span>安全门闭合</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>无急停</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>三色灯正常</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>无未确认严重报警</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>气源压力 ≥ 0.5 MPa</span><b><span class="lamp on"></span> 满足</b></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>权限</b><span>运行期持续鉴权</span></div><span class="chip">工程师</span></div>
+          <div class="detail-row"><span>工位单步</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>输送正反转</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>剔除测试</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>改配方</span><b class="warn">需管理员</b></div>
+          <div style="font-size:8.5px;color:var(--c-text-3);margin-top:8px;">每条命令记操作者 / 会话 / IP。</div>
+        </section>
+        <section class="card alarm-card" style="height:190px;">
+          <div class="card-head"><div><b>报警</b><span>手动模式照常刷新</span></div><span class="chip danger">2 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:41</span><span class="name">ST3 贴标偏移</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:35:39</span><span class="name">切入手动模式</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 11 ms</span>
+      <span>手动模式 · 批次已暂停</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-包装线全检追溯.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>调试与清卡料：能单动的地方绝不让整线动。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>单动按钮 <code>Hmi.BitButton</code>；选择器 <code>Hmi.SelectorSwitch</code></li><li>联锁 <code>Hmi.Indicator</code> ×5</li><li>状态灯 <code>Hmi.Lamp</code></li></ul></div>
+    <div class="note-card"><h3>安全口径</h3><ul><li>整线急停永远可点，且优先于一切</li><li>单动不改变配方，退出即回落</li><li>权限在按下前判</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="b-recipe" data-page="recipe">
+  <div class="tpl-head">
+    <div><h2><span>B-05</span>工艺参数 · 三工位阈值</h2>
+      <p>一条线三套阈值，换型时同屏改完；自动模式只读，切手动并暂停批次才可编辑。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>三工位阈值表</span><span><b>右栏</b>配方 + 检查单</span><span><b>权限</b>自动态只读</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>包装线全检追溯 · 2# 线</b><small>B 方案 · 工艺参数</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前配方</span><b>P-PACK-A</b></div>
+      <div class="top-stat"><span>编辑态</span><b>只读</b></div>
+      <div class="top-stat"><span>版本</span><b>R1.8</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王五</b></div>
+      <div class="clock">14:33:20</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item active" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">11 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>三工位阈值</b><span>当前生效值 · 自动模式只读</span></div>
+              <div class="row"><span class="chip warn">只读</span><span class="btn">切手动后可编辑</span></div></div>
+            <div class="data-table">
+              <div class="data-row head" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>工位</span><span>参数</span><span>当前值</span><span>说明</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST1</span><span>差分阈值</span><span class="input-mock">24</span><span style="color:var(--c-text-3);">低于此灰差判噪声</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST1</span><span>最小面积</span><span class="input-mock">8 px</span><span style="color:var(--c-text-3);">小于不计缺陷</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST2</span><span>置信度阈值</span><span class="input-mock">0.45</span><span style="color:var(--c-text-3);">YOLO 检出下限</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST2</span><span>IoU 阈值</span><span class="input-mock">0.50</span><span style="color:var(--c-text-3);">重叠框去重</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST2</span><span>OCR 最小字高</span><span class="input-mock">12 px</span><span style="color:var(--c-text-3);">小于视为噪声</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST3</span><span>贴标偏移上限</span><span class="input-mock">0.35 mm</span><span style="color:var(--c-text-3);">超限报偏移</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>ST3</span><span>条码格式</span><span class="input-mock">Code128</span><span style="color:var(--c-text-3);">不匹配判读码失败</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:120px 250px 140px 1fr;">
+                <span>整线</span><span>节拍上限</span><span class="input-mock">3.0 s</span><span style="color:var(--c-text-3);">超时报警</span>
+              </div>
+            </div>
+          </section>
+          <section class="card" style="width:430px;flex:none;">
+            <div class="card-head"><div><b>判定规则</b><span>三工位与关系</span></div><span class="chip">Hmi.Text</span></div>
+            <div class="detail-row"><span>ST1 / ST2 / ST3 全 OK</span><b class="ok">放行</b></div>
+            <div class="detail-row"><span>任一工位 NG</span><b class="ng">剔除</b></div>
+            <div class="detail-row"><span>贴标偏移超限</span><b class="warn">复检</b></div>
+            <div class="detail-row"><span>读码失败</span><b class="ng">剔除</b></div>
+            <div style="margin-top:10px;font-size:8.5px;color:var(--c-text-3);line-height:1.6;">
+              三工位结果由 LogicOperation 与关系插件汇总为整线判定，画面只显示。
+            </div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:250px;flex:none;">
+          <div class="card-head"><div><b>配方</b><span>Hmi.RecipePanel（只读）</span></div><span class="chip">4 套可用</span></div>
+          <div class="select-mock" style="width:100%;margin-bottom:9px;">P-PACK-A · 药板 10 粒装<i>▾</i></div>
+          <div class="detail-row"><span>产品编码</span><b>BJ-2601-A</b></div>
+          <div class="detail-row"><span>目标节拍</span><b>2.50 s</b></div>
+          <div class="detail-row"><span>条码规则</span><b>6920 + 6 位流水</b></div>
+          <div class="detail-row"><span>基准图</span><b>Image\blister_01.png</b></div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn">切换配方</span><span class="btn">另存为</span></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>换型检查单</b><span>5 项</span></div><span class="chip warn">3/5</span></div>
+          <div class="detail-row"><span>批次已暂停</span><b class="ok">已暂停</b></div>
+          <div class="detail-row"><span>已切手动模式</span><b class="warn">否</b></div>
+          <div class="detail-row"><span>三相机标定有效</span><b class="ok">有效</b></div>
+          <div class="detail-row"><span>YOLO 模型已加载</span><b class="ok">已加载</b></div>
+          <div class="detail-row"><span>首件确认</span><b class="warn">待做</b></div>
+        </section>
+        <section class="card alarm-card" style="height:180px;">
+          <div class="card-head"><div><b>报警</b><span>参数类</span></div><span class="chip danger">2 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:30:41</span><span class="name">ST3 贴标偏移</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:28:03</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 11 ms</span>
+      <span>自动模式 · 配方只读</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-包装线全检追溯.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>换型调参：三工位参数在一屏内对齐，避免漏改。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>阈值表 <code>Hmi.DataGrid</code> 只读 / <code>Hmi.IOField</code></li><li>配方 <code>Hmi.RecipePanel</code> + <code>Hmi.ComboBox</code></li><li>检查单 <code>Hmi.Indicator</code> ×5</li></ul></div>
+    <div class="note-card"><h3>交互口径</h3><ul><li>自动模式整块只读并置灰</li><li>切手动 → 二次确认 → 批次暂停</li><li>首件确认后才允许恢复自动</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="b-alarm" data-page="alarm">
+  <div class="tpl-head">
+    <div><h2><span>B-06</span>报警中心 · 实时 + 历史</h2>
+      <p>同一套报警壳，绑的是产线变量：贴标偏移、连续复检、通讯断开。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>报警条 + 列表</span><span><b>右栏</b>统计 + 确认</span><span><b>出口</b>审计</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>包装线全检追溯 · 2# 线</b><small>B 方案 · 报警中心</small></div></div>
+      <span class="status-chip warn"><i></i>有未确认报警</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>报警总数</span><b>6 条</b></div>
+      <div class="top-stat"><span>未确认</span><b>2 条</b></div>
+      <div class="alarm-chip warning"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王五</b></div>
+      <div class="clock">14:34:05</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item active" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">11 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <section class="card" style="height:104px;flex:none;">
+          <div class="card-head"><div><b>报警条 · 全页面固定</b><span>顶栏下方 / 严重优先 / 最多 3 条</span></div><span class="chip">Hmi.AlarmBanner</span></div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:9px 12px;">
+            <span class="chip warn">警告</span>
+            <b style="font-size:11px;">ST3 贴标偏移 · 0.42 mm &gt; 0.35 mm</b>
+            <span class="mono" style="font-family:var(--mono);font-size:9.5px;color:var(--c-text-3);">14:30:41</span>
+            <span class="spacer"></span>
+            <span style="font-size:9.5px;color:var(--c-text-3);">2 条未确认</span>
+            <span class="btn">确认本条</span><span class="btn primary">查看全部</span>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>当前报警</b><span>按严重度排序 · 可逐条确认</span></div>
+            <div class="row"><span class="btn">全部确认</span><span class="chip">Hmi.AckButton</span></div></div>
+          <div class="data-table">
+            <div class="data-row head" style="grid-template-columns:70px 82px 1fr 130px 96px 90px;">
+              <span>严重度</span><span>时间</span><span>报警名称</span><span>来源</span><span>状态</span><span>操作</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 130px 96px 90px;">
+              <span class="warn">警告</span><span class="mono">14:30:41</span><span>ST3 贴标偏移（0.42 &gt; 0.35 mm）</span><span class="mono">St3LabelOffset</span><span class="ng">激活</span><span class="btn">确认</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 130px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:22:07</span><span>ST1 连续 2 件进入复检</span><span class="mono">St1DefectCount</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 130px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:15:33</span><span>MES 上传重试 1 次后成功</span><span class="mono">MesUpload</span><span style="color:var(--c-text-3);">已恢复</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 130px 96px 90px;">
+              <span style="color:#FCA5A5">严重</span><span class="mono">14:02:58</span><span>PLC 通讯断开（已恢复）</span><span class="mono">PlcAlarm</span><span style="color:var(--c-text-3);">已恢复</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 130px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:02:18</span><span>班次开始</span><span class="mono">SystemReady</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:276px;flex:none;">
+          <div class="card-head"><div><b>报警统计</b><span>本班</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>总数</span><b>22</b></div>
+            <div class="stat"><span>未确认</span><b class="warn">2</b></div>
+            <div class="stat"><span>严重</span><b class="danger">2</b></div>
+            <div class="stat"><span>已恢复</span><b>18</b></div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="field"><span>平均确认耗时</span><b>31 s</b></div>
+            <div class="field"><span>最频繁报警</span><b>ST3 贴标偏移</b></div>
+          </div>
+        </section>
+        <section class="card" style="height:200px;flex:none;">
+          <div class="card-head"><div><b>确认与跳转</b><span>确认后仍留历史</span></div><span class="chip">Hmi.AckButton</span></div>
+          <div class="row" style="gap:8px;"><span class="btn primary" style="height:28px;">确认选中</span><span class="btn" style="height:28px;">全部确认</span></div>
+          <div class="field" style="margin-top:9px;"><span>报警历史</span><b class="card-link">Alarms\ →</b></div>
+          <div class="field"><span>对应图像</span><b class="card-link" data-nav="monitor">监控画面 →</b></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>处置提示</b><span>原因与措施</span></div><span class="chip">配置可见</span></div>
+          <div style="font-size:9.5px;color:var(--c-text-2);line-height:1.7;">
+            <b style="color:var(--c-text);">ST3 贴标偏移</b><br>
+            原因：标签卷张力不均 / 吸头位置漂移 / 相机标定漂移<br>
+            措施：看监控画面确认贴标位置 → 检查吸头 → 必要时重做标定
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 11 ms</span>
+      <span>报警保留：90 天 · 可导 CSV</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-包装线全检追溯.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>闭环：从报警到图像到历史，一条链路走完。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.AlarmBanner</code> + <code>Hmi.AckButton</code></li><li>列表 <code>Hmi.DataGrid</code>；统计 <code>Hmi.KpiBoard</code></li></ul></div>
+    <div class="note-card"><h3>闭环口径</h3><ul><li>确认 ≠ 消除</li><li>每条带 Cause / Remedy</li><li>审计不可改</li></ul></div>
+  </div>
+</section>
+</section>
+
+<!-- ================================================================ -->
+<!-- 方案 C · 精密尺寸测量站                                            -->
+<!-- ================================================================ -->
+
+<section class="template" id="app-c" data-app-section="c">
+<section class="screen-page is-on" id="c-overview" data-page="overview">
+  <div class="tpl-head">
+    <div><h2><span>C-01</span>总览 · 四路测点与判定</h2>
+      <p>标定 + 四路卡尺测量：把四个测点的标准值/上下差/实测值摆在一起，配合 CPK 迷你趋势。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>测点表 + 判定</span><span><b>右栏</b>报警 + CPK</span><span><b>出口</b>数据追溯</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密尺寸测量站 · 1# 台</b><small>C 方案 · 单件精测</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前步</span><b>9/15 公差判定</b></div>
+      <div class="top-stat"><span>节拍</span><b>3.10 s</b></div>
+      <div class="top-stat"><span>本件</span><b>OK</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>赵六</b></div>
+      <div class="clock">14:32:08</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item active" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">6 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>四路测点</b><span>标定当量 0.0261 mm/px · 卡尺测量</span></div>
+              <div class="row"><span class="chip ok">4/4 合格</span><span class="chip">Hmi.DataGrid</span></div></div>
+            <div class="data-table">
+              <div class="data-row head" style="grid-template-columns:190px 96px 110px 110px 96px 80px;">
+                <span>测点</span><span>标准值</span><span>上差 / 下差</span><span>实测</span><span>偏差</span><span>判定</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:190px 96px 110px 110px 96px 80px;">
+                <span>D1 · 爪口宽度</span><span class="mono">12.000 mm</span><span class="mono">+0.050 / -0.050</span><span class="mono">12.018</span><span class="mono">+0.018</span><span class="ok">OK</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:190px 96px 110px 110px 96px 80px;">
+                <span>D2 · 制动盘中心孔</span><span class="mono">85.000 mm</span><span class="mono">+0.080 / -0.080</span><span class="mono">85.062</span><span class="mono">+0.062</span><span class="ok">OK</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:190px 96px 110px 110px 96px 80px;">
+                <span>D3 · 刻度间距</span><span class="mono">3.000 mm</span><span class="mono">+0.030 / -0.030</span><span class="mono">3.011</span><span class="mono">+0.011</span><span class="ok">OK</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:190px 96px 110px 110px 96px 80px;">
+                <span>D4 · 端面距</span><span class="mono">40.000 mm</span><span class="mono">+0.100 / -0.100</span><span class="mono">39.972</span><span class="mono">-0.028</span><span class="ok">OK</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:190px 96px 110px 110px 96px 80px;color:var(--c-text-3);">
+                <span>极差 R</span><span class="mono">—</span><span class="mono">—</span><span class="mono">0.090</span><span class="mono">—</span><span>—</span>
+              </div>
+            </div>
+            <div class="legend-inline" style="margin-top:auto;padding-top:9px;">
+              <span>卡尺几何：L1 沿扫描方向、L2 沿阵列方向</span><span style="margin-left:auto;">判定容差 1e-9</span>
+            </div>
+          </section>
+          <section class="card" style="width:430px;flex:none;">
+            <div class="card-head"><div><b>本件判定</b><span>四路全部合格才放行</span></div><span class="chip ok">OK</span></div>
+            <div class="result-badge">OK</div>
+            <div class="sn-card" style="margin-top:11px;"><span>当前工件 SN</span><b>MSN-000427-9A2C</b><small>配方 P-BRAKE-240 · 第 427 件</small></div>
+            <div style="margin-top:10px;">
+              <div class="field"><span>标定残差 RMS</span><b>0.081 px</b></div>
+              <div class="field"><span>标定残差 Max</span><b>0.142 px</b></div>
+              <div class="field"><span>测量耗时</span><b>3.10 s</b></div>
+            </div>
+          </section>
+        </div>
+        <section class="card" style="height:250px;flex:none;">
+          <div class="card-head"><div><b>CPK 迷你趋势</b><span>近 50 件 · D1 宽度</span></div>
+            <div class="row"><span class="chip ok">CPK 1.42</span><span class="chip">Hmi.MultiTrend</span></div></div>
+          <div style="flex:1;min-height:0;">
+            <svg class="stage" viewBox="0 0 1180 160" preserveAspectRatio="none" role="img" aria-label="CPK 迷你趋势">
+              <g stroke="#222D38"><line x1="0" y1="26" x2="1180" y2="26"/><line x1="0" y1="70" x2="1180" y2="70"/><line x1="0" y1="114" x2="1180" y2="114"/></g>
+              <line x1="0" y1="70" x2="1180" y2="70" stroke="#64748B" stroke-dasharray="6 5"/>
+              <polyline fill="none" stroke="#38BDF8" stroke-width="2"
+                points="0,78 60,74 120,80 180,72 240,76 300,70 360,74 420,68 480,72 540,66 600,70 660,64 720,68 780,62 840,66 900,62 960,66 1020,60 1080,64 1140,62 1180,64"/>
+              <text x="6" y="18" fill="#7C8A99" font-size="10" font-family="Consolas">USL +0.050</text>
+              <text x="6" y="140" fill="#7C8A99" font-size="10" font-family="Consolas">LSL -0.050</text>
+            </svg>
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card kpi-card">
+          <div class="card-head"><div><b>本班 KPI</b><span>08:00–16:00</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>测量件数</span><b>3,208</b><em>目标 3,600</em></div>
+            <div class="kpi"><span>合格</span><b>3,196</b><em>↑ 0.1%</em></div>
+            <div class="kpi"><span>超差</span><b>12</b><em>复检 4</em></div>
+            <div class="kpi"><span>合格率</span><b>99.63<small>%</small></b><em>↑ 0.08%</em></div>
+          </div>
+        </section>
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>按严重度排序</span></div><span class="chip danger" data-nav="alarm">1 条未确认</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:29:12</span><span class="name">D2 偏差接近上限</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:20:40</span><span class="name">标定结果已更新</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>设备状态</b><span>实时</span></div><span class="chip">Hmi.Indicator ×4</span></div>
+          <div class="detail-row"><span>相机 · 5MP</span><b><span class="lamp on"></span> 就绪</b></div>
+          <div class="detail-row"><span>远心镜头</span><b><span class="lamp on"></span> 就绪</b></div>
+          <div class="detail-row"><span>背光 / 环形光</span><b><span class="lamp on"></span> 就绪</b></div>
+          <div class="detail-row"><span>X / Y / Z 轴</span><b><span class="lamp on"></span> 已回零</b></div>
+          <div class="detail-row"><span>标定有效性</span><b><span class="lamp on"></span> 有效</b></div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 6 ms</span>
+      <span>自动模式 · 单件精测</span>
+      <span>启动许可 5/5</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-精密尺寸测量站.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>先答"这一件合不合格、哪一路最危险"。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>测点表 <code>Hmi.DataGrid</code>（6 列）</li><li>判定 / SN <code>Hmi.Text</code></li><li>趋势 <code>Hmi.MultiTrend</code>；KPI <code>Hmi.KpiBoard</code></li></ul></div>
+    <div class="note-card"><h3>口径</h3><ul><li>卡尺当量来自标定插件 <code>MmPerPixel</code>（全局变量传递）</li><li>跨流程不接 <code>Transform</code>（会触发断连且跨图必失败）</li><li>CPK 用极差法估算（n=2 取 d2=1.128）</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="c-monitor" data-page="monitor">
+  <div class="tpl-head">
+    <div><h2><span>C-02</span>监控画面 · 四张现场图</h2>
+      <p>卡尺爪口、刹车盘中心孔、刻度尺、端面：四路测点各自的画面与读数。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>2×2 图像</span><span><b>右栏</b>读数 + 引导</span><span><b>出口</b>数据追溯</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密尺寸测量站 · 1# 台</b><small>C 方案 · 实时监控</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前步</span><b>9/15 公差判定</b></div>
+      <div class="top-stat"><span>帧号</span><b>#362,910</b></div>
+      <div class="top-stat"><span>曝光</span><b>6.0 ms</b></div>
+      <div class="alarm-chip warning"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>赵六</b></div>
+      <div class="clock">14:32:09</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item active" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">6 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:13px;flex:1;min-height:0;">
+          <section class="card">
+            <div class="card-head"><div><b>D1 · 爪口宽度</b><span>caliper_1.png · Width 型</span></div><span class="chip ok">12.018</span></div>
+            <div class="image-stage"><img src="../../../Image/images/caliper/caliper_1.png" alt="卡尺爪口"><span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><b>D2 · 制动盘中心孔</b><span>brake_disk_part_01.png · CircleDiameter</span></div><span class="chip ok">85.062</span></div>
+            <div class="image-stage"><img src="../../../Image/images/brake_disk/brake_disk_part_01.png" alt="刹车盘中心孔"><span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><b>D3 · 刻度间距</b><span>caliper_with_tilt.png · Width 型</span></div><span class="chip ok">3.011</span></div>
+            <div class="image-stage"><img src="../../../Image/images/caliper/caliper_with_tilt.png" alt="刻度尺"><span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+          </section>
+          <section class="card">
+            <div class="card-head"><div><b>D4 · 端面距</b><span>caliper_calib_01.png · PointToPoint</span></div><span class="chip ok">39.972</span></div>
+            <div class="image-stage"><img src="../../../Image/images/caliper/caliper_calib_01.png" alt="标定板/端面"><span class="stage-tag"><i></i>Hmi.ImageView</span></div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:290px;flex:none;">
+          <div class="card-head"><div><b>逐项读数</b><span>本件</span></div><span class="chip">Hmi.IOField ×4</span></div>
+          <div class="field"><span>D1 实测 / 偏差</span><b>12.027 / +0.018</b></div>
+          <div class="field"><span>D2 实测 / 偏差</span><b>85.062 / +0.062</b></div>
+          <div class="field"><span>D3 实测 / 偏差</span><b>3.011 / +0.011</b></div>
+          <div class="field"><span>D4 实测 / 偏差</span><b>39.972 / -0.028</b></div>
+          <div class="field"><span>极差 R</span><b>0.090</b></div>
+          <div class="field"><span>卡尺边缘极性</span><b>DarkToLight</b></div>
+          <div class="field"><span>拟合算法</span><b>Tukey</b></div>
+        </section>
+        <section class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>最多 3 条</span></div><span class="chip danger" data-nav="alarm">查看全部</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:29:12</span><span class="name">D2 偏差接近上限</span><span class="state">激活</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:20:40</span><span class="name">标定结果已更新</span><span class="state">已确认</span></div>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>卡尺区域说明</b><span>L1 / L2 语义</span></div><span class="chip">口径</span></div>
+          <div style="font-size:9.5px;color:var(--c-text-2);line-height:1.75;">
+            矩形卡尺参数 = <b>中心行 / 中心列 / 角度 Phi / 半长 L1 / 半宽 L2</b>。<br>
+            <b>L1 沿 Phi 方向</b>＝每条卡尺的扫描方向，检出的边缘垂直于它；<b>L2 垂直 Phi</b>＝卡尺阵列均布方向。<br>
+            所以矩形要"横跨"被测边/缝：L1 与边垂直，L2 沿边均布取平均抗噪。
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>相机已连接 · 6 ms/帧</span>
+      <span>算法 3.10 s/件</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-精密尺寸测量站.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>测量类故障最常见的是"卡尺放错地方"，本页把四路画面摆开便于核对。</p></div>
+    <div class="note-card"><h3>已知偏差</h3><p>四张图用 <code>Hmi.ImageView</code>；真机才有像素，离屏渲染显示占位。</p></div>
+    <div class="note-card"><h3>可用素材</h3><ul><li><code>caliper/caliper_1.png</code></li><li><code>brake_disk/brake_disk_part_01.png</code></li><li><code>caliper/caliper_with_tilt.png</code></li><li><code>caliper/caliper_calib_01.png</code></li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="c-trace" data-page="trace">
+  <div class="tpl-head">
+    <div><h2><span>C-03</span>数据追溯 · 测量报表</h2>
+      <p>逐件逐项读数 + 偏差留痕；右侧是 CPK 与超差分布，可导出 Excel 交付质量部。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>SN + 10 列表</span><span><b>右栏</b>CPK + 导出</span><span><b>出口</b>Excel</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密尺寸测量站 · 1# 台</b><small>C 方案 · 数据追溯</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>本班已测</span><b>3,208</b></div>
+      <div class="top-stat"><span>留痕</span><b>逐件逐项</b></div>
+      <div class="top-stat"><span>CPK</span><b>1.42</b></div>
+      <div class="alarm-chip warning"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>赵六</b></div>
+      <div class="clock">14:32:11</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item active" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">6 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:none;">
+          <section class="card" style="flex:1;">
+            <div class="card-head"><div><b>当前工件</b><span>C# 脚本生成 SN</span></div><span class="chip ok">OK</span></div>
+            <div style="display:flex;gap:13px;">
+              <div class="sn-card" style="flex:1;"><span>SN</span><b>MSN-000427-9A2C</b><small>配方 P-BRAKE-240</small></div>
+              <div class="sn-card" style="flex:1;"><span>四路</span><b style="font-size:14px;">12.027 / 85.062</b><small>3.011 / 39.972 mm</small></div>
+              <div class="sn-card" style="flex:1;"><span>极差 / CPK</span><b style="font-size:14px;">0.090 / 1.42</b><small>D1 宽度</small></div>
+            </div>
+          </section>
+          <section class="card" style="width:360px;flex:none;">
+            <div class="card-head"><div><b>查询</b><span>SN / 结果 / 班次</span></div><span class="chip">Hmi.TextField</span></div>
+            <div class="row" style="margin-bottom:7px;"><span class="input-mock" style="flex:1;justify-content:flex-start;">MSN-000427</span><span class="btn primary">查询</span></div>
+            <div class="row"><span class="select-mock" style="flex:1;">全部结果<i>▾</i></span><span class="select-mock" style="flex:1;">本班<i>▾</i></span></div>
+          </section>
+        </div>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>测量明细（最近 8 行）</b><span>10 列 · 逐项偏差</span></div>
+            <div class="row"><span class="chip ok">Hmi.DataGrid</span><span class="btn">导出 Excel</span></div></div>
+          <div class="data-table">
+            <div class="data-row head" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span>SN</span><span>D1</span><span>D2</span><span>D3</span><span>D4</span><span>极差 R</span><span>CPK</span><span>偏差均值</span><span>判定</span><span>时间</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000427-9A2C</span><span class="mono">12.018</span><span class="mono">85.062</span><span class="mono">3.011</span><span class="mono">39.972</span><span class="mono">0.090</span><span class="mono">1.42</span><span class="mono">+0.016</span><span class="ok">OK</span><span class="mono">14:32:08</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000426-7C3D</span><span class="mono">12.004</span><span class="mono">85.092</span><span class="mono">2.998</span><span class="mono">40.010</span><span class="mono">0.094</span><span class="mono">1.38</span><span class="mono">+0.026</span><span class="ok">OK</span><span class="mono">14:32:05</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000425-1B8E</span><span class="mono">12.062</span><span class="mono">85.070</span><span class="mono">3.020</span><span class="mono">39.960</span><span class="mono">0.110</span><span class="mono">1.21</span><span class="mono">+0.028</span><span class="ng">NG</span><span class="mono">14:32:02</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000424-9F02</span><span class="mono">11.988</span><span class="mono">85.048</span><span class="mono">3.006</span><span class="mono">39.984</span><span class="mono">0.078</span><span class="mono">1.46</span><span class="mono">+0.006</span><span class="ok">OK</span><span class="mono">14:31:59</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000423-44A7</span><span class="mono">12.010</span><span class="mono">85.056</span><span class="mono">3.004</span><span class="mono">39.978</span><span class="mono">0.086</span><span class="mono">1.44</span><span class="mono">+0.012</span><span class="ok">OK</span><span class="mono">14:31:56</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000422-C0B1</span><span class="mono">12.022</span><span class="mono">85.038</span><span class="mono">3.012</span><span class="mono">39.966</span><span class="mono">0.092</span><span class="mono">1.40</span><span class="mono">+0.010</span><span class="ok">OK</span><span class="mono">14:31:53</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000421-2E5F</span><span class="mono">11.996</span><span class="mono">85.064</span><span class="mono">2.992</span><span class="mono">39.988</span><span class="mono">0.084</span><span class="mono">1.43</span><span class="mono">+0.010</span><span class="ok">OK</span><span class="mono">14:31:50</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:196px 82px 82px 82px 82px 82px 78px 82px 66px 74px;">
+              <span class="mono">MSN-000420-8D6C</span><span class="mono">12.008</span><span class="mono">85.052</span><span class="mono">3.000</span><span class="mono">39.974</span><span class="mono">0.080</span><span class="mono">1.45</span><span class="mono">+0.009</span><span class="ok">OK</span><span class="mono">14:31:47</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;font-size:9px;color:var(--c-text-3);">
+            <span>显示缓冲 200 行；留痕以 History\ 下 CSV 为准</span><span class="spacer"></span>
+            <span class="btn">上一页</span><span class="btn">1 / 17</span><span class="btn">下一页</span>
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:262px;flex:none;">
+          <div class="card-head"><div><b>质量统计</b><span>本班 3,208 件</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>合格</span><b>3,196</b></div>
+            <div class="stat"><span>超差</span><b class="danger">12</b></div>
+            <div class="stat"><span>CPK（D1）</span><b>1.42</b></div>
+            <div class="stat"><span>CPK（D2）</span><b class="warn">1.28</b></div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="field"><span>超差集中测点</span><b>D1 宽度</b></div>
+            <div class="field"><span>偏差趋势</span><b>向正侧漂移</b></div>
+          </div>
+        </section>
+        <section class="card" style="height:210px;flex:none;">
+          <div class="card-head"><div><b>导出与上报</b><span>ExcelExport 插件</span></div><span class="chip ok">正常</span></div>
+          <div class="detail-row"><span>最后导出</span><b>14:02:11</b></div>
+          <div class="detail-row"><span>导出文件</span><b>History\…报表\</b></div>
+          <div class="row" style="margin-top:auto;padding-top:8px;"><span class="btn">立即导出</span><span class="btn">打开目录</span></div>
+        </section>
+        <section class="card alarm-card" style="height:180px;">
+          <div class="card-head"><div><b>报警</b><span>与追溯双向</span></div><span class="chip danger" data-nav="alarm">1 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:29:12</span><span class="name">D2 偏差接近上限</span><span class="state">激活</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>数据库已连接 · 9 ms</span>
+      <span>留痕模式：逐件逐项</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-精密尺寸测量站.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>质量交付：逐件读数 + 偏差 + CPK，直接出报表。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.DataGrid</code> 10 列（上限 12 列）</li><li>统计 <code>Hmi.KpiBoard</code></li><li>SN 卡 <code>Hmi.Text</code></li></ul></div>
+    <div class="note-card"><h3>口径</h3><ul><li>CPK 用极差法（n=2，d2=1.128），量产需换 X-bar-R</li><li>偏差带符号显示，不取绝对值</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="c-manual" data-page="manual">
+  <div class="tpl-head">
+    <div><h2><span>C-04</span>手动操作 · 快测与标定</h2>
+      <p>调试卡尺与重做标定都在这里；标定步骤需要专门权限，且会写标定产物。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>轴控 + 快测</span><span><b>右栏</b>标定 + 联锁</span><span><b>安全</b>二次确认</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密尺寸测量站 · 1# 台</b><small>C 方案 · 手动操作</small></div></div>
+      <span class="status-chip warn"><i></i>手动 · 已暂停</span>
+      <span class="mode-pill">MANUAL · 手动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前步</span><b>已暂停 · 9/15</b></div>
+      <div class="top-stat"><span>轴状态</span><b>已使能</b></div>
+      <div class="top-stat"><span>标定</span><b>有效</b></div>
+      <div class="alarm-chip warning"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>赵六 · 工程师</b></div>
+      <div class="clock">14:35:42</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item active" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>返回自动</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">6 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>三轴点动 + 快测</b><span>点动按住才动 · 快测单步执行一次测量</span></div>
+              <div class="row"><span class="chip ok">已回零</span><span class="chip">Hmi.AxisPanel</span></div></div>
+            <div style="display:flex;gap:16px;flex:1;min-height:0;">
+              <div style="width:290px;flex:none;display:flex;flex-direction:column;gap:9px;">
+                <div class="card" style="padding:10px;background:var(--c-surface-2);">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9px;color:var(--c-text-3);">X 位置</span><span style="font-family:var(--mono);font-size:8.5px;color:#86EFAC;">使能</span></div>
+                  <div style="font-family:var(--mono);font-size:26px;color:var(--c-text);">120.004 <small style="font-size:10px;color:var(--c-text-3)">mm</small></div>
+                </div>
+                <div class="card" style="padding:10px;background:var(--c-surface-2);">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;"><span style="font-size:9px;color:var(--c-text-3);">Y 位置</span><span style="font-family:var(--mono);font-size:8.5px;color:#86EFAC;">使能</span></div>
+                  <div style="font-family:var(--mono);font-size:26px;color:var(--c-text);">84.996 <small style="font-size:10px;color:var(--c-text-3)">mm</small></div>
+                </div>
+                <div class="row" style="justify-content:space-between;">
+                  <span class="btn" style="height:40px;flex:1;">X−</span><span class="btn" style="height:40px;flex:1;">回零</span><span class="btn" style="height:40px;flex:1;">X+</span>
+                </div>
+                <div class="row" style="justify-content:space-between;">
+                  <span class="btn" style="height:40px;flex:1;">Y−</span><span class="btn" style="height:40px;flex:1;">Z 归位</span><span class="btn" style="height:40px;flex:1;">Y+</span>
+                </div>
+                <span class="btn danger" style="height:38px;">紧急停止</span>
+              </div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:9px;min-width:0;">
+                <div class="image-stage" style="flex:1;">
+                  <img src="../../../Image/images/caliper/caliper_line_scan.png" alt="实时画面">
+                  <span class="stage-tag"><i></i>Hmi.ImageView · 当前帧</span>
+                </div>
+                <div class="row"><span class="btn primary" style="height:34px;">快测一次</span><span class="btn" style="height:34px;">保存本帧</span><span class="btn" style="height:34px;">显示卡尺框</span></div>
+              </div>
+            </div>
+          </section>
+          <section class="card" style="width:430px;flex:none;">
+            <div class="card-head"><div><b>标定</b><span>Calibration 插件 · PixelScale 模式</span></div><span class="chip ok">有效</span></div>
+            <div class="field"><span>标定方式</span><b><span class="select-mock">PixelScale<i>▾</i></span></b></div>
+            <div class="field"><span>当前当量</span><b>0.0261 mm/px</b></div>
+            <div class="field"><span>残差 RMS / Max</span><b>0.081 / 0.142 px</b></div>
+            <div class="field"><span>标定时间</span><b>2026-10-24 09:12</b></div>
+            <div class="field"><span>标定板</span><b>Image\caliper_calib_01.png</b></div>
+            <div class="row" style="margin-top:10px;"><span class="btn">重新标定</span><span class="btn">查看历史标定</span></div>
+            <div style="font-size:8.5px;color:var(--c-text-3);margin-top:auto;padding-top:9px;">
+              重新标定需二次确认并记录操作者；标定产物写入方案数据区，随方案搬迁。
+            </div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:220px;flex:none;">
+          <div class="card-head"><div><b>联锁条件</b><span>不满足则置灰</span></div><span class="chip ok">5/5</span></div>
+          <div class="detail-row"><span>安全门闭合</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>无急停</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>伺服使能</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>三轴已回零</span><b><span class="lamp on"></span> 满足</b></div>
+          <div class="detail-row"><span>标定有效</span><b><span class="lamp on"></span> 满足</b></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>权限</b><span>运行期持续鉴权</span></div><span class="chip">工程师</span></div>
+          <div class="detail-row"><span>点动 / 回零</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>快测</span><b class="ok">允许</b></div>
+          <div class="detail-row"><span>重新标定</span><b class="warn">需管理员</b></div>
+          <div class="detail-row"><span>改公差</span><b class="ok">允许</b></div>
+        </section>
+        <section class="card alarm-card" style="height:190px;">
+          <div class="card-head"><div><b>报警</b><span>手动模式照常刷新</span></div><span class="chip danger">1 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:29:12</span><span class="name">D2 偏差接近上限</span><span class="state">激活</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>轴控已连接 · 1 ms</span>
+      <span>手动模式 · 批次已暂停</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-精密尺寸测量站.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>调卡尺、重标定、单步快测。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.AxisPanel</code>（紧凑版 280×280）/ <code>Hmi.AxisConsole</code></li><li>标定字段 <code>Hmi.IOField</code> + <code>Hmi.ComboBox</code></li><li>预览 <code>Hmi.ImageView</code></li></ul></div>
+    <div class="note-card"><h3>安全口径</h3><ul><li>重新标定 = 改测量基准，需管理员 + 二次确认</li><li>标定完成后必须首件复核</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="c-recipe" data-page="recipe">
+  <div class="tpl-head">
+    <div><h2><span>C-05</span>工艺参数 · 公差与量程</h2>
+      <p>四路测点的标准值、上下差、极性、拟合算法同屏；自动模式只读。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>公差表</span><span><b>右栏</b>配方 + 检查单</span><span><b>权限</b>自动态只读</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密尺寸测量站 · 1# 台</b><small>C 方案 · 工艺参数</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前配方</span><b>P-BRAKE-240</b></div>
+      <div class="top-stat"><span>编辑态</span><b>只读</b></div>
+      <div class="top-stat"><span>版本</span><b>R2.1</b></div>
+      <div class="alarm-chip warning"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>赵六</b></div>
+      <div class="clock">14:33:20</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item active" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">6 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <div style="display:flex;gap:13px;flex:1;min-height:0;">
+          <section class="card" style="flex:1;min-width:0;">
+            <div class="card-head"><div><b>公差表</b><span>当前生效值 · 自动模式只读</span></div>
+              <div class="row"><span class="chip warn">只读</span><span class="btn">切手动后可编辑</span></div></div>
+            <div class="data-table">
+              <div class="data-row head" style="grid-template-columns:170px 104px 104px 104px 96px 1fr;">
+                <span>测点</span><span>标准值</span><span>上差</span><span>下差</span><span>类型</span><span>极性 / 算法</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:170px 104px 104px 104px 96px 1fr;">
+                <span>D1 · 爪口宽度</span><span class="input-mock">12.000</span><span class="input-mock">+0.050</span><span class="input-mock">-0.050</span><span>Width</span><span style="color:var(--c-text-3);">DarkToLight / Tukey</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:170px 104px 104px 104px 96px 1fr;">
+                <span>D2 · 制动盘中心孔</span><span class="input-mock">85.000</span><span class="input-mock">+0.080</span><span class="input-mock">-0.080</span><span>CircleDiameter</span><span style="color:var(--c-text-3);">All / Huber</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:170px 104px 104px 104px 96px 1fr;">
+                <span>D3 · 刻度间距</span><span class="input-mock">3.000</span><span class="input-mock">+0.030</span><span class="input-mock">-0.030</span><span>Width</span><span style="color:var(--c-text-3);">LightToDark / Tukey</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:170px 104px 104px 104px 96px 1fr;">
+                <span>D4 · 端面距</span><span class="input-mock">40.000</span><span class="input-mock">+0.100</span><span class="input-mock">-0.100</span><span>PointToPoint</span><span style="color:var(--c-text-3);">DarkToLight / Regression</span>
+              </div>
+              <div class="data-row" style="grid-template-columns:170px 104px 104px 104px 96px 1fr;">
+                <span>卡尺采样密度</span><span class="input-mock">9 条</span><span class="input-mock">σ 1.2</span><span class="input-mock">阈值 18</span><span>CaliperCount</span><span style="color:var(--c-text-3);">Bilinear 插值</span>
+              </div>
+            </div>
+            <div style="margin-top:auto;padding-top:9px;font-size:8.5px;color:var(--c-text-3);">
+              Width / CircleDiameter 各需 1 个卡尺区域；PointToPoint / PointToLineDistance / Angle 各需 2 个。
+            </div>
+          </section>
+          <section class="card" style="width:430px;flex:none;">
+            <div class="card-head"><div><b>判定规则</b><span>逐项 + 汇总</span></div><span class="chip">Hmi.Text</span></div>
+            <div class="detail-row"><span>四路全部在公差内</span><b class="ok">放行</b></div>
+            <div class="detail-row"><span>任一路超差</span><b class="ng">NG</b></div>
+            <div class="detail-row"><span>偏差 ≥ 80% 公差</span><b class="warn">预警（提前介入）</b></div>
+            <div class="detail-row"><span>卡尺区域无效</span><b class="ng">测量失败 → NG</b></div>
+          </section>
+        </div>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:260px;flex:none;">
+          <div class="card-head"><div><b>配方</b><span>Hmi.RecipePanel（只读）</span></div><span class="chip">3 套可用</span></div>
+          <div class="select-mock" style="width:100%;margin-bottom:9px;">P-BRAKE-240 · 刹车盘 240 mm<i>▾</i></div>
+          <div class="detail-row"><span>产品编码</span><b>BR-240-A</b></div>
+          <div class="detail-row"><span>像素当量</span><b>0.0261 mm/px</b></div>
+          <div class="detail-row"><span>视场</span><b>1280 × 1024 px</b></div>
+          <div class="detail-row"><span>基准图</span><b>Image\brake_disk_part_01.png</b></div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn">切换配方</span><span class="btn">另存为</span></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>换型检查单</b><span>5 项</span></div><span class="chip warn">4/5</span></div>
+          <div class="detail-row"><span>批次已暂停</span><b class="ok">已暂停</b></div>
+          <div class="detail-row"><span>已切手动模式</span><b class="warn">否</b></div>
+          <div class="detail-row"><span>相机标定有效</span><b class="ok">有效</b></div>
+          <div class="detail-row"><span>卡尺区域已校验</span><b class="ok">有效</b></div>
+          <div class="detail-row"><span>首件确认</span><b class="ok">已完成</b></div>
+        </section>
+        <section class="card alarm-card" style="height:170px;">
+          <div class="card-head"><div><b>报警</b><span>参数类</span></div><span class="chip danger">1 条</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">警告</span><span class="time">14:29:12</span><span class="name">D2 偏差接近上限</span><span class="state">激活</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 6 ms</span>
+      <span>自动模式 · 配方只读</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-精密尺寸测量站.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>换型号、改公差、校对卡尺类型——测量类方案最容易配错的地方。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li>公差表 <code>Hmi.DataGrid</code> 只读 / <code>Hmi.IOField</code></li><li>类型与算法 <code>Hmi.ComboBox</code>（枚举型，必须走 ForEnum 显示中文）</li></ul></div>
+    <div class="note-card"><h3>硬约束</h3><ul><li>枚举值必须写英文成员名，写中文回落默认</li><li>Width / CircleDiameter 各 1 区域，其余各 2 区域</li></ul></div>
+  </div>
+</section>
+
+<section class="screen-page" id="c-alarm" data-page="alarm">
+  <div class="tpl-head">
+    <div><h2><span>C-06</span>报警中心 · 实时 + 历史</h2>
+      <p>测量类报警以"接近公差"为主：提前预警比事后判废更有价值。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>报警条 + 列表</span><span><b>右栏</b>统计 + 确认</span><span><b>出口</b>审计</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密尺寸测量站 · 1# 台</b><small>C 方案 · 报警中心</small></div></div>
+      <span class="status-chip warn"><i></i>有未确认报警</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>报警总数</span><b>4 条</b></div>
+      <div class="top-stat"><span>未确认</span><b>1 条</b></div>
+      <div class="alarm-chip warning"><i></i>1 条未确认</div>
+      <div class="user"><span>操作员</span><b>赵六</b></div>
+      <div class="clock">14:34:05</div>
+    </div>
+    <div class="shell">
+      <aside class="nav">
+        <div class="nav-item" data-nav="overview"><span class="ico">▦</span>总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇅</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><span class="ico">◔</span>监控画面</div>
+        <div class="nav-item" data-nav="trace"><span class="ico">▤</span>数据追溯</div>
+        <div class="nav-item" data-nav="manual"><span class="ico">✥</span>手动操作</div>
+        <div class="nav-item" data-nav="recipe"><span class="ico">⚙</span>工艺参数</div>
+        <div class="nav-item active" data-nav="alarm"><span class="ico">△</span>报警中心<span class="nav-badge">1</span></div>
+        <div class="nav-item"><span class="ico">◫</span>趋势分析</div>
+        <div class="nav-item"><span class="ico">≡</span>系统维护</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><span class="ico">⇄</span>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>PLC 已连接</div><div class="conn-sub">6 ms · 0 丢包</div></div>
+      </aside>
+      <main class="main">
+        <section class="card" style="height:104px;flex:none;">
+          <div class="card-head"><div><b>报警条 · 全页面固定</b><span>顶栏下方 / 严重优先 / 最多 3 条</span></div><span class="chip">Hmi.AlarmBanner</span></div>
+          <div style="display:flex;align-items:center;gap:12px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;padding:9px 12px;">
+            <span class="chip warn">警告</span>
+            <b style="font-size:11px;">D2 制动盘中心孔偏差接近上限（+0.062 / +0.080 mm）</b>
+            <span class="mono" style="font-family:var(--mono);font-size:9.5px;color:var(--c-text-3);">14:29:12</span>
+            <span class="spacer"></span>
+            <span style="font-size:9.5px;color:var(--c-text-3);">1 条未确认</span>
+            <span class="btn">确认本条</span><span class="btn primary">查看全部</span>
+          </div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>当前报警</b><span>按严重度排序</span></div>
+            <div class="row"><span class="btn">全部确认</span><span class="chip">Hmi.AckButton</span></div></div>
+          <div class="data-table">
+            <div class="data-row head" style="grid-template-columns:70px 82px 1fr 140px 96px 90px;">
+              <span>严重度</span><span>时间</span><span>报警名称</span><span>来源</span><span>状态</span><span>操作</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 140px 96px 90px;">
+              <span class="warn">警告</span><span class="mono">14:29:12</span><span>D2 中心孔偏差接近上限（+0.062 / +0.080）</span><span class="mono">D2Deviation</span><span class="ng">激活</span><span class="btn">确认</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 140px 96px 90px;">
+              <span style="color:#FCA5A5">严重</span><span class="mono">13:48:02</span><span>D1 超差（12.062 &gt; 12.050）</span><span class="mono">D1Deviation</span><span style="color:var(--c-text-3);">已恢复</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 140px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:20:40</span><span>标定结果已更新（残差 RMS 0.081 px）</span><span class="mono">CalibRms</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+            <div class="data-row" style="grid-template-columns:70px 82px 1fr 140px 96px 90px;">
+              <span style="color:#93C5FD">提示</span><span class="mono">14:02:18</span><span>班次开始</span><span class="mono">SystemReady</span><span style="color:var(--c-text-3);">已确认</span><span class="btn">详情</span>
+            </div>
+          </div>
+        </section>
+      </main>
+      <aside class="rail">
+        <section class="card" style="height:266px;flex:none;">
+          <div class="card-head"><div><b>报警统计</b><span>本班</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>总数</span><b>9</b></div>
+            <div class="stat"><span>未确认</span><b class="warn">1</b></div>
+            <div class="stat"><span>严重</span><b class="danger">1</b></div>
+            <div class="stat"><span>已恢复</span><b>7</b></div>
+          </div>
+          <div style="margin-top:10px;">
+            <div class="field"><span>最频繁报警</span><b>D2 接近上限</b></div>
+            <div class="field"><span>平均确认耗时</span><b>41 s</b></div>
+          </div>
+        </section>
+        <section class="card" style="height:200px;flex:none;">
+          <div class="card-head"><div><b>确认与跳转</b><span>确认后仍留历史</span></div><span class="chip">Hmi.AckButton</span></div>
+          <div class="row" style="gap:8px;"><span class="btn primary" style="height:28px;">确认选中</span><span class="btn" style="height:28px;">全部确认</span></div>
+          <div class="field" style="margin-top:9px;"><span>对应图像</span><b class="card-link" data-nav="monitor">监控画面 →</b></div>
+          <div class="field"><span>对应件</span><b class="card-link" data-nav="trace">数据追溯 →</b></div>
+        </section>
+        <section class="card" style="flex:1;min-height:0;">
+          <div class="card-head"><div><b>处置提示</b><span>原因与措施</span></div><span class="chip">配置可见</span></div>
+          <div style="font-size:9.5px;color:var(--c-text-2);line-height:1.7;">
+            <b style="color:var(--c-text);">D2 中心孔接近上限</b><br>
+            原因：刀具磨损 / 夹具偏移 / 温漂<br>
+            措施：看趋势是否持续漂移 → 检查夹具 → 必要时停机校刀
+          </div>
+        </section>
+      </aside>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>PLC 已连接 · 6 ms</span>
+      <span>报警保留：90 天 · 可导 CSV</span>
+      <span class="spacer"></span>
+      <span>方案：CCG-精密尺寸测量站.vms</span>
+      <span>v1.0.0</span>
+    </div>
+  </div>
+  <div class="page-notes">
+    <div class="note-card"><h3>本页用途</h3><p>把"接近上限"也当一等公民：预警先于判废。</p></div>
+    <div class="note-card"><h3>图元落点</h3><ul><li><code>Hmi.AlarmBanner</code> + <code>Hmi.AckButton</code></li><li>Kind 用 <code>High</code> / <code>Low</code> 阈值型，Severity 分 Info/Warning/Critical</li></ul></div>
+    <div class="note-card"><h3>闭环口径</h3><ul><li>死区与延迟防止抖动刷屏</li><li>确认 ≠ 消除</li></ul></div>
+  </div>
+</section>
+</section>
+
+<!-- 总说明 -->
+<div class="notes">
+  <div class="note-card">
+    <h3>一、这份稿子是什么</h3>
+    <p>它是 <strong>三套可导入运行 <code>.vms</code> 方案</strong>（A 精密电子 BGA 焊球全检 / B 包装线全检追溯 / C 精密尺寸测量站）的界面设计基线，共 27 屏 1920×1080。按 AGENTS.md §30 与 R126 定位为<strong>设计媒介</strong>：不进构建、不部署、不做第二客户端；真正交付物是复刻后的 <code>docs\UI设计基线\*</code> 映射、WPF 组态与截图证据。</p>
+    <h3>二、壳怎么来的</h3>
+    <table class="zone-table">
+      <tr><td>A</td><td>顶栏 72px：品牌/站点 · 运行状态胶囊 · 模式胶囊 · 当前步 · 节拍/本件 · 报警 chip · 操作员 · 时钟。只放 L1 状态。</td></tr>
+      <tr><td>B</td><td>左导航 208px：8 项固定（总览 / 监控画面 / 数据追溯 / 手动操作 / 工艺参数 / 报警中心 / 趋势分析 / 系统维护），报警项带未确认徽标。</td></tr>
+      <tr><td>C</td><td>主工作区：当前页的判断与操作，卡片统一「标题 + 右上 chip + 内容」。</td></tr>
+      <tr><td>D</td><td>右信息栏 340px：报警 → KPI → 明细/权限 → 跳转，顺序固定，不把报警压最下。</td></tr>
+      <tr><td>E</td><td>底栏 32px：连接延迟/丢包、模式、方案名、版本、时钟。只读，不放按钮。</td></tr>
+    </table>
+    <h3>三、图元可行性</h3>
+    <p>设计稿里每个区块都标了真实 <code>TypeKey</code>，全部来自 <code>Scada.Controls\Descriptors\BuiltInElements.cs</code> 的 40 个内置图元：</p>
+    <div class="tag-list">
+      <span>Hmi.Panel</span><span>Hmi.Text</span><span>Hmi.Button</span><span>Hmi.BitButton</span><span>Hmi.Indicator</span><span>Hmi.Lamp</span><span>Hmi.Clock</span><span>Hmi.ProgressBar</span><span>Hmi.IOField</span><span>Hmi.TextField</span><span>Hmi.ComboBox</span><span>Hmi.SelectorSwitch</span><span>Hmi.KpiBoard</span><span>Hmi.MultiTrend</span><span>Hmi.DataGrid</span><span>Hmi.ImageView</span><span>Hmi.Picture</span><span>Hmi.AxisConsole</span><span>Hmi.AxisPanel</span><span>Hmi.RecipePanel</span><span>Hmi.AlarmBanner</span><span>Hmi.AckButton</span><span>Hmi.Gauge</span><span>Hmi.RunMeter</span><span>Hmi.Tank</span><span>Hmi.Pump</span><span>Hmi.Valve</span><span>Hmi.Pipe</span><span>Hmi.Motor</span><span>Hmi.QRCode</span><span>Hmi.Barcode</span><span>Hmi.Rectangle</span><span>Hmi.Ellipse</span><span>Hmi.Line</span>
+      <span class="cand">候选：柱状图</span><span class="cand">候选：工位复合卡</span><span class="cand">候选：软键盘</span>
+    </div>
+    <p style="margin-top:8px;">标橙色的三项仓库里没有对应控件，需另立批次或在画面上用多个基础图元叠加拼装，不当作已实现。</p>
+  </div>
+  <div class="note-card">
+    <h3>四、图像采集怎么处理</h3>
+    <ul>
+      <li>采集步骤统一用 <strong>Folder 模式</strong>（<code>FolderPath</code> + <code>FileIndex</code> 逐张轮播，每轮重新列目录），一个图库文件翻一页就是一条产环节拍；</li>
+      <li>画面上用 <code>Hmi.ImageView</code> 绑<strong>图像变量</strong>显示实时图（绑定键 <code>Source</code>，可绑），由运行态数据泵把 <code>HImage</code> 转成位图刷新；</li>
+      <li>静态对照图上 <code>Hmi.Picture</code> 绑方案内相对路径（键 <code>SourcePath</code>，不可绑）；</li>
+      <li><strong>已知偏差</strong>：本探针离屏渲染没有运行态数据泵，<code>Hmi.ImageView</code> 恒显示"无图像"占位；真出图必须在 <code>VisionMaster.exe</code> 里验证。</li>
+    </ul>
+    <h3>五、已知偏差（逐项列明）</h3>
+    <ol>
+      <li>字体度量：WPF 与浏览器渲染中文行高略有差异，按 §30 允许；</li>
+      <li>滚动条宽度：设计稿用浏览器原生滚动条，WPF 需套自定义样式；</li>
+      <li><code>Hmi.ImageView</code> 出图见上；</li>
+      <li><code>Hmi.KpiBoard</code> 的设计态数值为空串，本稿用真实数字示意；</li>
+      <li><code>Hmi.AxisConsole</code> / <code>AxisPanel</code> 的实际尺寸与本稿示意盘不同，复刻时按控件真实布局重排；</li>
+      <li>趋势图为 SVG 示意，真机是 <code>Hmi.MultiTrend</code> 按变量实时绘制。</li>
+    </ol>
+    <h3>六、待你拍板</h3>
+    <ol>
+      <li>多工位/多信号表格样式各异，是否统一成"深色等宽默认列 + 状态色chip"；</li>
+      <li>深色还是浅色：本稿沿 scada-suite 深色；车间强光环境下是否需要浅色主题；</li>
+      <li>左导航 8 项是否够用，是否需要加"配方管理 / 用户管理"；</li>
+      <li>报警确认后是否允许"一键全部确认"（现场一般要求逐条）；</li>
+      <li>手动操作页是否需要实体面板按钮（硬按键）与屏幕按钮一一对应。</li>
+    </ol>
+  </div>

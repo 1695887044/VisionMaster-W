@@ -16,6 +16,7 @@ using Nodify;
 using Prism.Dialogs;
 using Prism.Ioc;
 using VisionMaster.Models;
+using VisionMaster.Services;
 using VisionMaster.ViewModels;
 
 namespace VisionMaster.Views
@@ -83,6 +84,8 @@ namespace VisionMaster.Views
         {
             if (_viewModel != null)
             {
+                // 自绘预览层订的是旧 VM 的集合，换 VM 前必须先摘，否则新 VM 的变更会打到旧快照上
+                UnsubscribeSurface();
                 _viewModel.ViewportActionRequested -= OnViewportActionRequested;
                 _viewModel.ZoomCommandRequested -= OnZoomCommandRequested;
                 _viewModel.ModuleLinkRequested -= OnModuleLinkRequested;
@@ -300,13 +303,37 @@ namespace VisionMaster.Views
 
             public void DragOver(GongDropInfo dropInfo)
             {
-                dropInfo.Effects = FindDraggedTool(dropInfo) != null && _owner._viewModel != null
-                    ? DragDropEffects.Copy
-                    : DragDropEffects.None;
+                var tool = FindDraggedTool(dropInfo);
+                if (tool == null || _owner._viewModel == null)
+                {
+                    dropInfo.Effects = DragDropEffects.None;
+                    DragHintPresenter.Hide(DragHintPresenter.CanvasOwner);
+                    return;
+                }
+
+                // 落点提示（设计基线 drag-drop-hint v2）：与 DropToolAt 同一份判据，
+                // 提示"会落到哪个容器的哪条分支"，非法落点说清原因
+                var (text, kind) = _owner._viewModel.DescribeDropTarget(tool, _owner.ToGraphPosition(dropInfo.DropPosition));
+                DragHintPresenter.Show(DragHintPresenter.CanvasOwner, text, kind);
+
+                // 光标语义必须与提示一致：非法/运行锁时不许显示"可复制"，
+                // 否则会出现"光标说能放、提示说不能放、松手被拒"的三方矛盾
+                dropInfo.Effects = kind is DragHintKind.Illegal or DragHintKind.Locked
+                    ? DragDropEffects.None
+                    : DragDropEffects.Copy;
             }
+
+            /// <summary>
+            /// 拖出画布：只撤自己写的那条提示。
+            /// 不能无条件 Hide——gong 的 DragLeave 是 Dispatcher 延迟派发的，从画布移到流程栏时
+            /// 它可能排在流程栏的 DragOver 之后，无条件 Hide 会把流程栏刚写的提示抹掉。
+            /// </summary>
+            public void DragLeave(GongDropInfo dropInfo) => DragHintPresenter.Hide(DragHintPresenter.CanvasOwner);
 
             public void Drop(GongDropInfo dropInfo)
             {
+                DragHintPresenter.Hide();
+
                 var tool = FindDraggedTool(dropInfo);
                 if (tool == null || _owner._viewModel == null)
                 {
@@ -450,6 +477,242 @@ namespace VisionMaster.Views
                     drawingContext.DrawLine(pen, new Point(0, y), new Point(ActualWidth, y));
                 }
             }
+        }
+
+        // ==================================================================
+        //  自绘预览层（C2 测量入口）
+        //
+        //  目的只有一个：**在真机上量出"同一流程用自绘渲染"的打开耗时**，
+        //  与 Nodify 画布对比后决定是否替换。所以本层是只读的：
+        //  平移 / 缩放 / 点选（点选仍走 VM 既有路径），不参与拖动改序与拖线。
+        //  默认关闭；勾选工具条「自绘预览」才生效，编辑器整体隐藏。
+        // ==================================================================
+
+        private bool _surfaceSubscribed;
+        private bool _surfaceSyncPending;
+        private bool _surfacePanning;
+        private bool _surfaceUserAdjusted;
+        private Point _surfacePanAnchor;
+        private Vector _surfacePanOrigin;
+
+        /// <summary>
+        /// 探针/自动化入口：等价于勾选工具条「自绘预览」。
+        /// 只在测量脚本里用（`--switch-perf … surface`），产品界面走那个 CheckBox。
+        /// </summary>
+        public bool UseSelfDrawnCanvas
+        {
+            get => ChkSurfacePreview.IsChecked == true;
+            set => ChkSurfacePreview.IsChecked = value;
+        }
+
+        /// <summary>诊断用：确认自绘层真的接管了（编辑器已收起、自绘层已显示）</summary>
+        public bool IsSelfDrawnActive
+            => Editor.Visibility == Visibility.Collapsed && SurfacePreview.Visibility == Visibility.Visible;
+
+        private void OnSurfacePreviewChanged(object sender, RoutedEventArgs e)
+        {
+            bool on = ChkSurfacePreview.IsChecked == true;
+
+            Editor.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+            SurfacePreview.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+
+            if (on)
+            {
+                _surfaceUserAdjusted = false;   // 每次打开都重新适配一次
+
+                // 字体族取编辑器的（Nodify 模板继承的就是它）：中文回退字形与字重必须一致，
+                // 否则同一张卡片在两边看着"粗细不同"。
+                SurfacePreview.SetUiFont(Editor.FontFamily);
+
+                // **继承编辑器当前视口**：开关前后画面完全不动，才能并排对照"只换渲染、不换布局"。
+                // Nodify 的 ViewportLocation 是视口左上角的图坐标，ViewportZoom 是缩放；
+                // 拿不到（布局未完成时为 0）就退回下面的自动适配。
+                double inheritedZoom = Editor.ViewportZoom;
+                bool inherited = inheritedZoom > 0.0001;
+                if (inherited)
+                {
+                    var inheritedLocation = Editor.ViewportLocation;
+                    SurfacePreview.Zoom = inheritedZoom;
+                    SurfacePreview.Pan = new Vector(-inheritedLocation.X * inheritedZoom, -inheritedLocation.Y * inheritedZoom);
+                    _surfaceUserAdjusted = true;
+                    FlowCanvasViewModel.PerfLog?.Invoke(
+                        $"[自绘] 继承视口 zoom={inheritedZoom:F4} loc=({inheritedLocation.X:F0},{inheritedLocation.Y:F0})");
+                }
+                // **只 Collapsed 不够**：容器在首次布局时已生成，折叠只是跳过 measure，
+                // 它们对 VM 的属性绑定仍在响应——实测 451 节点时这部分占 ~1000ms，
+                // 会把"自绘到底快多少"完全淹没。所以这里把编辑器的数据源真正摘掉，
+                // 等价于"产品里根本没有这个编辑器"。
+                Editor.ItemsSource = null;
+                Editor.Connections = null;
+
+                SubscribeSurface();
+                // 首次显示要等布局拿到实际尺寸，否则 ActualWidth 还是 0。
+                // 继承成功时**不许再适配**（zoomToFit=true 会把继承来的视口覆盖掉）。
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => SyncSurface(zoomToFit: !inherited)));
+            }
+            else
+            {
+                UnsubscribeSurface();
+                // 恢复：直接给集合引用（原先的 XAML 绑定被上面覆盖了；诊断开关不追求可反复切换的完美）
+                Editor.ItemsSource = _viewModel?.Nodes;
+                Editor.Connections = _viewModel?.Links;
+            }
+        }
+
+        private void SubscribeSurface()
+        {
+            if (_surfaceSubscribed || _viewModel == null) return;
+            _viewModel.Nodes.CollectionChanged += OnSurfaceSourceChanged;
+            _viewModel.Links.CollectionChanged += OnSurfaceSourceChanged;
+            _surfaceSubscribed = true;
+        }
+
+        private void UnsubscribeSurface()
+        {
+            if (!_surfaceSubscribed || _viewModel == null) return;
+            _viewModel.Nodes.CollectionChanged -= OnSurfaceSourceChanged;
+            _viewModel.Links.CollectionChanged -= OnSurfaceSourceChanged;
+            _surfaceSubscribed = false;
+        }
+
+        /// <summary>
+        /// 集合变化 → 合并成一次重拍快照。**必须防抖**：一次重建会先 Clear 再逐个 Add，
+        /// 直接同步重拍等于每次切换拍 450 次快照（每次 25ms），比不优化还慢。
+        /// </summary>
+        private void OnSurfaceSourceChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (SurfacePreview.Visibility != Visibility.Visible) return;
+            if (_surfaceSyncPending) return;
+
+            _surfaceSyncPending = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                _surfaceSyncPending = false;
+                if (SurfacePreview.Visibility == Visibility.Visible) SyncSurface(zoomToFit: false);
+            }));
+        }
+
+        /// <summary>重拍几何快照；还没成功适配过视口时顺带适配一次（等价于 FitToScreen）</summary>
+        private void SyncSurface(bool zoomToFit)
+        {
+            if (_viewModel == null) return;
+
+            SurfacePreview.SetModel(_viewModel);
+
+            // 适配只在"用户没自己动过视口"时做：动过之后重建不能把视口抢回去；
+            // 没动过则每次切流程重新适配（不同流程的内容范围差很远）。
+            // 尺寸没量出来（ActualWidth=0）时**不能算**——0 宽会让 zoom 掉到下限，
+            // 整张图缩成一个点，真机表现为"勾了自绘预览后画布一片空白"。
+            if (_surfaceUserAdjusted && !zoomToFit) return;
+
+            double w = SurfacePreview.ActualWidth, h = SurfacePreview.ActualHeight;
+            if (w < 2 || h < 2)
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+                {
+                    if (SurfacePreview.Visibility == Visibility.Visible) SyncSurface(zoomToFit: false);
+                }));
+                return;
+            }
+
+            var size = new Size(w, h);
+            // 下限 0.25：长链流程（实测内容高 29406、视口 349）按比例适配会算出 zoom≈0.01，
+            // 451 个节点被压成 0.6px 的像素点，肉眼就是"一片空白"。低于下限时改为左上角对齐。
+            const double FitZoomFloor = 0.25;
+            var fit = SurfacePreview.ComputeFitViewport(size, FitZoomFloor, 1.0);
+            if (fit.IsEmpty)
+            {
+                FlowCanvasViewModel.PerfLog?.Invoke($"[自绘] Sync 适配失败 视口={w:F0}x{h:F0} 内容={SurfacePreview.ContentBounds} 节点={SurfacePreview.Nodes.Count}");
+                return;
+            }
+
+            double zoom = size.Width / fit.Width;
+            SurfacePreview.Zoom = zoom;
+            if (zoom <= FitZoomFloor + 1e-6)
+            {
+                var content = SurfacePreview.ContentBounds;
+                const double margin = 24;
+                SurfacePreview.Pan = new Vector((margin - content.X) * zoom, (margin - content.Y) * zoom);
+            }
+            else
+            {
+                SurfacePreview.Pan = new Vector(-fit.X * zoom, -fit.Y * zoom);
+            }
+
+            FlowCanvasViewModel.PerfLog?.Invoke($"[自绘] Sync 视口={w:F0}x{h:F0} 内容={SurfacePreview.ContentBounds} 节点={SurfacePreview.Nodes.Count} zoom={zoom:F4} pan=({SurfacePreview.Pan.X:F0},{SurfacePreview.Pan.Y:F0})");
+            UpdateMinimapViewport();
+        }
+
+        /// <summary>
+        /// 自绘模式下把视口喂给小地图。
+        /// 小地图的 `ItemsSource` 本来就绑 `Nodes`（不依赖编辑器），但 ViewportLocation/ViewportSize
+        /// 是从 NodifyEditor 来的；编辑器一收起就不再更新，小地图会停在一个旧视口上（表现为一个蓝方块）。
+        /// 用 SetCurrentValue 改值**不打断原绑定**，切回编辑器后自动恢复跟随。
+        /// </summary>
+        private void UpdateMinimapViewport()
+        {
+            if (SurfacePreview.Visibility != Visibility.Visible) return;
+
+            double zoom = SurfacePreview.Zoom;
+            if (!(zoom > 0.0001) || SurfacePreview.ActualWidth < 1) return;
+
+            MiniMap.SetCurrentValue(Nodify.Minimap.ViewportLocationProperty,
+                new Point(-SurfacePreview.Pan.X / zoom, -SurfacePreview.Pan.Y / zoom));
+            MiniMap.SetCurrentValue(Nodify.Minimap.ViewportSizeProperty,
+                new Size(SurfacePreview.ActualWidth / zoom, SurfacePreview.ActualHeight / zoom));
+        }
+
+        private void OnSurfaceMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            var p = e.GetPosition(SurfacePreview);
+            double wx = (p.X - SurfacePreview.Pan.X) / SurfacePreview.Zoom;
+            double wy = (p.Y - SurfacePreview.Pan.Y) / SurfacePreview.Zoom;
+
+            double zoom = SurfacePreview.Zoom * Math.Exp(e.Delta * 0.0015);
+            SurfacePreview.Zoom = zoom;
+            SurfacePreview.Pan = new Vector(p.X - wx * zoom, p.Y - wy * zoom);
+            _surfaceUserAdjusted = true;   // 用户自己定过视口，之后切流程不再抢回
+            UpdateMinimapViewport();
+            e.Handled = true;
+        }
+
+        private void OnSurfaceMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            var p = e.GetPosition(SurfacePreview);
+            double wx = (p.X - SurfacePreview.Pan.X) / SurfacePreview.Zoom;
+            double wy = (p.Y - SurfacePreview.Pan.Y) / SurfacePreview.Zoom;
+
+            var hit = SurfacePreview.HitTest(new Point(wx, wy));
+            if (hit?.Model is CanvasNodeViewModel node)
+            {
+                // 走 VM 既有的选中链路（属性栏跟随），不自建第二套选中
+                node.IsSelected = true;
+                return;
+            }
+
+            // 空白处拖动 = 平移（只读预览没有框选语义）
+            _surfacePanning = true;
+            _surfaceUserAdjusted = true;
+            _surfacePanAnchor = p;
+            _surfacePanOrigin = SurfacePreview.Pan;
+            SurfacePreview.CaptureMouse();
+        }
+
+        private void OnSurfaceMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_surfacePanning) return;
+            var p = e.GetPosition(SurfacePreview);
+            SurfacePreview.Pan = new Vector(
+                _surfacePanOrigin.X + (p.X - _surfacePanAnchor.X),
+                _surfacePanOrigin.Y + (p.Y - _surfacePanAnchor.Y));
+            UpdateMinimapViewport();
+        }
+
+        private void OnSurfaceMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_surfacePanning) return;
+            _surfacePanning = false;
+            SurfacePreview.ReleaseMouseCapture();
         }
 
         // ==================================================================

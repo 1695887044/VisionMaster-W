@@ -32,6 +32,8 @@
 | R7 | 动 `docs/` 结构前先读 `docs/归档/README.md` 与目标目录 `README.md`。 |
 | R8 | 未实现插件的方案说明书属现行设计文档，放 `docs/<插件名>/`，**不进归档**。 |
 | R9 | 跨进程协调先看 `LastWriteTime`——最近几分钟被改过就先报告确认。 |
+| R9A | **`docs/` 结构由闸门管，不靠记忆**：白名单唯一事实源 `tools\docs-layout.json`（`topDirs` 全量登记 + `rootFiles` 只允许 `项目全景说明.md`）。`docs/` 根级新增 `.md` 或新增顶层目录**必须先登记**，否则 `tools\audit_docs.ps1` 判红。日志式记录（`code-changes`/`meetings`/`performance`/`归档`）按 `orphanPolicy` 豁免人工 README。**找文档从 `docs/README.md`（文档中心，含四类分工与目录地图）进**；日志目录的 `INDEX.md` 由 `tools\gen_docs_index.ps1` 生成，**新增日志条目后必须重跑，否则 `run_gates.ps1` 的 `docs_index` 步判红**（判据：重跑后无任何目录被重写）。守门：`run_gates.ps1` 的 `docs_index` + `audit_docs` 两步。 |
+| R9B | **双客户端（DSH + ZCode）共用一套约束**：唯一事实源仍是本文件；`tools\sync_constraints.ps1` 把「违反即回滚 / 症状静默 / 验收口径」7 类单向镜像进 `%USERPROFILE%\.zcode\AGENTS.md` 的 `DSH-SYNC` 标记块（块外内容原样保留、幂等、`-Check` 检漂移）。**改规则只改本文件再重跑脚本，不许手改镜像侧**；镜像范围外的章节（UI/HALCON/SCADA 等）ZCode 仍须回读本文件。守门：`run_gates.ps1` 的 `sync_constraints` 步（`-Check`）。 |
 
 ## 3. 三条红线（违反即回滚）
 
@@ -265,7 +267,7 @@
 |---|---|
 | R104 | **`RequireRefresh = true` 的消费动作必须是整表重建 `UpdatePropertyGrid(preserveSelectedTab: true)`**，不许只重建触发者页签（判据："被驱动对象会不会在别的页签"）。`RebuildTabForProperty`/`_tabByKey` 一并删除。普通属性仍不触发重建；50ms 防抖/异步投递/跨线程封送不动。守门：`PropertyGridRefreshCheck` PG0~PG8（进常规 gate；PG4 反向）。 |
 | R105 | **"只在特定操作顺序下坏"的刷新缺陷静态闸挡不住，必须按真实操作顺序各跑一遍**；"我手动试是好的"不构成证据。范式：临时探针引 `UI`+`Core`，真配置 + 真 `FlatPropertyGrid` 挂屏幕外真窗口 + 手动 Dispatcher 泵；用完即删。 |
-| R106 | **多态配置不许搭窗口**：切换字段 `RequireRefresh=true` + 被切换对象 `[PropertyItem(Type=typeof(Control))]` + **换新实例**。用法见 `.zcode/skills/vm-property-grid/SKILL.md`（Priority 表、两条枚举路、草稿语义、"何时该手写视图"）。 |
+| R106 | **多态配置不许搭窗口**：切换字段 `RequireRefresh=true` + 被切换对象 `[PropertyItem(Type=typeof(Control))]` + **换新实例**。用法见 `docs/AI协作/skills/vm-property-grid/SKILL.md`（Priority 表、两条枚举路、草稿语义、"何时该手写视图"）。 |
 | R107 | **互斥字段集不许平铺在同一 `[SuperDisplay]` 类上，必须"切换字段 + 嵌套子对象"**：① 切换字段 `RequireRefresh=true` 且**走 `SetProperty`**（自动属性不发通知 = 等于没写）；② 被切换对象 `[PropertyItem]` 且**每次换新实例**；③ 每种取值独立成类。配套：保留另一种取值的草稿实例、写回描述符时两种都保留。守门：`IoChecks` 的 `TestBusLinkSwitching`/`TestDriverConfigSwitching`（18 条，进常规 gate）——**断言必须查可见属性集，不能只查对象类型**。 |
 | R108 | **轴面板操作按钮与组态动作表必须走同一执行器**：① 出口 `IScadaAxisCommandSink` 由宿主注入；② **权限在按下前判**（`CanOperate` 绑 `IsEnabled`，每拍重算）；③ **点动按住才动**（Down 起、Up/`MouseLeave`/`LostMouseCapture` 停，要 `CaptureMouse`），**回零长按 0.5s**。`ShowCommands=false` 整块收起。**六个命名件由断言钉住。** **不要在 `Control` 子类声明名为 `IsEnabled` 的 DP**（遮蔽 `UIElement.IsEnabled`）。守门：AX9 + AX3。 |
 

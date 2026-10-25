@@ -4,6 +4,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace Core.Controls
 {
@@ -107,7 +108,7 @@ namespace Core.Controls
         /// ★ 候选为空时**不许**保持下拉：那是一个打不开的空下拉 —— 输入框已被折叠、
         ///   ComboBox 里一个项都没有，用户既选不了也输不了，只能先去别处配好方案再回来
         ///   （"还没配运动卡"这个最常见的第一步状态直接把人堵死）。
-        ///   所以判据必须连"候选非空"一起算，空候选退化成 <see cref="IsHandFillFallback"/>。
+        ///   所以判据必须连"候选非空"一起算，空候选由 <see cref="IsOptionEmpty"/> 接管渲染。
         /// </summary>
         private static readonly DependencyPropertyKey IsOptionPortPropertyKey =
             DependencyProperty.RegisterReadOnly(
@@ -123,14 +124,22 @@ namespace Core.Controls
         }
 
         /// <summary>
-        /// 封闭集合端口**取不到候选**时的退化态（只读）：显示可编辑输入框 + 「无候选，可手填」提示。
+        /// 封闭集合端口**取不到候选**时的退化态（只读，2026-10-24 口径）。
         ///
         /// 【为什么要单列一个状态】"封闭集合"与"有下拉"是两件事：
         ///   · 前者决定**不许链接/清除**（值只能来自枚举成员或方案里的名字，见 UpdateButtonVisibility）；
         ///   · 后者决定**渲染成下拉**。
         /// 候选来自方案，天然可能为空（还没配卡、宿主没注册来源、方案里没有已启用的轴）。
-        /// 那时唯一能落地的交互就是手填 —— 这也正是 <see cref="StepConfigOptionSource"/>
-        /// 注释里承诺的"未注册时返回空列表：界面退化成可自由输入的文本框，而不是把人堵死"。
+        ///
+        /// 【2026-10-24 改判（用户裁决）：这类端口恒不可手填】旧实现让它退化成可编辑文本框，
+        /// 承诺"还没配卡的时候本来就该允许手填"。实测那是**静默缺陷**：轴名/卡名是框架的
+        /// 权威清单，手填一个不存在的轴名界面毫无提示，要到运行期才炸；而且"没登记来源"
+        /// 这种程序缺陷和"还没配卡"这种正常状态长得一模一样。
+        /// 现在这个状态恒为 false（保留属性是为了不破坏既有绑定与断言），空候选改由
+        /// <see cref="IsOptionEmpty"/> 渲染成"不许编辑 + 红字/提示说明原因"。
+        ///
+        /// 【例外】<see cref="DataPort.InputPort{T}.OptionKind"/> 为空的封闭集合端口（只有枚举）
+        /// 本来就有候选，不会走到空态。
         /// </summary>
         private static readonly DependencyPropertyKey IsHandFillFallbackPropertyKey =
             DependencyProperty.RegisterReadOnly(
@@ -139,10 +148,64 @@ namespace Core.Controls
 
         public static readonly DependencyProperty IsHandFillFallbackProperty = IsHandFillFallbackPropertyKey.DependencyProperty;
 
+        /// <summary>⚠ 恒为 false（2026-10-24 起名字类字段不再允许手填）。语义见上。</summary>
         public bool IsHandFillFallback
         {
             get => (bool)GetValue(IsHandFillFallbackProperty);
             private set => SetValue(IsHandFillFallbackPropertyKey, value);
+        }
+
+        /// <summary>
+        /// 封闭集合端口**取不到候选**的空态：显示不可编辑的占位 + 一行说明原因
+        /// （<see cref="OptionEmptyReason"/>），并区分"正常没配"与"程序缺陷"。
+        ///
+        /// 【为什么要有独立状态】空候选有三种成因，界面上必须长得不一样：
+        ///   · 没登记来源 / 来源抛异常 → 程序缺陷，红字（<see cref="IsOptionEmptyDefect"/> = true）；
+        ///   · 登记了但清单为空 → 正常业务状态，灰字 + "去哪里配"的指引。
+        /// 判据统一取 <see cref="StepConfigOptionSource.GetOptionsResult"/>，别各处自己判 Count。
+        /// </summary>
+        private static readonly DependencyPropertyKey IsOptionEmptyPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(IsOptionEmpty), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsOptionEmptyProperty = IsOptionEmptyPropertyKey.DependencyProperty;
+
+        public bool IsOptionEmpty
+        {
+            get => (bool)GetValue(IsOptionEmptyProperty);
+            private set => SetValue(IsOptionEmptyPropertyKey, value);
+        }
+
+        /// <summary>空态是否属于程序缺陷（没登记来源 / 来源抛异常）。仅当 <see cref="IsOptionEmpty"/> 为真时有意义。</summary>
+        private static readonly DependencyPropertyKey IsOptionEmptyDefectPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(IsOptionEmptyDefect), typeof(bool), typeof(LinkableValueEditor),
+                new PropertyMetadata(false));
+
+        public static readonly DependencyProperty IsOptionEmptyDefectProperty = IsOptionEmptyDefectPropertyKey.DependencyProperty;
+
+        public bool IsOptionEmptyDefect
+        {
+            get => (bool)GetValue(IsOptionEmptyDefectProperty);
+            private set => SetValue(IsOptionEmptyDefectPropertyKey, value);
+        }
+
+        /// <summary>空态的原因文案（界面直接显示；缺陷态会被复制进诊断文本）。</summary>
+        private static readonly DependencyPropertyKey OptionEmptyReasonPropertyKey =
+            DependencyProperty.RegisterReadOnly(
+                nameof(OptionEmptyReason), typeof(string), typeof(LinkableValueEditor),
+                // 加了变更回调：原因文字必须随属性变化**立刻**落到界面上。
+                // 之前只在 UpdateButtonVisibility 里刷，而 OnPortChanged 是「先写 Reason、
+                // 后重算渲染形态」，两者顺序一旦调整就会留下"有原因但界面显示旧文案"的哑巴状态。
+                new PropertyMetadata(string.Empty, OnOptionEmptyReasonChanged));
+
+        public static readonly DependencyProperty OptionEmptyReasonProperty = OptionEmptyReasonPropertyKey.DependencyProperty;
+
+        public string OptionEmptyReason
+        {
+            get => (string)GetValue(OptionEmptyReasonProperty);
+            private set => SetValue(OptionEmptyReasonPropertyKey, value);
         }
 
         /// <summary>
@@ -294,6 +357,15 @@ namespace Core.Controls
             editor.UpdateButtonVisibility();
         }
 
+        /// <summary>
+        /// 原因文案变化 → 直接刷空态那一块。只刷文案与颜色，不动渲染形态
+        /// （形态由 <see cref="RecalculateOptionMode"/> 管，两者分开，避免互相盖）。
+        /// </summary>
+        private static void OnOptionEmptyReasonChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            ((LinkableValueEditor)d).UpdateOptionEmptyState();
+        }
+
         private static void OnPortChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             var editor = (LinkableValueEditor)d;
@@ -334,9 +406,15 @@ namespace Core.Controls
                 else if (port.IsFunctionalEnum && port.OptionKind is { } kind)
                 {
                     // 候选来自方案（有哪些卡、哪些轴）—— 绑定窗口同样每次打开都现取，
-                    // 这里保持同一份语义：不取快照，取不到就空着退化成可手填
-                    //（空候选的下拉是一个打不开的死路，判据见 IsOptionPort 的注释）。
-                    foreach (var option in StepConfigOptionSource.GetOptionItems(kind))
+                    // 这里保持同一份语义：不取快照。
+                    // 用 GetOptionsResult 而不是 GetOptionItems：后者把"没登记来源 / 来源抛异常 /
+                    // 登记了但为空"三种情况都压成同一个空列表，界面就没法把程序缺陷说出来
+                    //（2026-10-24 口径：名字类字段不再手填，必须说清为什么不给选）。
+                    var result = StepConfigOptionSource.GetOptionsResult(kind);
+                    editor.OptionEmptyReason = DescribeEmptyReason(port.Name, result);
+                    editor.IsOptionEmptyDefect = result.IsDefect;
+
+                    foreach (var option in result.Items)
                         editor.EnumOptions.Add(option);
                 }
             }
@@ -346,7 +424,7 @@ namespace Core.Controls
                 editor._suppressPortWrite = false;
             }
 
-            // 候选变了 → 渲染形态跟着重算（空候选 = 可手填）
+            // 候选变了 → 渲染形态跟着重算（空候选 = 不可编辑的空态，不再退化手填）
             editor.RecalculateOptionMode();
 
             // 万一端口值仍被绑定的副作用改掉，顶回原值（R35 的后半条）
@@ -363,6 +441,33 @@ namespace Core.Controls
         }
 
         /// <summary>
+        /// 把 <see cref="StepConfigOptionResult"/> 翻译成用户能看懂的一句话（空态显示用）。
+        /// 文案要能回答两个问题：**为什么这里没有可选项**、**我该做什么**。
+        /// 缺陷态刻意写得像缺陷（"程序缺陷…请反馈"），因为用户在这里做不了任何事。
+        /// </summary>
+        private static string DescribeEmptyReason(string portName, StepConfigOptionResult result)
+        {
+            switch (result.Failure)
+            {
+                case StepConfigOptionFailureKind.NoProvider:
+                    return $"程序缺陷：宿主没有为「{result.Kind}」登记候选来源，"
+                         + $"「{portName}」本应有可选项。请把这个提示反馈给开发。";
+
+                case StepConfigOptionFailureKind.ProviderThrew:
+                    return $"程序缺陷：取「{result.Kind}」候选时出错 —— {result.ProviderErrors[0]}。"
+                         + $"请把这个提示反馈给开发。";
+
+                case StepConfigOptionFailureKind.EmptyList:
+                    return result.Kind == StepConfigOptionKind.MotionAxisName
+                        ? "当前方案里没有已启用的轴：先到「运动卡设置」配好卡与轴，再回到这里选择。"
+                        : $"当前方案里没有可用的「{result.Kind}」候选：先到对应的设备设置里配好，再回到这里选择。";
+
+                default:
+                    return string.Empty;
+            }
+        }
+
+        /// <summary>
         /// 按「封闭集合 + 当前候选数」重算渲染形态。
         /// 候选集合每次变化（换端口、重取候选、外部清空）都必须走这里 ——
         /// 否则会出现"候选没了但还停在下拉"或反之。
@@ -375,8 +480,10 @@ namespace Core.Controls
             // 有候选才给下拉；空候选不能停在"打不开的空下拉"上
             IsOptionPort = closedSet && hasOptions;
 
-            // 空候选 + 类型本身可文本输入 → 手填（注释里承诺的"取不到就退化成可手填"）
-            IsHandFillFallback = closedSet && !hasOptions && IsTextEditable;
+            // 空候选：渲染成"不可编辑 + 说明原因"（2026-10-24 口径）。
+            // 手填退化恒关 —— 轴名/卡名是框架权威清单，手填不存在的名字要到运行期才炸。
+            IsOptionEmpty = closedSet && !hasOptions;
+            IsHandFillFallback = false;
 
             UpdateButtonVisibility();
         }
@@ -390,7 +497,7 @@ namespace Core.Controls
         {
             // 输入框编辑 → 写回端口
             var editor = (LinkableValueEditor)d;
-            editor.UpdateHandFillHint();
+            editor.UpdateOptionEmptyState();
             if (editor.Port == null || !editor.IsTextEditable) return;
 
             var text = (string)e.NewValue;
@@ -401,9 +508,12 @@ namespace Core.Controls
             // ② 封闭集合端口没有"清空"这个合法动作（✕ 对它们恒隐藏，理由同 UpdateButtonVisibility）：
             //    空值只可能来自下拉因候选变化丢了选中项 —— 保留端口原值。
             //    否则"重取一次候选 / 换一次端口"就把已配好的轴名、卡名抹成默认值了。
-            //    （手填退化态也走这条：轴名这类名字清空后没有任何合法值可表示，
-            //      要换轴直接改成另一个名字即可。）
             if (editor.IsClosedValuePort && string.IsNullOrEmpty(text)) return;
+
+            // ②b 空候选态（2026-10-24 口径）：名字类端口取不到候选时**不接受任何手填值**。
+            //     主输入框在 XAML 里已经折叠，但 PortValue 仍可从代码/绑定/老连线回填路径被写，
+            //     所以判据必须落在写回点：值只能来自候选项，凭空打进去的名字运行期一定解析不到。
+            if (editor.IsOptionEmpty) return;
 
             // ③ 封闭端口上还挂着旧上游连线（老 .vms：当年它还是普通 string 端口时绑的）：
             //    用户这次选了一项 = 明确要改成固定值，先拆线再写值。
@@ -502,14 +612,14 @@ namespace Core.Controls
             // IsFunctionalEnum 的原始语义正是"**不需要**链接上游变量"（见 InputPort 的注释），
             // 所以这里用它作判据，而不是只认枚举。
             //
-            // ★ 判据是「封闭集合」（不看候选是否为空）：候选取不到时这一行退化成可手填，
+            // ★ 判据是「封闭集合」（不看候选是否为空）：候选取不到时这一行是空态，
             //   但**依然不许链接** —— 轴名/卡名这类名字类端口挂绑定弹窗的后果是运行期
             //   "拿值当名字"（R33），与候选有没有配好无关。清除同理：清空后没有合法值可表示。
             var enumLocked = IsClosedValuePort;
 
-            // 占位提示：不可文本输入 且 未链接 时显示
+            // 占位提示：不可文本输入 且 未链接 时显示（空态由 PART_OptionEmpty 单独接管）
             PART_Placeholder.Visibility =
-                (!IsTextEditable && !IsLinked) ? Visibility.Visible : Visibility.Collapsed;
+                (!IsTextEditable && !IsLinked && !IsOptionEmpty) ? Visibility.Visible : Visibility.Collapsed;
 
             // ✕ 按钮：枚举恒隐藏；其余情况在"不可文本输入 且 未链接"时隐藏（没有值可清空，只能链接）
             PART_UnlinkBtn.Visibility =
@@ -527,28 +637,41 @@ namespace Core.Controls
                     : null;
             }
 
-            // 空候选提示（占位文案 / ToolTip）跟着 IsLinked、IsHandFillFallback、PortValue 走
-            UpdateHandFillHint();
+            UpdateOptionEmptyState();
         }
 
         /// <summary>
-        /// 空候选提示：封闭集合端口取不到候选时，这一行是可手填的 —— 必须说明原因，
-        /// 否则看起来像"下拉坏了"。占位文案只在输入框为空时显示（不遮挡已填内容），
-        /// ToolTip 则一直挂着，已填内容时也能看到解释。
+        /// 空候选态：显示不可编辑的占位框 + 一行原因文案（缺陷态染红）。
+        ///
+        /// 【为什么不复用输入框】2026-10-24 起名字类端口不再手填：能输入的框就等于允许写入
+        /// 一个不存在的轴名/卡名，而校验要到运行期才发生。空态必须是**明确不可编辑**的，
+        /// 并且把"为什么没得选、下一步去哪儿"直接写在行内 —— 用户在这一行里做不了别的事。
         /// </summary>
-        private void UpdateHandFillHint()
+        private void UpdateOptionEmptyState()
         {
-            if (PART_NoOptionHint == null || PART_ValueBox == null) return;
+            if (PART_OptionEmpty == null || PART_OptionEmptyText == null) return;
 
-            // 不再要求 !IsLinked：封闭端口 + 老连线 + 候选为空时，下拉与链接框都不在，
-            // 只剩这个手填框 —— 提示必须跟着它一起出现，否则用户不知道这里能填。
-            PART_NoOptionHint.Visibility =
-                IsHandFillFallback && string.IsNullOrEmpty(PortValue)
-                    ? Visibility.Visible
-                    : Visibility.Collapsed;
+            PART_OptionEmpty.Visibility = IsOptionEmpty ? Visibility.Visible : Visibility.Collapsed;
+            if (!IsOptionEmpty) return;
 
-            // 文案只有 XAML 一处来源（避免两处字面量各改一半）
-            PART_ValueBox.ToolTip = IsHandFillFallback ? PART_NoOptionHint.Text : null;
+            // 占位行（"当前没有可选值"）写死在 XAML 里，这里只填原因行。
+            // 没原因时空串 → 原因行自动塌成 0 高，整块退回单行 36 高。
+            PART_OptionEmptyText.Text = OptionEmptyReason ?? string.Empty;
+            // 缺陷态染红：颜色令牌在 UI 库，Core.Controls 解析不到时保持内联灰（R140 存量口径）。
+            if (IsOptionEmptyDefect)
+            {
+                var danger = TryFindResource("DialogDangerTextBrush") as Brush;
+                PART_OptionEmptyText.Foreground = danger ?? new SolidColorBrush(Color.FromRgb(0xC0, 0x2B, 0x2B));
+                PART_OptionEmpty.BorderBrush = danger ?? new SolidColorBrush(Color.FromRgb(0xE5, 0x7A, 0x7A));
+                PART_OptionEmpty.Background = new SolidColorBrush(Color.FromRgb(0xFE, 0xF2, 0xF2));
+            }
+            else
+            {
+                PART_OptionEmptyText.Foreground = new SolidColorBrush(Color.FromRgb(0x94, 0xA3, 0xB8));
+                PART_OptionEmpty.BorderBrush = new SolidColorBrush(Color.FromRgb(0xCB, 0xD5, 0xE1));
+                PART_OptionEmpty.Background = new SolidColorBrush(Color.FromRgb(0xF8, 0xFA, 0xFC));
+            }
+            PART_OptionEmpty.ToolTip = PART_OptionEmptyText.Text;
         }
 
         private static object GetDefaultValue(Type type)

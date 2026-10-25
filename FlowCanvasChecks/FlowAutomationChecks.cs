@@ -680,8 +680,11 @@ namespace FlowCanvasChecks
                     editor.Arrange(new System.Windows.Rect(0, 0, 520, 40));
                     editor.UpdateLayout();
                     var box = editor.FindName("PART_ValueBox") as System.Windows.Controls.TextBox;
+                    var emptyState = editor.FindName("PART_OptionEmpty") as System.Windows.UIElement;
                     emptyProbe = $"只能选={editor.IsOptionPort} 手填退化={editor.IsHandFillFallback}"
-                                 + $" 链接={editor.IsLinked} 文本框={(box == null ? "找不到" : box.Visibility.ToString())}";
+                                 + $" 空态={editor.IsOptionEmpty}"
+                                 + $" 链接={editor.IsLinked} 文本框={(box == null ? "找不到" : box.Visibility.ToString())}"
+                                 + $" 空态块={(emptyState == null ? "找不到" : emptyState.Visibility.ToString())}";
                 }
                 catch (Exception ex)
                 {
@@ -693,9 +696,13 @@ namespace FlowCanvasChecks
             emptyThread.Start();
             emptyThread.Join(8000);
 
-            Check("★老连线 + 候选为空：封闭端口仍保留手填文本框（否则整行空白）",
-                emptyProbe.Contains("只能选=False") && emptyProbe.Contains("手填退化=True")
-                && emptyProbe.Contains("链接=True") && emptyProbe.Contains("文本框=Visible"),
+            // 2026-10-24 口径：候选为空不再退化成手填，改为「主输入框折叠 + 空态块说明原因」。
+            // 老连线仍在（链接=True）说明没被拆掉，但值不能被手打进去。
+            Check("★老连线 + 候选为空：封闭端口不再手填，而是折叠主框并显示空态说明（整行不再空白）",
+                emptyProbe.Contains("只能选=False") && emptyProbe.Contains("手填退化=False")
+                && emptyProbe.Contains("空态=True")
+                && emptyProbe.Contains("链接=True")
+                && emptyProbe.Contains("文本框=Collapsed") && emptyProbe.Contains("空态块=Visible"),
                 emptyProbe);
 
             // ---- ③d 绑定弹窗：封闭端口即使候选为空也必须强制常量模式 ----

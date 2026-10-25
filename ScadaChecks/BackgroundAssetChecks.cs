@@ -34,6 +34,8 @@ namespace ScadaChecks
                 RunBackgroundAssetChecks();
                 RunSoundAlarmChecks();
                 RunHistoryChecks();
+                RunClockLayoutChecks();
+                RunStateListChecks();
             }
         }
 
@@ -888,6 +890,421 @@ namespace ScadaChecks
             {
                 try { Directory.Delete(root, true); }
                 catch { /* 临时目录删不掉不影响结论 */ }
+            }
+        }
+
+        // ==================================================================
+        // [BK] 时钟布局：空标签行收起 + 时间垂直居中 + 水平对齐下发
+        // ==================================================================
+
+        /// <summary>
+        /// 用户实测反馈“水平对齐设了居中，时间还是不在中间”。查下来是<b>垂直</b>方向：
+        /// 标签行是 Auto 高，空 TextBlock 仍量出一整行行高（22px 字约 28px），
+        /// 时间行（* 行）只剩 16px，28px 的字垂直居中后溢出到框外，看起来贴顶。
+        /// 这里用屏幕外真窗口（模板只有在 PresentationSource 里才实例化，R53/R134）
+        /// 把三条钉住：空标签收起、时间垂直居中、模型/属性面板改对齐能下发到模板。
+        /// </summary>
+        private static void RunClockLayoutChecks()
+        {
+            Section("[BK] 时钟布局：空标签行收起、时间垂直居中、水平对齐下发");
+
+            Exception? failure = null;
+            var thread = new Thread(() =>
+            {
+                try { RunClockLayoutChecksCore(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+                Check("时钟布局断言全程未抛异常", false, failure.ToString());
+        }
+
+        private static void RunClockLayoutChecksCore()
+        {
+            var clock = new ClockElement
+            {
+                Width = 360,
+                Height = 44,
+                FontSize = 22,
+                TextAlignment = TextAlignment.Center,
+            };
+
+            // 模型 → 控件：属性面板改「水平对齐」走的就是这条
+            var model = new ScadaElement { TypeKey = "Hmi.Clock", Width = 360, Height = 44 };
+            model.SetProperty("TextAlignment", "Left");
+            model.SetProperty("FontSize", "22");
+
+            var bound = ElementRegistry.CreateControl(model);
+
+            var panel = new StackPanel();
+            panel.Children.Add(clock);
+            panel.Children.Add(bound);
+
+            var window = new Window
+            {
+                Width = 420,
+                Height = 180,
+                Left = -4000,
+                Top = -4000,
+                WindowStyle = WindowStyle.None,
+                ShowInTaskbar = false,
+                Content = panel,
+            };
+
+            window.Show();
+
+            try
+            {
+                PumpDispatcher(150);
+
+                var parts = FindVisualChildren<TextBlock>(clock).ToList();
+                var time = parts.ElementAtOrDefault(0);
+                var label = parts.ElementAtOrDefault(1);
+
+                Check("[BK1] 空标签整行收起（时间行拿到 44 全高）",
+                    time != null && label != null
+                    && label.ActualHeight == 0
+                    && time.ActualHeight >= 24,
+                    $"time={time?.ActualHeight:0.#} / label={label?.ActualHeight:0.#}");
+
+                var timeTop = time?.TransformToAncestor(clock).Transform(new Point(0, 0)).Y ?? -1;
+                var timeCenter = timeTop + (time?.ActualHeight ?? 0) / 2;
+
+                Check("[BK2] 时间在 44 高内垂直居中（±1px）",
+                    time != null && Math.Abs(timeCenter - 22) <= 1,
+                    $"top={timeTop:0.#} / height={time?.ActualHeight:0.#} / center={timeCenter:0.#}");
+
+                var boundTime = FindVisualChildren<TextBlock>(bound).FirstOrDefault();
+
+                Check("[BK3] 模型 Left → 控件与模板时间都左对齐",
+                    bound.TextAlignment == TextAlignment.Left
+                    && boundTime?.TextAlignment == TextAlignment.Left,
+                    $"control={bound.TextAlignment} / text={boundTime?.TextAlignment}");
+
+                var descriptor = ElementRegistry.Find("Hmi.Clock")?.Properties
+                    .FirstOrDefault(p => p.Key == "TextAlignment");
+                var row = new ScadaPropertyRow(model, descriptor!);
+                row.Value = "Center";
+
+                Check("[BK4] 属性面板选「居中」写进模型",
+                    model.GetProperty("TextAlignment") == "Center",
+                    model.GetProperty("TextAlignment"));
+
+                PumpDispatcher(80);
+                boundTime = FindVisualChildren<TextBlock>(bound).FirstOrDefault();
+
+                Check("[BK5] 模型改 Center → 已挂载的控件自动刷新（不是只有面板显示改了）",
+                    bound.TextAlignment == TextAlignment.Center
+                    && boundTime?.TextAlignment == TextAlignment.Center,
+                    $"control={bound.TextAlignment} / text={boundTime?.TextAlignment}");
+
+                // 有标签时两行都要在，且时间不能被标签挤出框
+                clock.Text = "系统时间";
+                PumpDispatcher(80);
+
+                var withLabel = FindVisualChildren<TextBlock>(clock).ToList();
+                var labelTop = withLabel.Count > 1
+                    ? withLabel[1].TransformToAncestor(clock).Transform(new Point(0, 0)).Y
+                    : -1;
+                var labelBottom = labelTop + (withLabel.Count > 1 ? withLabel[1].ActualHeight : 0);
+
+                Check("[BK6] 有标签时两行都在，且都落在 44 高内",
+                    withLabel.Count == 2
+                    && withLabel[1].ActualHeight > 0
+                    && labelBottom <= 44.5
+                    && withLabel[0].ActualHeight > 0,
+                    $"parts={withLabel.Count} / labelTop={labelTop:0.#} / labelBottom={labelBottom:0.#} / time={(withLabel.Count > 0 ? withLabel[0].ActualHeight : 0):0.#}");
+            }
+            finally
+            {
+                window.Close();
+            }
+        }
+
+        private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
+        {
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T match)
+                    yield return match;
+
+                foreach (var nested in FindVisualChildren<T>(child))
+                    yield return nested;
+            }
+        }
+
+        // ==================================================================
+        // [BL] 文本列表：模型/序列化 + ComboBox 三态 + 管理器 + 快照
+        // ==================================================================
+
+        private static void RunStateListChecks()
+        {
+            Section("[BL] 文本列表：模型、序列化、ComboBox 三态、管理器、页面快照");
+
+            Exception? failure = null;
+
+            var thread = new Thread(() =>
+            {
+                try { RunStateListChecksCore(); }
+                catch (Exception ex) { failure = ex; }
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.IsBackground = true;
+            thread.Start();
+            thread.Join();
+
+            if (failure != null)
+                Check("文本列表断言全程未抛异常", false, failure.ToString());
+        }
+
+        private static void RunStateListChecksCore()
+        {
+            var list = new ScadaStateList { Name = "设备状态", DefaultText = "未知" };
+            list.Entries.Add(new ScadaStateEntry { Value = 0, Text = "停止" });
+            list.Entries.Add(new ScadaStateEntry { Value = 1, Text = "运行" });
+
+            Check("[BL1] 列表模型：稳定 Id / 精确匹配 / 默认文字",
+                list.StateListId != Guid.Empty
+                && list.Find(1)?.Text == "运行"
+                && list.DisplayText(0) == "停止"
+                && list.DisplayText(9) == "未知",
+                $"id={list.StateListId} / 0={list.DisplayText(0)} / 9={list.DisplayText(9)}");
+
+            var version = list.Version;
+            list.Entries[0].Text = "停机";
+            Check("[BL2] 条目改文字推高 Version（订阅方据此重解析）",
+                list.Version > version,
+                $"{version} → {list.Version}");
+
+            var document = new ScadaDocument();
+            document.StateLists.Add(list);
+            var json = JsonConvert.SerializeObject(document);
+            var roundTrip = JsonConvert.DeserializeObject<ScadaDocument>(json)!;
+
+            Check("[BL3] .vms 往返：列表 Id / 名称 / 默认文字 / 条目都在",
+                roundTrip.StateLists.Count == 1
+                && roundTrip.StateLists[0].StateListId == list.StateListId
+                && roundTrip.StateLists[0].Name == "设备状态"
+                && roundTrip.StateLists[0].DefaultText == "未知"
+                && roundTrip.StateLists[0].Entries.Count == 2
+                && roundTrip.StateLists[0].Entries[1].Text == "运行",
+                $"lists={roundTrip.StateLists.Count}");
+
+            // ---------------- ComboBox：列表优先、只读文字、回退 ----------------
+            var element = new ScadaElement { TypeKey = "Hmi.ComboBox", Width = 160, Height = 32 };
+            element.SetProperty("StateListId", list.StateListId.ToString("D"));
+            element.SetProperty("Value", "1");
+            element.SetProperty("Options", "0=旧手动;1=旧自动");
+            element.SetProperty("Mode", "Output");
+            element.SetProperty("Presentation", "Text");
+
+            var combo = (ComboBoxElement)ElementRegistry.CreateControl(element);
+            combo.StateListResolver = id => id == list.StateListId ? list : null;
+
+            Check("[BL4] StateListId 非空：候选项与显示文字来自列表，不读旧 Options",
+                combo.OptionList.Count == 2
+                && combo.SelectedText == "运行"
+                && !combo.StateListMissing,
+                $"options={combo.OptionList.Count} / text={combo.SelectedText}");
+
+            Check("[BL5] Output + Text：只读（不写变量）",
+                !combo.IsEditable,
+                $"IsEditable={combo.IsEditable}");
+
+            element.SetProperty("Value", "9");
+            combo.Refresh();
+            Check("[BL6] 无匹配：显示 DefaultText，不显示 #9",
+                combo.SelectedText == "未知",
+                combo.SelectedText ?? "(null)");
+
+            element.SetProperty("Value", "1");
+            combo.Refresh();
+            list.Entries[1].Text = "运转";
+            Check("[BL7] 列表条目改动实时刷新已挂控件（Version 订阅）",
+                combo.SelectedText == "运转",
+                combo.SelectedText ?? "(null)");
+
+            element.SetProperty("StateListId", Guid.NewGuid().ToString("D"));
+            combo.Refresh();
+            Check("[BL8] 列表缺失：StateListMissing + 明确文案 + 空候选",
+                combo.StateListMissing
+                && combo.SelectedText == "未找到文本列表"
+                && combo.OptionList.Count == 0,
+                $"{combo.StateListMissing} / {combo.SelectedText} / {combo.OptionList.Count}");
+
+            element.SetProperty("StateListId", string.Empty);
+            element.SetProperty("Value", "1");
+            combo.Refresh();
+            Check("[BL9] StateListId 为空：回退旧 Options（老工程零改动）",
+                !combo.StateListMissing
+                && combo.OptionList.Count == 2
+                && combo.SelectedText == "旧自动",
+                $"{combo.OptionList.Count} / {combo.SelectedText}");
+
+            // ---------------- 写回：InputOutput + Field ----------------
+            var writeElement = new ScadaElement { TypeKey = "Hmi.ComboBox", Width = 160, Height = 32 };
+            writeElement.SetProperty("StateListId", list.StateListId.ToString("D"));
+            writeElement.SetProperty("Value", "1");
+            writeElement.SetProperty("Mode", "InputOutput");
+            writeElement.SetProperty("Presentation", "Field");
+            writeElement.Bindings.Add(new ScadaBinding
+            {
+                TargetProperty = "Value",
+                VariableId = Guid.NewGuid(),
+                VariableName = "ModeVar",
+            });
+
+            var writer = new RecordingWriter();
+            var engine = new ScadaAlarmEngine(new ScadaDocument(), null);
+            var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher);
+            var context = new ScadaRuntimeContext(
+                engine,
+                beat,
+                writer,
+                stateLists: new[] { list });
+
+            var writeCombo = (ComboBoxElement)ElementRegistry.CreateControl(writeElement);
+            writeCombo.StateListResolver = id => id == list.StateListId ? list : null;
+            writeCombo.RuntimeContext = context;
+
+            Check("[BL10] InputOutput + Field：可写",
+                writeCombo.IsEditable,
+                $"IsEditable={writeCombo.IsEditable}");
+
+            writeCombo.NotifyDropDownClosed();
+            Check("[BL11] 选中后写回 Entry.Value（文本列表与写值是同一份条目）",
+                writer.Writes == 1 && writer.LastText == "1",
+                $"writes={writer.Writes} / text={writer.LastText}");
+
+            writeElement.SetProperty("Mode", "Output");
+            writeCombo.Refresh();
+            writer.Reset();
+            writeCombo.NotifyDropDownClosed();
+            Check("[BL12] Output：不写变量",
+                !writeCombo.IsEditable && writer.Writes == 0,
+                $"IsEditable={writeCombo.IsEditable} / writes={writer.Writes}");
+
+            // ---------------- 管理器：副本、引用数、原地写回、删除 ----------------
+            var managerDocument = new ScadaDocument();
+            var managerList = new ScadaStateList { Name = "设备状态" };
+            managerList.Entries.Add(new ScadaStateEntry { Value = 0, Text = "停止" });
+            managerList.Entries.Add(new ScadaStateEntry { Value = 1, Text = "运行" });
+            managerDocument.StateLists.Add(managerList);
+
+            var managerPage = new ScadaPage { Name = "P1" };
+            var managerElement = new ScadaElement { TypeKey = "Hmi.ComboBox" };
+            managerElement.SetProperty("StateListId", managerList.StateListId.ToString("D"));
+            managerPage.Elements.Add(managerElement);
+            managerDocument.Pages.Add(managerPage);
+
+            var manager = new StateListManagerViewModel(managerDocument);
+            Check("[BL13] 管理器读副本 + 引用数",
+                manager.SelectedList != null
+                && !ReferenceEquals(manager.SelectedList, managerList)
+                && manager.CountReferences(managerList.StateListId) == 1,
+                $"refs={manager.CountReferences(managerList.StateListId)}");
+
+            manager.SelectedList!.Name = "设备状态（新）";
+            manager.AddEntry();
+            manager.Commit();
+
+            Check("[BL14] 确认后原地覆盖：对象引用不变、名称/条目已更新",
+                managerDocument.StateLists.Count == 1
+                && ReferenceEquals(managerDocument.StateLists[0], managerList)
+                && managerList.Name == "设备状态（新）"
+                && managerList.Entries.Count == 3,
+                $"lists={managerDocument.StateLists.Count} / entries={managerList.Entries.Count}");
+
+            manager.SelectedList = manager.Lists[0];
+            manager.RemoveSelectedList();
+            manager.Commit();
+
+            Check("[BL15] 删除列表：MarkDeleted + 移出文档",
+                managerDocument.StateLists.Count == 0
+                && managerList.Name == "已删除的文本列表",
+                $"lists={managerDocument.StateLists.Count} / name={managerList.Name}");
+
+            manager.AddList();
+            manager.Commit();
+            Check("[BL16] 新增列表能落回文档",
+                managerDocument.StateLists.Count == 1,
+                $"lists={managerDocument.StateLists.Count}");
+
+            // ---------------- 属性面板行：候选/摘要/写回 ----------------
+            var rowElement = new ScadaElement { TypeKey = "Hmi.ComboBox" };
+            var stateListDescriptor = ElementRegistry.Find("Hmi.ComboBox")!.Properties
+                .FirstOrDefault(property => property.Key == "StateListId");
+            var row = new ScadaStateListRow(
+                rowElement,
+                stateListDescriptor!,
+                () => managerDocument.StateLists,
+                _ => { });
+
+            var firstList = managerDocument.StateLists[0];
+            row.Value = firstList.StateListId.ToString("D");
+
+            Check("[BL17] 属性面板行：空选项 + 列表候选，写入后摘要跟得上",
+                row.Options.Count == 2
+                && row.Options[0].Value == string.Empty
+                && row.Summary == firstList.Name
+                && rowElement.GetProperty("StateListId") == firstList.StateListId.ToString("D"),
+                $"options={row.Options.Count} / summary={row.Summary}");
+
+            row.Value = string.Empty;
+            Check("[BL18] 属性面板行：清空选择 → 回到旧 Options",
+                rowElement.GetProperty("StateListId") == string.Empty
+                && row.Summary == "未选择",
+                row.Summary);
+
+            // ---------------- 页面快照：Web 渲染器要能拿到列表 ----------------
+            var snapshotDocument = new ScadaDocument();
+            snapshotDocument.StateLists.Add(new ScadaStateList
+            {
+                Name = "快照列表",
+                Entries =
+                {
+                    new ScadaStateEntry { Value = 0, Text = "停止" },
+                },
+            });
+            snapshotDocument.Pages.Add(new ScadaPage { Name = "P1" });
+
+            var session = new ScadaRuntime(snapshotDocument);
+            var started = session.Start();
+            var snapshot = new ScadaPageSnapshotBuilder().Build(session);
+
+            Check("[BL19] 页面快照带文本列表（Web ComboBox 用）",
+                started
+                && snapshot != null
+                && snapshot.StateLists.Count == 1
+                && snapshot.StateLists[0].Entries.Count == 1
+                && snapshot.StateLists[0].Entries[0].Text == "停止",
+                $"started={started} / lists={snapshot?.StateLists.Count}");
+        }
+
+        /// <summary>记录写入内容的写通道（文本列表写回断言用）</summary>
+        private sealed class RecordingWriter : IScadaValueWriter
+        {
+            public int Writes { get; private set; }
+
+            public string? LastText { get; private set; }
+
+            public bool TryWriteText(ScadaElement element, string targetProperty, string? text, out string? error)
+            {
+                error = null;
+                Writes++;
+                LastText = text;
+                return true;
+            }
+
+            public void Reset()
+            {
+                Writes = 0;
+                LastText = null;
             }
         }
 

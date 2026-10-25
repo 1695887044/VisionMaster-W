@@ -477,6 +477,116 @@ namespace VisionMaster.Scada.Controls
             }
         }
 
+        /// <summary>
+        /// 方案图片原始字节解析器（相对路径 → 文件内容），注入给每个图元控件（Hmi.Gif 用）。
+        /// 与 <see cref="ImageAssetResolver"/> 指向同一份方案 Image 目录；动图必须自己逐帧解码，
+        /// 位图那条通道只剩首帧。断言/无方案场景保持 null。
+        /// </summary>
+        public static readonly DependencyProperty ImageBytesResolverProperty = DependencyProperty.Register(
+            nameof(ImageBytesResolver), typeof(Func<string, byte[]?>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnImageBytesResolverChanged));
+
+        /// <summary>方案图片原始字节解析器（相对路径 → 文件内容），注入给每个图元控件（Hmi.Gif 用）</summary>
+        public Func<string, byte[]?>? ImageBytesResolver
+        {
+            get => (Func<string, byte[]?>?)GetValue(ImageBytesResolverProperty);
+            set => SetValue(ImageBytesResolverProperty, value);
+        }
+
+        private static void OnImageBytesResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<string, byte[]?>?)e.NewValue;
+
+            // 与位图解析器同一条纪律：注入后让控件自己重解析（Refresh 会重置动画痕迹，不在这里调）。
+            foreach (var control in canvas.EnumerateControls())
+                control.ImageBytesResolver = resolver;
+        }
+
+        /// <summary>
+        /// 方案级文本列表解析器（Id → 列表），注入给每个图元控件（Hmi.ComboBox 用）。
+        /// 与 <see cref="ImageAssetResolver"/> 同一范式；断言/无方案场景保持 null。
+        /// </summary>
+        public static readonly DependencyProperty StateListResolverProperty = DependencyProperty.Register(
+            nameof(StateListResolver), typeof(Func<Guid, ScadaStateList?>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnStateListResolverChanged));
+
+        /// <summary>方案级文本列表解析器（Id → 列表）</summary>
+        public Func<Guid, ScadaStateList?>? StateListResolver
+        {
+            get => (Func<Guid, ScadaStateList?>?)GetValue(StateListResolverProperty);
+            set => SetValue(StateListResolverProperty, value);
+        }
+
+        private static void OnStateListResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<Guid, ScadaStateList?>?)e.NewValue;
+
+            // 不调 Refresh()：列表解析器只影响 ComboBox 的候选项，控件的
+            // OnStateListResolverChanged 钩子会自己重解析；整份 Refresh 反而会重置动画痕迹。
+            foreach (var control in canvas.EnumerateControls())
+                control.StateListResolver = resolver;
+        }
+
+        /// <summary>
+        /// 画面解析器（Id → 画面），注入给每个图元控件（Hmi.SubPage 用）。
+        /// 与 <see cref="StateListResolver"/> 同一范式；断言/无方案场景保持 null。
+        /// </summary>
+        public static readonly DependencyProperty PageResolverProperty = DependencyProperty.Register(
+            nameof(PageResolver), typeof(Func<Guid, ScadaPage?>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnPageResolverChanged));
+
+        /// <summary>画面解析器（Id → 画面）</summary>
+        public Func<Guid, ScadaPage?>? PageResolver
+        {
+            get => (Func<Guid, ScadaPage?>?)GetValue(PageResolverProperty);
+            set => SetValue(PageResolverProperty, value);
+        }
+
+        private static void OnPageResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<Guid, ScadaPage?>?)e.NewValue;
+
+            foreach (var control in canvas.EnumerateControls())
+                control.PageResolver = resolver;
+        }
+
+        /// <summary>画面名解析器（名字 → 画面），SubPage 的 FollowVariable 模式用。</summary>
+        public static readonly DependencyProperty PageNameResolverProperty = DependencyProperty.Register(
+            nameof(PageNameResolver), typeof(Func<string, ScadaPage?>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnPageNameResolverChanged));
+
+        public Func<string, ScadaPage?>? PageNameResolver
+        {
+            get => (Func<string, ScadaPage?>?)GetValue(PageNameResolverProperty);
+            set => SetValue(PageNameResolverProperty, value);
+        }
+
+        private static void OnPageNameResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<string, ScadaPage?>?)e.NewValue;
+
+            foreach (var control in canvas.EnumerateControls())
+                control.PageNameResolver = resolver;
+        }
+
+        /// <summary>
+        /// 是否允许本画布创建 <see cref="SubPageElement"/>。默认 true；
+        /// SubPage 的嵌套画布把它设为 false，防止 A 嵌 B、B 嵌 A 无限递归。
+        /// </summary>
+        public static readonly DependencyProperty AllowSubPagesProperty = DependencyProperty.Register(
+            nameof(AllowSubPages), typeof(bool), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(true));
+
+        public bool AllowSubPages
+        {
+            get => (bool)GetValue(AllowSubPagesProperty);
+            set => SetValue(AllowSubPagesProperty, value);
+        }
+
         /// <summary>本页引用的基座画面（单基座兼容视图；null = 不引用）。见 <see cref="BasePageProperty"/>。</summary>
         public ScadaPage? BasePage
         {
@@ -1471,6 +1581,13 @@ namespace VisionMaster.Scada.Controls
                 control.LayerVisibilityResolver = IsElementShown;
                 control.LayerZOffset = ResolveLayerZOffset(element);
                 control.ImageAssetResolver = ImageAssetResolver;
+                control.ImageBytesResolver = ImageBytesResolver;
+                control.StateListResolver = StateListResolver;
+                control.PageResolver = PageResolver;
+                control.PageNameResolver = PageNameResolver;
+
+                if (!AllowSubPages && control is SubPageElement subPage)
+                    subPage.NestedTooDeep = true;
 
                 // 控件构造时已经按模型刷过一次几何，那时层偏移还是 0；补一次让 ZIndex 落到正确层段。
                 control.Refresh();

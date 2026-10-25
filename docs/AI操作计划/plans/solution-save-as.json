@@ -1,0 +1,118 @@
+{
+  "schema": "vm-plan/1",
+  "id": "solution-save-as",
+  "title": "把当前方案另存为新的方案文件夹",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "另存为选的是父目录，磁盘上新建的文件夹名固定等于方案名；不是选一个 .vms 文件名。",
+  "params": {
+    "parent_dir": {
+      "type": "string",
+      "required": true,
+      "example": "D:\\VMSolutions"
+    },
+    "expected_vms": {
+      "type": "string",
+      "required": true,
+      "example": "D:\\VMSolutions\\新建方案\\新建方案.vms"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    },
+    {
+      "assert": "window",
+      "target": "app.main",
+      "state": "visible"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.file",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.file",
+      "expect": {
+        "element": "app.menu.file.list",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.file.save_as",
+      "expect": {
+        "window": "dialog.save_as_folder",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "key",
+      "keys": "Alt+D",
+      "note": "聚焦文件夹选择框的地址栏",
+      "timeout_ms": 3000
+    },
+    {
+      "n": 5,
+      "do": "type_focused",
+      "text": "${parent_dir}"
+    },
+    {
+      "n": 6,
+      "do": "key",
+      "keys": "Enter",
+      "timeout_ms": 5000
+    },
+    {
+      "n": 7,
+      "do": "click",
+      "target": "dialog.save_as_folder.select",
+      "expect": {
+        "window": "dialog.save_as_folder",
+        "state": "closed"
+      },
+      "timeout_ms": 60000
+    },
+    {
+      "n": 8,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "保存成功",
+      "timeout_ms": 30000
+    },
+    {
+      "n": 9,
+      "do": "assert",
+      "assert": "file_exists",
+      "path": "${expected_vms}",
+      "timeout_ms": 30000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "file_exists",
+      "path": "${expected_vms}",
+      "timeout_ms": 30000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["solution", "save"]
+}

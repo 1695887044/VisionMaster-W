@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace VisionMaster.Scada.Controls
 {
@@ -37,6 +38,8 @@ namespace VisionMaster.Scada.Controls
     /// </summary>
     [TemplatePart(Name = PartFillBar, Type = typeof(Border))]
     [TemplatePart(Name = PartValueLabel, Type = typeof(TextBlock))]
+    [TemplatePart(Name = PartTickLayer, Type = typeof(Canvas))]
+    [TemplatePart(Name = PartLimitLayer, Type = typeof(Canvas))]
     public partial class ProgressBarElement : ScadaElementBase
     {
         /// <summary>模板部件名：填充块</summary>
@@ -44,6 +47,12 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>模板部件名：条上的数值文字</summary>
         public const string PartValueLabel = "ValueLabel";
+
+        /// <summary>模板部件名：刻度层</summary>
+        public const string PartTickLayer = "TickLayer";
+
+        /// <summary>模板部件名：限制线层</summary>
+        public const string PartLimitLayer = "LimitLayer";
 
         // 声明次序 = 属性面板里的行序（生成器按源码次序收集）：先「数据」四条（绑哪根量、量程多少、怎么显示），
         // 再「外观」两条，最后「文字」一条。与原先手写描述符的排版口径一致。
@@ -89,12 +98,69 @@ namespace VisionMaster.Scada.Controls
                        Group = ScadaPropertyGroups.Text, DefaultValue = "True")]
         public partial bool ShowValue { get; set; }
 
+        /// <summary>是否画刻度线</summary>
+        [ScadaProperty(Key = "ShowTicks", DisplayName = "显示刻度", Kind = ElementPropertyKind.Bool,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "False",
+                       Description = "在空槽上画等分刻度线；TickCount 是等分段数（不是线数）")]
+        public partial bool ShowTicks { get; set; }
+
+        /// <summary>刻度等分段数（0~50）</summary>
+        [ScadaProperty(Key = "TickCount", DisplayName = "刻度段数", Kind = ElementPropertyKind.Number,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "5", Min = 0, Max = 50,
+                       Description = "等分段数；0 = 不画刻度。ShowTicks=false 时无效")]
+        public partial int TickCount { get; set; }
+
+        /// <summary>刻度线颜色</summary>
+        [ScadaProperty(Key = "TickColor", DisplayName = "刻度色", Kind = ElementPropertyKind.Color,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "#FF9AA5B1")]
+        public partial Brush? TickColor { get; set; }
+
+        /// <summary>是否画上下限颜色/限制线</summary>
+        [ScadaProperty(Key = "ShowLimits", DisplayName = "显示上下限", Kind = ElementPropertyKind.Bool,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "False",
+                       Description = "开启后：值低于 LowLimit 用 LowColor、高于 HighLimit 用 HighColor，并在条上画两条限制线")]
+        public partial bool ShowLimits { get; set; }
+
+        /// <summary>下限值</summary>
+        [ScadaProperty(Key = "LowLimit", DisplayName = "下限", Kind = ElementPropertyKind.Number,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "20",
+                       Description = "ShowLimits=true 时生效；值低于它用 LowColor")]
+        public partial double LowLimit { get; set; }
+
+        /// <summary>上限值</summary>
+        [ScadaProperty(Key = "HighLimit", DisplayName = "上限", Kind = ElementPropertyKind.Number,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "80",
+                       Description = "ShowLimits=true 时生效；值高于它用 HighColor")]
+        public partial double HighLimit { get; set; }
+
+        /// <summary>低于下限时的填充色</summary>
+        [ScadaProperty(Key = "LowColor", DisplayName = "下限色", Kind = ElementPropertyKind.Color,
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FFF59E0B")]
+        public partial Brush? LowColor { get; set; }
+
+        /// <summary>高于上限时的填充色</summary>
+        [ScadaProperty(Key = "HighColor", DisplayName = "上限色", Kind = ElementPropertyKind.Color,
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FFEF4444")]
+        public partial Brush? HighColor { get; set; }
+
+        /// <summary>限制线颜色</summary>
+        [ScadaProperty(Key = "LimitColor", DisplayName = "限制线色", Kind = ElementPropertyKind.Color,
+                       Group = ScadaPropertyGroups.Scale, DefaultValue = "#FFFFB020")]
+        public partial Brush? LimitColor { get; set; }
+
         private static readonly DependencyPropertyKey FillLengthPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(FillLength), typeof(double), typeof(ProgressBarElement),
             new PropertyMetadata(0d));
 
         /// <summary>填充块当前该有多长（像素，只读；模板贴到 Width/Height 上）</summary>
         public static readonly DependencyProperty FillLengthProperty = FillLengthPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey DisplayFillPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(DisplayFill), typeof(Brush), typeof(ProgressBarElement),
+            new PropertyMetadata(Brushes.Transparent));
+
+        /// <summary>当前填充色（按上下限从 Fill / LowColor / HighColor 里挑，只读）</summary>
+        public static readonly DependencyProperty DisplayFillProperty = DisplayFillPropertyKey.DependencyProperty;
 
         private static readonly DependencyPropertyKey ValueTextPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(ValueText), typeof(string), typeof(ProgressBarElement),
@@ -121,6 +187,9 @@ namespace VisionMaster.Scada.Controls
         /// <summary>填充块长度（像素，只读；见 <see cref="FillLengthProperty"/>）</summary>
         public double FillLength => (double)GetValue(FillLengthProperty);
 
+        /// <summary>当前填充色（只读；见 <see cref="DisplayFillProperty"/>）</summary>
+        public Brush? DisplayFill => (Brush?)GetValue(DisplayFillProperty);
+
         /// <summary>条上数值文字（只读；见 <see cref="ValueTextProperty"/>）</summary>
         public string? ValueText => (string?)GetValue(ValueTextProperty);
 
@@ -132,6 +201,15 @@ namespace VisionMaster.Scada.Controls
         partial void OnValueFormatPropertyChanged() => UpdateFill();
         partial void OnOrientationPropertyChanged() => UpdateFill();
         partial void OnShowValuePropertyChanged() => UpdateBarLayout();
+        partial void OnShowTicksPropertyChanged() => UpdateFill();
+        partial void OnTickCountPropertyChanged() => UpdateFill();
+        partial void OnTickColorPropertyChanged() => UpdateFill();
+        partial void OnShowLimitsPropertyChanged() => UpdateFill();
+        partial void OnLowLimitPropertyChanged() => UpdateFill();
+        partial void OnHighLimitPropertyChanged() => UpdateFill();
+        partial void OnLowColorPropertyChanged() => UpdateFill();
+        partial void OnHighColorPropertyChanged() => UpdateFill();
+        partial void OnLimitColorPropertyChanged() => UpdateFill();
 
         // 收尾钩子：StrokeThickness / Padding 是"量长度时要扣掉的量"，它们变了条子也得跟着重算。
         // 这两个值都在 RefreshCore 里落地，所以放在收尾钩子上一定晚于它们。
@@ -160,8 +238,76 @@ namespace VisionMaster.Scada.Controls
 
             SetValue(FillLengthPropertyKey, available * Ratio());
             SetValue(ValueTextPropertyKey, FormatValue());
+            SetValue(DisplayFillPropertyKey, PickDisplayFill());
 
             UpdateBarLayout();
+            UpdateDecorations(available);
+        }
+
+        private Brush? PickDisplayFill()
+        {
+            if (!ShowLimits)
+                return Fill;
+
+            if (Value < LowLimit)
+                return LowColor ?? Fill;
+            if (Value > HighLimit)
+                return HighColor ?? Fill;
+
+            return Fill;
+        }
+
+        /// <summary>
+        /// 画刻度与限制线。两条装饰层都是 Canvas，线由代码生成：
+        /// 位置依赖"此刻可用像素"，模板里写不出这个比例；而且数量随 TickCount 变，
+        /// 用 ItemsControl 反而要再建一套 item 数据。
+        /// </summary>
+        private void UpdateDecorations(double available)
+        {
+            var vertical = Orientation == ProgressBarOrientation.Vertical;
+            double cross = vertical
+                ? Math.Max(0, ActualWidth - Padding.Left - Padding.Right - 2 * StrokeThickness)
+                : Math.Max(0, ActualHeight - Padding.Top - Padding.Bottom - 2 * StrokeThickness);
+
+            if (GetTemplateChild(PartTickLayer) is Canvas tickLayer)
+            {
+                tickLayer.Children.Clear();
+                if (ShowTicks && TickCount > 0 && available > 0)
+                {
+                    var brush = TickColor ?? Brushes.Gray;
+                    for (int i = 0; i <= TickCount; i++)
+                    {
+                        double p = available * i / TickCount;
+                        tickLayer.Children.Add(vertical
+                            ? new Line { X1 = 0, X2 = cross, Y1 = p, Y2 = p, Stroke = brush, StrokeThickness = 1, SnapsToDevicePixels = true }
+                            : new Line { X1 = p, X2 = p, Y1 = 0, Y2 = cross, Stroke = brush, StrokeThickness = 1, SnapsToDevicePixels = true });
+                    }
+                }
+            }
+
+            if (GetTemplateChild(PartLimitLayer) is Canvas limitLayer)
+            {
+                limitLayer.Children.Clear();
+                if (ShowLimits && available > 0 && Maximum > Minimum)
+                {
+                    var brush = LimitColor ?? Brushes.Orange;
+                    AddLimitLine(limitLayer, LowLimit, brush, available, cross, vertical);
+                    AddLimitLine(limitLayer, HighLimit, brush, available, cross, vertical);
+                }
+            }
+        }
+
+        private void AddLimitLine(
+            Canvas layer, double value, Brush brush, double available, double cross, bool vertical)
+        {
+            double ratio = (value - Minimum) / (Maximum - Minimum);
+            if (!double.IsFinite(ratio) || ratio < 0 || ratio > 1)
+                return;
+
+            double p = available * ratio;
+            layer.Children.Add(vertical
+                ? new Line { X1 = 0, X2 = cross, Y1 = p, Y2 = p, Stroke = brush, StrokeThickness = 2, SnapsToDevicePixels = true }
+                : new Line { X1 = p, X2 = p, Y1 = 0, Y2 = cross, Stroke = brush, StrokeThickness = 2, SnapsToDevicePixels = true });
         }
 
         /// <summary>

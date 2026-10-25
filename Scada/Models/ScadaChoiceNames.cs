@@ -96,6 +96,26 @@ namespace VisionMaster.Scada
                 ["Field"] = "字段",
                 ["Text"] = "文本",
 
+                // ---- StateView 呈现 / 交互（P1-2） ----
+                ["Image"] = "图片",
+                ["TextAndImage"] = "图文",
+                ["Toggle"] = "切换",
+                ["WriteValue"] = "写定值",
+
+                // ---- SubPage 缩放 / 缺页行为（P1a） ----
+                ["Original"] = "原始大小",
+                ["Placeholder"] = "占位",
+                ["KeepLast"] = "保留上次",
+                ["Fixed"] = "固定页",
+                ["FollowVariable"] = "跟随变量",
+                ["Classic"] = "经典指针",
+                ["Ring"] = "环形进度",
+                ["Plus"] = "加粗环形",
+
+                // ---- 轴面板点动模式（并发施工项） ----
+                ["Continuous"] = "连续",
+                ["Step"] = "单步",
+
                 // ---- 页面 / 图元角色 ----
                 ["Operator"] = "操作员",
                 ["Engineer"] = "工程师",
@@ -110,6 +130,8 @@ namespace VisionMaster.Scada
                 ["Off"] = "熄灭",
                 ["On"] = "点亮",
                 ["Warning"] = "警告",
+                ["Critical"] = "严重",
+                ["Info"] = "提示",
                 ["Alarm"] = "报警",
 
                 // ---- 设备状态（泵、电机）与流动状态（管路） ----

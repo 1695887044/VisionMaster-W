@@ -34,6 +34,24 @@ namespace VisionMaster.Scada
     }
 
     /// <summary>
+    /// 轴面板点动键的两种解释（属性 <c>JogMode</c> 的取值）。
+    ///
+    /// 两种模式共用同一对「◀ 点动 / 点动 ▶」按钮，只是按下去之后做的事不同，
+    /// 见 <c>AxisPanelElement.StartJog</c>。
+    /// </summary>
+    public enum ScadaJogMode
+    {
+        /// <summary>连续点动：按住走、松开停（JogStart + JogStop，点动看门狗兜底）</summary>
+        Continuous = 0,
+
+        /// <summary>
+        /// 单步点动：按一次走一格。目标 = 当前位置 ± 步长，走 <see cref="IScadaAxisCommandSink.TryMove"/>，
+        /// 与动作表「轴绝对定位」同一条路径（同一套门禁）。
+        /// </summary>
+        Step = 1,
+    }
+
+    /// <summary>
     /// 轴面板的运行态命令出口。
     ///
     /// 为什么要有它、而不是让面板直接拿 <c>MotionActionExecutor</c>：

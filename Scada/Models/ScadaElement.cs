@@ -36,6 +36,7 @@ namespace VisionMaster.Scada
         private Guid _templateId;
         private int _templateIndex = -1;
         private int _templateRevision;
+        private List<string>? _templateStrictRoots;
         private string _name = string.Empty;
         private string _typeKey = string.Empty;
         private double _x;
@@ -206,6 +207,16 @@ namespace VisionMaster.Scada
         {
             get => _templateRevision;
             set => SetProperty(ref _templateRevision, value);
+        }
+
+        /// <summary>
+        /// 这个实例插入时勾选的严格替换数组根；null/空 = 非严格（所有数组根都跟实例序号）。
+        /// 刷新关联实例时必须沿用它，否则未勾选的根会在刷新时被错误地换成实例序号。
+        /// </summary>
+        public List<string>? TemplateStrictRoots
+        {
+            get => _templateStrictRoots;
+            set => SetProperty(ref _templateStrictRoots, value);
         }
 
         /// <summary>

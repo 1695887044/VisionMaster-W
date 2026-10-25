@@ -176,22 +176,67 @@ function Add-Row {
     Write-Host ('[{0}] {1,-20} exit={2,-3} {3}' -f $flag, $Name, $code, $Note)
 }
 
+# --- Step 0: docs\ journal index freshness (B4) ------------------------------
+# A code change that is not in docs\code-changes\ never happened (R177), and an
+# entry that is not in INDEX.md cannot be found. The generator is idempotent, so
+# "regenerating changes nothing" is exactly the property we gate on: if it has to
+# write, somebody added journal entries and forgot to refresh the index.
+if (-not ($Only.Count -gt 0 -and $Only -notcontains 'docs_index')) {
+    $genPath = Join-Path $RepoRoot 'tools\gen_docs_index.ps1'
+    if (-not (Test-Path -LiteralPath $genPath)) {
+        Add-Row -Name 'docs_index' -Exit 1 -Note ('MISSING ' + $genPath)
+    }
+    else {
+        $preReport = Join-Path $logDir 'docs_index_pre.log'
+        $preText = ''
+        if (Test-Path -LiteralPath $preReport) { $preText = [IO.File]::ReadAllText($preReport, [Text.Encoding]::UTF8) }
+
+        $g = Invoke-Captured -FilePath 'powershell.exe' -Tag 'docs_index_pre' `
+            -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $genPath + '"')
+        Write-GateLog -Path $preReport -Text $g.Text
+
+        $stale = @()
+        foreach ($line in ($g.Text -split "`r?`n")) {
+            if ($line -match '^\s*docs/\S+\s+entries=\s*\d+\s+written') {
+                $stale += ($line -replace '\s+', ' ').Trim()
+            }
+        }
+        if ($g.Exit -ne 0) {
+            Add-Row -Name 'docs_index' -Exit $g.Exit -Note 'generator failed, see docs_index_pre.log'
+        }
+        elseif ($stale.Count -gt 0) {
+            # fail closed and leave the index correct on disk
+            $null = Invoke-Captured -FilePath 'powershell.exe' -Tag 'docs_index_fix' `
+                -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $genPath + '"')
+            Add-Row -Name 'docs_index' -Exit 1 -Note ('STALE INDEX (' + ($stale -join '; ') + ') - regenerated, re-run')
+        }
+        else {
+            Add-Row -Name 'docs_index' -Exit 0 -Note 'up to date'
+        }
+    }
+}
+
 # --- Step 1: repo audits (loose scripts, now actually called) -----------------
 
 $audits = @(
-    @{ N = 'audit_root';      P = 'tools\audit_root.ps1' }
-    @{ N = 'audit_artifacts'; P = 'tools\audit_artifacts.ps1' }
+    @{ N = 'audit_root';        P = 'tools\audit_root.ps1' }
+    @{ N = 'audit_artifacts';   P = 'tools\audit_artifacts.ps1' }
+    @{ N = 'audit_docs';        P = 'tools\audit_docs.ps1' }
+    @{ N = 'sync_constraints';  P = 'tools\sync_constraints.ps1'; Args = '-Check' }
 )
 
 foreach ($a in $audits) {
     if ($Only.Count -gt 0 -and $Only -notcontains $a.N) { continue }
     $path = Join-Path $RepoRoot $a.P
     if (-not (Test-Path -LiteralPath $path)) {
+        # A registered gate whose script disappeared is RED, not skipped: the
+        # rule it enforces would otherwise silently stop being enforced.
         Add-Row -Name $a.N -Exit 1 -Note ('MISSING ' + $a.P)
         continue
     }
-    $r = Invoke-Captured -FilePath 'powershell.exe' -Tag $a.N `
-        -Arguments ('-NoProfile -ExecutionPolicy Bypass -File "' + $path + '"')
+    $argLine = '-NoProfile -ExecutionPolicy Bypass -File "' + $path + '"'
+    if ($a.ContainsKey('Args') -and $a.Args) { $argLine = $argLine + ' ' + $a.Args }
+    $r = Invoke-Captured -FilePath 'powershell.exe' -Tag $a.N -Arguments $argLine
     Write-GateLog -Path (Join-Path $logDir ('gate-' + $a.N + '.log')) -Text $r.Text
     $note = 'clean'
     if ($r.Exit -ne 0) { $note = 'see gate-' + $a.N + '.log' }

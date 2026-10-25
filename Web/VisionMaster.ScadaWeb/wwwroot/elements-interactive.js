@@ -1179,6 +1179,8 @@
         var current = {
             value: toNumber(prop(el, 'Value', '0'), 0),
             options: parseChoiceOptions(prop(el, 'Options', '0=手动;1=自动;2=检修')),
+            stateListId: prop(el, 'StateListId', '') || '',
+            stateList: null,
             mode: prop(el, 'Mode', 'InputOutput'),
             fill: prop(el, 'Fill', '#FF151C23'),
             stroke: prop(el, 'Stroke', '#FF3A4A5C'),
@@ -1220,8 +1222,31 @@
             return isFinite(n) ? Math.trunc(n) : 0;
         }
 
+        function findStateList() {
+            var id = String(current.stateListId || '').trim();
+            if (!id) return null;
+
+            var lists = (ctx.page && (ctx.page.StateLists || ctx.page.stateLists)) || [];
+            for (var i = 0; i < lists.length; i++) {
+                var listId = lists[i].StateListId || lists[i].stateListId || '';
+                if (String(listId) === id) return lists[i];
+            }
+
+            return { missing: true };
+        }
+
         function selectedText() {
             var value = valueNow();
+
+            if (current.stateListId) {
+                if (!current.stateList || current.stateList.missing) return '未找到文本列表';
+                var defaultText = current.stateList.DefaultText || current.stateList.defaultText || '—';
+                for (var si = 0; si < current.options.length; si++) {
+                    if (current.options[si].value === value) return current.options[si].display;
+                }
+                return defaultText;
+            }
+
             for (var i = 0; i < current.options.length; i++) {
                 if (current.options[i].value === value) return current.options[i].display;
             }
@@ -1270,7 +1295,25 @@
 
             var previousValue = valueNow();
             current.value = resolveNumber(el, values, 'Value', 0);
-            current.options = parseChoiceOptions(resolveText(el, values, 'Options', '0=手动;1=自动;2=检修'));
+            current.stateListId = resolveText(el, values, 'StateListId', '');
+            current.stateList = findStateList();
+
+            if (current.stateListId) {
+                current.options = [];
+                if (current.stateList && !current.stateList.missing) {
+                    var entries = current.stateList.Entries || current.stateList.entries || [];
+                    for (var ei = 0; ei < entries.length; ei++) {
+                        var entryValue = toNumber(entries[ei].Value !== undefined ? entries[ei].Value : entries[ei].value, 0);
+                        var entryText = entries[ei].Text !== undefined ? entries[ei].Text : entries[ei].text;
+                        current.options.push({
+                            value: entryValue,
+                            display: entryText || String(entryValue),
+                        });
+                    }
+                }
+            } else {
+                current.options = parseChoiceOptions(resolveText(el, values, 'Options', '0=手动;1=自动;2=检修'));
+            }
 
             var signature = '';
             for (var oi = 0; oi < current.options.length; oi++) {
@@ -1334,7 +1377,9 @@
             if (!current.options.length) {
                 var empty = document.createElement('div');
                 empty.className = 'hmi-combo-empty';
-                empty.textContent = '（选项映射为空）';
+                empty.textContent = current.stateListId
+                    ? (current.stateList && current.stateList.missing ? '（未找到文本列表）' : '（文本列表为空）')
+                    : '（选项映射为空）';
                 box.appendChild(empty);
                 return;
             }

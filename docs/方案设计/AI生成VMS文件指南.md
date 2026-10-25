@@ -2,7 +2,60 @@
 
 > 目的：让 AI 或脚本直接生成 `VisionMaster.exe` 能打开、能编译、能运行的 `.vms` 解决方案。
 > 依据：本仓库 `Core\Models\SolutionModel.cs`、`Core\Models\FlowModel.cs`、`Scada\Models\*`，以及 `tools\vms-generator` 的可用生成器。
-> 示例：`解决方案\自动化产线.vms`（14 流程 / 315 步 / 8 页组态）和 `解决方案\综合测试台.vms`（14 流程 / 边界测试）。
+> 示例：`解决方案\CCG-BGA焊球全检\CCG-BGA焊球全检.vms`、`解决方案\CCG-包装线全检追溯\`、
+> `解决方案\CCG-精密尺寸测量站\`（**文件夹化布局 + 方案内相对路径**，见 §1.1），
+> 以及 `解决方案\自动化产线.vms`（14 流程 / 315 步 / 8 页组态）和 `解决方案\综合测试台.vms`（14 流程 / 边界测试）。
+
+---
+
+## 1.1 方案不是一个文件，是一个文件夹（生成前先定这一点）
+
+生成器最容易犯的错：只写一个 `.vms`，图片写绝对路径或 `..\Image\images\xxx.png`。
+那样方案一旦搬走、或用户另存为，图就全断——**"资源在方案文件夹里面"是硬要求，不是风格偏好**
+（用户裁定见 `docs\UI设计基线\scada-controls\README.md:150`、`scada-controls-batch3\README.md:163`）。
+
+正确的落点形状（`Core\SolutionPaths.cs:12-19` 的注释就是这份示例）：
+
+```
+<保存位置>\
+└── <方案名>\
+    ├── <方案名>.vms          配置文件，文件夹名与文件名必须同名
+    ├── Image\                组态图元用到的图片（平铺一层）
+    ├── Alarms\               报警历史 CSV
+    ├── History\              生产历史 CSV（Hmi.DataGrid 的"历史源"读这里）
+    └── Logs\                 运行日志
+```
+
+四条生成期纪律：
+
+1. **`.vms` 里只写方案内相对路径**：`Image\bga.png`。绝不写 `D:\...`，绝不写 `..\Image\...`。
+2. **图片必须平铺在 `Image\` 一层**，不要再套子目录。宿主 `VisionMaster\Services\SolutionAssetService.cs:198`
+   的 `TryResolve` 要求 `Path.GetFullPath(相对路径拼到方案根)` 落在 `<方案根>\Image\` 之内；`Image\sub\a.png`
+   虽然能过前缀检查，但构建方案时只会把文件平铺复制进 `Image\`，带子目录的引用就成了空引用。
+3. **生成时把源图从样图库复制进方案自己的 `Image\`**，`.vms` 只记文件名。同名同内容按 SHA-256 复用，
+   同名不同内容自动改名（`name_<hash8>.ext`），绝不覆盖用户已有资产。
+4. **相对路径的解析责任在宿主**：`Scada.Controls` 不碰方案目录，它只吃
+   `ScadaElementBase.ResolveImageAsset` → 宿主注入的 `ImageAssetResolver`
+   （运行时 `VisionMaster\Views\ScadaRuntimeWindow.xaml.cs:191-194/268-269`，编辑器
+   `ScadaEditorView.xaml.cs:73-78`，探针 `tools\probes\_ScadaUiProbe\Program.cs:324`）。
+   探针与宿主都按「方案文件所在目录 + 相对路径」解析，所以整包搬走就能用。
+
+流程里 CSV/Excel 的落点同理，写相对目录（`DirectoryTemplate = "History\{StepName}\{yyyy-MM}\"`），
+不要写 `D:\Records\...`。**已知边界**：`RecordingHub.ExpandTemplate` 之后走 `Path.GetFullPath`，
+相对目录按宿主进程当前目录解析，没有方案根锚点；要让账本严格落进方案自己的 `History\`，
+需把宿主工作目录设到方案根，或用绝对路径覆盖模板。生成器保证的是"配置文件里不含绝对路径、可整包搬迁"。
+
+自检判据（生成器落盘前必须过）：
+
+- 全文正则 `"[^"]*[A-Za-z]:\\` 命中数 = 0；
+- 全文正则 `\.\.[\\/]` 命中数 = 0；
+- 每个 `SourcePath` / `SourceImagePath` 值都匹配 `^Image\\[^\\]+$`，且该文件确实存在于方案 `Image\`；
+- 把整个方案文件夹复制到另一个目录后，**两个探针仍然全绿**（这是唯一的搬迁证据）。
+
+`tools\vms-generator\Program.CcgSolutionFolder.cs` 是这套纪律的可复制实现：
+`WriteFolderSolution`（建目录 + 收图 + 复制 + 自检）、`SourceImageMap`（样图库子目录 → 方案内平铺文件名）、
+`AssertNoExternalPath`、`CcgCsvRecord`/`CcgExcel`（相对输出目录）。
+
 
 ---
 

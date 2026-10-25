@@ -52,18 +52,20 @@ namespace VisionMaster.Views
                 (e.NewValue as ScadaEditorViewModel)?.Activate();
 
             AttachImageAssetResolver();
+            AttachStateListResolver();
         }
 
         private void OnViewLoaded(object sender, RoutedEventArgs e)
         {
             (DataContext as ScadaEditorViewModel)?.Activate();
             AttachImageAssetResolver();
+            AttachStateListResolver();
             AttachCanvasWatchers();
             FitCanvasIfNeeded();
         }
 
         /// <summary>
-        /// 把“方案图片解析器”接到画布上（Hmi.Picture 用）。
+        /// 把“方案图片解析器”接到画布上（Hmi.Picture / Hmi.Gif 用）。
         ///
         /// XAML 里虽然也绑了 <c>ImageAssetResolver="{Binding ResolveImageAsset}"</c>，
         /// 但这里再显式赋一次：委托型 DP 的绑定在部分宿主/初始化顺序下会拿到 null，
@@ -75,7 +77,20 @@ namespace VisionMaster.Views
             if (Canvas is null)
                 return;
 
-            Canvas.ImageAssetResolver = (DataContext as ScadaEditorViewModel)?.ResolveImageAsset;
+            var viewModel = DataContext as ScadaEditorViewModel;
+            Canvas.ImageAssetResolver = viewModel?.ResolveImageAsset;
+            Canvas.ImageBytesResolver = viewModel?.ResolveImageBytes;
+        }
+
+        /// <summary>方案级文本列表解析器（Hmi.ComboBox 用），与图片解析器同一注入方式</summary>
+        private void AttachStateListResolver()
+        {
+            if (Canvas is null)
+                return;
+
+            Canvas.StateListResolver = (DataContext as ScadaEditorViewModel)?.ResolveStateList;
+            Canvas.PageResolver = (DataContext as ScadaEditorViewModel)?.ResolvePage;
+            Canvas.PageNameResolver = (DataContext as ScadaEditorViewModel)?.ResolvePageByName;
         }
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)

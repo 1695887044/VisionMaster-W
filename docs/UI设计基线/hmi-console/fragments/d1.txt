@@ -1,0 +1,485 @@
+<!-- D-1 运动总览 -->
+<section class="screen-page" id="d-overview" data-page="overview">
+  <div class="tpl-head">
+    <div><h2><span>D-01</span>运动总览 · 四轴状态与机构示意</h2>
+      <p>运动控制方案的首页：左四轴卡片、中机构示意与轨迹、右速度/跟随误差曲线；右栏固定放报警→轴状态→安全。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>轴卡 + 机构 + 曲线</span><span><b>右栏</b>报警 + 伺服 + 气路</span><span><b>出口</b>点动与回零</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <span class="mode-pill" style="border-color:rgba(34,197,94,.45);color:#86EFAC;">伺服全部使能</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>当前配方</span><b>MC-XY 标准</b></div>
+      <div class="top-stat"><span>节拍</span><b>2.64 s</b></div>
+      <div class="top-stat"><span>已运行</span><b>3h 12m</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:12:44</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item active" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>ZMotion 已连接 · 1 ms</div><div class="conn-sub">VPLC532R · 固件 3.2.1</div></div>
+      </div>
+      <div class="main">
+        <div class="axis-tiles">
+          <div class="at mv">
+            <div class="at-hd"><b>AXIS-X 横梁</b><span class="st mv">运行</span></div>
+            <div class="at-pos">128.480<em>mm</em></div>
+            <div class="at-bar"><i style="width:64%"></i><u style="left:100%"></u></div>
+            <div class="at-foot"><span>0 / 200</span><span>v 118.4</span></div>
+          </div>
+          <div class="at mv">
+            <div class="at-hd"><b>AXIS-Y 拖板</b><span class="st mv">运行</span></div>
+            <div class="at-pos">64.000<em>mm</em></div>
+            <div class="at-bar"><i style="width:43%"></i><u style="left:100%"></u></div>
+            <div class="at-foot"><span>0 / 150</span><span>v 96.2</span></div>
+          </div>
+          <div class="at">
+            <div class="at-hd"><b>AXIS-Z 升降</b><span class="st">到位</span></div>
+            <div class="at-pos">−12.500<em>mm</em></div>
+            <div class="at-bar"><i style="width:42%"></i><u style="left:0%"></u></div>
+            <div class="at-foot"><span>−30 / 0</span><span>v 0.0</span></div>
+          </div>
+          <div class="at al">
+            <div class="at-hd"><b>AXIS-R 旋转</b><span class="st al">超差</span></div>
+            <div class="at-pos">45.000<em>°</em></div>
+            <div class="at-bar"><i style="width:62%"></i><u style="left:50%"></u></div>
+            <div class="at-foot"><span>−180 / 180</span><span>err 0.062</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 560px;gap:12px;flex:1;min-height:0;">
+          <div class="card" style="flex:1;min-height:0;padding:10px;">
+            <div class="card-head"><div><b>机构示意（龙门 + 四轴）</b><span>AxisId 寻址 · 位置与左上四张轴卡一一对应</span></div><span class="chip">Hmi.Panel + SVG</span></div>
+            <div class="mstage">
+              <svg viewBox="0 0 980 470" preserveAspectRatio="xMidYMid meet">
+                <!-- 工作台 -->
+                <rect class="wkc" x="180" y="352" width="700" height="70" rx="6"></rect>
+                <text class="hintlab" x="190" y="440" font-size="9">工作区 200 × 150 mm</text>
+                <!-- 龙门立柱 -->
+                <path class="gantry" d="M200 40 V352"></path>
+                <path class="gantry" d="M860 40 V352"></path>
+                <path class="gantry-hi" d="M200 50 H860"></path>
+                <path class="gantry-hi" d="M200 372 H860"></path>
+                <!-- X 横梁（动梁） -->
+                <rect x="236" y="42" width="112" height="410" rx="4" fill="none" stroke="#3E5063" stroke-width="10"></rect>
+                <text class="axislab" x="196" y="26">AXIS-X ⇄ 128.480</text>
+                <!-- Y 拖板 -->
+                <rect class="carry" x="384" y="118" width="152" height="150" rx="8"></rect>
+                <text class="axislab" x="394" y="110">AXIS-Y ⇅ 64.000</text>
+                <!-- Z 立轨与 Z 拖板 -->
+                <path class="slide" d="M470 138 V236"></path>
+                <rect class="carry" x="440" y="196" width="60" height="56" rx="6"></rect>
+                <text class="axislab" x="508" y="214">AXIS-Z  −12.500</text>
+                <!-- 夹爪 -->
+                <path class="probe" d="M450 252 V272 H476 V252"></path>
+                <path class="probe" d="M462 272 V284"></path>
+                <text class="dimlab" x="488" y="282">夹爪（真空 −62 kPa）</text>
+                <!-- 工件与运动轨迹 -->
+                <rect class="held" x="430" y="286" width="40" height="26" rx="3"></rect>
+                <path class="trail" d="M450 286 C 470 250, 560 236, 620 214 S 760 176, 800 150"></path>
+                <ellipse class="ghost" cx="800" cy="150" rx="26" ry="17"></ellipse>
+                <text class="dimlab" x="742" y="136">取放轨迹</text>
+                <!-- 旋转台 -->
+                <ellipse cx="620" cy="386" rx="66" ry="20" fill="rgba(56,189,248,.08)" stroke="rgba(56,189,248,.4)" stroke-width="1.6"></ellipse>
+                <path class="slide" d="M620 386 L 662 366"></path>
+                <text class="axislab" x="560" y="420">AXIS-R 45.000°</text>
+                <!-- 尺寸标注 -->
+                <path class="amb" d="M200 34 H860"></path>
+                <text class="dimlab" x="470" y="30">X 行程 200</text>
+                <path class="amb" d="M182 40 V352"></path>
+                <text class="dimlab" x="120" y="200" transform="rotate(-90 120 200)">Y 行程 150</text>
+                <!-- 测头 -->
+                <path class="probe" d="M782 190 V206"></path>
+                <circle cx="782" cy="210" r="5" class="probe"></circle>
+                <text class="dimlab" x="796" y="214">对刀测头</text>
+              </svg>
+              <div class="mstage-badge"><span>X 128.480</span><span>Y 64.000</span><span>Z −12.500</span><span>R 45.000</span></div>
+              <div class="mstage-legend"><span><i style="background:#38BDF8"></i>运动轴</span><span><i style="background:#F59E0B"></i>运动轨迹</span><span><i style="background:#22C55E"></i>工装/测头</span></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;">
+            <div class="card" style="flex:1;min-height:0;padding:10px;">
+              <div class="card-head"><div><b>速度与跟随误差</b><span>X 轴 · 近 60 s</span></div><span class="chip">Hmi.MultiTrend</span></div>
+              <div class="wave-card" style="flex:1;">
+                <svg viewBox="0 0 520 150" preserveAspectRatio="none">
+                  <line class="grid" x1="0" y1="30" x2="520" y2="30"></line>
+                  <line class="grid" x1="0" y1="75" x2="520" y2="75"></line>
+                  <line class="grid" x1="0" y1="120" x2="520" y2="120"></line>
+                  <polyline class="c1" points="0,120 40,118 70,60 100,32 130,60 160,118 200,116 230,58 260,30 290,62 320,118 360,116 390,56 420,30 450,64 480,118 520,116"></polyline>
+                  <polyline class="c2" points="0,142 40,140 70,132 100,124 130,132 160,141 200,140 230,131 260,123 290,133 320,141 360,140 390,131 420,124 450,133 480,141 520,140"></polyline>
+                  <text class="axl" x="4" y="14">mm/s · mm</text>
+                  <text class="axl" x="470" y="20">v 118.4</text>
+                </svg>
+              </div>
+              <div class="wave-legend"><span><i style="background:#38BDF8"></i>速度 mm/s</span><span><i style="background:#F59E0B"></i>跟随误差 mm ×10</span></div>
+            </div>
+            <div class="card" style="flex:none;padding:10px;">
+              <div class="card-head"><div><b>取放循环节拍</b><span>单件 2.64 s · 理论最快 2.31 s</span></div><span class="chip">Hmi.Panel</span></div>
+              <div class="tl" style="height:24px;">
+                <div class="seg a" style="left:0%;width:22%">取件</div>
+                <div class="seg c" style="left:22.5%;width:15%">夹爪</div>
+                <div class="seg a" style="left:38%;width:27%">搬运</div>
+                <div class="seg c" style="left:65.5%;width:13%">放件</div>
+                <div class="seg d" style="left:79%;width:21%">复位</div>
+              </div>
+              <div class="tl-ruler"><span>0.00</span><span>0.58</span><span>1.16</span><span>1.74</span><span>2.32</span><span>2.64 s</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>2 条 · 2 条未确认</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row critical"><span class="sev">紧急</span><span class="time">15:11:52</span><span class="name">R 轴跟随误差超限 0.062 mm</span><span class="state">未确认</span></div>
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:04:07</span><span class="name">Z 轴速度超软限位 45 mm/s</span><span class="state">未确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:52:44</span><span class="name">配方切换完成</span><span class="state">已确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="height:212px;flex:none;">
+          <div class="card-head"><div><b>伺服状态</b><span>四轴驱动与反馈</span></div><span class="chip">Hmi.Panel</span></div>
+          <div class="io-grid">
+            <div class="io-item"><i class="on"></i><span>X 使能</span><b>ON</b></div>
+            <div class="io-item"><i class="on"></i><span>Y 使能</span><b>ON</b></div>
+            <div class="io-item"><i class="on"></i><span>Z 使能</span><b>ON</b></div>
+            <div class="io-item"><i class="on"></i><span>R 使能</span><b>ON</b></div>
+            <div class="io-item"><i class="on"></i><span>X 回零</span><b>已回零</b></div>
+            <div class="io-item"><i class="on"></i><span>Y 回零</span><b>已回零</b></div>
+            <div class="io-item"><i class="on"></i><span>Z 回零</span><b>已回零</b></div>
+            <div class="io-item"><i class="bad"></i><span>R 到位</span><b>超差</b></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;padding:10px;">
+          <div class="card-head"><div><b>气路与安全</b><span>真空 / 气压 / 安全回路</span></div><span class="chip">Hmi.Panel</span></div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;">
+            <div class="detail-row"><span>真空压力</span><b>−62 kPa</b></div>
+            <div class="detail-row"><span>气源压力</span><b>0.52 MPa</b></div>
+            <div class="detail-row"><span>安全门</span><b style="color:#86EFAC;">CLOSED</b></div>
+            <div class="detail-row"><span>光幕</span><b style="color:#86EFAC;">CLEAR</b></div>
+            <div class="detail-row"><span>急停回路</span><b style="color:#86EFAC;">HEALTHY</b></div>
+          </div>
+          <div class="safe-strip" style="margin-top:auto;">安全回路正常，可进入手动操作</div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>伺服 4/4 使能</span><span>节拍 2.64 s</span>
+      <span>配方 MC-XY 标准</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- D-2 点动与回零 -->
+<section class="screen-page" id="d-jog" data-page="jog">
+  <div class="tpl-head">
+    <div><h2><span>D-02</span>点动与回零 · 手动操作台</h2>
+      <p>触摸屏最费页面的一屏：大号点动盘按住才动、步长与倍率、绝对/相对定位、回零顺序、点位表与轴控台。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>点动盘 + 定位 + 点位表</span><span><b>右栏</b>轴控台</span><span><b>出口</b>轴参数</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip warn"><i></i>手动模式</span>
+      <span class="mode-pill" style="border-color:rgba(245,158,11,.5);color:#FCD34D;">MANUAL · 自动已软禁</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>选中轴</span><b>AXIS-X</b></div>
+      <div class="top-stat"><span>步长</span><b>1.000 mm</b></div>
+      <div class="top-stat"><span>倍率</span><b>30 %</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:14:02</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item active" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn warn"><i></i>手动模式 · 自动流程已禁</div><div class="conn-sub">松开即停 · 捕获鼠标</div></div>
+      </div>
+      <div class="main">
+        <div class="console-wrap">
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;">
+            <div class="card" style="flex:none;padding:10px;">
+              <div class="card-head"><div><b>点动盘 · AXIS-X</b><span>按下运动、抬起/移出/失去捕获立刻停</span></div><span class="chip">Hmi.BitButton × 10</span></div>
+              <div class="jogpad">
+                <span class="jogbtn">↖<small>X− Y+</small></span>
+                <span class="jogbtn press">↑<small>X+</small></span>
+                <span class="jogbtn">↗<small>X+ Y+</small></span>
+                <span class="jogbtn">←<small>步长−</small></span>
+                <span class="jogbtn center">JOG</span>
+                <span class="jogbtn">→<small>步长+</small></span>
+                <span class="jogbtn">↙<small>X− Y−</small></span>
+                <span class="jogbtn">↓<small>X−</small></span>
+                <span class="jogbtn">↘<small>X+ Y−</small></span>
+                <span class="jogbtn stop">■<small>停止</small></span>
+                <span class="jogbtn hold">⌂<small>回零 长按</small></span>
+                <span class="jogbtn">Z±<small>切轴</small></span>
+              </div>
+              <div class="row" style="margin-top:9px;">
+                <span class="chip ok">步长 0.001</span><span class="chip">0.010</span><span class="chip ok">1.000</span><span class="chip">10.000</span>
+                <span style="margin-left:auto" class="chip warn">倍率 30%</span><span class="chip">60%</span><span class="chip">100%</span>
+              </div>
+            </div>
+            <div class="card" style="flex:none;padding:10px;">
+              <div class="card-head"><div><b>绝对 / 相对定位</b><span>目标位置写点位表或直接下发</span></div><span class="chip">Hmi.TextField + Hmi.Button</span></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;align-items:end;">
+                <div class="tgt"><label>目标位置</label><div class="box">150.000<em>mm</em></div></div>
+                <div class="tgt"><label>速度</label><div class="box">80.000<em>mm/s</em></div></div>
+                <div class="tgt"><label>加速度</label><div class="box">800.000<em>mm/s²</em></div></div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <span class="btn primary">移动到目标</span>
+                  <span class="btn">写入点位表</span>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:10px;">
+                <div class="numpad"><span>7</span><span>8</span><span>9</span><span class="acc">⌫</span></div>
+                <div class="numpad"><span>4</span><span>5</span><span>6</span><span class="neg">±</span></div>
+                <div class="numpad"><span>1</span><span>2</span><span>3</span><span class="acc">↵</span></div>
+                <div class="numpad"><span>0</span><span>.</span><span>00</span><span class="acc">C</span></div>
+              </div>
+            </div>
+            <div class="card" style="flex:1;min-height:0;padding:10px;">
+              <div class="card-head"><div><b>回零流程</b><span>顺序 Z → X → Y → R（先抬 Z 防撞）· 长按 0.5 s 触发</span></div><span class="chip">Hmi.Button 长按</span></div>
+              <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;">
+                <div class="homestep done"><i>✓</i>Z 抬升<small>1.2 s</small></div>
+                <div class="homestep done"><i>✓</i>X 回零<small>0.8 s</small></div>
+                <div class="homestep on"><i>3</i>Y 回零<small>运行中</small></div>
+                <div class="homestep"><i>4</i>R 回零<small>待执行</small></div>
+              </div>
+              <div class="row" style="margin-top:9px;"><span class="chip ok">X 已回零</span><span class="chip ok">Z 已回零</span><span class="chip warn">Y 回零中</span><span class="chip">R 未回零</span></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;min-height:0;">
+            <div class="axis-console" style="flex:none;">
+              <div class="axtabs"><span class="on">X 横梁</span><span>Y 拖板</span><span>Z 升降</span><span>R 旋转</span></div>
+              <div class="axbig">128.480<em>mm</em></div>
+              <div class="axlamps"><i class="on">使能</i><i>报警</i><i class="on">到位</i><i class="warn">回零</i></div>
+              <div class="axgrid"><span class="on">点动</span><span>回零</span><span class="stop">停止</span><span>绝对</span><span>相对</span><span>清报警</span></div>
+              <div class="axkv">
+                <div><span>速度</span><b>24.000</b></div>
+                <div><span>倍率</span><b>30 %</b></div>
+                <div><span>跟随误差</span><b>0.004</b></div>
+                <div><span>负载率</span><b>23 %</b></div>
+              </div>
+            </div>
+            <div class="card" style="flex:1;min-height:0;padding:10px;">
+              <div class="card-head"><div><b>点位表</b><span>示教写当前轴位置 · 离线明确拒绝</span></div><span class="chip">Hmi.AxisPointTable</span></div>
+              <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;color:var(--c-text-3);">
+                <div class="detail-row"><span>P001 取料位</span><b>128.480 / 64.000 / −12.500 / 45.00</b></div>
+                <div class="detail-row"><span>P002 检测位</span><b>92.000 / 40.000 / −8.000 / 0.00</b></div>
+                <div class="detail-row"><span>P003 放料位</span><b>176.000 / 118.000 / −12.500 / 135.00</b></div>
+                <div class="detail-row"><span>P004 安全抬升</span><b>— / — / −2.000 / —</b></div>
+                <div class="detail-row"><span>P005 原点待机</span><b>0.000 / 0.000 / 0.000 / 0.00</b></div>
+              </div>
+              <div class="safe-strip ok" style="margin-top:auto;">已示教 5 点 · 全部在软限位内</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="flex:none;padding:10px;">
+          <div class="card-head"><div><b>四轴状态</b><span>位置 / 速度 / 跟随误差 / 回零 / 状态</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <table class="axs-table">
+            <thead><tr><th>轴</th><th>位置</th><th>速度</th><th>跟随误差</th><th>回零</th><th>软限位</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td class="n">X 横梁</td><td>128.480 mm</td><td>24.000</td><td>0.004</td><td>已回零</td><td>0 ~ 200</td><td class="d mv">点动中</td></tr>
+              <tr><td class="n">Y 拖板</td><td>64.000 mm</td><td>12.000</td><td>0.003</td><td>回零中</td><td>0 ~ 150</td><td class="d mv">回零</td></tr>
+              <tr><td class="n">Z 升降</td><td>−12.500 mm</td><td>0.000</td><td>0.001</td><td>已回零</td><td>−30 ~ 0</td><td class="d">保持</td></tr>
+              <tr><td class="n">R 旋转</td><td>45.000 °</td><td>0.000</td><td>0.062</td><td>未回零</td><td>−180 ~ 180</td><td class="d al">超差</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>手动操作相关 1 条</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row critical"><span class="sev">紧急</span><span class="time">15:11:52</span><span class="name">R 轴跟随误差超限</span><span class="state">未确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">15:13:40</span><span class="name">进入手动模式，自动流程已禁</span><span class="state">已确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="height:196px;flex:none;">
+          <div class="card-head"><div><b>手动操作 KPI</b><span>本班</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>点动次数</span><b>86</b><em>今日</em></div>
+            <div class="kpi"><span>回零次数</span><b>2</b><em>今日</em></div>
+            <div class="kpi"><span>示教点</span><b>5</b><em>已保存</em></div>
+            <div class="kpi"><span>手动时长</span><b>12<small>m</small></b><em>本班</em></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;padding:10px;">
+          <div class="card-head"><div><b>急停与轴选择</b><span>急停始终可达</span></div><span class="chip">安全</span></div>
+          <div class="axsel"><span class="on">X</span><span>Y</span><span>Z</span><span>R</span></div>
+          <div class="estopbar" style="margin-top:8px;">
+            <span class="btn danger" style="height:34px;">紧急停止</span>
+            <span class="btn" style="height:34px;">清报警</span>
+          </div>
+          <div class="safe-strip" style="margin-top:8px;flex-direction:column;align-items:flex-start;gap:3px;">
+            <b style="font-size:9px;">手动模式硬约束</b>
+            <span style="font-size:8.5px;">自动流程软禁 · 点动按住才动 · 回零长按 0.5 s</span>
+          </div>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn" data-nav="axisparam">轴参数 →</span><span class="btn" data-nav="overview">回总览 →</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>手动模式 · 自动已禁</span><span>选中 AXIS-X · 步长 1.000</span>
+      <span>回零 2/4 完成</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- D-3 轴参数 -->
+<section class="screen-page" id="d-axisparam" data-page="axisparam">
+  <div class="tpl-head">
+    <div><h2><span>D-03</span>轴参数 · 软限位与伺服整定</h2>
+      <p>轴参数总表、IO 点位、跟随误差与负载率曲线、报警码速查、传动链换算。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>参数表 + IO</span><span><b>右栏</b>传动链 + 健康度</span><span><b>出口</b>视觉监控</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip warn"><i></i>参数待下发</span>
+      <span class="mode-pill" style="border-color:rgba(245,158,11,.5);color:#FCD34D;">ADMIN · 工程师</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>改动</span><b>3 项</b></div>
+      <div class="top-stat"><span>配置版本</span><b>v1.4</b></div>
+      <div class="top-stat"><span>下发</span><b>未下发</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>王工</b></div>
+      <div class="clock">15:16:29</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运行总览</div>
+        <div class="nav-item" data-nav="motion"><i class="ico">◈</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item active" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn warn"><i></i>工程师模式 · 可改参数</div><div class="conn-sub">改动需二次确认</div></div>
+      </div>
+      <div class="main">
+        <div class="card" style="flex:none;padding:11px;">
+          <div class="card-head"><div><b>轴参数总表</b><span>软限位 / 速度 / 加减速 / 齿轮比 / 回零方式 · 改动需二次确认并落审计</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <table class="pm-table">
+            <thead><tr><th>轴</th><th>软限位 −</th><th>软限位 +</th><th>最大速度</th><th>加速度</th><th>急停减速度</th><th>电子齿轮比</th><th>回零方式</th><th>状态</th></tr></thead>
+            <tbody>
+              <tr><td class="k">X 横梁</td><td class="v">0.000</td><td class="v">200.000</td><td class="v">200.000</td><td class="v">800.000</td><td class="v">4000.000</td><td class="v">1 : 1</td><td class="v">原点开关</td><td class="v hl">已回零</td></tr>
+              <tr><td class="k">Y 拖板</td><td class="v">0.000</td><td class="v">150.000</td><td class="v">200.000</td><td class="v">800.000</td><td class="v">4000.000</td><td class="v">1 : 1</td><td class="v">原点开关</td><td class="v">回零中</td></tr>
+              <tr><td class="k">Z 升降</td><td class="v">−30.000</td><td class="v">0.000</td><td class="v">45.000</td><td class="v">400.000</td><td class="v">2000.000</td><td class="v">1 : 2</td><td class="v hl">Z 相</td><td class="v">已回零</td></tr>
+              <tr><td class="k">R 旋转</td><td class="v">−180.000</td><td class="v">180.000</td><td class="v">360.000</td><td class="v">1800.000</td><td class="v">9000.000</td><td class="v hl">1 : 5</td><td class="v">Z 相</td><td class="v">超差</td></tr>
+            </tbody>
+          </table>
+          <div class="row" style="margin-top:9px;"><span class="btn primary">下发参数</span><span class="btn">撤销改动</span><span class="btn">恢复上次保存</span><span class="chip warn">3 项改动待确认</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 1fr;gap:12px;flex:none;">
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>数字输入 DI</b><span>16 点位图</span></div><span class="chip">Hmi.Panel</span></div>
+            <div class="bits"><i class="on">1</i><i>2</i><i>3</i><i class="on">4</i><i>5</i><i class="on">6</i><i>7</i><i>8</i><i>9</i><i class="on">10</i><i>11</i><i>12</i><i class="al">13</i><i>14</i><i>15</i><i>16</i></div>
+            <div style="display:flex;gap:12px;font-size:8.5px;color:var(--c-text-3);margin-top:7px;"><span><b style="color:#86EFAC;">ON</b> 5 点</span><span><b style="color:#FCA5A5;">ALARM</b> 1 点（DI13 安全门）</span><span>OFF 10 点</span></div>
+          </div>
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>数字输出 DO</b><span>16 点位图</span></div><span class="chip">Hmi.Panel</span></div>
+            <div class="bits"><i class="on">1</i><i class="on">2</i><i>3</i><i>4</i><i class="on">5</i><i>6</i><i>7</i><i>8</i><i>9</i><i>10</i><i class="on">11</i><i class="on">12</i><i>13</i><i>14</i><i>15</i><i>16</i></div>
+            <div style="display:flex;gap:12px;font-size:8.5px;color:var(--c-text-3);margin-top:7px;"><span><b style="color:#86EFAC;">ON</b> 5 点</span><span>真空阀 / 三色灯 / 蜂鸣</span><span>OFF 11 点</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0;">
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>跟随误差 · 四轴</b><span>近 60 s</span></div><span class="chip">Hmi.MultiTrend</span></div>
+            <div class="wave-card" style="flex:1;">
+              <svg viewBox="0 0 420 130" preserveAspectRatio="none">
+                <line class="grid" x1="0" y1="32" x2="420" y2="32"></line>
+                <line class="grid" x1="0" y1="80" x2="420" y2="80"></line>
+                <line class="zl" x1="0" y1="24" x2="420" y2="24"></line>
+                <polyline class="c1" points="0,110 50,108 100,100 150,92 200,86 250,90 300,98 350,106 420,110"></polyline>
+                <polyline class="c2" points="0,116 50,115 100,112 150,106 200,98 250,104 300,112 350,115 420,116"></polyline>
+                <polyline class="c3" points="0,120 50,118 100,116 150,112 200,108 250,110 300,116 350,118 420,120"></polyline>
+                <text class="axl" x="4" y="12">mm</text>
+                <text class="axl" x="330" y="20" style="fill:#FCA5A5;">阈值 0.050</text>
+              </svg>
+            </div>
+            <div class="wave-legend"><span><i style="background:#38BDF8"></i>X</span><span><i style="background:#F59E0B"></i>Y</span><span><i style="background:#22C55E"></i>Z</span><span><i style="background:#7F1D1D"></i>阈值</span></div>
+          </div>
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>负载率 · 四轴</b><span>近 60 s</span></div><span class="chip">Hmi.MultiTrend</span></div>
+            <div class="wave-card" style="flex:1;">
+              <svg viewBox="0 0 420 130" preserveAspectRatio="none">
+                <line class="grid" x1="0" y1="35" x2="420" y2="35"></line>
+                <line class="grid" x1="0" y1="80" x2="420" y2="80"></line>
+                <polyline class="c1" points="0,96 45,84 90,72 135,66 180,74 225,86 270,92 315,88 360,80 420,78"></polyline>
+                <polyline class="c2" points="0,104 45,98 90,90 135,86 180,92 225,100 270,104 315,102 360,98 420,96"></polyline>
+                <polyline class="c3" points="0,112 45,110 90,106 135,104 180,108 225,112 270,114 315,112 360,110 420,110"></polyline>
+                <text class="axl" x="4" y="14">%</text>
+              </svg>
+            </div>
+            <div class="wave-legend"><span><i style="background:#38BDF8"></i>X 23%</span><span><i style="background:#F59E0B"></i>Y 18%</span><span><i style="background:#22C55E"></i>Z 11%</span></div>
+          </div>
+        </div>
+        <div class="drive-row">
+          <div class="drive"><b>X 轴传动</b><div class="vals"><span>丝杆导程<em>10.000 mm</em></span><span>编码器<em>17 bit · 131072 p/r</em></span><span>每脉冲<em>0.0763 µm</em></span></div></div>
+          <div class="drive"><b>Z 轴传动</b><div class="vals"><span>丝杆导程<em>5.000 mm</em></span><span>减速比<em>1 : 2</em></span><span>每脉冲<em>0.0381 µm</em></span></div></div>
+          <div class="drive"><b>R 轴传动</b><div class="vals"><span>蜗轮蜗杆<em>1 : 5</em></span><span>编码器<em>17 bit</em></span><span>每脉冲<em>0.0001°</em></span></div></div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>参数相关 1 条</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:04:07</span><span class="name">Z 轴速度超软限位 45 mm/s</span><span class="state">未确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:58:05</span><span class="name">参数版本升至 v1.4</span><span class="state">已确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="height:238px;flex:none;">
+          <div class="card-head"><div><b>参数健康度</b><span>本班实测</span></div><span class="chip">Hmi.KpiBoard</span></div>
+          <div class="kpi-grid">
+            <div class="kpi"><span>X 重复定位</span><b>±0.006<small>mm</small></b><em>目标 ±0.010</em></div>
+            <div class="kpi"><span>R 重复定位</span><b>±0.004<small>°</small></b><em>目标 ±0.010</em></div>
+            <div class="kpi"><span>空跑节拍</span><b>2.31<small>s</small></b><em>理论值</em></div>
+            <div class="kpi"><span>跟随误差峰</span><b>0.018</b><em>阈值 0.050</em></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;padding:10px;">
+          <div class="card-head"><div><b>报警码速查</b><span>驱动侧常见码</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <table class="axs-table">
+            <thead><tr><th>码</th><th>含义</th><th>处置</th></tr></thead>
+            <tbody>
+              <tr><td>E102</td><td class="n">跟随误差超限</td><td class="n">查负载/齿轮比</td></tr>
+              <tr><td>E210</td><td class="n">编码器通讯异常</td><td class="n">查线缆屏蔽</td></tr>
+              <tr><td>E305</td><td class="n">软件限位触发</td><td class="n">反向后退出</td></tr>
+              <tr><td>E401</td><td class="n">回零超时</td><td class="n">查原点开关</td></tr>
+            </tbody>
+          </table>
+          <div class="safe-strip bad" style="margin-top:auto;">R 轴当前处于 E102 超差状态，需处置后才能转自动</div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>总线 1 ms · 丢包 0</span><span>工程师模式</span><span>3 项改动未下发</span>
+      <span>审计已记录</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>

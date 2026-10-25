@@ -63,6 +63,10 @@ namespace VisionMaster.Scada.Controls
         /// <param name="history">
         /// 本轮的历史数据源（数据表格 <c>Source=History</c> 用）；纯监视画面可以不给。
         /// </param>
+        /// <param name="stateLists">
+        /// 方案级文本列表（ComboBox 用）；设计期由画布的 <c>StateListResolver</c> 提供，
+        /// 运行态走这一份，断言宿主两者都可给。
+        /// </param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
@@ -73,7 +77,9 @@ namespace VisionMaster.Scada.Controls
             IScadaConfirmationService? confirmations = null,
             IScadaValueSource? values = null,
             IReadOnlyList<ScadaAlarmRecord>? priorAlarms = null,
-            IScadaHistorySource? history = null)
+            IScadaHistorySource? history = null,
+            IReadOnlyList<ScadaStateList>? stateLists = null,
+            IScadaSubPageHost? subPages = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -85,6 +91,8 @@ namespace VisionMaster.Scada.Controls
             Values = values;
             PriorAlarms = priorAlarms ?? Array.Empty<ScadaAlarmRecord>();
             History = history;
+            StateLists = stateLists ?? Array.Empty<ScadaStateList>();
+            SubPages = subPages;
         }
 
         /// <summary>
@@ -183,5 +191,16 @@ namespace VisionMaster.Scada.Controls
         /// "未接入历史数据源"，而不是显示空表——空表会被当成"这段时间没生产"。
         /// </summary>
         public IScadaHistorySource? History { get; }
+
+        /// <summary>
+        /// 方案级文本列表（ComboBox 按 Id 解析）。<b>永不为 null</b>；没有配置时是空表。
+        /// 设计期画布的 <c>StateListResolver</c> 优先，运行态没有解析器时回落到这里。
+        /// </summary>
+        public IReadOnlyList<ScadaStateList> StateLists { get; }
+
+        /// <summary>
+        /// 活跃子页宿主（SubPage 用）。<b>可为 null</b>：断言/无会话宿主只显示不登记事件。
+        /// </summary>
+        public IScadaSubPageHost? SubPages { get; }
     }
 }

@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>配方管理 · 设计基线 v2 · 新建配方弹层</title>
+<style>
+  /* ===== 令牌：逐条对应 UI/Controls/Themes/Colors.xaml（与 v1 同源，未新增色值）===== */
+  :root {
+    --accent: #0EA5E9;
+    --accent-dark: #0284C7;
+    --accent-light: #E0F2FE;
+    --accent-soft: #F0F9FF;
+    --accent-border: #BAE6FD;
+    --accent-text: #0369A1;
+
+    --bg: #EEF2F7;
+    --surface: #FFFFFF;
+    --card-border: #E3E9F2;
+    --input-bg: #F8FAFC;
+    --border: #E2E8F0;
+    --border-light: #EEF2F7;
+    --border-strong: #CBD5E1;
+
+    --text: #0F172A;
+    --text-2: #475569;
+    --text-3: #64748B;
+    --muted: #94A3B8;
+
+    --success: #22C55E;
+    --success-text: #15803D;
+    --success-soft: #F0FDF4;
+    --success-border: #BBF7D0;
+
+    --danger: #EF4444;
+    --danger-text: #B91C1C;
+    --danger-soft: #FEF2F2;
+    --danger-border: #FECACA;
+
+    --warning: #F59E0B;
+    --warning-text: #B45309;
+    --warning-soft: #FFF4E5;
+    --warning-border: #FDE68A;
+
+    --row-hover: #F1F5F9;
+    --row-alt: #F8FAFC;
+
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+
+    --font: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-5);
+    padding: 24px 24px 48px;
+  }
+
+  /* ===== 状态切换条（设计稿工具，不是界面的一部分）===== */
+  .statebar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    max-width: 1180px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .statebar-label {
+    padding: 0 8px 0 4px;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .statebar button {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .statebar button:hover { background: var(--row-hover); }
+  .statebar button.on {
+    background: var(--accent-light);
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+    font-weight: 500;
+  }
+  .statebar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .statebar-note {
+    padding-left: 8px;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* ===== 弹窗外壳 ===== */
+  .dialog {
+    position: relative;
+    width: 1180px;
+    height: 760px;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border-radius: var(--r-lg);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
+    overflow: hidden;
+  }
+
+  /* 标题栏 */
+  .titlebar {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 8px 0 18px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .titlebar h1 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .01em;
+  }
+  .titlebar .file {
+    font-size: 12px;
+    color: var(--text-3);
+    max-width: 320px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .sep-dot {
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--muted);
+    flex: 0 0 auto;
+  }
+  .grow { flex: 1; }
+
+  .iconbtn {
+    width: 28px; height: 28px;
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-3);
+    cursor: pointer;
+  }
+  .iconbtn:hover { background: var(--row-hover); color: var(--text); }
+  .iconbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .iconbtn.close:hover { background: var(--danger-soft); color: var(--danger-text); }
+
+  /* 权限条 */
+  .banner {
+    display: none;
+    flex: 0 0 38px;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    background: var(--warning-soft);
+    border-bottom: 1px solid var(--warning-border);
+    color: var(--warning-text);
+    font-size: 12px;
+  }
+  .banner .btn { margin-left: 4px; }
+
+  /* ===== chips ===== */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font-size: 11.5px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+  .chip-ok { background: var(--success-soft); border-color: var(--success-border); color: var(--success-text); }
+  .chip-ok .dot { background: var(--success); }
+  .chip-warn { background: var(--warning-soft); border-color: var(--warning-border); color: var(--warning-text); }
+  .chip-warn .dot { background: var(--warning); }
+  .chip-danger { background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger-text); }
+  .chip-danger .dot { background: var(--danger); }
+  .chip-accent { background: var(--accent-light); border-color: var(--accent-border); color: var(--accent-text); }
+  .chip-accent .dot { background: var(--accent); }
+  .chip-neutral { background: var(--row-hover); border-color: var(--border); color: var(--text-2); }
+
+  /* 运行态 / 角色 chip：两种文案叠放 */
+  .run-idle { display: inline-flex; }
+  .run-busy { display: none; }
+  body[data-state="running"] .run-idle { display: none; }
+  body[data-state="running"] .run-busy { display: inline-flex; }
+
+  .role-eng { display: inline-flex; }
+  .role-guest { display: none; }
+  body[data-state="readonly"] .role-eng,
+  body[data-state="login"] .role-eng { display: none; }
+  body[data-state="readonly"] .role-guest,
+  body[data-state="login"] .role-guest { display: inline-flex; }
+
+  body[data-state="empty"] .banner,
+  body[data-state="login"] .banner,
+  body[data-state="confirm"][data-perm="guest"] .banner { display: flex; }
+
+  /* v2 关键：未登录（readonly）时「新建配方 / 导入 / 导出」不再整体降透明，
+     仍可点 —— 点了先弹登录（见脚本 .needs-edit 拦截）。这条覆盖必须排在只读规则之后。 */
+  body[data-state="readonly"] .side-foot .needs-edit {
+    opacity: 1;
+    cursor: pointer;
+  }
+  body[data-state="readonly"] .side-foot .needs-edit:hover {
+    background: var(--row-hover);
+    border-color: var(--border-strong);
+  }
+  body[data-state="readonly"] .side-foot .btn-primary:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  /* ===== 主体 ===== */
+  .body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
+  /* 左：配方列表 */
+  .side {
+    flex: 0 0 300px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--row-alt);
+    border-right: 1px solid var(--border);
+  }
+  .side-head { padding: 12px 12px 10px; }
+  .side-head h2 {
+    margin: 0 0 8px;
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .side-head .count { font-size: 11.5px; font-weight: 400; color: var(--text-3); }
+  .count-none { display: none; }
+  body[data-state="empty"] .count-many { display: none; }
+  body[data-state="empty"] .count-none { display: inline; }
+  body[data-state="empty"] .side-head .field { display: none; }
+  /* 空态：左栏不显示独立的"暂无配方"段（右栏空态已完整表达），只留标题 */
+  body[data-state="empty"] .side-empty { display: none !important; }
+
+  .field { position: relative; }
+  .field .i-mag {
+    position: absolute;
+    left: 9px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .field input {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px 0 29px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+  }
+  .field input::placeholder { color: var(--muted); }
+  .field input:hover { border-color: var(--border-strong); }
+  .field input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14, 165, 233, .14); }
+
+  .list { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 8px; }
+
+  .item {
+    position: relative;
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .item + .item { margin-top: 2px; }
+  .item:hover { background: var(--surface); border-color: var(--border); }
+  .item:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .item[aria-selected="true"] {
+    background: var(--accent-light);
+    border-color: var(--accent-border);
+  }
+  .item[aria-selected="true"]::before {
+    content: "";
+    position: absolute;
+    left: -1px; top: 8px; bottom: 8px;
+    width: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+  }
+  .item .name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+  }
+  .item .name .n {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .item .meta {
+    margin-top: 3px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .live-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    flex: 0 0 auto;
+  }
+
+  .side-empty {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 56px 16px 24px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 12px;
+  }
+  body[data-state="empty"] .list { display: none; }
+  body[data-state="empty"] .side-empty { display: flex; }
+
+  .side-foot {
+    flex: 0 0 auto;
+    padding: 10px 12px 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  body[data-state="empty"] .side-foot { display: none; }
+  .row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  /* 右：详情 */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+
+  .editor { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  body[data-state="empty"] .editor,
+  body[data-state="unselected"] .editor { display: none; }
+
+  .detail-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 16px 12px;
+  }
+  .detail-head h2 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .detail-head .meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 5px;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+
+  .toolbar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px 10px;
+  }
+  .toolbar .hint-inline { font-size: 11.5px; color: var(--text-3); }
+
+  .search-sm { width: 170px; }
+  .search-sm input { height: 30px; }
+
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .switch:hover { border-color: var(--border-strong); }
+  .switch .track {
+    position: relative;
+    width: 26px; height: 15px;
+    border-radius: 8px;
+    background: var(--border-strong);
+    transition: background 150ms ease-out;
+  }
+  .switch .track::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--surface);
+    transition: transform 150ms ease-out;
+  }
+  .switch[aria-checked="true"] { color: var(--accent-text); border-color: var(--accent-border); background: var(--accent-soft); }
+  .switch[aria-checked="true"] .track { background: var(--accent); }
+  .switch[aria-checked="true"] .track::after { transform: translateX(11px); }
+
+  /* 表格 */
+  .tablewrap { flex: 1; min-height: 0; overflow: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12.5px; }
+  col.c-check { width: 34px; }
+  col.c-target { width: 15%; }
+  col.c-key { width: 22%; }
+  col.c-type { width: 9%; }
+  col.c-cur { width: 15%; }
+  col.c-arrow { width: 26px; }
+  col.c-rec { width: 15%; }
+  col.c-status { width: 104px; }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    height: 34px;
+    padding: 0 10px;
+    background: var(--row-alt);
+    border-bottom: 1px solid var(--border);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-align: left;
+    white-space: nowrap;
+  }
+  thead th.ta-c { text-align: center; }
+  tbody td {
+    height: 36px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tbody td.strong { color: var(--text); font-weight: 500; }
+  tbody td.num { font-variant-numeric: tabular-nums; }
+  tbody tr:hover { background: var(--row-hover); }
+  tbody tr.checked { background: var(--accent-soft); }
+  tbody tr.checked:hover { background: var(--accent-light); }
+  tbody tr.diff td:first-child { box-shadow: inset 2px 0 0 var(--warning); }
+  tbody tr.missing td:first-child { box-shadow: inset 2px 0 0 var(--danger); }
+  tbody tr.group td {
+    height: 30px;
+    background: var(--row-alt);
+    color: var(--text-3);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .arrow { color: var(--muted); font-size: 11px; text-align: center; }
+
+  .type {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: var(--r-xs);
+    background: var(--row-hover);
+    color: var(--text-3);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cb {
+    appearance: none;
+    width: 14px; height: 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    background: var(--surface);
+    cursor: pointer;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .cb:checked {
+    background: var(--accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.5 6.5 11.5 12.5 4.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/13px no-repeat;
+    border-color: var(--accent);
+  }
+  .cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .cb:indeterminate {
+    background: var(--surface) linear-gradient(var(--accent), var(--accent)) center/8px 2px no-repeat;
+    border-color: var(--accent);
+  }
+
+  /* 汇总条 */
+  .summary {
+    flex: 0 0 36px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    background: var(--row-alt);
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .summary b { font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .summary .err { color: var(--danger-text); font-weight: 500; }
+
+  /* 底栏 */
+  .foot {
+    flex: 0 0 64px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .foot .hint {
+    max-width: 360px;
+    font-size: 11.5px;
+    line-height: 1.4;
+    color: var(--text-3);
+  }
+  .foot .hint.blocked { display: none; color: var(--warning-text); }
+  body[data-state="running"] .foot .hint { display: none; }
+  body[data-state="running"] .foot .hint.blocked { display: block; }
+
+  /* ===== 按钮 ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out;
+  }
+  .btn:hover { background: var(--row-hover); border-color: var(--border-strong); }
+  .btn:active { background: #E9EEF5; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-lg { height: 34px; padding: 0 16px; }
+  .btn-block { width: 100%; }
+  .btn-sm { height: 26px; padding: 0 9px; font-size: 12px; }
+
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn-primary:active { background: #0369A1; }
+
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+  .btn-ghost:hover { background: var(--row-hover); border-color: var(--border); }
+
+  .btn-danger-ghost { background: transparent; border-color: transparent; color: var(--danger-text); }
+  .btn-danger-ghost:hover { background: var(--danger-soft); border-color: var(--danger-border); }
+
+  .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+  .btn[aria-disabled="true"]:hover { background: var(--surface); border-color: var(--border); }
+  .btn-primary[aria-disabled="true"]:hover { background: var(--accent); border-color: var(--accent); }
+
+  /* 只读/运行中的"按了要说话"降透明：不是 disabled，点了给理由（R136①的出口）*/
+  body[data-state="readonly"] .needs-edit,
+  body[data-state="readonly"] .needs-operator,
+  body[data-state="running"] .needs-operator {
+    opacity: .45;
+    cursor: not-allowed;
+    pointer-events: auto;
+  }
+  body[data-state="readonly"] .needs-edit:hover,
+  body[data-state="readonly"] .needs-operator:hover,
+  body[data-state="running"] .needs-operator:hover {
+    background: var(--surface);
+    border-color: var(--border);
+  }
+  body[data-state="readonly"] .needs-edit.btn-primary:hover,
+  body[data-state="readonly"] .needs-operator.btn-primary:hover,
+  body[data-state="running"] .needs-operator.btn-primary:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  body[data-state="readonly"] .tablewrap { opacity: .6; }
+  body[data-state="readonly"] .cb { pointer-events: none; }
+
+  /* ===== 空态 / 未选中 ===== */
+  .pane {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 32px;
+    text-align: center;
+  }
+  body[data-state="empty"] .pane-empty { display: flex; }
+  body[data-state="unselected"] .pane-noselect { display: flex; }
+
+  .pane .icon {
+    width: 46px; height: 46px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+  }
+  .pane h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .pane p {
+    max-width: 380px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-3);
+  }
+  .pane .actions { display: flex; gap: 8px; margin-top: 6px; }
+  .pane .kbd {
+    margin-top: 4px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  kbd {
+    display: inline-block;
+    min-width: 18px;
+    padding: 1px 5px;
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: var(--r-xs);
+    background: var(--surface);
+    color: var(--text-3);
+    font-family: inherit;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  /* ===== 图标 ===== */
+  .i {
+    width: 14px; height: 14px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: 0 0 auto;
+  }
+  .i-12 { width: 12px; height: 12px; }
+  .i-16 { width: 16px; height: 16px; }
+  .i-24 { width: 24px; height: 24px; }
+
+  /* ======================================================================
+     v2 新增：弹层（遮罩 + 卡片）
+     ====================================================================== */
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: var(--sp-6);
+    background: rgba(0, 0, 0, .6);
+  }
+  body[data-state="login"] .scrim-login,
+  body[data-state="new"] .scrim-new,
+  body[data-state="nosel"] .scrim-new,
+  body[data-state="confirm"] .scrim-confirm,
+  body[data-state="done"] .scrim-done { display: flex; }
+
+  /* —— 弹层通用骨架 —— */
+  .sheet {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 24px 64px rgba(15, 23, 42, .28);
+    overflow: hidden;
+  }
+  .sheet-head { flex: 0 0 auto; padding: 18px 20px 12px; }
+  .sheet-head h2 { margin: 0; font-size: 16px; font-weight: 600; }
+  .sheet-head .sub { margin-top: 4px; font-size: 12px; color: var(--text-3); }
+  .sheet-head.has-close { position: relative; padding-right: 56px; }
+  .sheet-head.has-close .iconbtn.close { position: absolute; top: 16px; right: 16px; }
+  .sheet-body { padding: 0 20px; min-height: 0; overflow: auto; }
+  .sheet-foot {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px 16px;
+    border-top: 1px solid var(--border-light);
+    background: var(--surface);
+  }
+  .sheet-foot .note { font-size: 11.5px; color: var(--text-3); }
+  .sheet-foot .note.bad { color: var(--danger-text); }
+  .focus-static { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* —— 新建配方弹层：宽度 860 —— */
+  .sheet-new { width: 860px; height: 640px; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+    padding: 2px 0 14px;
+  }
+  .form-grid .full { grid-column: 1 / -1; }
+  .lbl {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-bottom: 5px;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .lbl .req { color: var(--danger-text); font-weight: 600; }
+  .lbl .opt { color: var(--muted); }
+
+  .input {
+    width: 100%;
+    height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--input-bg);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+  }
+  .input::placeholder { color: var(--muted); }
+  .input:hover { border-color: var(--border-strong); }
+  .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14, 165, 233, .14); background: var(--surface); }
+  .input.is-bad { border-color: var(--danger); background: var(--danger-soft); }
+  .input.is-bad:focus { box-shadow: 0 0 0 3px rgba(239, 68, 68, .16); }
+  .help {
+    margin-top: 5px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-3);
+  }
+  .help.bad { color: var(--danger-text); }
+
+  /* 参数选择区 */
+  .sec-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 0 8px;
+  }
+  .sec-head h3 { margin: 0; font-size: 13px; font-weight: 600; }
+  .sec-head .n { font-size: 11.5px; font-weight: 400; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+  .pick-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .pick-bar .field { flex: 1; min-width: 0; }
+  .pick-bar .field input { height: 30px; font-size: 12px; }
+  .seg {
+    display: inline-flex;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--row-alt);
+  }
+  .seg button {
+    height: 24px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--text-3);
+    font-family: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--text);
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .08);
+  }
+
+  .pick-table {
+    height: 300px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    overflow: auto;
+  }
+  .pick-table table { font-size: 12.5px; }
+  .pick-table thead th { background: var(--row-alt); }
+  .pick-table tbody tr:last-child td { border-bottom: 0; }
+  .pick-table tbody tr.pickable { cursor: pointer; }
+  .pick-table tbody tr.needs-login .cb { opacity: .45; pointer-events: none; }
+  .pick-table td .who { color: var(--text-3); }
+
+  .pick-empty {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 300px;
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-sm);
+    background: var(--row-alt);
+    text-align: center;
+    color: var(--text-3);
+    font-size: 12px;
+  }
+  .pick-empty .t { font-size: 12.5px; font-weight: 500; color: var(--text-2); }
+  .pick-empty .s { max-width: 380px; line-height: 1.6; }
+
+  /* 两种"候选区"变体：由顶层 data-state 控制
+     默认态（new）= 全不勾 + 候选表；nosel = 一个都没勾时的空态（v2 定稿：
+     默认不再预勾差异项，用户必须自己点，所以两个态都保留，评审时用状态条切换） */
+  body[data-state="nosel"] .pick-list,
+  body[data-state="nosel"] .pick-none,
+  body[data-state="nosel"] .pick-table,
+  body[data-state="nosel"] .pick-bar { display: none; }
+  body[data-state="nosel"] .pick-nosel { display: flex; }
+
+  /* 未勾选：左侧标题旁的"已选 N 个"与底部已选摘要都只在有勾选时有意义 */
+  body[data-state="nosel"] .only-picked { display: none; }
+  body[data-state="nosel"] .only-full { display: none; }
+
+  /* 调试/静态检查：?debug=1 时把 nosel 命中的元素描红 */
+  body.is-debug [data-state] { outline: 1px solid red; }
+
+  .picked-sum {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 0;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .picked-sum b { color: var(--accent-text); font-variant-numeric: tabular-nums; }
+  .picked-sum .sep { color: var(--border-strong); }
+
+  /* —— 登录弹层 —— */
+  .sheet-login { width: 420px; }
+  .sheet-login .sheet-body { padding-bottom: 4px; }
+  .login-hint {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 9px 11px;
+    border: 1px solid var(--accent-border);
+    border-radius: var(--r-sm);
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .login-row { margin-bottom: 12px; }
+  .login-row .input { height: 34px; }
+
+  /* —— 创建成功提示 —— */
+  .sheet-done { width: 420px; }
+  .done-ico {
+    width: 40px; height: 40px;
+    display: grid; place-items: center;
+    border: 1px solid var(--success-border);
+    border-radius: 50%;
+    background: var(--success-soft);
+    color: var(--success-text);
+  }
+
+  /* —— 应用确认（沿用 v1）—— */
+  .sheet-confirm { width: 720px; height: 566px; }
+  .statbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 8px 0 10px;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .statbar b { color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .statbar .err { color: var(--danger-text); font-weight: 600; }
+
+  .alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--danger-border);
+    border-radius: var(--r-sm);
+    background: var(--danger-soft);
+    color: var(--danger-text);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .alert .i { margin-top: 2px; }
+
+  .confirm-table { border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+  .confirm-table table { font-size: 12.5px; }
+  .confirm-table thead th { background: var(--row-alt); }
+  .confirm-table tbody tr:last-child td { border-bottom: 0; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+
+<body data-state="new" data-perm="eng">
+<div class="stage">
+
+  <div class="statebar" role="group" aria-label="设计稿状态切换">
+    <span class="statebar-label">v2 状态</span>
+    <button type="button" data-set="new" data-perm="eng" class="on">新建弹层 · 有候选</button>
+    <button type="button" data-set="nosel" data-perm="eng">新建弹层 · 未勾选</button>
+    <button type="button" data-set="login" data-perm="guest">未登录点「新建」→ 先登录</button>
+    <button type="button" data-set="readonly" data-perm="guest">未登录 · 主界面</button>
+    <button type="button" data-set="empty" data-perm="eng">空方案</button>
+    <button type="button" data-set="done" data-perm="eng">创建成功</button>
+    <button type="button" data-set="confirm" data-perm="eng">应用确认 · 预检失败</button>
+    <span class="statebar-note">基线 v2 · 1180×760 · 令牌同 v1 / Colors.xaml</span>
+  </div>
+
+  <div class="dialog">
+
+    <!-- 标题栏 -->
+    <header class="titlebar">
+      <h1>配方管理</h1>
+      <span class="sep-dot"></span>
+      <span class="file" title="SampleLine.vms">SampleLine.vms</span>
+      <span class="grow"></span>
+
+      <span class="chip chip-ok run-idle" title="流程未运行，可以应用配方">
+        <span class="dot"></span>停止 · 可应用
+      </span>
+      <span class="chip chip-danger run-busy" title="流程运行中（含暂停），应用被禁用">
+        <span class="dot"></span>运行中 · 应用锁定
+      </span>
+
+      <span class="chip chip-neutral role-eng" title="当前角色：工程师">
+        <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M2.8 14c.6-2.4 2.7-3.8 5.2-3.8s4.6 1.4 5.2 3.8"/></svg>
+        工程师
+      </span>
+      <span class="chip chip-warn role-guest" title="未登录：只读">
+        <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"/></svg>
+        未登录
+      </span>
+
+      <button type="button" class="iconbtn close" title="关闭（Esc）" aria-label="关闭">
+        <svg class="i i-16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+    </header>
+
+    <!-- 权限条 -->
+    <div class="banner">
+      <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"/></svg>
+      <span>当前未登录，只能查看配方。切换配方需要操作员，新建 / 编辑 / 删除需要工程师。</span>
+      <span class="grow"></span>
+      <button type="button" class="btn btn-sm btn-primary">登录</button>
+    </div>
+
+    <div class="body">
+
+      <!-- 左：配方列表 -->
+      <aside class="side">
+        <div class="side-head">
+          <h2>配方
+            <span class="count count-many">共 4 份</span>
+            <span class="count count-none">共 0 份</span>
+          </h2>
+          <div class="field">
+            <svg class="i i-mag" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4 14 14"/></svg>
+            <input type="search" placeholder="搜索名称 / 产品编码" aria-label="搜索配方">
+          </div>
+        </div>
+
+        <div class="list" role="listbox" aria-label="配方列表">
+          <button type="button" class="item" role="option" aria-selected="true">
+            <span class="name">
+              <span class="live-dot" title="生效中"></span>
+              <span class="n">A型 正面</span>
+              <span class="chip chip-neutral" style="height:18px;padding:0 6px;font-size:11px;">v3</span>
+            </span>
+            <span class="meta">10 条参数 · PN-1234</span>
+          </button>
+          <button type="button" class="item" role="option" aria-selected="false">
+            <span class="name"><span class="n">A型 反面</span></span>
+            <span class="meta">16 条参数 · PN-1240</span>
+          </button>
+          <button type="button" class="item" role="option" aria-selected="false">
+            <span class="name"><span class="n">B型 黑色</span></span>
+            <span class="meta">22 条参数 · PN-2098</span>
+          </button>
+          <button type="button" class="item" role="option" aria-selected="false">
+            <span class="name"><span class="n">返修件</span></span>
+            <span class="meta">6 条参数 · 无编码</span>
+          </button>
+        </div>
+
+        <div class="side-empty">
+          <div>暂无配方</div>
+          <div style="font-size:11.5px;color:var(--muted);">新建一份，或导入 .vmrecipe</div>
+        </div>
+
+        <div class="side-foot">
+          <!-- v2 关键改动：未登录时不再整体降透明，仍可点，点了先弹登录 -->
+          <button type="button" class="btn btn-block needs-edit" title="挑一份参数快照，存成可切换的配方">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+            新建配方
+          </button>
+          <div class="row-2">
+            <button type="button" class="btn needs-edit" title="从 .vmrecipe 文件导入">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7"/><path d="M5 6.5 8 9.5l3-3"/><path d="M3 12.5h10"/></svg>
+              导入
+            </button>
+            <button type="button" class="btn needs-edit" title="导出选中配方">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 9.5v-7"/><path d="M5 5.5 8 2.5l3 3"/><path d="M3 12.5h10"/></svg>
+              导出
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 右：详情 -->
+      <main class="main">
+
+        <div class="editor">
+
+          <div class="detail-head">
+            <div style="min-width:0;">
+              <h2>
+                A型 正面
+                <span class="chip chip-ok"><span class="dot"></span>生效中</span>
+                <span class="chip chip-neutral">v3</span>
+              </h2>
+              <div class="meta">
+                产品编码 PN-1234
+                <span class="sep-dot"></span>
+                10 条参数
+                <span class="sep-dot"></span>
+                最后应用 2026-10-22 14:03
+              </div>
+            </div>
+            <span class="grow"></span>
+            <button type="button" class="iconbtn needs-edit" title="重命名">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 2.8 13.2 5.5 5.8 12.9l-3.2.5.5-3.2 7.4-7.4Z"/></svg>
+            </button>
+            <button type="button" class="iconbtn needs-edit" title="更多：取消生效标记 / 删除配方">
+              <svg class="i i-16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="3.2" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="12.8" cy="8" r="1.1" fill="currentColor" stroke="none"/></svg>
+            </button>
+          </div>
+
+          <div class="toolbar">
+            <button type="button" class="btn needs-edit" title="从当前可捕获的参数里挑几条加入配方">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+              添加参数
+            </button>
+            <span class="hint-inline">12 个可添加</span>
+            <button type="button" class="btn btn-danger-ghost needs-edit" title="删除选中的 1 条参数">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9"/><path d="M6.5 4.5V3h3v1.5"/><path d="M5 4.5 5.6 13h4.8L11 4.5"/></svg>
+              删除选中 (1)
+            </button>
+            <span class="grow"></span>
+            <label class="switch" aria-checked="false" tabindex="0">
+              <span class="track" aria-hidden="true"></span>
+              仅显示差异
+            </label>
+            <div class="field search-sm">
+              <svg class="i i-mag" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4 14 14"/></svg>
+              <input type="search" placeholder="查找参数" aria-label="查找参数">
+            </div>
+          </div>
+
+          <div class="tablewrap">
+            <table>
+              <colgroup>
+                <col class="c-check"><col class="c-target"><col class="c-key"><col class="c-type">
+                <col class="c-cur"><col class="c-arrow"><col class="c-rec"><col class="c-status">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th><input class="cb" type="checkbox" aria-label="全选"></th>
+                  <th>目标</th>
+                  <th>参数</th>
+                  <th>类型</th>
+                  <th>当前值</th>
+                  <th class="ta-c" title="应用后">→</th>
+                  <th>配方值</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="checked diff">
+                  <td><input class="cb" type="checkbox" checked aria-label="选择 相机1.曝光时间"></td>
+                  <td class="strong">相机1</td>
+                  <td class="strong">曝光时间</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">10.0</td>
+                  <td class="arrow">→</td>
+                  <td class="num strong">8.0</td>
+                  <td><span class="chip chip-warn"><span class="dot"></span>不同</span></td>
+                </tr>
+                <tr>
+                  <td><input class="cb" type="checkbox" aria-label="选择 相机1.增益"></td>
+                  <td>相机1</td>
+                  <td>增益</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">2.0</td>
+                  <td class="arrow">→</td>
+                  <td class="num">2.0</td>
+                  <td><span class="chip chip-neutral">一致</span></td>
+                </tr>
+                <tr class="diff">
+                  <td><input class="cb" type="checkbox" aria-label="选择 匹配1.模板相似度阈值"></td>
+                  <td>匹配1</td>
+                  <td>模板相似度阈值</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">0.82</td>
+                  <td class="arrow">→</td>
+                  <td class="num strong">0.75</td>
+                  <td><span class="chip chip-warn"><span class="dot"></span>不同</span></td>
+                </tr>
+                <tr>
+                  <td><input class="cb" type="checkbox" aria-label="选择 匹配1.搜索区域"></td>
+                  <td>匹配1</td>
+                  <td>搜索区域 ROI</td>
+                  <td><span class="type">Rectangle2</span></td>
+                  <td class="num">640×480 @ 320,240</td>
+                  <td class="arrow">→</td>
+                  <td class="num">640×480 @ 320,240</td>
+                  <td><span class="chip chip-neutral">一致</span></td>
+                </tr>
+                <tr>
+                  <td><input class="cb" type="checkbox" aria-label="选择 卡尺1.边缘阈值"></td>
+                  <td>卡尺1</td>
+                  <td>边缘阈值</td>
+                  <td><span class="type">int</span></td>
+                  <td class="num">30</td>
+                  <td class="arrow">→</td>
+                  <td class="num">30</td>
+                  <td><span class="chip chip-neutral">一致</span></td>
+                </tr>
+                <tr>
+                  <td><input class="cb" type="checkbox" aria-label="选择 卡尺1.极性"></td>
+                  <td>卡尺1</td>
+                  <td>极性</td>
+                  <td><span class="type">enum</span></td>
+                  <td>由暗到亮</td>
+                  <td class="arrow">→</td>
+                  <td>由暗到亮</td>
+                  <td><span class="chip chip-neutral">
+                    <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5 9.5 6.5"/><path d="M9 4.8l.8-.8a2.4 2.4 0 0 1 3.4 3.4l-1.4 1.4"/><path d="M7 11.2l-.8.8a2.4 2.4 0 0 1-3.4-3.4l1.4-1.4"/></svg>
+                    已链接</span></td>
+                </tr>
+                <tr class="diff">
+                  <td><input class="cb" type="checkbox" aria-label="选择 通讯1.触发地址"></td>
+                  <td>通讯1</td>
+                  <td>触发地址</td>
+                  <td><span class="type">string</span></td>
+                  <td class="num">DB1.DBW0</td>
+                  <td class="arrow">→</td>
+                  <td class="num strong">DB1.DBW4</td>
+                  <td><span class="chip chip-warn"><span class="dot"></span>不同</span></td>
+                </tr>
+                <tr class="missing">
+                  <td><input class="cb" type="checkbox" aria-label="选择 相机3.曝光时间"></td>
+                  <td class="strong" style="color:var(--danger-text);">相机3（已移除）</td>
+                  <td>曝光时间</td>
+                  <td><span class="type">double</span></td>
+                  <td>—</td>
+                  <td class="arrow">→</td>
+                  <td class="num">8.0</td>
+                  <td><span class="chip chip-danger"><span class="dot"></span>目标缺失</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="summary">
+            <span>共 <b>10</b> 条</span>
+            <span>修改 <b>4</b></span>
+            <span>不变 <b>5</b></span>
+            <span class="err">目标缺失 1</span>
+            <span class="grow"></span>
+            <span class="err">有 1 条目标已删除，修正后才能应用</span>
+          </div>
+
+          <div class="foot">
+            <button type="button" class="btn btn-danger-ghost needs-edit" title="只删除配方定义，不改当前参数值">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9"/><path d="M6.5 4.5V3h3v1.5"/><path d="M5 4.5 5.6 13h4.8L11 4.5"/></svg>
+              删除配方
+            </button>
+            <span class="grow"></span>
+            <span class="hint">
+              应用只写入内存；「应用并保存」会同时保存方案文件。
+            </span>
+            <span class="hint blocked">
+              流程运行中（含暂停）：应用被禁用，请先停止流程。
+            </span>
+            <button type="button" class="btn">关闭</button>
+            <button type="button" class="btn needs-operator" title="应用后立即保存方案">应用并保存</button>
+            <button type="button" class="btn btn-primary needs-operator" title="先预检，再整单写入当前参数">
+              应用配方
+            </button>
+          </div>
+
+        </div>
+
+        <!-- 空方案 -->
+        <section class="pane pane-empty">
+          <div class="icon">
+            <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="15" rx="2"/><path d="M8 9h8M8 12.5h8M8 16h4"/></svg>
+          </div>
+          <h3>这个方案还没有配方</h3>
+          <p>配方保存同一方案下按产品切换的参数值。换型时一次写回，不用逐个步骤改参数。</p>
+          <div class="actions">
+            <button type="button" class="btn btn-primary needs-edit">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+              新建配方
+            </button>
+            <button type="button" class="btn needs-edit">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v7"/><path d="M5 6.5 8 9.5l3-3"/><path d="M3 12.5h10"/></svg>
+              导入 .vmrecipe
+            </button>
+          </div>
+        </section>
+
+        <!-- 未选中 -->
+        <section class="pane pane-noselect">
+          <div class="icon">
+            <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h9.5L19 9v10.5H5z"/><path d="M14 4.5V9h5"/><path d="M8.5 13h7M8.5 16h4.5"/></svg>
+          </div>
+          <h3>选择一份配方</h3>
+          <p>选中后这里显示「当前值 → 配方值」的逐条对照，应用前会先预检并给出差异摘要。</p>
+          <div class="kbd"><kbd>↑</kbd> <kbd>↓</kbd> 切换配方</div>
+        </section>
+
+      </main>
+    </div>
+
+    <!-- ============ 新建配方弹层（v2 新增主体） ============ -->
+    <div class="scrim scrim-new">
+      <div class="sheet sheet-new" role="dialog" aria-modal="true" aria-labelledby="new-title">
+        <div class="sheet-head has-close">
+          <h2 id="new-title">新建配方</h2>
+          <button type="button" class="iconbtn close" data-close title="关闭（Esc）" aria-label="关闭">
+            <svg class="i i-16" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+          </button>
+          <div class="sub">填个名字，再勾选要跟着产品一起切换的参数。没勾的不进配方，换型时也不会被动到。</div>
+        </div>
+
+        <div class="sheet-body">
+          <!-- ① 基本信息 -->
+          <div class="form-grid">
+            <div>
+              <div class="lbl"><span class="req">*</span>配方名称</div>
+              <input class="input" value="A型 正面" aria-label="配方名称">
+              <div class="help">同名配方会覆盖同名的那一份。</div>
+            </div>
+            <div>
+              <div class="lbl">产品编码<span class="opt">可选</span></div>
+              <input class="input" value="PN-1234" aria-label="产品编码">
+              <div class="help">用于搜索与导入时对号，留空也可以。</div>
+            </div>
+            <div class="full">
+              <div class="lbl">备注<span class="opt">可选</span></div>
+              <input class="input" placeholder="例：3 号机 8 月工艺，曝光调高过" aria-label="备注">
+            </div>
+          </div>
+
+          <!-- ② 勾选参数 -->
+          <div class="sec-head">
+            <h3>勾选要存进配方的参数</h3>
+            <span class="n only-picked">共 14 个可勾选 · 已选 <b style="color:var(--accent-text)">0</b> 个</span>
+          </div>
+
+          <div class="pick-bar only-full">
+            <div class="field">
+              <svg class="i i-mag" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4 14 14"/></svg>
+              <input type="search" placeholder="搜索步骤名 / 参数名" aria-label="搜索候选参数">
+            </div>
+            <div class="seg" role="group" aria-label="筛选范围">
+              <button type="button" aria-pressed="true">全部</button>
+              <button type="button" aria-pressed="false">只看差异</button>
+              <button type="button" aria-pressed="false">只看已选</button>
+            </div>
+            <button type="button" class="btn" title="把当前筛选结果全部勾上">
+              <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>
+              全选
+            </button>
+            <button type="button" class="btn btn-ghost">清空</button>
+          </div>
+
+          <!-- 有候选 -->
+          <div class="pick-table pick-list">
+            <table>
+              <colgroup>
+                <col style="width:34px"><col style="width:18%"><col style="width:26%"><col style="width:10%"><col style="width:18%"><col>
+              </colgroup>
+              <thead>
+                <tr>
+                  <th><input class="cb" type="checkbox" aria-label="全选候选"></th>
+                  <th>目标</th>
+                  <th>参数</th>
+                  <th>类型</th>
+                  <th>当前值</th>
+                  <th>加入后</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="group"><td colspan="6">相机1</td></tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 相机1.曝光时间"></td>
+                  <td>相机1</td>
+                  <td class="strong">曝光时间</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">10.0</td>
+                  <td class="who">换型时写回</td>
+                </tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 相机1.增益"></td>
+                  <td>相机1</td>
+                  <td>增益</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">2.0</td>
+                  <td class="who">—</td>
+                </tr>
+                <tr class="group"><td colspan="6">匹配1</td></tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 匹配1.模板相似度阈值"></td>
+                  <td>匹配1</td>
+                  <td class="strong">模板相似度阈值</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">0.82</td>
+                  <td class="who">换型时写回</td>
+                </tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 匹配1.搜索区域"></td>
+                  <td>匹配1</td>
+                  <td>搜索区域 ROI</td>
+                  <td><span class="type">Rectangle2</span></td>
+                  <td class="num">640×480 @ 320,240</td>
+                  <td class="who">—</td>
+                </tr>
+                <tr class="group"><td colspan="6">定位1</td></tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 定位1.角度偏移上限"></td>
+                  <td>定位1</td>
+                  <td class="strong">角度偏移上限</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">3.0</td>
+                  <td class="who">换型时写回</td>
+                </tr>
+                <tr class="group"><td colspan="6">卡尺1</td></tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 卡尺1.边缘阈值"></td>
+                  <td>卡尺1</td>
+                  <td>边缘阈值</td>
+                  <td><span class="type">int</span></td>
+                  <td class="num">30</td>
+                  <td class="who">—</td>
+                </tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" disabled aria-label="卡尺1.极性 由上游连线决定，不能存进配方"></td>
+                  <td>卡尺1</td>
+                  <td style="color:var(--muted)">极性</td>
+                  <td><span class="type">enum</span></td>
+                  <td>由暗到亮</td>
+                  <td class="who">已由上游连线提供，不存</td>
+                </tr>
+                <tr class="group"><td colspan="6">通讯1</td></tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 通讯1.触发地址"></td>
+                  <td>通讯1</td>
+                  <td class="strong">触发地址</td>
+                  <td><span class="type">string</span></td>
+                  <td class="num">DB1.DBW0</td>
+                  <td class="who">换型时写回</td>
+                </tr>
+                <tr class="group"><td colspan="6">全局变量</td></tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 变量 良品阈值"></td>
+                  <td>良品阈值<svg class="i i-12" style="margin-left:4px;color:var(--text-3)" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5 9.5 6.5"/><path d="M9 4.8l.8-.8a2.4 2.4 0 0 1 3.4 3.4l-1.4 1.4"/><path d="M7 11.2l-.8.8a2.4 2.4 0 0 1-3.4-3.4l1.4-1.4"/></svg></td>
+                  <td class="strong">本地变量</td>
+                  <td><span class="type">double</span></td>
+                  <td class="num">0.65</td>
+                  <td class="who">换型时写回</td>
+                </tr>
+                <tr class="pickable">
+                  <td><input class="cb" type="checkbox" aria-label="勾选 变量 累计计数"></td>
+                  <td>累计计数</td>
+                  <td>本地变量</td>
+                  <td><span class="type">int</span></td>
+                  <td class="num">0</td>
+                  <td class="who">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 候选为空（方案里没有可捕获参数） -->
+          <div class="pick-empty pick-none">
+            <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="15" rx="2"/><path d="M8 12h8"/></svg>
+            <div class="t">这个方案里没有可存进配方的参数</div>
+            <div class="s">步骤参数要么还没配、要么由上游连线提供（连线的值随流程走，不能存进配方）。先在流程里把参数配上再来。</div>
+          </div>
+
+          <!-- 未勾选（一个都没勾）—— 2026-10-24 定稿：默认全不勾，用户必须自己点 -->
+          <div class="pick-empty pick-nosel">
+            <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 8.5 8 12l-3.5 3.5"/><path d="M11.5 8.5 15 12l-3.5 3.5"/><path d="M18 8.5 20.5 11"/></svg>
+            <div class="t">还没勾选参数</div>
+            <div class="s">至少勾一个参数，配方才有意义 —— 否则换型时它不会写回任何值。上面点「全选」也可以。</div>
+          </div>
+
+          <div class="picked-sum only-picked">
+            <span>已选 <b>0</b> 个参数</span>
+            <span class="sep">·</span>
+            <span>从上面 14 个候选里逐个勾选 —— 没勾的不会被存进配方</span>
+            <span class="grow"></span>
+            <span style="display:none"></span>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <span class="note">存的是「当前值」快照。之后值变了不会自动同步，要更新请用「添加参数」或重新勾选后创建。</span>
+          <span class="grow"></span>
+          <button type="button" class="btn btn-lg" data-close>取消</button>
+          <button type="button" class="btn btn-lg btn-primary focus-static" aria-disabled="true" title="至少勾选一个参数才能创建">创建配方（0）</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 未登录：点「新建配方」先弹登录 ============ -->
+    <div class="scrim scrim-login">
+      <div class="sheet sheet-login" role="dialog" aria-modal="true" aria-labelledby="login-title">
+        <div class="sheet-head">
+          <h2 id="login-title">登录后继续</h2>
+          <div class="sub">新建配方属于「编辑配方」，需要工程师权限。</div>
+        </div>
+
+        <div class="sheet-body">
+          <div class="login-hint">
+            <svg class="i i-16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.2v3.4"/><circle cx="8" cy="5.1" r=".7" fill="currentColor" stroke="none"/></svg>
+            <span>你刚点的「新建配方」已经记下了 —— 登录成功会直接打开新建窗口，不用再点一次。</span>
+          </div>
+
+          <div class="login-row">
+            <div class="lbl"><span class="req">*</span>操作员</div>
+            <input class="input" placeholder="输入账号" aria-label="操作员账号">
+          </div>
+          <div class="login-row">
+            <div class="lbl"><span class="req">*</span>密码</div>
+            <input class="input" type="password" placeholder="输入密码" aria-label="密码">
+            <div class="help">需要工程师角色才能新建 / 编辑 / 删除配方；操作员只能切换配方。</div>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <span class="note">取消后回到配方列表，什么都不改</span>
+          <span class="grow"></span>
+          <button type="button" class="btn btn-lg">取消</button>
+          <button type="button" class="btn btn-lg btn-primary focus-static">登录</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 创建成功 ============ -->
+    <div class="scrim scrim-done">
+      <div class="sheet sheet-done" role="dialog" aria-modal="true" aria-labelledby="done-title">
+        <div class="sheet-head" style="display:flex;gap:12px;align-items:flex-start;">
+          <div class="done-ico">
+            <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5 10 16.5 18 7.5"/></svg>
+          </div>
+          <div>
+            <h2 id="done-title">配方「A型 正面」已创建</h2>
+            <div class="sub">存了 5 个参数。列表里已选中它，右侧可以逐条核对。</div>
+          </div>
+        </div>
+
+        <div class="sheet-body">
+          <div class="alert" style="border-color:var(--warning-border);background:var(--warning-soft);color:var(--warning-text);">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13L8 2.5Z"/><path d="M8 6.5v3.2"/><circle cx="8" cy="11.8" r=".7" fill="currentColor" stroke="none"/></svg>
+            <span>还没生效：要真正切换过去，请在右侧点「应用配方」。</span>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <span class="grow"></span>
+          <button type="button" class="btn btn-lg">知道了</button>
+          <button type="button" class="btn btn-lg btn-primary focus-static">应用这份配方</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 应用确认（沿用 v1） ============ -->
+    <div class="scrim scrim-confirm">
+      <div class="sheet sheet-confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="sheet-head">
+          <h2 id="confirm-title">应用配方 · A型 正面</h2>
+          <div class="sub">整单应用：预检不通过时一条都不写入；失败会逆序回滚。</div>
+        </div>
+
+        <div class="sheet-body">
+          <div class="statbar">
+            <span>共 <b>10</b> 条</span>
+            <span>修改 <b>4</b></span>
+            <span>不变 <b>5</b></span>
+            <span class="err">错误 1</span>
+          </div>
+
+          <div class="alert">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13L8 2.5Z"/><path d="M8 6.5v3.2"/><circle cx="8" cy="11.8" r=".7" fill="currentColor" stroke="none"/></svg>
+            <span><b>1 条目标缺失</b>：相机3 已从流程中移除。请先删除这条参数，或恢复该步骤后再应用。</span>
+          </div>
+
+          <div class="confirm-table">
+            <table>
+              <colgroup>
+                <col style="width:16%"><col style="width:24%"><col style="width:20%"><col style="width:20%"><col style="width:20%">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>目标</th>
+                  <th>参数</th>
+                  <th>当前值</th>
+                  <th>配方值</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="strong">相机1</td>
+                  <td>曝光时间</td>
+                  <td class="num">10.0</td>
+                  <td class="num strong">8.0</td>
+                  <td><span class="chip chip-warn"><span class="dot"></span>不同</span></td>
+                </tr>
+                <tr>
+                  <td>匹配1</td>
+                  <td>模板相似度阈值</td>
+                  <td class="num">0.82</td>
+                  <td class="num strong">0.75</td>
+                  <td><span class="chip chip-warn"><span class="dot"></span>不同</span></td>
+                </tr>
+                <tr>
+                  <td>通讯1</td>
+                  <td>触发地址</td>
+                  <td class="num">DB1.DBW0</td>
+                  <td class="num strong">DB1.DBW4</td>
+                  <td><span class="chip chip-warn"><span class="dot"></span>不同</span></td>
+                </tr>
+                <tr>
+                  <td>相机2</td>
+                  <td>触发延时</td>
+                  <td>—</td>
+                  <td class="num strong">500</td>
+                  <td><span class="chip chip-danger"><span class="dot"></span>类型变化</span></td>
+                </tr>
+                <tr>
+                  <td style="color:var(--danger-text);font-weight:500;">相机3（已移除）</td>
+                  <td>曝光时间</td>
+                  <td>—</td>
+                  <td class="num">8.0</td>
+                  <td><span class="chip chip-danger"><span class="dot"></span>目标缺失</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="sheet-foot">
+          <span class="note bad">预检未通过，确认应用不可用</span>
+          <span class="grow"></span>
+          <button type="button" class="btn btn-lg focus-static">取消</button>
+          <button type="button" class="btn btn-lg btn-primary" aria-disabled="true" title="预检有错误时整单拒绝">确认应用</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function () {
+    var bar = document.querySelector('.statebar');
+
+    function setState(name, perm) {
+      var btn = document.querySelector('button[data-set="' + name + '"]');
+      if (!btn) return;
+      document.body.dataset.state = name;
+      document.body.dataset.perm = perm || (btn.dataset.perm || 'eng');
+      bar.querySelectorAll('button[data-set]').forEach(function (b) {
+        b.classList.toggle('on', b === btn);
+      });
+    }
+
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-set]');
+      if (btn) setState(btn.dataset.set, btn.dataset.perm);
+    });
+
+    // 未登录时点「新建配方 / 导入 / 导出」：不置灰，先弹登录（m00532 的诉求）
+    document.querySelector('.dialog').addEventListener('click', function (e) {
+      var t = e.target.closest('.needs-edit');
+      if (!t) return;
+      if (document.body.dataset.state !== 'readonly') return;
+      setState('login', 'guest');
+    });
+
+    // 新建弹层的「取消 / ✕」：从 nosel 态回到默认新建态，方便反复走评审路径
+    document.querySelectorAll('.sheet-new [data-close]').forEach(function (b) {
+      b.addEventListener('click', function () { setState('new', 'eng'); });
+    });
+
+    // 登录弹层「登录」→ 直接打开新建弹层（记住用户原本想干什么）
+    document.querySelector('.scrim-login .btn-primary').addEventListener('click', function () {
+      setState('new', 'eng');
+    });
+
+    // ── 勾选区：默认全不勾，全靠用户手动点 ───────────────────────────
+    var pickRows = Array.prototype.slice.call(
+      document.querySelectorAll('.pick-table tbody tr.pickable'));
+    var createBtn = document.querySelector('.sheet-new .sheet-foot .btn-primary');
+    var countEls = document.querySelectorAll('.sec-head .n b, .picked-sum b');
+    var searchInput = document.querySelector('.pick-bar input[type="search"]');
+    var segBtns = Array.prototype.slice.call(document.querySelectorAll('.pick-bar .seg button'));
+    var filter = 'all';
+
+    function syncPick() {
+      var picked = pickRows.filter(function (tr) {
+        var cb = tr.querySelector('.cb');
+        return cb && cb.checked;
+      });
+      var n = picked.length;
+      countEls.forEach(function (el) { el.textContent = String(n); });
+      createBtn.textContent = '创建配方（' + n + '）';
+      // 没勾就不让创建 → 对应 WPF 里 CaptureCommand 的 CanExecute
+      if (n === 0) {
+        createBtn.setAttribute('aria-disabled', 'true');
+        createBtn.title = '至少勾选一个参数才能创建';
+      } else {
+        createBtn.removeAttribute('aria-disabled');
+        createBtn.title = '把勾选的 ' + n + ' 个参数的当前值存成配方';
+      }
+      // 底部已选摘要
+      var groups = [];
+      picked.forEach(function (tr) {
+        var g = tr.previousElementSibling;
+        while (g && !g.classList.contains('group')) g = g.previousElementSibling;
+        var name = g ? g.textContent.trim() : '';
+        if (name && groups.indexOf(name) < 0) groups.push(name);
+      });
+      var sumWrap = document.querySelector('.picked-sum');
+      if (sumWrap) {
+        var avail = pickRows.filter(function (t) { return !t.querySelector('.cb').disabled; }).length;
+        sumWrap.querySelector('span:nth-child(1)').innerHTML =
+          '已选 <b>' + n + '</b> 个参数';
+        sumWrap.querySelector('span:nth-child(3)').textContent = n === 0
+          ? '从上面 ' + avail + ' 个候选里逐个勾选 —— 没勾的不会被存进配方'
+          : '分布：' + groups.map(function (g) { return g + ' 等'; }).join('、').replace(/ 等/g, '') +
+            '（共 ' + groups.length + ' 个步骤）';
+        // 末尾结论：结构固定为 2 个 span，直接改写而不是追加
+        var spans = sumWrap.querySelectorAll('span');
+        var tail = spans[spans.length - 1];
+        if (tail && !tail.classList.contains('grow') && !tail.classList.contains('sep')) {
+          tail.textContent = n === 0 ? '' : '换成别的配方时，这 ' + n + ' 个会被整体写回';
+          tail.style.display = n === 0 ? 'none' : '';
+        }
+      }
+    }
+
+    function applyFilter() {
+      var q = (searchInput && searchInput.value || '').trim().toLowerCase();
+      pickRows.forEach(function (tr) {
+        var cb = tr.querySelector('.cb');
+        var cells = Array.prototype.slice.call(tr.querySelectorAll('td'));
+        var text = cells.map(function (td) { return td.textContent; }).join(' ').toLowerCase();
+        var ok = true;
+        if (q) ok = text.indexOf(q) >= 0;
+        if (ok && filter === 'diff') ok = tr.classList.contains('diff') || tr.classList.contains('checked');
+        if (ok && filter === 'picked') ok = !!(cb && cb.checked);
+        tr.style.display = ok ? '' : 'none';
+      });
+      // 分组行：本组全被隐藏就一起隐藏
+      document.querySelectorAll('.pick-table tbody tr.group').forEach(function (g) {
+        var next = g.nextElementSibling, any = false;
+        while (next && !next.classList.contains('group')) {
+          if (next.classList.contains('pickable') && next.style.display !== 'none') any = true;
+          next = next.nextElementSibling;
+        }
+        g.style.display = any ? '' : 'none';
+      });
+    }
+
+    pickRows.forEach(function (tr) {
+      tr.addEventListener('click', function (ev) {
+        var cb = tr.querySelector('.cb');
+        if (!cb || cb.disabled) return;
+        if (ev.target !== cb) cb.checked = !cb.checked;
+        tr.classList.toggle('checked', cb.checked);
+        syncPick();
+      });
+    });
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilter);
+    }
+
+    segBtns.forEach(function (b) {
+      b.addEventListener('click', function () {
+        segBtns.forEach(function (x) { x.setAttribute('aria-pressed', 'false'); });
+        b.setAttribute('aria-pressed', 'true');
+        var t = b.textContent.trim();
+        filter = t === '只看差异' ? 'diff' : (t === '只看已选' ? 'picked' : 'all');
+        applyFilter();
+      });
+    });
+
+    var allBtn = document.querySelectorAll('.pick-bar .btn')[0];
+    var clearBtn = document.querySelectorAll('.pick-bar .btn')[1];
+    if (allBtn) {
+      allBtn.addEventListener('click', function () {
+        pickRows.forEach(function (tr) {
+          if (tr.style.display === 'none') return; // 全选 = 勾当前筛选结果
+          var cb = tr.querySelector('.cb');
+          if (!cb || cb.disabled) return;
+          cb.checked = true;
+          tr.classList.add('checked');
+        });
+        syncPick();
+      });
+    }
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        pickRows.forEach(function (tr) {
+          var cb = tr.querySelector('.cb');
+          if (!cb || cb.disabled) return;
+          cb.checked = false;
+          tr.classList.remove('checked');
+        });
+        syncPick();
+      });
+    }
+
+    syncPick();
+
+    if (location.hash) {
+      var seg = location.hash.slice(1).split(':');
+      setState(seg[0], seg[1]);
+    }
+  })();
+</script>
+</body>
+</html>

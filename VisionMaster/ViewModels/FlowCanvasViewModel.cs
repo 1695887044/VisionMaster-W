@@ -112,6 +112,34 @@ namespace VisionMaster.ViewModels
         /// <summary>步骤节点池：跨重建复用同一批 VM，保住 IsSelected 不随渲染蒸发</summary>
         private readonly Dictionary<Guid, CanvasNodeViewModel> _nodePool = new();
 
+        /// <summary>
+        /// 节点池硬上限：超过就整体清一次。
+        /// 池子跨流程存活（换流程不再 Clear），来回切几十条流程时它按"各流程节点并集"增长；
+        /// 每条节点 VM 还挂着 6 个命令 + 2 个连接器 + 模型订阅，无上限就是不设防的内存增长。
+        /// 4000 覆盖了"两条 3000 节点压测流程来回切"的常见场景（其中重复节点会复用）。
+        /// </summary>
+        private const int NodePoolHardLimit = 4000;
+
+        /// <summary>
+        /// 大流程首次挂接时的自动折叠阈值（步骤数）。
+        ///
+        /// 为什么需要：画布是"每步一个 WPF 元素"的结构，3542 步的流程一次全展开要建
+        /// 20 万个元素（实测单次重建 40 s，真机表现为打开即假死）。PLC 梯形图编辑器
+        /// 能扛上万行是因为它只渲染视口；在拿到虚拟化之前，先用折叠把"一次要画多少"压下来。
+        ///
+        /// 折叠只是**会话态**，不写 .vms：用户展开哪个容器，就记进 <see cref="_sessionCollapsed"/> 的反面。
+        /// </summary>
+        public const int BigFlowAutoCollapseThreshold = 600;
+
+        /// <summary>
+        /// 会话级强制折叠（不进 .vms）。用户手动展开某容器时会从这里移除，
+        /// 所以"自动折叠过一次、用户展开过的"不会被下一次渲染again 折回去。
+        /// </summary>
+        private readonly HashSet<Guid> _sessionCollapsed = new();
+
+        /// <summary>已经自动折叠过的流程（同一条流程再切回来不重复折叠、不重复提示）</summary>
+        private readonly HashSet<FlowModel> _autoCollapsedFlows = new(ReferenceEqualityComparer.Instance);
+
         /// <summary>渲染中的真实节点（Step + Container，泳道不算）</summary>
         private readonly List<CanvasNodeViewModel> _steps = new();
 
@@ -162,8 +190,11 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private readonly EditGate _editGate = new();
 
-        /// <summary>画布运行锁横幅文案（画布本地常量：与流程栏同款提示的另一处消费端，不跨类引用私有常量）</summary>
-        private const string RunLockedMessage = "流程运行中，禁止编辑；如需修改请先点击“停止”";
+        /// <summary>
+        /// 画布运行锁横幅文案：直接取门禁那一份（<see cref="EditGate.RunLockedMessage"/>）。
+        /// 这里曾手抄一份字面量，改文案时两处必须同步——统一成常量引用后不再有漂移面。
+        /// </summary>
+        private const string RunLockedMessage = EditGate.RunLockedMessage;
 
         public FlowCanvasViewModel(IWorkspaceManager workspace, IPluginProvider pluginProvider,
             AppSettingsService? appSettings = null)
@@ -540,6 +571,17 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
+        /// 数据线是否被"大流程降级"精简过（只留非法线）。
+        /// 由 <see cref="BuildLinks"/> 按当帧聚合根数判定并通知；工具条据此显示一条提示，
+        /// 避免用户以为"线不见了 = 绑定丢了"。
+        /// </summary>
+        public bool DataLinksReduced
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        /// <summary>
         /// 把两个显隐开关写回软件级配置并落盘（「随用户」视图态的唯一写路径）。
         /// 保存失败不抛：开关本身已生效，落盘失败只提示（下次改开关会再试）；
         /// 无 AppSettingsService（断言宿主/设计器）或构造期灌初值（_viewSettingsReady=false）时跳过。
@@ -674,7 +716,13 @@ namespace VisionMaster.ViewModels
             switch (e.PropertyName)
             {
                 case nameof(IWorkspaceManager.CurrentFlow):
+                    Rebuild();
+                    break;
+
                 case nameof(IWorkspaceManager.CurrentSolution):
+                    // 换方案：会话级折叠记忆全部作废（StepID 换了世界）
+                    _sessionCollapsed.Clear();
+                    _autoCollapsedFlows.Clear();
                     Rebuild();
                     break;
 
@@ -710,6 +758,19 @@ namespace VisionMaster.ViewModels
             RebuildInPlace();
         }
 
+        /// <summary>
+        /// 画布重建耗时日志的出口（宿启动时挂到 ILogService；断言宿主里保持 null = 不打日志）。
+        ///
+        /// 为什么要埋这个：探针（`FlowCanvasChecks --switch-perf`）跑在裸 Window + 精简主题里，
+        /// 与真机（AvalonDock + 完整主题 + 真渲染线程）差好几倍，靠探针调参容易调错方向。
+        /// 这里量的是**用户点完流程到 UI 线程重新空闲**的真实数字，日志里直接可对照。
+        /// 用静态挂点而不是给构造器加依赖：本 VM 在十余处断言宿主里被 `new`，加参数会全线改动。
+        /// </summary>
+        public static Action<string>? PerfLog { get; set; }
+
+        /// <summary>只对达到这个步数的流程打耗时日志（小流程打了也没有信息量，且会刷屏）</summary>
+        public const int PerfLogMinSteps = 80;
+
         /// <summary>全量重建并适应新图：切流程、切方案、初始化</summary>
         public void Rebuild() => RebuildCore(resetViewport: true);
 
@@ -723,16 +784,25 @@ namespace VisionMaster.ViewModels
         {
             if (_rebuilding) return;
             _rebuilding = true;
+            var perfWatch = PerfLog != null ? System.Diagnostics.Stopwatch.StartNew() : null;
             try
             {
                 var flow = _workspace.CurrentFlow;
 
-                // 换图纸：节点池作废——StepID 在不同流程间可能重复（复制粘贴），
-                // 复用旧池会把 A 流程的节点摆到 B 流程的画布上
+                // 换图纸：**不清节点池**，交给 PrunePool 按"不在当前拓扑"逐项回收。
+                //
+                // 旧实现无条件 _nodePool.Clear()，理由是"StepID 在不同流程间可能重复（复制粘贴）"。
+                // 但 GetOrCreateNode 的复用判据已经是「StepID 命中 **且** ReferenceEquals(pooled.Model, step)」
+                // （见其实现）——同 Id 不同实例的节点照样会重造，所以清池只是白白丢掉 A→B→A 的复用机会。
+                // 3000 节点规模下，清池意味着每次回到看过的流程都要把全部节点 VM + 6 个命令 + 连接器
+                // 重新 new 一遍。
+                //
+                // 内存兜底：池子过大（跨很多流程来回切）时整体清一次，避免长期运行无限涨。
                 if (!ReferenceEquals(flow, _attachedFlow))
                 {
                     Detach();
-                    _nodePool.Clear();
+                    if (_nodePool.Count > NodePoolHardLimit)
+                        _nodePool.Clear();
                 }
 
                 if (flow == null)
@@ -754,6 +824,9 @@ namespace VisionMaster.ViewModels
 
                 _attachedFlow = flow;
                 StartRunTimeTimer();   // 运行耗时实时刷新随图纸挂接（空流程/Detach 时停止）
+
+                // 大流程：首次挂接时把容器默认折起来，否则一次要画几万个 WPF 元素（见常量说明）
+                TryAutoCollapseBigFlow(flow);
 
                 if (_stepsChanged == null)
                 {
@@ -779,8 +852,64 @@ namespace VisionMaster.ViewModels
             finally
             {
                 _rebuilding = false;
+                SchedulePerfLog(perfWatch);
             }
         }
+
+        /// <summary>
+        /// 把"这次重建 + 随后一轮布局"的耗时打到 <see cref="PerfLog"/>。
+        /// 排队到 Background 优先级：那时 WPF 已经把容器生成、measure、arrange 跑完，
+        /// 量到的就是用户体感的"点完流程到界面重新响应"。
+        /// </summary>
+        private void SchedulePerfLog(System.Diagnostics.Stopwatch? watch)
+        {
+            if (watch == null) return;
+
+            var flow = _attachedFlow;
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (flow?.Steps == null || dispatcher == null) return;
+
+            int steps = CountAllSteps(flow.Steps);
+            if (steps < PerfLogMinSteps) return;
+
+            string name = flow.FlowName ?? "(未命名)";
+            int nodes = Nodes.Count;
+            int links = Links.Count;
+
+            // 第一段：UI 线程（重建 + 容器生成 + measure/arrange）
+            dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Background,
+                new Action(() => PerfLog?.Invoke(
+                    $"[画布] 流程「{name}」步骤={steps} 可见节点={nodes} 连线={links} "
+                    + $"重建+布局={watch.ElapsedMilliseconds}ms")));
+
+            // 第二段：呈现。重建后等下一帧 CompositionTarget.Rendering —— 它表示渲染线程
+            // 真的把这一帧交给合成器了。若「重建+布局」很小而这一段很大，说明瓶颈是**光栅化**
+            // （每节点一个元素的模板在大窗口里画不动），不是 UI 线程算得慢。
+            //
+            // 只挂一个静态处理器：Rendering 是每帧都触发的常驻事件，逐次重建都 += 会累积订阅；
+            // 窗口最小化时它压根不触发，所以复用一个句柄、每次覆盖待测 stopwatch。
+            _presentWatch = watch;
+            _presentFlowName = name;
+            if (_presentHandler == null)
+            {
+                _presentHandler = (_, _) =>
+                {
+                    var pending = _presentWatch;
+                    var pendingName = _presentFlowName;
+                    System.Windows.Media.CompositionTarget.Rendering -= _presentHandler;
+                    _presentHandler = null;
+                    _presentWatch = null;
+                    if (pending != null)
+                        PerfLog?.Invoke($"[画布] 流程「{pendingName}」呈现={pending.ElapsedMilliseconds}ms");
+                };
+                System.Windows.Media.CompositionTarget.Rendering += _presentHandler;
+            }
+        }
+
+        private static System.Diagnostics.Stopwatch? _presentWatch;
+        private static string? _presentFlowName;
+        private static System.EventHandler? _presentHandler;
 
         private void Detach()
         {
@@ -822,8 +951,13 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 订阅整棵树的每个步骤集合：顶层 + 所有容器分支。
+        /// 订阅整棵树的每个步骤集合：顶层 + 所有容器分支 + **每个容器的 Children**。
         /// 扁平画布上看得到全部深度，任何一处增删都要重画。
+        ///
+        /// Children 这一路是 2026-10-23 补的：此前只订 Steps，于是"加分支 / 删分支"
+        /// （改的是容器 Children）画布完全收不到通知——FlowModel 自己会递增 Version，
+        /// 但画布不读 Version，表现为"流程栏加了分支，画布要手动折叠再展开才出现"
+        /// （用户实测口径）。分支改名走另一条路：泳道 VM 订着 StepCollection.PropertyChanged。
         /// </summary>
         private void AttachLists(ObservableCollection<StepModel> list)
         {
@@ -832,6 +966,9 @@ namespace VisionMaster.ViewModels
             foreach (var step in list)
             {
                 if (step is not IContainerStep container || container.Children == null) continue;
+
+                Watch(container.Children);
+
                 foreach (var branch in container.Children)
                 {
                     if (branch?.Steps != null) AttachLists(branch.Steps);
@@ -839,8 +976,14 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        private void Watch(ObservableCollection<StepModel> list)
+        private void Watch(INotifyCollectionChanged list)
         {
+            // 顶层 Steps 已由 RebuildCore 的 _stepsChanged 订阅（见那里），这里再挂一次
+            // 会让同一次结构变更触发两遍全量重建（两个委托 Target+Method 相同，但 += 不去重）。
+            // 顶层那一路有"切流程换图纸时整份重挂"的语义，所以保留它、跳过这里。
+            if (ReferenceEquals(list, _attachedFlow?.Steps))
+                return;
+
             _watchedLists.Add(list);
             list.CollectionChanged += OnFlowStepsChanged;
         }
@@ -851,18 +994,44 @@ namespace VisionMaster.ViewModels
 
         private void Render(FlowModel flow)
         {
+            // 整段渲染期间抑制「节点坐标变化 → 整轮锚点重算」（见 OnNodePropertyChanged）。
+            // 锚点由 RenderCore 在连线全部建好后统一算一次（BuildLinks 内一次 + 末尾顺序链后一次），
+            // 这里只负责把闸门复位——异常路径也必须复位，否则之后拖动节点线不跟手。
+            _suppressAnchorUpdate = true;
+            try
+            {
+                RenderCore(flow);
+            }
+            finally
+            {
+                _suppressAnchorUpdate = false;
+            }
+        }
+
+        private void RenderCore(FlowModel flow)
+        {
+            // 分段计时：真机上"重建+布局"可能长达数秒，只有把 RenderCore 拆开才知道钱花在哪。
+            // 只在总耗时 >= 300ms 时打一行（小流程不打，避免刷屏）。
+            var seg = PerfLog != null ? System.Diagnostics.Stopwatch.StartNew() : null;
+            long tTopology = 0, tCollect = 0, tAutoLayout = 0, tNodes = 0, tGeometry = 0;
+
             DetachLists();
 
             _topology = FlowTopology.Build(flow);
+            if (seg != null) { tTopology = seg.ElapsedMilliseconds; }
 
             // 1. 收集全树步骤并补齐布局（AutoLayout 递归：本层纵向、分支横向错开）
             var allSteps = new List<StepModel>();
             CollectSteps(flow.Steps, allSteps);
+            if (seg != null) { tCollect = seg.ElapsedMilliseconds - tTopology; }
 
             if (flow.Layout.HasMissing(allSteps))
+            {
                 // 不传 collapseOverride：首次渲染保持既有行为——新布局的深容器按
                 // AutoCollapseDepth 默认折叠，用户手动展开后坐标已在库、不会被折回去
                 flow.Layout.AutoLayout(flow.Steps);
+                if (seg != null) { tAutoLayout = seg.ElapsedMilliseconds - tTopology - tCollect; }
+            }
 
             // 2. 建/复用节点（扁平，含折叠祖先内的步骤——它们进池不进画布）
             _steps.Clear();
@@ -878,9 +1047,13 @@ namespace VisionMaster.ViewModels
                 if (!IsHiddenByCollapse(step))
                     _nodeMap[step.StepID] = node;
             }
+            if (seg != null) { tNodes = seg.ElapsedMilliseconds - tTopology - tCollect - tAutoLayout; }
 
             // 3. 几何：自底向上算容器框与泳道矩形（展开态）
             ComputeGeometry(flow.Steps);
+            if (seg != null) { tGeometry = seg.ElapsedMilliseconds - tTopology - tCollect - tAutoLayout - tNodes; }
+
+            long tGeometryEnd = seg?.ElapsedMilliseconds ?? 0;
 
             // 4. 折叠角标：统计每个折叠容器藏了多少步
             foreach (var node in _steps)
@@ -892,18 +1065,34 @@ namespace VisionMaster.ViewModels
             // 5. Z 序组装：先框、再泳道、再内容（NodifyCanvas 按集合序叠放，先入垫底）
             Nodes.Clear();
             AppendInZOrder(flow.Steps);
+            long tNodesList = (seg?.ElapsedMilliseconds ?? 0) - tGeometryEnd;
 
             // 6. 连线（数据依赖 + 执行顺序链）
             AttachLists(flow.Steps);
             BuildLinks(flow);
+            long tDataLinks = (seg?.ElapsedMilliseconds ?? 0) - tGeometryEnd - tNodesList;
 
             // 顶层 + 所有分支集合（CollectCollections 会把顶层本身也收进去，初始化器不能再种一份）
             var collections = new List<ObservableCollection<StepModel>>();
             CollectCollections(flow.Steps, collections);
             BuildOrderLinks(collections);
             UpdateLinkAnchors();
+            long tOrderLinks = (seg?.ElapsedMilliseconds ?? 0) - tGeometryEnd - tNodesList - tDataLinks;
 
             PrunePool();
+
+            if (seg != null)
+            {
+                long total = seg.ElapsedMilliseconds;
+                if (total >= 100)
+                {
+                    PerfLog?.Invoke(
+                        $"[画布] 分段「{flow.FlowName}」步={allSteps.Count} 节点={_steps.Count} "
+                        + $"拓扑={tTopology} 收集={tCollect} 自动排位={tAutoLayout} 建点={tNodes} "
+                        + $"几何={tGeometry} 装填={tNodesList} 数据线={tDataLinks} 顺序链={tOrderLinks} "
+                        + $"回收={total - tGeometryEnd - tNodesList - tDataLinks - tOrderLinks} 合计={total}ms");
+                }
+            }
         }
 
         private static void CollectCollections(
@@ -988,6 +1177,18 @@ namespace VisionMaster.ViewModels
             node.DeleteCommand = new DelegateCommand(() => OnDeleteNode(node));
             node.CopyCommand = new DelegateCommand(() => OnCopyNode(node));
 
+            // 重命名 / 编辑注释：与流程栏同一弹窗、同一门禁（Rename/EditComment 归结构编辑）。
+            // 画布此前缺这两个入口——同一个步骤在两个编辑面上能力不一致。
+            node.RenameCommand = new DelegateCommand(() => BeginRenameNode(node));
+            node.EditCommentCommand = new DelegateCommand(() => BeginEditCommentNode(node));
+
+            // 分支结构动作：与流程栏同一批处理器（FlowBranchEditor），本处只管运行锁与回执。
+            // 画布侧此前完全没有这类入口（只能回流程栏点），菜单可见性由节点 VM 的三个类型判据控。
+            node.AddBranchCommand = new DelegateCommand(() => OnAddBranch(node, FlowBranchKind.Parallel));
+            node.AddElseIfBranchCommand = new DelegateCommand(() => OnAddBranch(node, FlowBranchKind.ElseIf));
+            node.AddElseBranchCommand = new DelegateCommand(() => OnAddBranch(node, FlowBranchKind.Else));
+            node.AddCaseBranchCommand = new DelegateCommand(() => OnAddBranch(node, FlowBranchKind.Case));
+
             node.PropertyChanged += OnNodePropertyChanged;
             node.PropertyChanged += OnNodeSelectionChanged;
             _nodePool[step.StepID] = node;
@@ -1017,15 +1218,17 @@ namespace VisionMaster.ViewModels
             node.RefreshMissingRequired();   // 必填参数角标随渲染重算（Rebuild 时重算的口径）
         }
 
-        /// <summary>FlowLayoutStore 读取的小包装（缺项返回 false）</summary>
+        /// <summary>FlowLayoutStore 读取的小包装（缺项返回 false）。
+        /// 折叠态 = 落盘值 **或** 会话级自动折叠（大流程首帧，见 TryAutoCollapseBigFlow）</summary>
         private bool TryGetLayout(Guid id, out double x, out double y, out bool collapsed)
         {
             x = y = 0;
             collapsed = false;
             if (_attachedFlow == null) return false;
-            if (!_attachedFlow.Layout.TryGet(id, out var layout) || layout == null) return false;            x = layout.X;
+            if (!_attachedFlow.Layout.TryGet(id, out var layout) || layout == null) return false;
+            x = layout.X;
             y = layout.Y;
-            collapsed = layout.Collapsed;
+            collapsed = layout.Collapsed || _sessionCollapsed.Contains(id);
             return true;
         }
 
@@ -1282,8 +1485,24 @@ namespace VisionMaster.ViewModels
             var collapsed = existing?.Collapsed ?? false;
 
             _attachedFlow.Layout.Set(node.StepId, current.X, current.Y, collapsed);
+
+            // 渲染期不许逐节点重算锚点：`RefreshNodeState` 每建一个节点就写一次 Location，
+            // 而此刻 Links 里还是**上一个流程**的连线（Render 到 BuildLinks 才清），
+            // 于是每个节点都对着旧线跑一遍全量 UpdateLinkAnchors —— O(新节点数 × 旧线数)，
+            // 3000 节点切进来就是几万次重算、每次还发 4 条 PropertyChanged。
+            // Render 末尾已有一次统一重算（Render → UpdateLinkAnchors），这里跳过即可。
+            // **不能改判 _rebuilding**：OnNodePropertyChanged 故意不判它——拖动时要实时跟随，
+            // 而拖动期间 _rebuilding 是 false。
+            if (_suppressAnchorUpdate) return;
+
             UpdateLinkAnchors();
         }
+
+        /// <summary>
+        /// Render 期间抑制「节点坐标变化 → 整轮锚点重算」。只在 <see cref="RenderCore"/> 里置位，
+        /// try/finally 保证出口复位；渲染末尾由 <see cref="UpdateLinkAnchors"/> 一次性算完。
+        /// </summary>
+        private bool _suppressAnchorUpdate;
 
         private void OnNodeSelectionChanged(object? sender, PropertyChangedEventArgs e)
         {
@@ -1411,20 +1630,104 @@ namespace VisionMaster.ViewModels
             });
         }
 
-        /// <summary>清理池中已不在图纸里的步骤节点（防止挂接阻塞 GC）</summary>
+        /// <summary>
+        /// 清理池中**已被删除**的步骤节点（防止挂接阻塞 GC）。
+        ///
+        /// 判据是"在不在**当前方案的任何流程**里"，不是"在不在当前流程里"：
+        /// 池子跨流程存活（换流程不再 Clear），拿当前拓扑当判据会把别的流程的节点全清掉，
+        /// A→B→A 就永远复用不到。真正该回收的只有"步骤被删了"这一种。
+        ///
+        /// 方案级 StepID 集合**按方案缓存**：每帧重扫全方案在 3000 节点下是一笔白交的钱，
+        /// 而"删了某条流程里的一个步骤"不会让别的流程的出图错——最坏是那个节点 VM 多留一会儿，
+        /// 由 <see cref="NodePoolHardLimit"/> 兜底。缓存随 <see cref="IWorkspaceManager.CurrentSolution"/>
+        /// 换引用而失效。
+        /// </summary>
         private void PrunePool()
         {
             if (_nodePool.Count == 0) return;
 
-            var dead = _nodePool.Keys.Where(id => !_topology.TryGet(id, out _)).ToList();
-            foreach (var id in dead)
+            List<Guid>? candidates = null;
+            foreach (var id in _nodePool.Keys)
             {
-                var node = _nodePool[id];
-                node.PropertyChanged -= OnNodePropertyChanged;
-                node.PropertyChanged -= OnNodeSelectionChanged;
-                node.UnhookModel();
-                _nodePool.Remove(id);
+                if (!_topology.TryGet(id, out _))
+                    (candidates ??= new List<Guid>()).Add(id);
             }
+
+            if (candidates != null)
+            {
+                var alive = GetPoolScopeStepIds();
+                foreach (var id in candidates)
+                {
+                    if (alive.Contains(id)) continue;   // 属于别的流程，留着复用
+                    ReleasePooledNode(id);
+                }
+            }
+
+            // 硬上限兜底：来回切过很多条流程后池子会按并集增长，超了整体清一次
+            if (_nodePool.Count > NodePoolHardLimit)
+                ClearPool();
+        }
+
+        private SolutionModel? _poolScopeSolution;
+        private HashSet<Guid>? _poolScopeIds;
+
+        /// <summary>当前方案里出现过的全部 StepID（按方案缓存，换方案失效）</summary>
+        private HashSet<Guid> GetPoolScopeStepIds()
+        {
+            var solution = _workspace.CurrentSolution;
+            if (ReferenceEquals(solution, _poolScopeSolution) && _poolScopeIds != null)
+                return _poolScopeIds;
+
+            _poolScopeSolution = solution;
+            _poolScopeIds = CollectSolutionStepIds();
+            return _poolScopeIds;
+        }
+
+        /// <summary>方案里所有流程、所有嵌套层级出现过的 StepID</summary>
+        private HashSet<Guid> CollectSolutionStepIds()
+        {
+            var ids = new HashSet<Guid>();
+            var solution = _workspace.CurrentSolution;
+            if (solution?.Flows == null) return ids;
+
+            foreach (var flow in solution.Flows)
+            {
+                if (flow?.Steps == null) continue;
+                CollectInto(flow.Steps);
+            }
+            return ids;
+
+            void CollectInto(IEnumerable<StepModel> steps)
+            {
+                foreach (var step in steps)
+                {
+                    if (step == null) continue;
+                    ids.Add(step.StepID);
+                    if (step is IContainerStep container && container.Children != null)
+                    {
+                        foreach (var branch in container.Children)
+                        {
+                            if (branch?.Steps != null) CollectInto(branch.Steps);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ReleasePooledNode(Guid id)
+        {
+            if (!_nodePool.TryGetValue(id, out var node)) return;
+            node.PropertyChanged -= OnNodePropertyChanged;
+            node.PropertyChanged -= OnNodeSelectionChanged;
+            node.UnhookModel();
+            _nodePool.Remove(id);
+        }
+
+        /// <summary>整体清池（硬上限兜底）：先逐个摘订阅，避免模型钉住已废弃的节点 VM</summary>
+        private void ClearPool()
+        {
+            foreach (var id in _nodePool.Keys.ToList())
+                ReleasePooledNode(id);
         }
 
         // ==================================================================
@@ -1441,6 +1744,10 @@ namespace VisionMaster.ViewModels
             IllegalLinkCount = 0;
             DeferredLinkCount = 0;
             HiddenLinkCount = 0;
+
+            // 一根数据线没有任何绑定拖在屏幕外也没意义；阈值取 1500：353 步流程约 350 根（正常），
+            // 3542 步流程约 3500 根（此时代价已经从"可感知"变成"卡死"）
+            const int DataLinkReduceThreshold = 1500;
 
             foreach (var node in _nodeMap.Values)
             {
@@ -1465,7 +1772,16 @@ namespace VisionMaster.ViewModels
                 }
             }
 
-            var byPair = new Dictionary<(Guid Source, Guid Target), CanvasLinkViewModel>();
+            // 先聚合、后建 VM（两遍走）。
+            // 为什么必须两遍：`ShowDataLinks` 默认关闭时，普通数据线根本不画；旧实现却是
+            // 「先给每对模块 new 一根 CanvasLinkViewModel + 3 个命令 + N 个绑定 DTO，
+            // 合并完再逐根 UnhookModels + RemoveAt 丢掉」——纯白扔掉 90% 的分配。
+            // 3000 节点、2500 根线的规模下这一段能占重建分配的一大块。
+            //
+            // 语义一字不改：过滤仍然**晚于**聚合与合法性判定（同一对模块的多条绑定先合并成一根线、
+            // 再由"有没有非法绑定"决定这根线画不画；否则后到的非法绑定会挂在一根从未渲染过的线上，
+            // 同一对模块换个绑定顺序行为就变了）。差别只是"要不要造那根线的 VM"。
+            var aggregated = new Dictionary<(Guid Source, Guid Target), AggregatedLink>();
 
             foreach (var consumer in _nodeMap.Values)   // 只遍历渲染中的节点；折叠子树的绑定另行计数
             {
@@ -1539,55 +1855,86 @@ namespace VisionMaster.ViewModels
                     };
 
                     var pairKey = (producer.StepId, consumer.StepId);
-                    if (!byPair.TryGetValue(pairKey, out var linkVm))
+                    if (!aggregated.TryGetValue(pairKey, out var agg))
                     {
-                        linkVm = new CanvasLinkViewModel(producer, consumer)
-                        {
-                            // 连线右键菜单的 DataContext 是连线 VM（弹层够不到主 VM），
-                            // 命令入口在这里注入——与节点 VM 的菜单命令同一模式
-                            UnbindCommand = new DelegateCommand<CanvasLinkBinding?>(OnUnbindBinding),
-                        };
-                        var unbindAllTarget = linkVm;
-                        linkVm.OpenBindingCommand = new DelegateCommand(() =>
-                        {
-                            if (unbindAllTarget.Target.Model != null)
-                                ModuleLinkRequested?.Invoke(unbindAllTarget.Target.Model);
-                        });
-                        linkVm.UnbindAllCommand = new DelegateCommand(() => UnbindAllBindings(unbindAllTarget));
-                        byPair[pairKey] = linkVm;
-                        Links.Add(linkVm);
-                        producer.Outputs[0].IsConnected = true;
-                        consumer.Inputs[0].IsConnected = true;
+                        agg = new AggregatedLink(producer, consumer);
+                        aggregated[pairKey] = agg;
                     }
 
-                    linkVm.Bindings.Add(binding);
+                    agg.Bindings.Add(binding);
+                    if (illegal)
+                    {
+                        agg.HasIllegal = true;
+                        agg.FirstIllegalReason ??= binding.IllegalReason;
+                    }
                 }
             }
 
-            foreach (var linkVm in Links)
-            {
-                linkVm.IsIllegal = linkVm.Bindings.Any(b => b.IsIllegal);
-                linkVm.WarningText = linkVm.Bindings.FirstOrDefault(b => b.IsIllegal)?.IllegalReason;
-                linkVm.NotifyBindingsChanged();
-            }
+            // 第二遍：只为"会显示的线"造 VM。判据与旧的"建完再删"完全一致——
+            // 非法线在数据线关闭时也要画（红虚线是要用户去修的错误提示，不是噪声）。
+            //
+            // 大流程降级：数据线全开时，3542 步的图有 3500+ 根数据线 = 3500 个 StepConnection 元素
+            // （每根还带一份菜单与一次文本排版）。超过阈值只保留非法线，工具栏给出提示。
+            // 这是**渲染降级**，不改任何数据；用户把「数据线」关掉再打开也不解除，
+            // 因为解除的唯一合理条件是"流程变小了"（此时 aggregate 数自然落回阈值内）。
+            bool reduceDataLinks = ShowDataLinks && aggregated.Count > DataLinkReduceThreshold;
+            DataLinksReduced = reduceDataLinks;
 
-            // 数据线隐藏（默认态）：聚合完成后**按整条线**定去留——普通线不渲染，
-            // 非法线（红虚线）照常渲染（它是要用户去修的错误提示，不是噪声）。
-            // 过滤必须晚于聚合与合法性判定：同一对模块的多条绑定先合并成一根线、再由
-            // "有没有非法绑定"决定这根线画不画；若在"加进 Links"的地方提前过滤，
-            // 后到的非法绑定会挂在一根从未渲染过的线上——同一对模块换个绑定顺序行为就变了。
-            if (!ShowDataLinks)
+            foreach (var agg in aggregated.Values)
             {
-                for (int i = Links.Count - 1; i >= 0; i--)
+                if (!ShowDataLinks && !agg.HasIllegal) continue;
+                if (reduceDataLinks && !agg.HasIllegal) continue;
+
+                var producer = agg.Producer;
+                var consumer = agg.Consumer;
+
+                var linkVm = new CanvasLinkViewModel(producer, consumer)
                 {
-                    if (Links[i].IsIllegal) continue;
-                    Links[i].UnhookModels();   // 被隐藏的线本轮就丢弃，订阅一并摘掉
-                    Links.RemoveAt(i);
-                }
+                    // 连线右键菜单的 DataContext 是连线 VM（弹层够不到主 VM），
+                    // 命令入口在这里注入——与节点 VM 的菜单命令同一模式
+                    UnbindCommand = new DelegateCommand<CanvasLinkBinding?>(OnUnbindBinding),
+                };
+                var unbindAllTarget = linkVm;
+                linkVm.OpenBindingCommand = new DelegateCommand(() =>
+                {
+                    if (unbindAllTarget.Target.Model != null)
+                        ModuleLinkRequested?.Invoke(unbindAllTarget.Target.Model);
+                });
+                linkVm.UnbindAllCommand = new DelegateCommand(() => UnbindAllBindings(unbindAllTarget));
+
+                foreach (var binding in agg.Bindings)
+                    linkVm.Bindings.Add(binding);
+
+                linkVm.IsIllegal = agg.HasIllegal;
+                linkVm.WarningText = agg.FirstIllegalReason;
+                linkVm.NotifyBindingsChanged();
+
+                Links.Add(linkVm);
+                producer.Outputs[0].IsConnected = true;
+                consumer.Inputs[0].IsConnected = true;
             }
 
             // 顺序链在 Render 里于 BuildLinks 之后统一构建（需要全量集合清单）
             UpdateLinkAnchors();
+        }
+
+        /// <summary>
+        /// 聚合中的一根模块级连线（还没决定造不造 VM）。
+        /// producer/consumer 用引用持有，绑定列表按 LinkedSources 的遍历顺序追加。
+        /// </summary>
+        private sealed class AggregatedLink
+        {
+            public AggregatedLink(CanvasNodeViewModel producer, CanvasNodeViewModel consumer)
+            {
+                Producer = producer;
+                Consumer = consumer;
+            }
+
+            public CanvasNodeViewModel Producer { get; }
+            public CanvasNodeViewModel Consumer { get; }
+            public List<CanvasLinkBinding> Bindings { get; } = new();
+            public bool HasIllegal { get; set; }
+            public string? FirstIllegalReason { get; set; }
         }
 
         /// <summary>
@@ -1956,6 +2303,11 @@ namespace VisionMaster.ViewModels
             bool collapsing = !node.IsCollapsed;
             _attachedFlow.Layout.ToggleCollapsed(node.StepId);
 
+            // 用户意图覆盖"大流程自动折叠"：展开的容器从会话折叠集合里移出，
+            // 否则下一次渲染又被 TryGetLayout 折回去（用户点了没反应）
+            if (collapsing) _sessionCollapsed.Add(node.StepId);
+            else _sessionCollapsed.Remove(node.StepId);
+
             // 展开/折叠改变框体占用的空间：整体重排一次，保证层级顺序始终可读——
             // 旧散乱坐标下的展开是"层级顺序乱了"的根源；手工微调可在重排后再做
             TidyLayoutCore();
@@ -2035,6 +2387,55 @@ namespace VisionMaster.ViewModels
         //  快照与重映射都在 FlowClipboard（Services 层纯计算），本类只管选中采集、
         //  落点判定、入图与撤销/版本推进——与拖入 DropToolAt 同一条纪律。
         // ==================================================================
+
+        // ==================================================================
+        //  重命名 / 编辑注释（2026-10-24）
+        //
+        //  画布此前缺这两个入口：同一个步骤在流程栏能改名字/注释、在画布不能。
+        //  口径与流程栏完全一致——同一个 EasyDialog 文本输入、同一道结构编辑门禁；
+        //  版本推进不用手写（StepName/Description 都在 FlowModel 的监听面里，改了就 Version++）。
+        // ==================================================================
+
+        private void BeginRenameNode(CanvasNodeViewModel node) => BeginEditText(node, rename: true);
+
+        private void BeginEditCommentNode(CanvasNodeViewModel node) => BeginEditText(node, rename: false);
+
+        private void BeginEditText(CanvasNodeViewModel node, bool rename)
+        {
+            if (_attachedFlow == null || node?.Model == null || node.IsDecorator) return;
+
+            // 改名/改注释是结构编辑（口径同流程栏 ModuleCommandAction.Rename/EditComment）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
+
+            _ = ApplyTextEditAsync(node.Model, rename);
+        }
+
+        /// <summary>
+        /// 弹窗是异步的，这里 fire-and-forget 并把异常收在方法内落到状态栏：
+        /// 画布是主编辑面，弹窗失败（无 Application 的断言宿主、Dispatcher 取不到）不该冒到 UI 线程。
+        /// </summary>
+        private async System.Threading.Tasks.Task ApplyTextEditAsync(StepModel model, bool rename)
+        {
+            try
+            {
+                var data = await EasyDialog.ShowTextInputAsync(
+                    rename ? "步序重命名" : "注释重命名",
+                    rename ? model.StepName : model.Description);
+
+                if (!data.IsConfirmed) return;
+
+                if (rename)
+                    model.StepName = data.Value;
+                else
+                    model.Description = data.Value;
+
+                StatusHint = rename ? $"已重命名为「{model.StepName}」" : "已更新注释";
+            }
+            catch (Exception ex)
+            {
+                StatusHint = (rename ? "重命名" : "编辑注释") + "失败：" + ex.Message;
+            }
+        }
 
         /// <summary>节点右键菜单「复制」：把该节点单选化后走统一复制</summary>
         private void OnCopyNode(CanvasNodeViewModel node)
@@ -2117,7 +2518,12 @@ namespace VisionMaster.ViewModels
 
             // 结构变更：通知图纸重编译（口径同拖入）；集合 Add 已触发一次画布重建，这里幂等兜底
             _attachedFlow.Version++;
+
+            // 落点防重叠：与拖入同一条（先渲染拿真实几何，再让后续兄弟腾位）
             RebuildInPlace();
+            if (MakeRoomForInserted(owner, insertIndex))
+                RebuildInPlace();
+
             StatusHint = $"已粘贴「{step.StepName}」到{targetName}";
         }
 
@@ -2292,6 +2698,9 @@ namespace VisionMaster.ViewModels
         {
             if (_attachedFlow == null) return;
 
+            // 「展开/折叠全部」是显式意图，会话级自动折叠一律作废（否则展开全部没效果）
+            _sessionCollapsed.Clear();
+
             bool changed = false;
             foreach (var container in CollectContainers(_attachedFlow.Steps))
             {
@@ -2302,10 +2711,61 @@ namespace VisionMaster.ViewModels
                 changed = true;
             }
 
-            if (!changed) return;
+            if (!changed)
+            {
+                // 落盘值已经一致，但会话折叠被清掉了 → 仍要重画一次
+                RebuildInPlace();
+                StatusHint = collapsed ? "已折叠全部容器" : "已展开全部容器";
+                return;
+            }
 
             RebuildInPlace();
             StatusHint = collapsed ? "已折叠全部容器" : "已展开全部容器";
+        }
+
+        /// <summary>
+        /// 大流程首次挂接：把所有容器记为"会话折叠"，让首帧只画顶层。
+        /// 只做一次（<see cref="_autoCollapsedFlows"/>），用户展开过的容器不会被再次折回去。
+        /// </summary>
+        private void TryAutoCollapseBigFlow(FlowModel flow)
+        {
+            if (flow?.Steps == null) return;
+            if (!_autoCollapsedFlows.Add(flow)) return;   // 本流程已处理过
+
+            int steps = CountAllSteps(flow.Steps);
+            if (steps <= BigFlowAutoCollapseThreshold) return;
+
+            int collapsed = 0;
+            foreach (var container in CollectContainers(flow.Steps))
+            {
+                if (_sessionCollapsed.Add(container.StepID))
+                    collapsed++;
+            }
+
+            if (collapsed > 0)
+            {
+                StatusHint = $"大流程（{steps} 步）：已自动折叠 {collapsed} 个容器，"
+                    + "点击容器左上的折叠钮按需展开（也可用工具条「展开全部」）";
+            }
+        }
+
+        /// <summary>全树步骤计数（含所有嵌套分支）</summary>
+        private static int CountAllSteps(IEnumerable<StepModel> steps)
+        {
+            int count = 0;
+            foreach (var step in steps)
+            {
+                if (step == null) continue;
+                count++;
+                if (step is IContainerStep container && container.Children != null)
+                {
+                    foreach (var branch in container.Children)
+                    {
+                        if (branch?.Steps != null) count += CountAllSteps(branch.Steps);
+                    }
+                }
+            }
+            return count;
         }
 
         /// <summary>收集全树的容器步骤（IContainerStep 口径，与拓扑/编译器同一判据）</summary>
@@ -2762,6 +3222,73 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
+        /// 拖拽落点提示（设计基线 docs/UI设计基线/drag-drop-hint v2）：只描述"会落到哪"，不改图纸。
+        ///
+        /// 判据与 <see cref="DropToolAt"/> 完全共用（ResolveInsertTarget + AllowsLoopControl），
+        /// 不写第二套规则——否则提示与真实落点会漂移，比没有提示更坏。
+        ///
+        /// 四档：运行锁 → Locked；Break/Continue 落在循环外 → Illegal；
+        /// 落点在折叠容器内 → Caution（放下会展开）；其余 → Valid。
+        /// </summary>
+        public (string Text, DragHintKind Kind) DescribeDropTarget(ToolItemModel tool, Point position)
+        {
+            if (_attachedFlow == null || tool == null)
+                return (string.Empty, DragHintKind.Hidden);
+
+            // 运行锁：此刻放哪儿都不许放，落点细节没有意义
+            if (!_editGate.IsEditable(ModuleEditAction.StructuralEdit))
+                return (DragHintText.Locked, DragHintKind.Locked);
+
+            var (_, insertIndex, _, targetContainer) = ResolveInsertTarget(position);
+
+            // 循环控制指令的落点闸门（与 DropToolAt 同一判据、同一文案常量）
+            if (!StepFactory.AllowsLoopControl(
+                    tool.ModuleTypeName,
+                    StepFactory.ContainerChainOf(_attachedFlow.Steps, targetContainer)))
+            {
+                return (DragHintText.Illegal(StepFactory.LoopControlPlacementMessage), DragHintKind.Illegal);
+            }
+
+            // 容器内：路径 = 容器链（由远及近）+ 第一条分支名
+            if (targetContainer is IContainerStep container)
+            {
+                var segments = StepFactory.ContainerChainOf(_attachedFlow.Steps, targetContainer)
+                    .Reverse()
+                    .Select(s => s.StepName)
+                    .Cast<string?>()
+                    .ToList();
+
+                segments.Add(container.Children?.FirstOrDefault()?.StepName);
+                string containerPath = DragHintText.Path(segments);
+
+                // 折叠的容器：放下会先展开它（状态③）。
+                // 判据必须与 TryGetLayout 完全一致——展开态 = 存储的 Collapsed 与"大流程自动折叠"
+                // 两个来源都不成立；只看 Layout 会漏掉自动折叠的容器（提示说有效、落下却看不见）。
+                bool collapsed = _attachedFlow.Layout.Find(targetContainer.StepID)?.Collapsed == true
+                                 || _sessionCollapsed.Contains(targetContainer.StepID);
+
+                return collapsed
+                    ? (DragHintText.WillExpand(targetContainer.StepName), DragHintKind.Caution)
+                    : (DragHintText.Add(tool.Name, containerPath), DragHintKind.Valid);
+            }
+
+            // 顶层：插到下一个兄弟之前，或者追加到末尾。
+            // 集合里可能有 null 项（反序列化/外部改集合的残留），跳过它们再取名——
+            // 否则提示这一行会抛 NRE，把拖拽整个打断。
+            if (insertIndex >= 0 && insertIndex < _attachedFlow.Steps.Count)
+            {
+                var next = _attachedFlow.Steps.Skip(insertIndex).FirstOrDefault(s => s != null);
+                if (next != null)
+                {
+                    return (DragHintText.Add(tool.Name, DragHintText.TopLevelPath,
+                        DragHintText.InsertBeforePosition(next.StepName)), DragHintKind.Valid);
+                }
+            }
+
+            return (DragHintText.Add(tool.Name, DragHintText.TopLevelPath), DragHintKind.Valid);
+        }
+
+        /// <summary>
         /// 按落点找目标步骤集合：最内层包含该点的泳道优先（取面积最小者）；
         /// 点在某个展开容器框内但不在任何泳道上 → null（框内只有泳道可接收）；
         /// 点在一切框外 → 顶层列表。
@@ -2794,6 +3321,50 @@ namespace VisionMaster.ViewModels
             }
 
             return _attachedFlow?.Steps;
+        }
+
+        // ==================================================================
+        //  分支结构动作（画布节点右键）
+        //
+        //  2026-10-23 补：此前"加分支"只能回流程栏点，画布节点右键根本没有这类项。
+        //  结构改动一律走 FlowBranchEditor（与流程栏同一份实现），本类只负责：
+        //   ① 运行锁（结构编辑，与拖入/删除/粘贴同一道门禁）；
+        //   ② 回执落到画布状态栏（画布是主编辑面，不该把视线拽回流程栏）；
+        //   ③ 重画——Children 变化已经由 OnFlowStepsChanged 触发一次，这里幂等兜底。
+        // ==================================================================
+
+        /// <summary>画布右键菜单要加的分支种类</summary>
+        private enum FlowBranchKind
+        {
+            Parallel,
+            ElseIf,
+            Else,
+            Case,
+        }
+
+        private void OnAddBranch(CanvasNodeViewModel node, FlowBranchKind kind)
+        {
+            if (_attachedFlow == null || node.Model is not StepModel model) return;
+
+            // 运行锁：分支增删是结构编辑（口径同流程栏 AddParallelBranchCommand）
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return;
+
+            var result = kind switch
+            {
+                FlowBranchKind.Parallel => FlowBranchEditor.AddParallelBranch(model as ParallelStep),
+                FlowBranchKind.ElseIf => FlowBranchEditor.AddElseIfBranch(model as ConditionStep),
+                FlowBranchKind.Else => FlowBranchEditor.AddElseBranch(model as ConditionStep),
+                FlowBranchKind.Case => FlowBranchEditor.AddCaseBranch(model as CaseStep),
+                _ => FlowBranchEditor.Result.Rejected(string.Empty),
+            };
+
+            // 类型不对（菜单项本不该出现）静默空跑；业务拒绝（上限/已存在）给文案
+            if (result.Message.Length > 0)
+                StatusHint = result.Message;
+
+            // Children 变化已经触发过一次重画；这里幂等兜底，保证"加完立刻能看见"
+            if (result.Success)
+                RebuildInPlace();
         }
 
         // ==================================================================
@@ -2862,14 +3433,49 @@ namespace VisionMaster.ViewModels
             if (insertIndex > owner.Count) insertIndex = owner.Count;
             owner.Insert(insertIndex, step);
 
+            // 状态③的兑现：落点在折叠容器里时，提示说的是"会展开后再放入"，这里必须真的展开。
+            // 只提示不展开 = 新步骤插进去了但看不见（用户以为没加成功），比不给提示更坏。
+            bool expanded = ExpandIfCollapsed(targetContainer);
+
             // 撤销补口（2026-10-11）：拖入也入撤销栈——引用型 AddStepCommand（Undo=按引用移除，
             // Redo=按记录下标插回；owner 内容被外部动过时按引用判存在性静默降级）
             PushUndo(new AddStepCommand(owner, step, insertIndex));
 
-            // 结构变更：通知图纸重编译（口径同流程栏 Drop）；集合 Add 已触发一次画布重建，这里幂等兜底
+            // 结构变更：通知图纸重编译（口径同流程栏 Drop）
             _attachedFlow.Version++;
+
+            // 落点防重叠（2026-10-23）：先保证渲染过一帧——AutoLayout 给新步骤补坐标、
+            // 容器算出真实框高，这之后才量得出"新节点占了多高"。不补这一帧就腾位，
+            // 新插入的容器会被当成一行高度，兄弟让位的距离不够，照样叠。
+            // （owner.Insert 的集合事件通常已经重建过一次，这里只兜"事件被 _rebuilding 挡掉"的路径）
             RebuildInPlace();
-            StatusHint = $"已添加「{stepName}」到{targetName}";
+
+            if (MakeRoomForInserted(owner, insertIndex))
+                RebuildInPlace();
+
+            StatusHint = expanded
+                ? $"已添加「{stepName}」到{targetName}（已展开折叠的分组）"
+                : $"已添加「{stepName}」到{targetName}";
+            return true;
+        }
+
+        /// <summary>
+        /// 把落点所在的折叠容器展开（状态③的兑现）。两个折叠来源都要清：
+        /// 存储的 <c>Layout.Collapsed</c>（用户手动折叠）与 <c>_sessionCollapsed</c>
+        /// （大流程自动折叠），漏一个就会出现"提示说要展开、落下去还是折叠着"。
+        /// 返回是否真的展开过（供状态栏文案区分）。
+        /// </summary>
+        private bool ExpandIfCollapsed(StepModel? container)
+        {
+            if (container == null || _attachedFlow == null) return false;
+
+            bool wasCollapsed = _attachedFlow.Layout.Find(container.StepID)?.Collapsed == true
+                                || _sessionCollapsed.Contains(container.StepID);
+
+            if (!wasCollapsed) return false;
+
+            _attachedFlow.Layout.ToggleCollapsed(container.StepID);
+            _sessionCollapsed.Remove(container.StepID);
             return true;
         }
 
@@ -2889,6 +3495,116 @@ namespace VisionMaster.ViewModels
                 return (target.Children[0].Steps, target.Children[0].Steps.Count, $"「{container.Model.StepName}」", container.Model);
 
             return (_attachedFlow!.Steps, ComputeInsertIndexByY(_attachedFlow.Steps, position.Y, null), "主流程", null);
+        }
+
+        // ==================================================================
+        //  落点防重叠（2026-10-23）
+        //
+        //  症状：新算子插到两个已有算子中间后，卡片正好盖在下一个兄弟身上，
+        //  看上去像"只加了一个算子"（用户口径）。
+        //
+        //  根因不是插入位置，而是坐标：FlowLayoutStore.AutoLayout 只补缺项、
+        //  既有坐标一律不动（用户手工布局不能被冲掉，这条不能改）。它给新项算的
+        //  位置是"上一项实际底缘 + RowGap"，而下一项还站在自己的旧 Y 上——旧布局
+        //  本来就是按同一套间距排的，于是两个 Y 恰好相等，严丝合缝地重叠。
+        //
+        //  修法：先让 AutoLayout 把新步骤补上（渲染一帧拿真实几何），再把后续兄弟
+        //  连同各自子树整体下移新节点占的那一段。只"腾位"不"重排"：用户手拖出来的
+        //  间距原样保留，本来就有空隙时一个坐标都不动。
+        //  为什么必须等一帧：新插入的容器高度由它的子孙外接框算出，插入前算不出来。
+        // ==================================================================
+
+        /// <summary>
+        /// 新步骤插到 <paramref name="insertIndex"/> 并渲染一帧后，把后面的兄弟连同子树顺移，
+        /// 保证新节点占的纵向空间不被占用。返回是否真的动过坐标（调用方据此决定要不要再渲染一帧）。
+        /// </summary>
+        private bool MakeRoomForInserted(ObservableCollection<StepModel> owner, int insertIndex)
+        {
+            if (insertIndex < 0 || insertIndex >= owner.Count - 1) return false;   // 插在末尾：后面没人要让位
+
+            var inserted = owner[insertIndex];
+            if (inserted == null) return false;
+
+            if (!TryGetVerticalSpan(inserted, out double insertedTop, out double insertedHeight)) return false;
+
+            // 紧邻的下一项（跳过空项）；它的顶边就是需要让到的位置
+            StepModel? next = null;
+            for (int i = insertIndex + 1; i < owner.Count; i++)
+            {
+                if (owner[i] != null) { next = owner[i]; break; }
+            }
+
+            if (next == null || !TryGetVerticalSpan(next, out double nextTop, out _)) return false;
+
+            double required = insertedTop + insertedHeight + FlowLayoutStore.RowGap;
+            double delta = required - nextTop;
+            if (delta <= 0.01) return false;   // 已有空隙：尊重用户手工布局，不硬拉
+
+            for (int i = insertIndex + 1; i < owner.Count; i++)
+            {
+                if (owner[i] != null)
+                    ShiftSubtree(owner[i], delta);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 取一个步骤在画布上的纵向占位（顶边 + 高度）。
+        /// 容器用框体高度（折叠时只剩头带），与兄弟的行推进口径一致。
+        /// 不在 _nodeMap（被折叠祖先藏起来）时：折叠容器按折叠框高算得准，**展开容器算不准**——
+        /// 它的框高由子孙外接框决定，没渲染就没有这个数。此时宁可返回 false 放弃腾位，
+        /// 也不拿一个假高度去算 delta：算小了展开后照样叠，算大了把兄弟推开一个大空档。
+        /// </summary>
+        private bool TryGetVerticalSpan(StepModel step, out double top, out double height)
+        {
+            top = 0;
+            height = NodeHeight;
+
+            if (_nodeMap.TryGetValue(step.StepID, out var node))
+            {
+                top = node.Location.Y;
+                height = node.Kind == CanvasNodeKind.Container ? node.LaneHeight : NodeHeight;
+                return true;
+            }
+
+            var layout = _attachedFlow?.Layout.Find(step.StepID);
+            if (layout == null) return false;
+
+            // 隐藏的展开容器：高度未知，放弃（"不动"是保守且无害的语义）
+            if (step is IContainerStep && !layout.Collapsed) return false;
+
+            top = layout.Y;
+            if (step is IContainerStep)
+                height = CollapsedFrameHeight;
+
+            return true;
+        }
+
+        /// <summary>整棵子树下移 <paramref name="delta"/>（容器的框体由内容算出，只挪它自己不动子孙等于没挪）</summary>
+        private void ShiftSubtree(StepModel step, double delta)
+        {
+            ShiftStep(step, delta);
+
+            if (step is not IContainerStep container || container.Children == null) return;
+
+            foreach (var branch in container.Children)
+            {
+                if (branch?.Steps == null) continue;
+                foreach (var child in branch.Steps)
+                {
+                    if (child != null) ShiftSubtree(child, delta);
+                }
+            }
+        }
+
+        /// <summary>单个步骤的坐标下移。只写已有布局项——缺项的留给 AutoLayout 补，别写半份</summary>
+        private void ShiftStep(StepModel step, double delta)
+        {
+            var layout = _attachedFlow?.Layout.Find(step.StepID);
+            if (layout == null) return;
+
+            _attachedFlow!.Layout.Set(step.StepID, layout.X, layout.Y + delta, layout.Collapsed);
         }
 
         /// <summary>在 owner 内按中心 Y 升序排（含被拖节点），算出被拖节点应处的下标</summary>

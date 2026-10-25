@@ -192,6 +192,14 @@ namespace VisionMaster.Views
             // 与背景图同一条“方案目录 + 相对路径”口径。
             Canvas.ImageAssetResolver = ResolveImageAsset;
             PopupCanvas.ImageAssetResolver = ResolveImageAsset;
+            Canvas.ImageBytesResolver = ResolveImageBytes;
+            PopupCanvas.ImageBytesResolver = ResolveImageBytes;
+            Canvas.StateListResolver = ResolveStateList;
+            PopupCanvas.StateListResolver = ResolveStateList;
+            Canvas.PageResolver = ResolvePage;
+            PopupCanvas.PageResolver = ResolvePage;
+            Canvas.PageNameResolver = ResolvePageByName;
+            PopupCanvas.PageNameResolver = ResolvePageByName;
 
             // 报警面板的运行态上下文来自画布：宿主在 StartAlarms 里把它装到画布上，
             // 而 StartAlarms 排在 Show() 之前（见 ScadaRuntimeHost.Start），所以走到 Loaded
@@ -267,6 +275,20 @@ namespace VisionMaster.Views
         /// <summary>方案图片解析器（相对路径 → 位图）；失败返回 null，图元显示占位。</summary>
         private ImageSource? ResolveImageAsset(string relativePath)
             => SolutionAssetService.TryLoad(SolutionRoot, relativePath, out var image, out _) ? image : null;
+
+        /// <summary>方案图片原始字节解析器（相对路径 → 文件内容）；GIF 动图自己逐帧解码用。</summary>
+        private byte[]? ResolveImageBytes(string relativePath)
+            => SolutionAssetService.TryReadBytes(SolutionRoot, relativePath, out var bytes, out _) ? bytes : null;
+
+        /// <summary>方案级文本列表解析器（Id → 列表）；删除/坏 Id 返回 null，ComboBox 显示“未找到文本列表”。</summary>
+        private ScadaStateList? ResolveStateList(Guid id)
+            => _session.Document.StateLists.FirstOrDefault(list => list.StateListId == id);
+
+        /// <summary>画面解析器（Id → 画面）；SubPage 显示“未找到画面”而不是空白。</summary>
+        private ScadaPage? ResolvePage(Guid id) => _session.Document.FindPage(id);
+
+        /// <summary>画面名解析器（名字 → 画面）；SubPage FollowVariable 用。</summary>
+        private ScadaPage? ResolvePageByName(string name) => _session.Document.FindPageByName(name);
 
         /// <summary>把当前页/弹窗页的背景图铺到两张画布上（相对路径 → 位图由资产服务解析）。</summary>
         private void ApplyPageBackgrounds()
@@ -703,10 +725,21 @@ namespace VisionMaster.Views
             Canvas.FitToScreen();
         }
 
+        /// <summary>
+        /// 底条「适配 xx%」按钮：把画面一键放回整幅。
+        /// 运行态滚轮刻意不缩放（见 <c>ScadaCanvas.OnMouseWheel</c>），中键平移之后
+        /// 这里是唯一的复位入口——所以它必须是个按钮，不能只是一行状态字。
+        /// </summary>
+        private void OnFitClick(object sender, RoutedEventArgs e)
+        {
+            FitCanvas();
+            UpdateStatusBar();
+        }
+
         private void UpdateStatusBar()
         {
             ViewportText.Text = $"视口 {ActualWidth:0} × {ActualHeight:0}";
-            FitText.Text = $"适配 {Canvas.Zoom:P0}";
+            FitButton.Content = $"适配 {Canvas.Zoom:P0}";
         }
 
         /// <summary>

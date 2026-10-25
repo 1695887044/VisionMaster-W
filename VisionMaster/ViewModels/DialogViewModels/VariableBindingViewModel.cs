@@ -64,6 +64,36 @@ namespace VisionMaster.ViewModels
             set => SetProperty(ref _hasFunctionalEnumPort, value);
         }
 
+        /// <summary>
+        /// 封闭集合端口「当前没有候选」时的原因说明（2026-10-24 口径）。
+        ///
+        /// 空字符串 = 有候选、没话说。非空时视图把它显示在预设列表下方，
+        /// 并禁用常量框 —— 名字类字段不再允许手填（运行期拿值当名字一定解析不到）。
+        /// 文案分两档：程序缺陷（没登记来源 / 来源抛异常）与业务空态（有来源但方案里还没有）。
+        /// </summary>
+        private string _optionEmptyReason = string.Empty;
+        public string OptionEmptyReason
+        {
+            get => _optionEmptyReason;
+            set
+            {
+                if (SetProperty(ref _optionEmptyReason, value))
+                    RaisePropertyChanged(nameof(IsOptionEmpty));
+            }
+        }
+
+        /// <summary>该端口的候选取不到（视图据此禁用常量框并显示原因）。</summary>
+        public bool IsOptionEmpty => !string.IsNullOrEmpty(_optionEmptyReason);
+
+        private static string DescribeEmptyReason(int itemCount)
+        {
+            // 走到这里说明 GetOptionItems 给了空列表；具体是"没登记来源"还是"登记了但没配"，
+            // 由 StepConfigOptionSource.GetOptionsResult 才分得出。这里只给一句通用可读的说明，
+            // 避免在视图层再复制一份三档判据。
+            return itemCount > 0 ? string.Empty
+                : "当前方案里还没有可用的候选项：先到对应的设备设置里配好，再回到这里选择（不支持手填）。";
+        }
+
         // ── 绑定进度（顶部上下文条 / 列脚「已绑定 M / N」） ──
 
         /// <summary>当前步骤的输入端口总数。</summary>
@@ -526,12 +556,16 @@ namespace VisionMaster.ViewModels
             // 这种最常见的首次配置状态下，绑定弹窗会放开上游面板 —— 手一滑就造出一条
             // "值当名字"的连线，而参数面板那边又把 🔗 藏了，用户事后连拆都拆不掉。
             //
-            // 候选为空时的正确退化是**手填**（见 VariableBindingView 的功能预设面板里那个
-            // 按 PresetOptions.Count 显示的手填框），与 LinkableValueEditor 的
-            // IsHandFillFallback 同一口径。
+            // 候选为空时的退化口径（2026-10-24 起改）：**不再允许手填**，而是把原因说清楚。
+            // 与 LinkableValueEditor 的 IsOptionEmpty 同一口径 —— 那边空候选时主输入框折叠、
+            // 显示「当前没有可选值 / 程序缺陷：…」；这边则把原因挂到 OptionEmptyReason 上，
+            // 由视图在预设列表的下方提示。两者的判据只有一个：封闭集合端口的合法值只能来自
+            // 枚举成员或方案里已有的名字，凭空手打的名字运行期一定解析不到。
             if (portDef.IsFunctionalEnum)
             {
                 HasFunctionalEnumPort = true;
+
+                OptionEmptyReason = items.Count > 0 ? string.Empty : DescribeEmptyReason(items.Count);
 
                 if (items.Count > 0)
                 {

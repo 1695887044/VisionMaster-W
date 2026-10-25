@@ -106,6 +106,41 @@ namespace VisionMaster.Scada
         /// 权限/运行闸/整单预检/回滚/终检/审计全复用；只应用，不保存方案。
         /// </summary>
         ApplyRecipe = 23,
+
+        // ── 位操作族（v4，数值 24~26，只许在末尾追加） ──
+        //
+        // 为什么单独长三条动作、而不是让用户写两条「写变量」再自己算掩码：
+        // 现场最常见的是"置位/复位一个字里的某一位"（启动位、使能位、报警确认位），
+        // 掩码值要随当前值变，写死一个常量会在别的位非零时把整字覆盖掉——那是现场最难查的一类事故。
+        // 读-改-写必须由执行侧一次完成，配置侧只声明"改哪一位、改成什么"。
+        //
+        // 位号口径（<see cref="ScadaAction.BitIndex"/>）：<c>null</c> = Bool 变量整体写；
+        // <c>0..31</c> = 整型变量里的位号（与设计基线"位号 0~31"一致）。
+        // 整型还受自身位宽限制（byte 只有 0~7），越界由执行侧当场拒绝并说明原因。
+
+        /// <summary>
+        /// 置位（v4 位操作）：Bool 变量整体写 <c>true</c>；整型变量把 <see cref="ScadaAction.BitIndex"/>
+        /// 指定的那一位置 1，其余位保持不变（读-改-写一次完成）。
+        /// </summary>
+        SetBit = 24,
+
+        /// <summary>
+        /// 复位（v4 位操作）：Bool 变量整体写 <c>false</c>；整型变量把 <see cref="ScadaAction.BitIndex"/>
+        /// 指定的那一位置 0，其余位保持不变。
+        /// </summary>
+        ResetBit = 25,
+
+        /// <summary>
+        /// 取反（v4 位操作）：Bool 变量整体取反；整型变量把 <see cref="ScadaAction.BitIndex"/>
+        /// 指定的那一位取反（0↔1），其余位保持不变。
+        /// </summary>
+        ToggleBit = 26,
+
+        /// <summary>
+        /// 播放声音（v4）：按 <see cref="ScadaAction.SoundKind"/> 播提示/警告/严重音。
+        /// 事件负责“什么时候触发”，声音是触发后的副作用；本动作不改变任何变量。
+        /// </summary>
+        PlaySound = 27,
     }
 
     /// <summary>
@@ -144,6 +179,12 @@ namespace VisionMaster.Scada
             ScadaActionType.ClosePopup => "关闭弹窗",
             ScadaActionType.Increment => "增量",
             ScadaActionType.Decrement => "减量",
+            // 位操作三条用 PLC 现场的通用叫法（置位/复位/取反）：与「增量/减量」同属"改一个变量"，
+            // 名字也保持一致的两字短词，下拉里一眼能扫到。
+            ScadaActionType.SetBit => "置位",
+            ScadaActionType.ResetBit => "复位",
+            ScadaActionType.ToggleBit => "取反",
+            ScadaActionType.PlaySound => "播放声音",
             ScadaActionType.ApplyRecipe => "应用配方",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
@@ -157,6 +198,11 @@ namespace VisionMaster.Scada
         /// 清报警/点动结束不算。暂停/恢复只改流程运行状态，不算设备动作，故不算危险。
         /// 这份清单只写一遍：事件编辑器的「危险动作」标记与确认弹窗的 PrimaryTone
         /// 都从这里取，不在视图或分发器里各写一套。
+        ///
+        /// 位操作三条（置位/复位/取反）<b>不算危险</b>：它们改的是一个变量的值，
+        /// 与「写变量」「增量/减量」同一档——会不会动设备取决于那个变量接给谁，
+        /// 那是变量侧的配置，不是动作类型能判定的。需要二次确认时由钩子上的
+        /// 「执行前确认」显式打开（确认框对非危险动作同样有效，只是语气不红）。
         /// </summary>
         public static bool IsDangerous(this ScadaActionType type) => type is
             ScadaActionType.StartFlow or ScadaActionType.StopFlow or ScadaActionType.RunFlowOnce
@@ -172,7 +218,7 @@ namespace VisionMaster.Scada
         /// 运行日志里写着另一句话，用户就没法把"我配的那条"和"日志里那条"对上号，
         /// 排查方向直接跑偏。这与 <see cref="DisplayName"/> 只写一份是同一个理由。
         ///
-        /// 十八个动作现在都已接通，所以只剩"本版本不认识"这一档。
+        /// 所有动作现在都已接通（含 2026-10-24 追加的位操作三条），所以只剩"本版本不认识"这一档。
         /// </summary>
         public static string? PendingReason(this ScadaActionType type) => type switch
         {
@@ -185,6 +231,14 @@ namespace VisionMaster.Scada
             ScadaActionType.WriteVariable => null,
             ScadaActionType.Increment => null,
             ScadaActionType.Decrement => null,
+            // 位操作三条（v4）与「写变量」同一条通道：没选变量 / 找不到变量 / 不是 Bool 或整型 /
+            // 位号越界 / 设备拒写，全是"配错了或此刻写不进"，由执行侧当场算出来并给可直接照做的中文，
+            // 所以这里不预先写死。
+            ScadaActionType.SetBit => null,
+            ScadaActionType.ResetBit => null,
+            ScadaActionType.ToggleBit => null,
+            // 播放声音：没接声卡/播放器属于宿主装配状态，由执行侧当场报“未接入”，不在这里预判。
+            ScadaActionType.PlaySound => null,
             ScadaActionType.Navigate => null,
             // 流程启停三条走 IScadaFlowRunner：目标流程找不到/停用/加密/编译不过/正被占用，
             // 全是"配错了或这次没排上"，由执行侧当场算出来，不在这里预先写死。

@@ -1,0 +1,31 @@
+<UserControl
+    x:Class="VisionMaster.Controls.DragGhostStack"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="clr-namespace:VisionMaster.Controls"
+    xmlns:svc="clr-namespace:VisionMaster.Services"
+    x:Name="Root"
+    IsHitTestVisible="False">
+
+    <!--  ==========================================  -->
+    <!--  拖拽浮层组合：卡片（是什么）+ 落点提示条（落到哪）  -->
+    <!--  设计基线 docs/UI设计基线/drag-drop-hint v2 §02：左缘对齐、纵向间隔 6。  -->
+    <!--  三处拖拽源共用本控件（R120），模板里只需映射 Icon / Title / Category。  -->
+    <!--  提示条的数据来自 DragHintPresenter.Current（放置端在 DragOver 里写），  -->
+    <!--  不来自拖拽源的数据上下文——源只知道"拖的是什么"。  -->
+    <!--  ==========================================  -->
+
+    <StackPanel>
+        <controls:DragGhostCard
+            HorizontalAlignment="Left"
+            Category="{Binding Category, ElementName=Root}"
+            Icon="{Binding Icon, ElementName=Root}"
+            Title="{Binding Title, ElementName=Root}" />
+
+        <controls:DragHintPill
+            Margin="0,6,0,0"
+            HorizontalAlignment="Left"
+            Kind="{Binding Kind, Source={x:Static svc:DragHintPresenter.Current}}"
+            Text="{Binding Text, Source={x:Static svc:DragHintPresenter.Current}}" />
+    </StackPanel>
+</UserControl>

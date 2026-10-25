@@ -3,6 +3,8 @@ using Core.Interfaces;
 using HalconDotNet;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Threading;
 
 namespace Plugin.CSharpScript
 {
@@ -26,6 +28,7 @@ namespace Plugin.CSharpScript
         private readonly Action<HImage, int, IEnumerable<MeasureAnnotation>> _showAnnotated;
         private readonly Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> _showRich;
         private readonly ScriptSharedAccessor _shared;
+        private readonly CancellationToken _cancellationToken;
 
         internal ScriptContext(
             IExecutionContext exec,
@@ -34,7 +37,8 @@ namespace Plugin.CSharpScript
             Action<HImage, int> showImage,
             Action<HImage, int, IEnumerable<MeasureAnnotation>> showAnnotated = null,
             Action<HImage, int, string, IEnumerable<MeasureAnnotation>, IEnumerable<ImageInfoRow>> showRich = null,
-            ScriptSharedAccessor shared = null)
+            ScriptSharedAccessor shared = null,
+            CancellationToken cancellationToken = default)
         {
             _exec = exec;
             _getInput = getInput;
@@ -44,14 +48,24 @@ namespace Plugin.CSharpScript
             _showRich = showRich;
             // 没有声明表也要给一个空访问器：GetGlobal 会抛"未声明"而不是 NullReference
             _shared = shared ?? new ScriptSharedAccessor(null, null);
+            _cancellationToken = cancellationToken;
         }
 
         /// <summary>自引用：脚本里 <c>Context.xxx</c> 即指向本门面。</summary>
         public ScriptContext Context => this;
 
+        /// <summary>
+        /// 本次执行的取消令牌（停止/急停）。长循环里请定期检查它，或直接调用
+        /// <see cref="ThrowIfCancellationRequested"/>。
+        /// </summary>
+        public CancellationToken CancellationToken => _cancellationToken;
+
+        /// <summary>令牌已取消则抛 <see cref="OperationCanceledException"/>（宿主按"已取消"处理，不算失败）。</summary>
+        public void ThrowIfCancellationRequested() => _cancellationToken.ThrowIfCancellationRequested();
+
         // ── 自定义函数：模块参数 ──────────────────────────────
 
-        /// <summary>取某个上游输入端口的值（弱类型）。端口不存在返回 null。</summary>
+        /// <summary>取某个上游输入端口的值（弱类型）。端口不存在返回 null，并记一条 Warn。</summary>
         public object GetInput(string portName) => _getInput?.Invoke(portName);
 
         /// <summary>取某个上游输入端口的值并转成 T。转换失败抛 InvalidCastException（被宿主捕获为脚本错误）。</summary>
@@ -63,7 +77,7 @@ namespace Plugin.CSharpScript
             return (T)Convert.ChangeType(v, typeof(T));
         }
 
-        /// <summary>写某个输出端口的值（供下游步骤连线取用）。端口不存在则忽略。</summary>
+        /// <summary>写某个输出端口的值（供下游步骤连线取用）。端口不存在则忽略，并记一条 Warn。</summary>
         public void SetOutput(string portName, object value) => _setOutput?.Invoke(portName, value);
 
         // ── 自定义函数：共享变量（全局 / 系统，按声明表访问）──────────
@@ -122,8 +136,32 @@ namespace Plugin.CSharpScript
             dict[name] = value;
         }
 
-        /// <summary>整个运行期变量池（只读遍历用）。</summary>
-        public IDictionary<string, object> Vars => _exec?.LocalVariables;
+        /// <summary>
+        /// 整个运行期变量池（只读视图）。写请用 <see cref="SetVar"/>。
+        ///
+        /// 为什么不直接把字典交出去：交出去等于把"只读遍历"变成一句注释——脚本可以
+        /// <c>Context.Vars["x"] = 1</c> 绕过 SetVar，而 SetVar 以后若加上限/类型校验，
+        /// 绕过的那条路就静默不受约束。签名保持 IDictionary 是为了不打断老脚本的遍历写法，
+        /// 真去写会抛 NotSupportedException（消息里直接给出该用的方法）。
+        /// </summary>
+        public IDictionary<string, object> Vars
+        {
+            get
+            {
+                var dict = _exec?.LocalVariables;
+                if (dict == null) return EmptyVars;
+                if (_varsCache != null && ReferenceEquals(_varsSource, dict)) return _varsCache;
+                _varsSource = dict;
+                _varsCache = new ReadOnlyDictionary<string, object>(dict);
+                return _varsCache;
+            }
+        }
+
+        private static readonly IDictionary<string, object> EmptyVars =
+            new ReadOnlyDictionary<string, object>(new Dictionary<string, object>());
+
+        private IDictionary<string, object> _varsSource;
+        private IDictionary<string, object> _varsCache;
 
         // ── 自定义函数：日志 ──────────────────────────────────
 

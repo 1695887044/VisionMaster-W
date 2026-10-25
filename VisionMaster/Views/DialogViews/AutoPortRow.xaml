@@ -144,7 +144,8 @@
             <Border
                 x:Name="EditorShell"
                 Grid.Column="1"
-                Height="38"
+                MinHeight="38"
+                VerticalAlignment="Stretch"
                 CornerRadius="8">
                 <Border.Style>
                     <Style TargetType="Border">
@@ -174,7 +175,7 @@
                 <ContentControl
                     x:Name="EditorHost"
                     HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Center" />
+                    VerticalContentAlignment="Stretch" />
             </Border>
 
             <!--  行尾：枚举/封闭候选的锁图标（不提供链接/清除，控件内部已隐藏）  -->

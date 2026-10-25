@@ -17,6 +17,13 @@
     prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
     <UserControl.Resources>
+        <ResourceDictionary>
+        <ResourceDictionary.MergedDictionaries>
+            <!--  步骤右键菜单样式（流程栏 / 画布共用一份，定义在 UI 主题里）。
+                  就地合并而不是靠应用级：无 Application 的断言宿主里也能解析（R22 同一手法）。  -->
+            <ResourceDictionary Source="/UI;component/Themes/Controls/StepContextMenu.xaml" />
+        </ResourceDictionary.MergedDictionaries>
+
         <ui:BindingProxy x:Key="ModuleData" Data="{Binding}" />
 
         <!--  分类名 → 分类专属色画刷（ToolboxCategoryVisuals.BrushFor）：算子行图标按分类上色；
@@ -32,14 +39,16 @@
         <!--  是"一个源一份模板"——用选择器按数据类型分派，否则分支卡片会显示成空卡片。  -->
         <!--  ==========================================  -->
         <DataTemplate x:Key="StepDragGhostTemplate">
-            <controls:DragGhostCard
+            <!--  卡片 + 落点提示条的组合（设计基线 drag-drop-hint v2）；
+                  提示条自己从 DragHintPresenter.Current 取数  -->
+            <controls:DragGhostStack
                 Category="{Binding Category}"
                 Icon="{Binding Icon}"
                 Title="{Binding StepName}" />
         </DataTemplate>
 
         <DataTemplate x:Key="BranchDragGhostTemplate">
-            <controls:DragGhostCard
+            <controls:DragGhostStack
                 Category="分支"
                 Icon="&#xf126;"
                 Title="{Binding DisplayName}" />
@@ -273,205 +282,7 @@
             <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
             <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
         </Style>
-        <!--  ==========================================  -->
-        <!--  🖱 步骤右键菜单（方案 C：双行说明 + 图标底片）  -->
-        <!--  只服务 TreeView.ContextMenu；其它菜单仍走 Navigation.xaml 的隐式样式。  -->
-        <!--  可见宽 320 = Width 340 - 模板 Border 左右各 10 的阴影留白。  -->
-        <!--  ==========================================  -->
-        <Style x:Key="StepContextMenuStyle" TargetType="ContextMenu">
-            <Setter Property="Width" Value="340" />
-            <Setter Property="Padding" Value="6" />
-            <Setter Property="Background" Value="{StaticResource ScadaSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="HasDropShadow" Value="False" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="UseLayoutRounding" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ContextMenu">
-                        <Border
-                            Margin="10"
-                            Background="{TemplateBinding Background}"
-                            BorderBrush="{TemplateBinding BorderBrush}"
-                            BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="14">
-                            <Border.Effect>
-                                <DropShadowEffect
-                                    BlurRadius="28"
-                                    Direction="270"
-                                    Opacity="0.18"
-                                    ShadowDepth="6"
-                                    Color="Black" />
-                            </Border.Effect>
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="*" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <ScrollViewer
-                                    Grid.Row="0"
-                                    SnapsToDevicePixels="True"
-                                    VerticalScrollBarVisibility="Auto">
-                                    <ItemsPresenter Margin="{TemplateBinding Padding}" />
-                                </ScrollViewer>
-                                <!--  页脚：命令提示 / 作用范围。文字为空时整条收起。  -->
-                                <Border
-                                    x:Name="Footer"
-                                    Grid.Row="1"
-                                    Margin="6,0"
-                                    Padding="9,7,9,7"
-                                    BorderBrush="{StaticResource DialogBorderLightBrush}"
-                                    BorderThickness="0,1,0,0">
-                                    <TextBlock
-                                        FontSize="11"
-                                        Foreground="{StaticResource ScadaFaintTextBrush}"
-                                        Text="{Binding Path=(ui:MenuItemEx.Footer), RelativeSource={RelativeSource TemplatedParent}}" />
-                                </Border>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="ui:MenuItemEx.Footer" Value="{x:Null}">
-                                <Setter TargetName="Footer" Property="Visibility" Value="Collapsed" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!--  菜单项：28px 图标底片 + 标题/说明双行 + 右侧快捷键与勾选。
-              本样式只覆盖叶子项（本菜单没有二级菜单）；语气色由 ui:MenuItemEx.Tone 驱动。  -->
-        <Style x:Key="StepMenuItemStyle" TargetType="MenuItem">
-            <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
-            <Setter Property="Padding" Value="8,6" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="MenuItem">
-                        <Border
-                            x:Name="Row"
-                            MinHeight="44"
-                            Margin="0,1"
-                            Padding="{TemplateBinding Padding}"
-                            Background="Transparent"
-                            CornerRadius="9"
-                            SnapsToDevicePixels="True">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="28" />
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <Border
-                                    x:Name="Chip"
-                                    Width="28"
-                                    Height="28"
-                                    VerticalAlignment="Center"
-                                    Background="{StaticResource ScadaBadgeBackgroundBrush}"
-                                    CornerRadius="8">
-                                    <TextBlock
-                                        x:Name="Glyph"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        FontFamily="{StaticResource DialogIconFont}"
-                                        FontSize="15"
-                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                                        Text="{TemplateBinding Icon}" />
-                                </Border>
-                                <StackPanel
-                                    Grid.Column="1"
-                                    Margin="10,0,10,0"
-                                    VerticalAlignment="Center">
-                                    <TextBlock
-                                        FontSize="13"
-                                        Text="{TemplateBinding Header}"
-                                        TextTrimming="CharacterEllipsis" />
-                                    <TextBlock
-                                        x:Name="Desc"
-                                        Margin="0,1,0,0"
-                                        FontSize="11"
-                                        Opacity="0.72"
-                                        Text="{Binding Path=(ui:MenuItemEx.Description), RelativeSource={RelativeSource TemplatedParent}}"
-                                        TextTrimming="CharacterEllipsis" />
-                                </StackPanel>
-                                <StackPanel
-                                    Grid.Column="2"
-                                    VerticalAlignment="Center"
-                                    Orientation="Horizontal">
-                                    <TextBlock
-                                        FontSize="11"
-                                        Foreground="{StaticResource ScadaFaintTextBrush}"
-                                        Text="{TemplateBinding InputGestureText}" />
-                                    <TextBlock
-                                        x:Name="CheckMark"
-                                        Margin="6,0,0,0"
-                                        FontFamily="{StaticResource DialogIconFont}"
-                                        FontSize="12"
-                                        Foreground="{StaticResource DialogAccentBrush}"
-                                        Text="&#xf00c;"
-                                        Visibility="Collapsed" />
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="Row" Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
-                            </Trigger>
-                            <Trigger Property="ui:MenuItemEx.Tone" Value="Indigo">
-                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
-                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource LogicIfTextBrush}" />
-                            </Trigger>
-                            <Trigger Property="ui:MenuItemEx.Tone" Value="Slate">
-                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource ScadaBadgeBackgroundBrush}" />
-                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
-                            </Trigger>
-                            <Trigger Property="ui:MenuItemEx.Tone" Value="Amber">
-                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
-                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
-                            </Trigger>
-                            <Trigger Property="ui:MenuItemEx.Tone" Value="Gray">
-                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource ScadaBadgeBackgroundBrush}" />
-                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
-                            </Trigger>
-                            <Trigger Property="ui:MenuItemEx.Tone" Value="Danger">
-                                <Setter Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
-                                <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
-                                <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
-                            </Trigger>
-                            <MultiTrigger>
-                                <MultiTrigger.Conditions>
-                                    <Condition Property="ui:MenuItemEx.Tone" Value="Danger" />
-                                    <Condition Property="IsHighlighted" Value="True" />
-                                </MultiTrigger.Conditions>
-                                <Setter TargetName="Row" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
-                            </MultiTrigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
-                                <Setter TargetName="Chip" Property="Opacity" Value="0.55" />
-                                <Setter TargetName="Desc" Property="Opacity" Value="0.55" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="StepMenuSeparatorStyle" TargetType="Separator">
-            <Setter Property="Height" Value="1" />
-            <Setter Property="Margin" Value="8,4" />
-            <Setter Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Separator">
-                        <Border Height="1" Background="{TemplateBinding Background}" />
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <!--  流程栏 = 步骤树（大纲树观感）+ 底部执行统计。
@@ -498,7 +309,7 @@
             dd:DragDrop.IsDragSource="True"
             dd:DragDrop.IsDropTarget="True"
             dd:DragDrop.UseDefaultDragAdorner="False"
-            dd:DragDrop.UseDefaultEffectDataTemplate="True"
+            dd:DragDrop.UseDefaultEffectDataTemplate="False"
             ui:TreeViewBehavior.BindableSelectedItem="{Binding SelectStep}"
             ui:TreeViewBehavior.DoubleClickCommand="{Binding ModuleActionCommand}"
             ui:TreeViewBehavior.DoubleClickCommandParameter="{x:Static enums:ModuleCommandAction.ModuleParameters}"
@@ -510,6 +321,13 @@
                     Command="{Binding ModuleActionCommand}"
                     CommandParameter="{x:Static enums:ModuleCommandAction.Delete}"
                     Key="Delete" />
+                <!--  复制（2026-10-24）：与右键菜单「复制」同一命令、同一份剪贴板。
+                      挂 TreeView 元素级而不是 UserControl 级：与 Delete 同一口径——
+                      只有焦点在流程树里才抢 Ctrl+C，不干扰画布/日志面板的 Ctrl+C。  -->
+                <KeyBinding
+                    Key="C"
+                    Command="{Binding CopyStepCommand}"
+                    Modifiers="Control" />
             </TreeView.InputBindings>
             <TreeView.Resources>
 
@@ -1543,6 +1361,14 @@
                         Style="{StaticResource StepMenuItemStyle}"
                         ui:MenuItemEx.Description="修改显示名，不改变算子类型"
                         ui:MenuItemEx.Tone="Slate" />
+                    <!--  编辑绑定：与画布右键同一入口（都开 DataBindView，锚点 TargetStep）  -->
+                    <MenuItem
+                        Command="{Binding OpenBindingCommand}"
+                        Header="编辑绑定…"
+                        Icon="link"
+                        Style="{StaticResource StepMenuItemStyle}"
+                        ui:MenuItemEx.Description="为这一步的输入端口选择来源（打开变量绑定）"
+                        ui:MenuItemEx.Tone="Slate" />
                     <MenuItem
                         Command="{Binding ModuleActionCommand}"
                         CommandParameter="{x:Static enums:ModuleCommandAction.EditComment}"
@@ -1551,10 +1377,19 @@
                         Style="{StaticResource StepMenuItemStyle}"
                         ui:MenuItemEx.Description="为这一步补充说明文字"
                         ui:MenuItemEx.Tone="Slate" />
+                    <!--  复制：与画布同一份剪贴板（FlowClipboard）。复制不改图纸，不受运行锁限制  -->
+                    <MenuItem
+                        Command="{Binding CopyStepCommand}"
+                        Header="复制"
+                        Icon="copy"
+                        InputGestureText="Ctrl+C"
+                        Style="{StaticResource StepMenuItemStyle}"
+                        ui:MenuItemEx.Description="复制这一步（含子步骤与内部连线），到画布右键粘贴"
+                        ui:MenuItemEx.Tone="Slate" />
                     <MenuItem
                         Command="{Binding ModuleActionCommand}"
                         CommandParameter="{x:Static enums:ModuleCommandAction.ModuleParameters}"
-                        Header="步骤参数"
+                        Header="步骤参数…"
                         Icon="sliders"
                         Style="{StaticResource StepMenuItemStyle}"
                         ui:MenuItemEx.Description="打开算子参数面板"

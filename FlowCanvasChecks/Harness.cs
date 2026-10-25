@@ -114,35 +114,48 @@ namespace FlowCanvasChecks
     {
         public List<string> ShownDialogs { get; } = new();
 
-        public void ShowDialog(string name, IDialogParameters parameters) => ShownDialogs.Add(name);
+        /// <summary>
+        /// 最后一次 Show/ShowDialog 的参数对象（没传就是 null）。
+        /// 用来断言"弹窗拿到了正确的锚点"——只记名字的话，"开了窗但没带 TargetStep"
+        /// 这种"点了没定位到当前步骤"的缺陷会被判成绿的。
+        /// </summary>
+        public IDialogParameters? LastParameters { get; private set; }
+
+        private void Record(string name, IDialogParameters? parameters)
+        {
+            ShownDialogs.Add(name);
+            LastParameters = parameters;
+        }
+
+        public void ShowDialog(string name, IDialogParameters parameters) => Record(name, parameters);
 
         public void ShowDialog(string name, IDialogParameters parameters, DialogCallback callback)
-            => ShownDialogs.Add(name);
+            => Record(name, parameters);
 
         public void ShowDialog(string name, IDialogParameters parameters, string windowName)
-            => ShownDialogs.Add(name);
+            => Record(name, parameters);
 
         public void ShowDialog(
             string name,
             IDialogParameters parameters,
             DialogCallback callback,
             string windowName
-        ) => ShownDialogs.Add(name);
+        ) => Record(name, parameters);
 
-        public void Show(string name, IDialogParameters parameters) => ShownDialogs.Add(name);
+        public void Show(string name, IDialogParameters parameters) => Record(name, parameters);
 
         public void Show(string name, IDialogParameters parameters, DialogCallback callback)
-            => ShownDialogs.Add(name);
+            => Record(name, parameters);
 
         public void Show(string name, IDialogParameters parameters, string windowName)
-            => ShownDialogs.Add(name);
+            => Record(name, parameters);
 
         public void Show(
             string name,
             IDialogParameters parameters,
             DialogCallback callback,
             string windowName
-        ) => ShownDialogs.Add(name);
+        ) => Record(name, parameters);
     }
 
     /// <summary>

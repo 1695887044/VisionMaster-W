@@ -488,6 +488,25 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.Gif",
+                DisplayName = "GIF 动图",
+                ControlType = typeof(GifElement),
+                Category = "基础",
+                DefaultWidth = 200,
+                DefaultHeight = 160,
+                Description = "方案 Image 目录里的一张 GIF，按帧延时循环播放（风扇转动、液流、输送带）；" +
+                              "非 GIF 文件只显示首帧。与「本地图片」同一资产口径，随方案文件夹走",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(GifElement)),
+                    AppearanceProperties.Fill("#00FFFFFF", "动图背后的底色；默认全透明，让动图直接落在画面上",
+                        displayName: "底色"),
+                    AppearanceProperties.Stroke("#00FFFFFF"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("0")),
+            },
+
+            new()
+            {
                 TypeKey = "Hmi.Line",
                 DisplayName = "线 / 折线 / 箭头",
                 ControlType = typeof(LineElement),
@@ -498,6 +517,55 @@ namespace VisionMaster.Scada.Controls
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(LineElement)),
                     AppearanceProperties.Stroke("#FF38BDF8"),
+                    AppearanceProperties.StrokeThickness()),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Polygon",
+                DisplayName = "多边形",
+                ControlType = typeof(PolygonElement),
+                Category = "基础",
+                DefaultWidth = 140,
+                DefaultHeight = 120,
+                Description = "按顶点清单画闭合填充区（设备轮廓、区域块、异形底板）；" +
+                              "顶点是 0~1 相对坐标，分号分隔，少于 3 个点不画",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(PolygonElement)),
+                    AppearanceProperties.Fill("#FF2D7DD2"),
+                    AppearanceProperties.Stroke("#FF1F5C9E"),
+                    AppearanceProperties.StrokeThickness()),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Bezier",
+                DisplayName = "贝塞尔曲线",
+                ControlType = typeof(BezierElement),
+                Category = "基础",
+                DefaultWidth = 200,
+                DefaultHeight = 120,
+                Description = "四个控制点画一段三次贝塞尔（软管、走线、弯曲的工艺连线）；" +
+                              "只描边不填充，点数不足 4 个不画",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(BezierElement)),
+                    AppearanceProperties.Stroke("#FF38BDF8"),
+                    AppearanceProperties.StrokeThickness()),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.DynamicLine",
+                DisplayName = "动态画线",
+                ControlType = typeof(DynamicLineElement),
+                Category = "基础",
+                DefaultWidth = 160,
+                DefaultHeight = 60,
+                Description = "长度与角度可各绑一个变量（液位定长度、方向定角度）；" +
+                              "段数 >1 时画锯齿折线，用来示意振动/流动态/报警抖动",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(DynamicLineElement)),
+                    AppearanceProperties.Stroke("#FF34C759"),
                     AppearanceProperties.StrokeThickness()),
             },
 
@@ -586,7 +654,7 @@ namespace VisionMaster.Scada.Controls
                 ControlType = typeof(AxisPanelElement),
                 Category = "运动",
                 DefaultWidth = 320,
-                DefaultHeight = 470,
+                DefaultHeight = 500,
                 Description = "完整的轴调试台：状态（位置/速度/使能/到位/限位/报警）+ 操作（使能/点动/回零/停止/清报警）" +
                               "+ 点位表（示教/定位/改速度）。运动与监控共用同一个轴选择器，不会出现「看的是 X、动的是 Y」",
                 Properties = GeometryProperties.WithGroups(
@@ -623,7 +691,7 @@ namespace VisionMaster.Scada.Controls
                 ControlType = typeof(AxisPanelElement),
                 Category = "运动",
                 DefaultWidth = 280,
-                DefaultHeight = 280,
+                DefaultHeight = 310,
                 Description = "紧凑预设：只显示状态与手动操作（使能/点动/回零/停止/清报警），不显示点位表。" +
                               "需要点位时用「轴控台」",
                 Properties = GeometryProperties.WithGroups(
@@ -844,6 +912,127 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.BitTable",
+                DisplayName = "位表",
+                ControlType = typeof(BitTableElement),
+                Category = "数据",
+                DefaultWidth = 320,
+                DefaultHeight = 96,
+                Description = "把一个字按位摊成格子（默认一个字节 8 位）：绑一个数值变量即可逐位监视；" +
+                              "位数 1~32、起始位可调、每行格数可调。只读——要改位请用「位按钮」",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(BitTableElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("6"),
+                    TextProperties.Text("标题", "", isBindable: false, description: "标题；留空则只显示格子"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "标题颜色"),
+                    TextProperties.FontSize("12")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.IoMonitor",
+                DisplayName = "I/O 监视（8 位）",
+                ControlType = typeof(BitTableElement),
+                Category = "数据",
+                DefaultWidth = 320,
+                DefaultHeight = 110,
+                Description = "位表的 I/O 形态：一行八格、显示位号与 I0.x 标签，用来盯一个输入/输出字节。" +
+                              "与「位表」同一个控件，只覆盖默认值",
+                Properties = GeometryProperties.WithGroups(
+                    // 预设：一行八格 + 位号 + 标签（同一个控件类，只覆盖默认值）
+                    ScadaPropertyCatalog.WithDefaults(
+                        ScadaPropertyCatalog.Collect(typeof(BitTableElement)),
+                        ("BitCount", "8"),
+                        ("Columns", "8"),
+                        ("ShowIndex", "True"),
+                        ("ShowValue", "True"),
+                        ("ShowLabels", "True"),
+                        ("Labels", "I0.0,I0.1,I0.2,I0.3,I0.4,I0.5,I0.6,I0.7")),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("6"),
+                    TextProperties.Text("标题", "I/O 监视", isBindable: false),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "标题颜色"),
+                    TextProperties.FontSize("12")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.VariableMonitor",
+                DisplayName = "变量监视（16 位）",
+                ControlType = typeof(BitTableElement),
+                Category = "数据",
+                DefaultWidth = 320,
+                DefaultHeight = 130,
+                Description = "位表的字形态：16 位排两行八格，用来看一个字的每一位。" +
+                              "与「位表」同一个控件，只覆盖默认值",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.WithDefaults(
+                        ScadaPropertyCatalog.Collect(typeof(BitTableElement)),
+                        ("BitCount", "16"),
+                        ("Columns", "8"),
+                        ("ShowIndex", "True"),
+                        ("ShowValue", "True")),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("6"),
+                    TextProperties.Text("标题", "变量监视", isBindable: false),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "标题颜色"),
+                    TextProperties.FontSize("12")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.StateView",
+                DisplayName = "状态图元（文本/图片）",
+                ControlType = typeof(StateViewElement),
+                Category = "指示",
+                DefaultWidth = 180,
+                DefaultHeight = 64,
+                Description = "用方案级文本列表把整数翻译成文字/图片/状态色。字指示灯 = Text + None；" +
+                              "图形 IO 域 = Image + None；图形开关 = Image + Toggle。一个类型三个预设，不新增三个 TypeKey",
+                Events = new[]
+                {
+                    ScadaEventType.ObjectChanged, ScadaEventType.Opened, ScadaEventType.Closed,
+                },
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(StateViewElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "默认文字色",
+                        description: "列表条目没有配状态色时用它；配了状态色则按条目的 Color"),
+                    TextProperties.FontSize("16"),
+                    TextProperties.FontWeight("SemiBold"),
+                    TextProperties.TextAlignment("Left")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.SubPage",
+                DisplayName = "嵌入画面（画中画）",
+                ControlType = typeof(SubPageElement),
+                Category = "基础",
+                DefaultWidth = 480,
+                DefaultHeight = 300,
+                Description = "在一个矩形里只读显示另一张普通画面（P1a：固定页 + 只读 + 活数据）。" +
+                              "缺页/无权/未选显示占位；嵌套子页只允许一层。子页交互与变量切页放 P1b",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(SubPageElement)),
+                    AppearanceProperties.Fill("#FF0E1318"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8")),
+            },
+
+            new()
+            {
                 TypeKey = "Hmi.AckButton",
                 DisplayName = "报警确认按钮",
                 ControlType = typeof(AckButtonElement),
@@ -1019,6 +1208,27 @@ namespace VisionMaster.Scada.Controls
                     },
                     TextProperties.Text("标题", "产品记录", isBindable: false,
                         description: "表格左上角的标题；留空则只剩右侧的行数")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.RecipePanel",
+                DisplayName = "配方面板（只读）",
+                ControlType = typeof(RecipePanelElement),
+                Category = "数据",
+                DefaultWidth = 300,
+                DefaultHeight = 200,
+                Description = "把当前生效配方整块显示出来：配方名 · 版本、状态（已生效 / 偏离 N / 未启用）、" +
+                              "以及逐项参数明细。数据直接取 System.Recipe.* 六条只读系统变量，" +
+                              "设计期不需要一条条绑；本图元只读，改配方与切配方都不在这里",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(RecipePanelElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("6"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "配方名与明细的主色；标题与状态用同一支色的弱化档")),
             },
         };
     }

@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SCADA P1 控件与能力 · Web 设计基线 v1</title>
+<style>
+  :root{
+    --radius:12px;
+    --radius-sm:8px;
+    --shadow:0 18px 48px rgba(0,0,0,.28);
+    --mono:"Cascadia Mono","Consolas","SFMono-Regular",monospace;
+    --sans:"Segoe UI","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+    --ease:160ms cubic-bezier(.2,.7,.2,1);
+  }
+  :root[data-theme="dark"]{
+    --bg:#0b1016; --bg2:#0e1318; --surface:#151c23; --raised:#1b242d;
+    --border:#2a3745; --border2:#3a4a5c;
+    --text:#e6eef7; --text2:#a9b7c6; --muted:#7c8a99;
+    --accent:#38bdf8; --accent2:#0ea5e9;
+    --success:#22c55e; --warning:#f59e0b; --danger:#ef4444; --purple:#a78bfa;
+    --grid:rgba(255,255,255,.045);
+    --code-bg:#0f151b;
+    --input:#111922;
+    --hover:rgba(56,189,248,.08);
+  }
+  :root[data-theme="light"]{
+    --bg:#eef3f9; --bg2:#f4f7fb; --surface:#ffffff; --raised:#f8fafc;
+    --border:#d8e0ea; --border2:#b9c6d6;
+    --text:#0f172a; --text2:#475569; --muted:#64748b;
+    --accent:#0284c7; --accent2:#0369a1;
+    --success:#15803d; --warning:#b45309; --danger:#b91c1c; --purple:#7c3aed;
+    --grid:rgba(15,23,42,.05);
+    --code-bg:#f1f5f9;
+    --input:#ffffff;
+    --hover:rgba(2,132,199,.07);
+    --shadow:0 18px 48px rgba(15,23,42,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  [hidden]{display:none !important}
+  body{
+    font-family:var(--sans);
+    background:
+      radial-gradient(1200px 600px at 12% -10%, rgba(56,189,248,.10), transparent 60%),
+      radial-gradient(900px 500px at 92% 0%, rgba(34,197,94,.07), transparent 55%),
+      var(--bg);
+    color:var(--text);
+    min-height:100vh;
+  }
+  .wrap{max-width:1480px;margin:0 auto;padding:26px 28px 72px}
+  header.top{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+    padding:18px 0 22px;border-bottom:1px solid var(--border);
+  }
+  .brand{display:flex;gap:14px;align-items:flex-start}
+  .logo{
+    width:44px;height:44px;border-radius:12px;flex:none;
+    background:linear-gradient(145deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;color:#04121c;font-weight:800;font-size:18px;
+    box-shadow:0 10px 24px rgba(56,189,248,.28);
+  }
+  h1{font-size:24px;line-height:1.2;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--text2);font-size:13px;line-height:1.6;max-width:920px}
+  .meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;
+    border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:11px;
+  }
+  .pill b{color:var(--text);font-weight:600}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.15)}
+  .dot.green{background:var(--success);box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+  .dot.amber{background:var(--warning);box-shadow:0 0 0 3px rgba(245,158,11,.15)}
+  .dot.red{background:var(--danger);box-shadow:0 0 0 3px rgba(239,68,68,.15)}
+  .theme-btn{
+    flex:none;border:1px solid var(--border);background:var(--surface);color:var(--text2);
+    border-radius:999px;padding:8px 13px;font-size:12px;cursor:pointer;font-family:inherit;
+    transition:border-color var(--ease),color var(--ease),background var(--ease);
+  }
+  .theme-btn:hover{border-color:var(--accent);color:var(--text)}
+  .theme-btn:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{
+    outline:2px solid var(--accent);outline-offset:2px;
+  }
+  .toc{
+    position:sticky;top:0;z-index:30;margin:0 -28px 0;padding:10px 28px;
+    background:color-mix(in srgb,var(--bg) 88%,transparent);
+    backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
+    display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  }
+  .toc a{
+    color:var(--text2);text-decoration:none;font-size:12px;padding:5px 9px;border-radius:999px;
+    border:1px solid transparent;transition:all var(--ease);
+  }
+  .toc a:hover{color:var(--text);background:var(--hover)}
+  .toc a.active{color:var(--accent);border-color:rgba(56,189,248,.35);background:rgba(56,189,248,.08)}
+  .lede{margin:18px 0 0;color:var(--text2);font-size:13.5px;line-height:1.75;max-width:1120px}
+  .lede code{font-family:var(--mono);font-size:12px;background:var(--code-bg);border:1px solid var(--border);border-radius:6px;padding:1px 5px;color:var(--text)}
+  .section{margin-top:32px;scroll-margin-top:64px}
+  .section-head{margin:0 0 14px}
+  .section h2{font-size:17px;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  .section h2 .num{
+    font-family:var(--mono);font-size:11px;color:var(--accent);border:1px solid rgba(56,189,248,.35);
+    background:rgba(56,189,248,.08);border-radius:999px;padding:2px 7px;
+  }
+  .section .desc{color:var(--muted);font-size:12px;margin:0;line-height:1.6}
+  .split{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(360px,.85fr);gap:18px;align-items:start}
+  @media(max-width:1180px){.split{grid-template-columns:1fr}}
+  .card{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .card-head{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:13px 16px;border-bottom:1px solid var(--border);background:var(--raised);
+  }
+  .card-head h3{margin:0;font-size:13px;letter-spacing:.2px}
+  .card-head .hint{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .card-body{padding:16px}
+  .stage{
+    position:relative;border-radius:var(--radius-sm);overflow:hidden;
+    background:
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+      var(--bg2);
+    background-size:22px 22px,22px 22px,auto;
+    border:1px solid var(--border);
+    padding:18px;
+  }
+  .review-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+  @media(max-width:1180px){.review-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:700px){.review-grid{grid-template-columns:1fr}}
+  .review-card{
+    border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:13px 14px;
+    display:flex;flex-direction:column;gap:7px;min-height:136px;
+  }
+  .review-card .rc-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .review-card .rc-name{font-size:12px;font-weight:700}
+  .review-card .rc-status{font-size:10px;padding:2px 7px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .review-card .rc-status.ok{color:var(--success);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08)}
+  .review-card .rc-status.warn{color:var(--warning);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+  .review-card p{margin:0;color:var(--text2);font-size:11.5px;line-height:1.65}
+  .review-card code{font-family:var(--mono);font-size:10.5px;color:var(--text)}
+  .btn{
+    border:1px solid var(--border);background:var(--surface);color:var(--text2);
+    border-radius:8px;padding:7px 11px;font-size:12px;font-family:inherit;cursor:pointer;
+    transition:all var(--ease);display:inline-flex;align-items:center;gap:6px;white-space:nowrap;
+  }
+  .btn:hover{border-color:var(--accent);color:var(--text);background:var(--hover)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn.primary{background:linear-gradient(180deg,var(--accent),var(--accent2));border-color:transparent;color:#04121c;font-weight:700}
+  .btn.primary:hover{filter:brightness(1.05);color:#04121c}
+  .btn.success{border-color:rgba(34,197,94,.4);color:var(--success);background:rgba(34,197,94,.08)}
+  .btn.danger{border-color:rgba(239,68,68,.4);color:var(--danger);background:rgba(239,68,68,.08)}
+  .btn.amber{border-color:rgba(245,158,11,.4);color:var(--warning);background:rgba(245,158,11,.08)}
+  .btn.small{padding:4px 8px;font-size:11px;border-radius:6px}
+  .controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}
+  @media(max-width:900px){.controls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:560px){.controls{grid-template-columns:1fr}}
+  .control{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+  .control label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--text2);margin-bottom:6px}
+  .control label b{font-family:var(--mono);color:var(--text);font-weight:600}
+  .control select,.control input[type=number],.control input[type=text]{
+    width:100%;background:var(--input);border:1px solid var(--border);border-radius:7px;
+    color:var(--text);font-family:inherit;font-size:12px;padding:6px 8px;outline:none;
+  }
+  .control input[type=range]{width:100%;accent-color:var(--accent);height:18px}
+  .check{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--text2);margin-top:8px;cursor:pointer}
+  .check input{accent-color:var(--accent)}
+  .seg{display:flex;gap:4px;background:var(--input);border:1px solid var(--border);border-radius:8px;padding:3px}
+  .seg button{
+    flex:1;border:0;background:transparent;color:var(--muted);border-radius:6px;padding:5px 6px;
+    font-family:inherit;font-size:11px;cursor:pointer;transition:all var(--ease);
+  }
+  .seg button:hover{color:var(--text)}
+  .seg button.on{background:var(--raised);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}
+  .mock-panel{display:flex;flex-direction:column;gap:2px}
+  .mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border)}
+  .mrow:last-child{border-bottom:0}
+  .mrow .k{font-size:11px;color:var(--text2);min-width:86px}
+  .mrow .v{font-size:11px;color:var(--text);font-family:var(--mono);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mrow .v.muted{color:var(--muted)}
+  .mrow .v.accent{color:var(--accent)}
+  .tag{
+    display:inline-flex;align-items:center;gap:5px;padding:2px 7px;border-radius:999px;
+    border:1px solid var(--border);background:var(--raised);color:var(--text2);font-size:10px;white-space:nowrap;
+  }
+  .tag.ok{color:var(--success);border-color:rgba(34,197,94,.35);background:rgba(34,197,94,.08)}
+  .tag.warn{color:var(--warning);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+  .tag.bad{color:var(--danger);border-color:rgba(239,68,68,.35);background:rgba(239,68,68,.08)}
+  .tag.accent{color:var(--accent);border-color:rgba(56,189,248,.35);background:rgba(56,189,248,.08)}
+  .state-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .state-strip .lbl{font-size:10px;color:var(--muted);min-width:38px}
+  .btn.hover-demo{border-color:var(--accent);color:var(--text);background:var(--hover)}
+  .btn.pressed-demo{transform:translateY(1px);border-color:var(--accent2);background:var(--hover)}
+  .btn.focus-demo{outline:2px solid var(--accent);outline-offset:2px}
+  .note{
+    margin-top:12px;padding:10px 12px;border-radius:8px;border:1px solid var(--border);
+    background:var(--code-bg);color:var(--text2);font-size:11.5px;line-height:1.7;
+  }
+  .note b{color:var(--text)}
+  .note code{font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+  .warnbox{border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.07);color:var(--warning)}
+  .state-preview{
+    display:flex;align-items:center;gap:16px;min-height:150px;padding:18px 20px;border-radius:12px;
+    border:1px solid var(--border2);background:linear-gradient(180deg,var(--surface),var(--bg2));
+    cursor:default;transition:border-color var(--ease),box-shadow var(--ease),transform var(--ease);
+    position:relative;overflow:hidden;
+  }
+  .state-preview::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(420px 160px at 20% 0%,rgba(56,189,248,.10),transparent 70%);
+  }
+  .state-preview[role=button]{cursor:pointer}
+  .state-preview[role=button]:hover{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.12)}
+  .state-preview:active{transform:translateY(1px)}
+  .state-preview.text-only .sv-icon{display:none}
+  .state-preview.image-only .sv-copy{display:none}
+  .sv-icon{
+    width:74px;height:74px;flex:none;border-radius:16px;display:grid;place-items:center;
+    background:rgba(0,0,0,.14);border:1px solid var(--border);position:relative;z-index:1;
+  }
+  :root[data-theme="light"] .sv-icon{background:rgba(15,23,42,.04)}
+  .sv-icon svg{width:58px;height:58px;display:block}
+  .sv-copy{display:flex;flex-direction:column;gap:4px;min-width:0;position:relative;z-index:1}
+  .sv-text{font-size:24px;font-weight:800;letter-spacing:.4px;line-height:1.15}
+  .sv-sub{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .sv-badge{
+    margin-left:auto;align-self:flex-start;font-family:var(--mono);font-size:10px;color:var(--text2);
+    border:1px solid var(--border);background:var(--raised);border-radius:999px;padding:3px 8px;
+    position:relative;z-index:1;white-space:nowrap;
+  }
+  .sv-badge.bad{color:var(--warning);border-color:rgba(245,158,11,.35);background:rgba(245,158,11,.08)}
+  .variant-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+  @media(max-width:700px){.variant-grid{grid-template-columns:1fr}}
+  .variant-card{
+    border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:12px;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .variant-card .vc-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .variant-card .vc-name{font-size:11.5px;font-weight:700}
+  .variant-card .vc-body{display:flex;align-items:center;gap:10px;min-height:52px}
+  .variant-card .vc-icon{width:44px;height:44px;flex:none;border-radius:10px;display:grid;place-items:center;background:rgba(0,0,0,.12);border:1px solid var(--border)}
+  :root[data-theme="light"] .variant-card .vc-icon{background:rgba(15,23,42,.03)}
+  .variant-card .vc-icon svg{width:34px;height:34px}
+  .variant-card .vc-text{font-size:14px;font-weight:700}
+  .variant-card .vc-sub{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px}
+  .manager-table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .manager-table th{
+    text-align:left;color:var(--muted);font-weight:600;font-size:10.5px;padding:7px 9px;
+    border-bottom:1px solid var(--border);background:var(--raised);
+  }
+  .manager-table td{padding:7px 9px;border-bottom:1px dashed var(--border);color:var(--text2)}
+  .manager-table tr:last-child td{border-bottom:0}
+  .manager-table .mono{font-family:var(--mono);color:var(--text)}
+  .color-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .mini-icon{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:rgba(0,0,0,.12);border:1px solid var(--border);vertical-align:middle;margin-right:6px}
+  :root[data-theme="light"] .mini-icon{background:rgba(15,23,42,.03)}
+  .mini-icon svg{width:16px;height:16px}
+  .log{
+    list-style:none;margin:10px 0 0;padding:0;max-height:150px;overflow:auto;
+    border:1px solid var(--border);border-radius:8px;background:var(--code-bg);
+  }
+  .log li{padding:6px 9px;border-bottom:1px dashed var(--border);font-size:10.5px;color:var(--text2);font-family:var(--mono)}
+  .log li:last-child{border-bottom:0}
+  .log li b{color:var(--accent);font-weight:600}
+  .sp-page{
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg2);
+    min-height:250px;display:flex;flex-direction:column;
+  }
+  .sp-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;
+    border-bottom:1px solid var(--border);background:var(--raised);
+  }
+  .sp-head .sp-name{font-size:12px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .sp-head .sp-code{font-family:var(--mono);font-size:10px;color:var(--muted)}
+  .sp-body{padding:12px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .sp-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .sp-kpi{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:8px 9px}
+  .sp-kpi .k{font-size:9.5px;color:var(--muted)}
+  .sp-kpi .v{font-family:var(--mono);font-size:13px;font-weight:700;margin-top:2px}
+  .sp-trend{border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:8px;min-height:70px}
+  .sp-trend svg{width:100%;height:56px;display:block}
+  .sp-lamp{display:flex;align-items:center;gap:7px;font-size:10px;color:var(--muted)}
+  .sp-lamp i{width:8px;height:8px;border-radius:50%;background:var(--success);box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+  .sp-placeholder{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    border:1px dashed var(--border2);border-radius:8px;margin:12px;color:var(--muted);text-align:center;
+    min-height:180px;background:rgba(0,0,0,.06);
+  }
+  :root[data-theme="light"] .sp-placeholder{background:rgba(15,23,42,.02)}
+  .sp-placeholder .ph-icon{font-size:24px;opacity:.8}
+  .sp-placeholder .ph-title{font-size:12px;font-weight:700;color:var(--text2)}
+  .sp-placeholder .ph-sub{font-size:10.5px;line-height:1.6;max-width:260px}
+  .sp-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:12px}
+  @media(max-width:900px){.sp-grid{grid-template-columns:1fr}}
+  .alarm-banner{
+    border:1px solid rgba(239,68,68,.45);background:linear-gradient(90deg,rgba(239,68,68,.16),rgba(239,68,68,.05));
+    border-radius:12px;padding:13px 14px;display:flex;align-items:flex-start;gap:12px;
+    transition:all var(--ease);
+  }
+  .alarm-banner.recovered{border-color:rgba(245,158,11,.45);background:linear-gradient(90deg,rgba(245,158,11,.16),rgba(245,158,11,.04))}
+  .alarm-banner.acknowledged{border-color:rgba(56,189,248,.45);background:linear-gradient(90deg,rgba(56,189,248,.14),rgba(56,189,248,.04))}
+  .alarm-banner.normal{border-color:rgba(34,197,94,.4);background:linear-gradient(90deg,rgba(34,197,94,.12),rgba(34,197,94,.03))}
+  .alarm-icon{
+    width:34px;height:34px;border-radius:10px;flex:none;display:grid;place-items:center;
+    background:rgba(239,68,68,.16);color:var(--danger);font-weight:800;font-size:16px;
+  }
+  .alarm-banner.recovered .alarm-icon{background:rgba(245,158,11,.16);color:var(--warning)}
+  .alarm-banner.acknowledged .alarm-icon{background:rgba(56,189,248,.14);color:var(--accent)}
+  .alarm-banner.normal .alarm-icon{background:rgba(34,197,94,.14);color:var(--success)}
+  .alarm-copy{min-width:0;flex:1}
+  .alarm-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .alarm-meta{font-size:10.5px;color:var(--text2);margin-top:4px;font-family:var(--mono);line-height:1.6}
+  .alarm-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+  .event-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}
+  @media(max-width:900px){.event-grid{grid-template-columns:1fr}}
+  .event-card{
+    border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:11px;
+    display:flex;flex-direction:column;gap:8px;transition:border-color var(--ease),box-shadow var(--ease);
+  }
+  .event-card.fired{border-color:var(--accent);box-shadow:0 0 0 3px rgba(56,189,248,.14)}
+  .event-card .ec-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .event-card .ec-name{font-size:11.5px;font-weight:700}
+  .event-card .ec-sub{font-size:10px;color:var(--muted);line-height:1.55}
+  .event-card select{
+    width:100%;background:var(--input);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);font-family:inherit;font-size:10.5px;padding:5px 6px;
+  }
+  .event-card .ec-actions{display:flex;flex-wrap:wrap;gap:4px}
+  .timeline{list-style:none;margin:12px 0 0;padding:0;border:1px solid var(--border);border-radius:10px;background:var(--code-bg);max-height:190px;overflow:auto}
+  .timeline li{display:flex;gap:9px;padding:8px 10px;border-bottom:1px dashed var(--border);font-size:10.5px;color:var(--text2)}
+  .timeline li:last-child{border-bottom:0}
+  .timeline .t{font-family:var(--mono);color:var(--muted);flex:none}
+  .timeline .e{color:var(--text)}
+  .timeline .a{color:var(--accent);font-family:var(--mono)}
+  .bit-word{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 10px}
+  .bit-cell{
+    width:42px;height:46px;border-radius:8px;border:1px solid var(--border);background:var(--input);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    font-family:var(--mono);font-size:11px;color:var(--muted);transition:all var(--ease);
+  }
+  .bit-cell .idx{font-size:9px;opacity:.7}
+  .bit-cell.on{border-color:rgba(34,197,94,.55);background:rgba(34,197,94,.12);color:var(--success);box-shadow:0 0 0 2px rgba(34,197,94,.08)}
+  .bit-cell.target{border-color:rgba(56,189,248,.55);box-shadow:0 0 0 2px rgba(56,189,248,.12)}
+  .bit-summary{font-family:var(--mono);font-size:10.5px;color:var(--text2);margin:0 0 10px}
+  .bit-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .action-editor{border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:11px;margin-top:12px}
+  .action-editor .ae-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .action-editor .ae-title{font-size:11.5px;font-weight:700}
+  .action-editor .ae-row{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px;align-items:center;margin-top:6px}
+  .action-editor .ae-row label{font-size:10.5px;color:var(--muted)}
+  .action-editor select,.action-editor input{
+    width:100%;background:var(--input);border:1px solid var(--border);border-radius:6px;
+    color:var(--text);font-family:inherit;font-size:10.5px;padding:5px 6px;
+  }
+  .action-editor .ae-summary{margin-top:9px;padding:7px 8px;border-radius:6px;background:var(--code-bg);border:1px dashed var(--border);font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+  .review-table{width:100%;border-collapse:collapse;font-size:11.5px}
+  .review-table th{text-align:left;color:var(--muted);font-size:10.5px;font-weight:600;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--raised)}
+  .review-table td{padding:9px 10px;border-bottom:1px dashed var(--border);color:var(--text2);vertical-align:top;line-height:1.65}
+  .review-table td:first-child{color:var(--text);font-weight:600;white-space:nowrap}
+  .review-table tr:last-child td{border-bottom:0}
+  .review-table code{font-family:var(--mono);font-size:10.5px;color:var(--accent)}
+  .qlist{margin:0;padding-left:20px;color:var(--text2);font-size:12px;line-height:1.9}
+  .qlist b{color:var(--text)}
+  .footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--border);color:var(--muted);font-size:11px;line-height:1.8}
+  .footer a{color:var(--accent);text-decoration:none}
+  .footer a:hover{text-decoration:underline}
+  .kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:1px 4px;color:var(--text2)}
+  @media(prefers-reduced-motion:reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="logo">P1</div>
+      <div>
+        <h1>SCADA P1 控件与能力 · Web 设计基线 <span style="font-family:var(--mono);font-size:12px;color:var(--muted)">v1</span></h1>
+        <div class="sub">
+          StateView（图形开关 / 图形 IO 域 / 字指示灯）· SubPage 画中画 · 报警生命周期事件 · 位操作动作。
+          本页是设计稿与代码评审结论的可交互演示，<b>不是已复刻界面</b>。
+        </div>
+        <div class="meta">
+          <span class="pill"><span class="dot green"></span><b>P1-1 已落地</b> 文本列表 + ComboBox</span>
+          <span class="pill"><span class="dot"></span><b>P1-2~P1-5</b> 本稿范围</span>
+          <span class="pill"><span class="dot amber"></span><b>SubPage</b> 建议先只读</span>
+          <span class="pill"><b>2026-10-24</b> · 未复刻</span>
+        </div>
+      </div>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button">切换浅色</button>
+  </header>
+
+  <nav class="toc" aria-label="设计稿目录">
+    <a href="#review" class="active">评审结论</a>
+    <a href="#stateview">StateView</a>
+    <a href="#subpage">SubPage</a>
+    <a href="#alarm">报警事件</a>
+    <a href="#bit">位操作</a>
+    <a href="#review-table">实施切分</a>
+    <a href="#questions">待拍板</a>
+  </nav>
+
+  <p class="lede">
+    评审口径：<b>能复用现有契约就不新造</b>。P1-1 已经把“方案级文本列表 + 解析器 + 快照”打通，
+    StateView 直接复用；位操作在 <code>BitButtonElement</code> 上已有五种模式，缺的只是动作表；
+    报警引擎已有生命周期事件，缺的是页面级三条钩子；SubPage 是唯一需要新“嵌套画布 + 数据泵”的一项。
+  </p>
+
+  <section class="section" id="review">
+    <div class="section-head">
+      <h2><span class="num">00</span> 代码评审结论</h2>
+      <p class="desc">先看代码再画图：四项的成本、复用面与建议批次。</p>
+    </div>
+    <div class="review-grid">
+      <div class="review-card">
+        <div class="rc-top"><span class="rc-name">StateView</span><span class="rc-status ok">复用高</span></div>
+        <p>复用 <code>ScadaStateList</code> / <code>StateListResolver</code> / <code>StateListMissing</code>。列表条目要追加 <code>Image</code>、<code>Color</code>、<code>DefaultImage</code>；一个 TypeKey + 三个预设。</p>
+      </div>
+      <div class="review-card">
+        <div class="rc-top"><span class="rc-name">SubPage</span><span class="rc-status warn">成本最高</span></div>
+        <p>主数据泵只扫主画布控件，嵌套画布不会自动建表。建议 P1a 固定页 + 只读 + 活数据，P1b 再做变量切页与交互。</p>
+      </div>
+      <div class="review-card">
+        <div class="rc-top"><span class="rc-name">报警事件</span><span class="rc-status ok">引擎已有</span></div>
+        <p><code>AlarmRaised</code> / <code>AlarmChanged</code> / <code>AlarmCleared</code> 已在；补三条页面事件、来源过滤与 UI 线程路由。</p>
+      </div>
+      <div class="review-card">
+        <div class="rc-top"><span class="rc-name">位操作</span><span class="rc-status ok">最小改动</span></div>
+        <p><code>BitButtonElement</code> 已有置位/复位/取反/按下 ON/按下 OFF。动作表补 <code>SetBit</code> / <code>ResetBit</code> / <code>ToggleBit</code> + <code>BitIndex</code>。</p>
+      </div>
+    </div>
+    <div class="note">
+      <b>建议顺序：</b>StateView（M）→ 位操作（S）→ 报警事件（S/M）→ SubPage P1a（M）。
+      SubPage 不排第一批，因为它会引入“嵌套画布 + 第二份数据泵 + 事件宿主判断”三件新东西。
+      详细代码引用见 <code>docs/方案设计/2026-10-24-SCADA-P1代码评审与设计切分.md</code>。
+    </div>
+  </section>
+
+  <section class="section" id="stateview">
+    <div class="section-head">
+      <h2><span class="num">01</span> StateView · 一个控件覆盖三个场景</h2>
+      <p class="desc">字指示灯 = Text；图形 IO 域 = Image + 只读；图形开关 = Image + 点击切换。三者的数据源是同一份方案级文本列表。</p>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>运行态预览</h3><span class="hint">Hmi.StateView</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="state-preview" id="svPreview" role="button" tabindex="0" aria-label="StateView 当前预览">
+              <div class="sv-icon" id="svPreviewIcon"></div>
+              <div class="sv-copy">
+                <div class="sv-text" id="svPreviewText">运行中</div>
+                <div class="sv-sub" id="svPreviewSub">设备状态 · 值 1</div>
+              </div>
+              <div class="sv-badge" id="svPreviewBadge">TextAndImage</div>
+            </div>
+            <div class="variant-grid">
+              <div class="variant-card">
+                <div class="vc-head"><span class="vc-name">图形 IO 域</span><span class="tag">Image · None</span></div>
+                <div class="vc-body">
+                  <div class="vc-icon" id="svIoIcon"></div>
+                  <div><div class="vc-text" id="svIoText">运行中</div><div class="vc-sub" id="svIoSub">只读 · 值 1</div></div>
+                </div>
+              </div>
+              <div class="variant-card">
+                <div class="vc-head"><span class="vc-name">图形开关</span><span class="tag accent">Image · Toggle</span></div>
+                <div class="vc-body">
+                  <button class="vc-icon" id="svSwitchBtn" type="button" aria-pressed="true" title="点击切换 0/1" style="cursor:pointer;padding:0"></button>
+                  <div><div class="vc-text" id="svSwitchText">运行中</div><div class="vc-sub" id="svSwitchSub">点击切换 · 值 1</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="note warnbox" id="svMissingBanner" hidden>
+              <b>未找到文本列表。</b>StateListId 指向的列表已删除或解析器未注入；控件不静默回退旧 Options，避免“配了却没生效”看起来像“本来就没配”。
+            </div>
+          </div>
+          <div class="controls">
+            <div class="control">
+              <label>Value <b id="svValueLabel">1</b></label>
+              <input id="svValue" type="range" min="0" max="8" step="1" value="1" />
+              <div class="check" style="margin-top:2px">3~8 = 无匹配，显示 DefaultText</div>
+            </div>
+            <div class="control">
+              <label>Presentation</label>
+              <select id="svPresentation">
+                <option value="Text">Text · 字指示灯</option>
+                <option value="Image">Image · 图形 IO</option>
+                <option value="TextAndImage" selected>TextAndImage · 图文</option>
+              </select>
+              <div class="check"><input id="svMissing" type="checkbox" /> 模拟列表缺失</div>
+            </div>
+            <div class="control">
+              <label>状态列表 <b>共享</b></label>
+              <select id="svList">
+                <option value="machine" selected>设备状态（0/1/2）</option>
+                <option value="mode">运行模式（0/1/2）</option>
+              </select>
+              <div class="check"><input id="svMissing2" type="checkbox" /> 同上</div>
+            </div>
+            <div class="control">
+              <label>Interaction</label>
+              <select id="svInteraction">
+                <option value="None" selected>None · 只读</option>
+                <option value="Toggle">Toggle · 点击 0/1</option>
+                <option value="WriteValue">WriteValue · 写定值</option>
+              </select>
+              <div class="control" style="padding:0;border:0;background:transparent;margin-top:6px">
+                <label style="margin:0">ClickValue <b id="svClickValueLabel">0</b></label>
+                <input id="svClickValue" type="number" min="0" max="8" value="0" />
+              </div>
+            </div>
+          </div>
+          <ul class="log" id="svLog" aria-live="polite">
+            <li><b>10:24:01</b> 初始值 1 → 运行中（设备状态）</li>
+          </ul>
+        </div>
+      </div>
+      <aside class="card">
+        <div class="card-head"><h3>属性面板（节选）</h3><span class="hint">设计稿</span></div>
+        <div class="card-body mock-panel">
+          <div class="mrow"><span class="k">数据</span><span class="v accent">StateListId</span></div>
+          <div class="mrow"><span class="k">当前值</span><span class="v">Value = 1</span></div>
+          <div class="mrow"><span class="k">呈现方式</span><span class="v">TextAndImage</span></div>
+          <div class="mrow"><span class="k">交互</span><span class="v">None</span></div>
+          <div class="mrow"><span class="k">图片缩放</span><span class="v">Uniform</span></div>
+          <div class="mrow"><span class="k">状态列表</span><span class="v">设备状态 <span class="tag ok">3 条</span></span></div>
+          <div class="mrow"><span class="k">管理</span><span class="v accent">管理文本列表…</span></div>
+          <div class="note">
+            <b>预设：</b>字指示灯 = Text + None；图形 IO 域 = Image + None；图形开关 = Image + Toggle。
+            预设只改默认值，不新增 TypeKey。
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="card-head"><h3>文本列表管理器 · 条目扩展</h3><span class="hint">P1-2 在 P1-1 表上追加 Image / Color</span></div>
+      <div class="card-body">
+        <table class="manager-table">
+          <thead><tr><th style="width:64px">值</th><th>文字</th><th>图片（方案内相对路径）</th><th>状态色</th><th>引用</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">0</td><td>停止</td><td><span class="mini-icon" id="mtIcon0"></span><span class="mono">Image\pump-stop.svg</span></td><td><span class="color-dot" style="background:#7c8a99"></span>#7C8A99</td><td><span class="tag">2 个图元</span></td></tr>
+            <tr><td class="mono">1</td><td>运行中</td><td><span class="mini-icon" id="mtIcon1"></span><span class="mono">Image\pump-run.svg</span></td><td><span class="color-dot" style="background:#22c55e"></span>#22C55E</td><td><span class="tag">2 个图元</span></td></tr>
+            <tr><td class="mono">2</td><td>故障</td><td><span class="mini-icon" id="mtIcon2"></span><span class="mono">Image\pump-fault.svg</span></td><td><span class="color-dot" style="background:#ef4444"></span>#EF4444</td><td><span class="tag">2 个图元</span></td></tr>
+            <tr><td class="mono">—</td><td colspan="2"><span class="mono">DefaultText = “—” · DefaultImage = 虚线占位</span></td><td><span class="tag warn">无匹配</span></td><td><span class="tag">不占引用</span></td></tr>
+          </tbody>
+        </table>
+        <div class="note">
+          <b>兼容：</b>旧 <code>.vms</code> 里 <code>Image</code> / <code>Color</code> 为空时，StateView 行为与 P1-1 的 ComboBox 文本态一致；
+          <b>引用数</b>同时统计 ComboBox 与 StateView，删除列表前仍给二次确认。
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <div class="card-head"><h3>交互五态与数据态</h3><span class="hint">R111 六项 · 五态</span></div>
+      <div class="card-body">
+        <div class="state-strip">
+          <span class="lbl">按钮</span>
+          <button class="btn" type="button">默认</button>
+          <button class="btn hover-demo" type="button">悬停</button>
+          <button class="btn pressed-demo" type="button">按下</button>
+          <button class="btn focus-demo" type="button">焦点</button>
+          <button class="btn" type="button" disabled>禁用</button>
+        </div>
+        <div class="state-strip" style="margin-top:10px">
+          <span class="lbl">数据</span>
+          <span class="tag ok">正常</span>
+          <span class="tag warn">列表缺失</span>
+          <span class="tag warn">无匹配</span>
+          <span class="tag bad">图片缺失</span>
+          <span class="tag accent">权限只读</span>
+        </div>
+        <div class="note">
+          悬停 / 按下 / 焦点为设计基线展示态；实际控件由 WPF 主题触发器与键盘焦点实现。
+          数据态里“列表缺失 / 无匹配 / 图片缺失 / 权限只读”都必须有独立文案，不允许静默回落成正常态。
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="subpage">
+    <div class="section-head">
+      <h2><span class="num">02</span> SubPage · 把一张页嵌进矩形</h2>
+      <p class="desc">P1a 建议：固定页 + 只读 + 活数据；变量切页和子页交互放 P1b。下面是 P1a 的交互演示，含缺页、无权、未选三态。</p>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>运行态预览 · 产线总览</h3><span class="hint">Hmi.SubPage</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="sp-grid">
+              <div class="sp-page" id="spTile">
+                <div class="sp-head"><div class="sp-name"><span class="dot green"></span><span id="spTileName">贴装单元 A</span></div><span class="sp-code" id="spTileCode">A-01</span></div>
+                <div class="sp-body" id="spTileBody"></div>
+              </div>
+              <div class="sp-page" id="spTileB">
+                <div class="sp-head"><div class="sp-name"><span class="dot"></span><span id="spTileBName">检测单元 B</span></div><span class="sp-code">B-02</span></div>
+                <div class="sp-body" id="spTileBBody"></div>
+              </div>
+            </div>
+            <div class="note" id="spNote">
+              <b>P1a 边界：</b>嵌入页只读，子页里的按钮不接收事件；数据绑定仍然实时刷新。
+              子页交互需要把“活跃子页”纳入 <code>ScadaRuntime.RaiseElementEvent</code> 的宿主判断，放 P1b。
+            </div>
+          </div>
+          <div class="controls">
+            <div class="control">
+              <label>PageSource</label>
+              <select id="spSource">
+                <option value="Fixed" selected>Fixed · 固定页</option>
+                <option value="FollowVariable">FollowVariable · 跟随变量</option>
+              </select>
+            </div>
+            <div class="control">
+              <label>目标画面</label>
+              <select id="spTarget">
+                <option value="lineA" selected>贴装单元 A</option>
+                <option value="lineB">检测单元 B</option>
+              </select>
+            </div>
+            <div class="control">
+              <label>变量值 <b id="spVarLabel">1</b></label>
+              <div class="seg" id="spVarSeg">
+                <button type="button" data-v="0">0</button>
+                <button type="button" data-v="1" class="on">1</button>
+                <button type="button" data-v="2">2</button>
+              </div>
+              <div class="check" style="margin-top:6px">0→A · 1→B · 2→缺页</div>
+            </div>
+            <div class="control">
+              <label>异常模拟</label>
+              <div class="check" style="margin-top:0"><input id="spMissing" type="checkbox" /> 目标页已删除</div>
+              <div class="check"><input id="spDenied" type="checkbox" /> 当前角色无权</div>
+              <div class="check"><input id="spNoTarget" type="checkbox" /> 未选择画面</div>
+            </div>
+          </div>
+          <ul class="log" id="spLog" aria-live="polite">
+            <li><b>10:24:01</b> 嵌入「贴装单元 A」· Fixed · Uniform</li>
+          </ul>
+        </div>
+      </div>
+      <aside class="card">
+        <div class="card-head"><h3>属性面板（节选）</h3><span class="hint">设计稿</span></div>
+        <div class="card-body mock-panel">
+          <div class="mrow"><span class="k">画面</span><span class="v accent">贴装单元 A</span></div>
+          <div class="mrow"><span class="k">来源</span><span class="v">Fixed</span></div>
+          <div class="mrow"><span class="k">跟随变量</span><span class="v muted">（仅 FollowVariable）</span></div>
+          <div class="mrow"><span class="k">缩放</span><span class="v">Uniform</span></div>
+          <div class="mrow"><span class="k">显示背景</span><span class="v">是</span></div>
+          <div class="mrow"><span class="k">交互</span><span class="v muted">P1a 固定关闭</span></div>
+          <div class="mrow"><span class="k">缺页时</span><span class="v">占位 + 保留上次</span></div>
+          <div class="note warnbox">
+            <b>代码评审：</b>主画布的数据泵不会枚举嵌套画布控件；SubPage 需要自带 <code>ScadaRuntimeBinder</code>，
+            卸载时必须 <code>Stop()</code> 退订阅。Web 快照要递归带目标页，并拒绝 A↔B 循环。
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section" id="alarm">
+    <div class="section-head">
+      <h2><span class="num">03</span> 报警生命周期事件</h2>
+      <p class="desc">页面级三条事件：报警激活 / 报警取消 / 报警确认。每条可限定“全部报警”或某一具体报警。</p>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>运行态预览 · 报警联动</h3><span class="hint">ScadaPageEvents</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="alarm-banner" id="alarmBanner">
+              <div class="alarm-icon" id="alarmIcon">!</div>
+              <div class="alarm-copy">
+                <div class="alarm-title" id="alarmTitle">主轴温度过高 <span class="tag bad" id="alarmStateTag">激活 · 未确认</span></div>
+                <div class="alarm-meta" id="alarmMeta">Critical · 变量 Spindle.Temp · 触发值 86.4 ℃ · 10:24:01</div>
+              </div>
+            </div>
+            <div class="alarm-actions">
+              <button class="btn danger" id="alarmTrigger" type="button" disabled>触发报警</button>
+              <button class="btn amber" id="alarmRecover" type="button">恢复条件</button>
+              <button class="btn primary" id="alarmAck" type="button">操作员确认</button>
+              <button class="btn" id="alarmReset" type="button">复位演示</button>
+            </div>
+            <div class="event-grid">
+              <div class="event-card" data-event="activated">
+                <div class="ec-head"><span class="ec-name">报警激活</span><input type="checkbox" checked aria-label="启用报警激活" /></div>
+                <div class="ec-sub">条件从正常进入激活时触发</div>
+                <select aria-label="报警激活来源"><option>全部报警</option><option>主轴温度过高</option><option>气压低</option></select>
+                <div class="ec-actions"><span class="tag accent">切换画面 → 报警详情</span><span class="tag">记录日志</span></div>
+              </div>
+              <div class="event-card" data-event="recovered">
+                <div class="ec-head"><span class="ec-name">报警取消</span><input type="checkbox" checked aria-label="启用报警取消" /></div>
+                <div class="ec-sub">条件恢复时触发一次；确认与否不影响</div>
+                <select aria-label="报警取消来源"><option>主轴温度过高</option><option>全部报警</option><option>气压低</option></select>
+                <div class="ec-actions"><span class="tag">记录日志</span><span class="tag accent">切回总览</span></div>
+              </div>
+              <div class="event-card" data-event="acknowledged">
+                <div class="ec-head"><span class="ec-name">报警确认</span><input type="checkbox" checked aria-label="启用报警确认" /></div>
+                <div class="ec-sub">操作员确认成功那一刻触发</div>
+                <select aria-label="报警确认来源"><option>全部报警</option><option>主轴温度过高</option><option>气压低</option></select>
+                <div class="ec-actions"><span class="tag accent">复位按钮</span><span class="tag">记录日志</span></div>
+              </div>
+            </div>
+            <ul class="timeline" id="alarmTimeline" aria-live="polite">
+              <li><span class="t">10:24:01</span><span class="e">报警激活 · 主轴温度过高</span><span class="a">→ 切换画面「报警详情」</span></li>
+              <li><span class="t">10:24:01</span><span class="e">动作执行 · 记录日志</span><span class="a">ScadaActionDispatcher</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <aside class="card">
+        <div class="card-head"><h3>页面事件配置（节选）</h3><span class="hint">设计稿</span></div>
+        <div class="card-body mock-panel">
+          <div class="mrow"><span class="k">事件组</span><span class="v">运行</span></div>
+          <div class="mrow"><span class="k">报警激活</span><span class="v">全部报警 <span class="tag ok">3 个动作</span></span></div>
+          <div class="mrow"><span class="k">报警取消</span><span class="v">主轴温度过高 <span class="tag ok">2 个动作</span></span></div>
+          <div class="mrow"><span class="k">报警确认</span><span class="v">全部报警 <span class="tag ok">2 个动作</span></span></div>
+          <div class="mrow"><span class="k">来源过滤</span><span class="v accent">Id 权威 · 名字兜底</span></div>
+          <div class="note">
+            <b>语义：</b>“取消激活”只在条件恢复时发一次；<code>Active → Acknowledged → Normal</code> 与
+            <code>Active → Recovered → Acknowledged</code> 两条路径都要覆盖，所以不能只靠 <code>AlarmChanged</code> 反推。
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section" id="bit">
+    <div class="section-head">
+      <h2><span class="num">04</span> 位操作动作</h2>
+      <p class="desc">动作表新增置位 / 复位 / 取反；布尔变量整体写，整型变量按 BitIndex 读-改-写。位按钮已有的五种模式不重复造。</p>
+    </div>
+    <div class="split">
+      <div class="card">
+        <div class="card-head"><h3>运行态预览 · 工位控制字</h3><span class="hint">SetBit / ResetBit / ToggleBit</span></div>
+        <div class="card-body">
+          <div class="stage">
+            <div class="bit-summary" id="bitSummary">Station.ControlWord · 0x08 · bit3 = 1</div>
+            <div class="bit-word" id="bitWord"></div>
+            <div class="bit-actions">
+              <button class="btn success" id="bitSet" type="button">置位 bit3</button>
+              <button class="btn danger" id="bitReset" type="button">复位 bit3</button>
+              <button class="btn amber" id="bitToggle" type="button">取反 bit3</button>
+              <button class="btn" id="bitClear" type="button">清零</button>
+            </div>
+            <div class="controls" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+              <div class="control">
+                <label>变量类型</label>
+                <div class="seg" id="bitTypeSeg">
+                  <button type="button" data-type="int" class="on">整型 Word</button>
+                  <button type="button" data-type="bool">布尔 Bool</button>
+                </div>
+              </div>
+              <div class="control">
+                <label>BitIndex <b id="bitIndexLabel">3</b></label>
+                <input id="bitIndex" type="number" min="0" max="7" value="3" />
+                <div class="check" style="margin-top:2px">演示低 8 位；实际 0~31</div>
+              </div>
+              <div class="control">
+                <label>异常模拟</label>
+                <div class="check" style="margin-top:0"><input id="bitMissing" type="checkbox" /> 变量缺失</div>
+                <div class="check"><input id="bitDenied" type="checkbox" /> 无写入权限</div>
+              </div>
+            </div>
+            <div class="note warnbox" id="bitBanner" hidden></div>
+            <ul class="log" id="bitLog" aria-live="polite">
+              <li><b>10:24:01</b> 初始 Station.ControlWord = 0x08（bit3=1）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <aside class="card">
+        <div class="card-head"><h3>动作编辑器（节选）</h3><span class="hint">ScadaAction</span></div>
+        <div class="card-body">
+          <div class="action-editor">
+            <div class="ae-head"><span class="ae-title">动作 #1</span><span class="tag accent">位操作</span></div>
+            <div class="ae-row"><label>类型</label><select id="aeType"><option value="SetBit" selected>置位</option><option value="ResetBit">复位</option><option value="ToggleBit">取反</option></select></div>
+            <div class="ae-row"><label>变量</label><select id="aeVariable"><option>Station.ControlWord</option><option>Station.StartFlag（Bool）</option><option>（还没选变量）</option></select></div>
+            <div class="ae-row"><label>BitIndex</label><input id="aeBitIndex" type="number" min="0" max="31" value="3" /></div>
+            <div class="ae-summary" id="aeSummary">Station.ControlWord.3 ← 1</div>
+          </div>
+          <div class="note">
+            <b>代码评审：</b>枚举末尾追加 <code>24/25/26</code>；<code>ScadaAction.BitIndex</code> 可空；
+            执行侧复用 <code>IScadaValueSource</code> + <code>TryWrite</code>，整型做读-改-写。
+            <code>BitButtonElement</code> 已覆盖图元级直接操作，动作表补的是“跨对象联动”。
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="section" id="review-table">
+    <div class="section-head">
+      <h2><span class="num">05</span> 实施切分与验收</h2>
+      <p class="desc">按成本从低到高；每项都先落契约与断言，再做界面。</p>
+    </div>
+    <div class="card">
+      <div class="card-body" style="padding:0">
+        <table class="review-table">
+          <thead><tr><th>项</th><th>复用</th><th>新增 / 改动</th><th>风险</th><th>批次</th></tr></thead>
+          <tbody>
+            <tr><td>StateView</td><td>StateList / Resolver / Missing / Writer / ImageResolver</td><td>控件 + 模板 + 描述符；条目 <code>Image</code>/<code>Color</code>/<code>DefaultImage</code>；快照 + Web 渲染器</td><td>条目契约扩展；图片缺失；引用数统计</td><td>P1-2 · M</td></tr>
+            <tr><td>位操作</td><td>变量寻址 / 写租约 / 审计格式</td><td><code>ScadaActionType</code> 24~26；<code>BitIndex</code>；dispatcher 读-改-写；动作编辑区</td><td>整型位号越界；布尔/整型分支</td><td>P1-3 · S</td></tr>
+            <tr><td>报警事件</td><td>AlarmEngine 三事件 / ScadaEventHook / 动作表</td><td>3 个事件枚举；<code>AlarmId</code>/<code>AlarmName</code> 过滤；页面级路由 + UI 线程</td><td>“取消激活”时点；报警删除后的过滤；线程</td><td>P1-4 · S/M</td></tr>
+            <tr><td>SubPage P1a</td><td>ScadaCanvas / ScadaPage / ImageResolver</td><td>嵌套画布 + 自有 binder；缺页/无权/未选；快照递归；循环校验</td><td>第二份数据泵；事件路由；卸载泄漏</td><td>P1-5 · M</td></tr>
+            <tr><td>SubPage P1b</td><td>P1a 全部</td><td>FollowVariable 切页；活跃子页事件宿主；交互</td><td>事件宿主判断；页面生命周期</td><td>后续 · L</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="note">
+      <b>验收口径：</b>每项都要有“正常 / 悬停 / 按下 / 焦点 / 禁用”五态；StateView 另测“列表缺失 / 无匹配 / 图片缺失 / 权限拒绝”；
+      SubPage 另测“未选 / 缺页 / 无权 / 循环引用”；报警事件另测“全部 vs 指定 / 非当前页不响 / 确认后不重复”；
+      位操作另测“Bool / 整型 bit0 / bit31 / 越界 / 变量缺失 / 写失败”。所有断言进 <code>ScadaChecks</code>，收尾跑 <code>tools\run_gates.ps1</code>。
+    </div>
+  </section>
+
+  <section class="section" id="questions">
+    <div class="section-head">
+      <h2><span class="num">06</span> 待拍板</h2>
+      <p class="desc">这些会改变实现范围，确认后再进 WPF 复刻。</p>
+    </div>
+    <div class="card">
+      <div class="card-body">
+        <ol class="qlist">
+          <li><b>StateView 一个 TypeKey 还是三个？</b>本稿建议一个 <code>Hmi.StateView</code> + 三个预设；拆三个 TypeKey 会让列表/面板/Web/断言各写三份。</li>
+          <li><b>列表条目要不要 Color？</b>字指示灯需要状态色；如果只做 Text + Image，字指示灯只能用统一文字色。</li>
+          <li><b>SubPage P1 是否接受只读？</b>接受 = M；不接受 = L（要加活跃子页事件宿主与交互）。</li>
+          <li><b>报警事件只做页面级吗？</b>图元级（AlarmBanner 自己）是否需要单独事件？</li>
+          <li><b>位号范围按 0~31 固定，还是按变量类型动态？</b>本稿建议先 0~31，执行侧按实际类型校验。</li>
+          <li><b>Web 运行态本批同步到哪一步？</b>StateView 建议同步；SubPage 视快照递归成本再定。</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div>设计基线：<a href="./README.md">scada-p1/README.md</a> · 代码评审：<a href="../../方案设计/2026-10-24-SCADA-P1代码评审与设计切分.md">2026-10-24-SCADA-P1代码评审与设计切分.md</a></div>
+    <div>本页只用于设计确认，不参与构建、不部署；确认后按 R111 六项与 R126 交付边界进入 WPF 复刻。</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var themeBtn = $('themeBtn');
+
+  function setTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    themeBtn.textContent = theme === 'dark' ? '切换浅色' : '切换深色';
+  }
+
+  themeBtn.addEventListener('click', function () {
+    setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark');
+  });
+
+  // ---------- shared icon painter ----------
+  function iconSvg(kind, color) {
+    var c = color || '#7c8a99';
+    if (kind === 'fault') {
+      return '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 8 L58 54 H6 Z" fill="none" stroke="' + c + '" stroke-width="4" stroke-linejoin="round"/><path d="M32 24 V38" stroke="' + c + '" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="46" r="2.6" fill="' + c + '"/></svg>';
+    }
+    if (kind === 'stop') {
+      return '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="13" y="13" width="38" height="38" rx="9" fill="none" stroke="' + c + '" stroke-width="4"/><rect x="25" y="25" width="14" height="14" rx="2" fill="' + c + '"/></svg>';
+    }
+    if (kind === 'hand') {
+      return '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M22 34 V18 a4 4 0 0 1 8 0 v12 M30 30 V14 a4 4 0 0 1 8 0 v16 M38 30 V18 a4 4 0 0 1 8 0 v18 c0 10-7 18-17 18 h-2 c-7 0-11-4-14-10 l-4-8 a4 4 0 0 1 6-5 l5 5" fill="none" stroke="' + c + '" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    }
+    if (kind === 'auto') {
+      return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="9" fill="none" stroke="' + c + '" stroke-width="4"/><path d="M32 8 V16 M32 48 V56 M8 32 H16 M48 32 H56 M15 15 L21 21 M43 43 L49 49 M49 15 L43 21 M21 43 L15 49" stroke="' + c + '" stroke-width="4" stroke-linecap="round"/></svg>';
+    }
+    if (kind === 'wrench') {
+      return '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M38 12 a14 14 0 0 0-12 21 L10 49 a5 5 0 0 0 7 7 l16-16 a14 14 0 0 0 21-12 l-8 8 -8-2 -2-8 Z" fill="none" stroke="' + c + '" stroke-width="4" stroke-linejoin="round"/></svg>';
+    }
+    if (kind === 'empty') {
+      return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22" fill="none" stroke="' + c + '" stroke-width="3" stroke-dasharray="6 6"/><path d="M24 38 q8 -12 16 0" fill="none" stroke="' + c + '" stroke-width="3" stroke-linecap="round"/></svg>';
+    }
+    // pump / run
+    return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="19" fill="none" stroke="' + c + '" stroke-width="4"/><path d="M32 16 L40 32 L32 48 L24 32 Z" fill="' + c + '" opacity=".92"/><path d="M4 32 H13 M51 32 H60" stroke="' + c + '" stroke-width="4" stroke-linecap="round"/></svg>';
+  }
+
+  function trendSvg(color) {
+    var c = color || '#38bdf8';
+    return '<svg viewBox="0 0 220 56" preserveAspectRatio="none" aria-hidden="true">'
+      + '<path d="M0 44 C18 40 24 26 42 28 S66 42 84 34 S110 12 128 18 S154 36 172 24 S198 10 220 16" fill="none" stroke="' + c + '" stroke-width="2.2"/>'
+      + '<path d="M0 44 C18 40 24 26 42 28 S66 42 84 34 S110 12 128 18 S154 36 172 24 S198 10 220 16 L220 56 L0 56 Z" fill="' + c + '" opacity=".10"/>'
+      + '</svg>';
+  }
+
+  // ---------- 01 StateView ----------
+  var svLists = {
+    machine: {
+      name: '设备状态',
+      defaultText: '—',
+      rows: [
+        { value: 0, text: '停止', color: '#7c8a99', icon: 'stop' },
+        { value: 1, text: '运行中', color: '#22c55e', icon: 'run' },
+        { value: 2, text: '故障', color: '#ef4444', icon: 'fault' }
+      ]
+    },
+    mode: {
+      name: '运行模式',
+      defaultText: '—',
+      rows: [
+        { value: 0, text: '手动', color: '#38bdf8', icon: 'hand' },
+        { value: 1, text: '自动', color: '#22c55e', icon: 'auto' },
+        { value: 2, text: '检修', color: '#f59e0b', icon: 'wrench' }
+      ]
+    }
+  };
+  var sv = { value: 1, presentation: 'TextAndImage', list: 'machine', missing: false, interaction: 'None', clickValue: 0 };
+
+  function svRow() {
+    if (sv.missing) {
+      return { text: '未找到文本列表', color: '#f59e0b', icon: 'fault', sub: 'StateListId 指向的列表已删除', bad: true };
+    }
+    var list = svLists[sv.list];
+    var row = null;
+    for (var i = 0; i < list.rows.length; i++) {
+      if (list.rows[i].value === sv.value) { row = list.rows[i]; break; }
+    }
+    if (!row) {
+      return { text: list.defaultText, color: '#7c8a99', icon: 'empty', sub: '值 ' + sv.value + ' 没有匹配条目', bad: true };
+    }
+    return { text: row.text, color: row.color, icon: row.icon, sub: list.name + ' · 值 ' + sv.value, bad: false };
+  }
+
+  function svLog(text) {
+    var ul = $('svLog');
+    var li = document.createElement('li');
+    var now = new Date();
+    var t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+    li.innerHTML = '<b>' + t + '</b> ' + text;
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 8) ul.removeChild(ul.lastChild);
+  }
+
+  function renderSV() {
+    var row = svRow();
+    var preview = $('svPreview');
+    preview.className = 'state-preview' + (sv.presentation === 'Text' ? ' text-only' : sv.presentation === 'Image' ? ' image-only' : '');
+    preview.setAttribute('role', sv.interaction === 'None' ? 'group' : 'button');
+    preview.setAttribute('tabindex', sv.interaction === 'None' ? '-1' : '0');
+    preview.setAttribute('aria-label', 'StateView 预览：' + row.text + '，值 ' + sv.value);
+    $('svPreviewIcon').innerHTML = iconSvg(row.icon, row.color);
+    $('svPreviewText').textContent = row.text;
+    $('svPreviewText').style.color = row.color;
+    $('svPreviewSub').textContent = row.sub;
+    var badge = sv.presentation + (sv.interaction !== 'None' ? ' · ' + sv.interaction : '');
+    $('svPreviewBadge').textContent = badge;
+    $('svPreviewBadge').className = 'sv-badge' + (row.bad ? ' bad' : '');
+    $('svValueLabel').textContent = String(sv.value);
+    $('svClickValueLabel').textContent = String(sv.clickValue);
+    $('svMissingBanner').hidden = !sv.missing;
+
+    // variants are fixed presets: image IO read-only + image switch toggle
+    var ioRow = svRow();
+    $('svIoIcon').innerHTML = iconSvg(ioRow.icon, ioRow.color);
+    $('svIoText').textContent = ioRow.text;
+    $('svIoText').style.color = ioRow.color;
+    $('svIoSub').textContent = '只读 · 值 ' + sv.value;
+    $('svSwitchBtn').innerHTML = iconSvg(ioRow.icon, ioRow.color);
+    $('svSwitchBtn').setAttribute('aria-pressed', sv.value === 1 ? 'true' : 'false');
+    $('svSwitchBtn').setAttribute('aria-label', '图形开关：' + ioRow.text + '，点击切换');
+    $('svSwitchText').textContent = ioRow.text;
+    $('svSwitchText').style.color = ioRow.color;
+    $('svSwitchSub').textContent = '点击切换 · 值 ' + sv.value;
+
+    // manager row icons
+    var machine = svLists.machine.rows;
+    $('mtIcon0').innerHTML = iconSvg(machine[0].icon, machine[0].color);
+    $('mtIcon1').innerHTML = iconSvg(machine[1].icon, machine[1].color);
+    $('mtIcon2').innerHTML = iconSvg(machine[2].icon, machine[2].color);
+  }
+
+  function svActivate() {
+    if (sv.missing) {
+      svLog('点击被忽略：列表缺失');
+      return;
+    }
+    if (sv.interaction === 'None') return;
+    var before = sv.value;
+    if (sv.interaction === 'Toggle') {
+      sv.value = sv.value === 1 ? 0 : 1;
+    } else {
+      sv.value = sv.clickValue;
+    }
+    renderSV();
+    svLog('用户点击 → Value ' + before + ' → ' + sv.value + '，写回变量并触发 ObjectChanged');
+  }
+
+  $('svPreview').addEventListener('click', svActivate);
+  $('svPreview').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); svActivate(); }
+  });
+  $('svSwitchBtn').addEventListener('click', function () {
+    var before = sv.value;
+    sv.value = sv.value === 1 ? 0 : 1;
+    renderSV();
+    svLog('图形开关点击 → Value ' + before + ' → ' + sv.value + '（Toggle）');
+  });
+  $('svValue').addEventListener('input', function () {
+    sv.value = Number(this.value);
+    renderSV();
+  });
+  $('svPresentation').addEventListener('change', function () {
+    sv.presentation = this.value;
+    renderSV();
+    svLog('Presentation = ' + sv.presentation);
+  });
+  $('svList').addEventListener('change', function () {
+    sv.list = this.value;
+    renderSV();
+    svLog('切换文本列表 = ' + svLists[sv.list].name);
+  });
+  $('svInteraction').addEventListener('change', function () {
+    sv.interaction = this.value;
+    renderSV();
+    svLog('Interaction = ' + sv.interaction);
+  });
+  $('svClickValue').addEventListener('input', function () {
+    var v = Number(this.value);
+    sv.clickValue = isNaN(v) ? 0 : Math.max(0, Math.min(8, Math.round(v)));
+    this.value = String(sv.clickValue);
+    $('svClickValueLabel').textContent = String(sv.clickValue);
+  });
+  function syncMissing(checked) {
+    sv.missing = checked;
+    $('svMissing').checked = checked;
+    $('svMissing2').checked = checked;
+    renderSV();
+    svLog(checked ? '模拟列表缺失 → 显示“未找到文本列表”' : '列表恢复 → 按 StateListId 重新解析');
+  }
+  $('svMissing').addEventListener('change', function () { syncMissing(this.checked); });
+  $('svMissing2').addEventListener('change', function () { syncMissing(this.checked); });
+
+  // ---------- 02 SubPage ----------
+  var spPages = {
+    lineA: {
+      name: '贴装单元 A', code: 'A-01', accent: '#38bdf8',
+      metrics: [['节拍', '12.4 s'], ['良率', '99.2%'], ['状态', '运行']],
+      lamp: '运行中'
+    },
+    lineB: {
+      name: '检测单元 B', code: 'B-02', accent: '#22c55e',
+      metrics: [['节拍', '9.8 s'], ['良率', '98.7%'], ['状态', '待机']],
+      lamp: '待机'
+    }
+  };
+  var sp = { source: 'Fixed', target: 'lineA', varValue: 1, missing: false, denied: false, noTarget: false };
+
+  function spBodyHtml(page) {
+    if (!page) return '';
+    var cells = '';
+    for (var i = 0; i < page.metrics.length; i++) {
+      cells += '<div class="sp-kpi"><div class="k">' + page.metrics[i][0] + '</div><div class="v" style="color:' + page.accent + '">' + page.metrics[i][1] + '</div></div>';
+    }
+    return '<div class="sp-metrics">' + cells + '</div>'
+      + '<div class="sp-trend">' + trendSvg(page.accent) + '</div>'
+      + '<div class="sp-lamp"><i style="background:' + page.accent + ';box-shadow:0 0 0 3px ' + page.accent + '22"></i>' + page.lamp + ' · 数据实时刷新</div>';
+  }
+
+  function spPlaceholder(title, sub) {
+    return '<div class="sp-placeholder"><div class="ph-icon">▣</div><div class="ph-title">' + title + '</div><div class="ph-sub">' + sub + '</div></div>';
+  }
+
+  function spCurrent() {
+    if (sp.denied) return { kind: 'denied', name: '当前画面' };
+    if (sp.noTarget) return { kind: 'empty', name: '未选择画面' };
+    if (sp.missing) return { kind: 'missing', name: sp.source === 'FollowVariable' ? '变量指向的页面' : spPages[sp.target].name };
+    if (sp.source === 'FollowVariable') {
+      if (sp.varValue === 0) return { kind: 'page', page: spPages.lineA };
+      if (sp.varValue === 1) return { kind: 'page', page: spPages.lineB };
+      return { kind: 'missing', name: '变量值 ' + sp.varValue + ' 指向的页面' };
+    }
+    return { kind: 'page', page: spPages[sp.target] };
+  }
+
+  function renderSP() {
+    var cur = spCurrent();
+    var tile = $('spTile');
+    var nameEl = $('spTileName');
+    var codeEl = $('spTileCode');
+    var body = $('spTileBody');
+    var note = $('spNote');
+
+    if (cur.kind === 'page') {
+      var page = cur.page;
+      nameEl.textContent = page.name;
+      codeEl.textContent = page.code;
+      body.innerHTML = spBodyHtml(page);
+      tile.style.borderColor = page.accent + '55';
+      note.className = 'note';
+      note.innerHTML = '<b>P1a 边界：</b>嵌入页只读，子页里的按钮不接收事件；数据绑定仍然实时刷新。子页交互放 P1b。';
+    } else {
+      nameEl.textContent = cur.name;
+      codeEl.textContent = '—';
+      tile.style.borderColor = 'var(--border)';
+      var title = cur.kind === 'denied' ? '无权查看此画面' : cur.kind === 'empty' ? '未选择嵌入画面' : '未找到画面';
+      var sub = cur.kind === 'denied'
+        ? '目标画面 RequiredRole 不满足；不渲染半页内容，避免操作员误判。'
+        : cur.kind === 'empty'
+          ? '在属性面板选择目标画面，或把 PageSource 切到 FollowVariable。'
+          : '目标页已删除或变量值没有对应页；按 MissingBehavior 显示占位，保留上一次有效画面。';
+      body.innerHTML = spPlaceholder(title, sub);
+      note.className = 'note warnbox';
+      note.innerHTML = '<b>异常态：</b>' + title + '。不显示空白页，也不拿别的页顶上。';
+    }
+
+    // static comparison tile
+    $('spTileBName').textContent = spPages.lineB.name;
+    $('spTileBBody').innerHTML = spBodyHtml(spPages.lineB);
+
+    $('spTarget').disabled = sp.source === 'FollowVariable';
+    $('spVarLabel').textContent = String(sp.varValue);
+    var segButtons = $('spVarSeg').querySelectorAll('button');
+    for (var i = 0; i < segButtons.length; i++) {
+      segButtons[i].classList.toggle('on', Number(segButtons[i].dataset.v) === sp.varValue);
+      segButtons[i].disabled = sp.source === 'Fixed';
+    }
+  }
+
+  function spLog(text) {
+    var ul = $('spLog');
+    var li = document.createElement('li');
+    var now = new Date();
+    var t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+    li.innerHTML = '<b>' + t + '</b> ' + text;
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 8) ul.removeChild(ul.lastChild);
+  }
+
+  $('spSource').addEventListener('change', function () {
+    sp.source = this.value;
+    renderSP();
+    spLog('PageSource = ' + sp.source + (sp.source === 'Fixed' ? ' → 使用固定目标页' : ' → 读变量值切页'));
+  });
+  $('spTarget').addEventListener('change', function () {
+    sp.target = this.value;
+    renderSP();
+    spLog('目标画面 = ' + spPages[sp.target].name);
+  });
+  $('spVarSeg').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-v]');
+    if (!btn || sp.source === 'Fixed') return;
+    sp.varValue = Number(btn.dataset.v);
+    renderSP();
+    spLog('变量值 = ' + sp.varValue + ' → ' + (sp.varValue === 0 ? '贴装单元 A' : sp.varValue === 1 ? '检测单元 B' : '缺页占位'));
+  });
+  function spToggle(id, key, label) {
+    $(id).addEventListener('change', function () {
+      sp[key] = this.checked;
+      renderSP();
+      spLog(label + ' = ' + (this.checked ? '是' : '否'));
+    });
+  }
+  spToggle('spMissing', 'missing', '目标页已删除');
+  spToggle('spDenied', 'denied', '当前角色无权');
+  spToggle('spNoTarget', 'noTarget', '未选择画面');
+
+  // ---------- 03 Alarm ----------
+  var alarm = { state: 'active', filter: 'all', count: 0 };
+
+  function alarmNow() {
+    var now = new Date();
+    return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+  }
+
+  function alarmAdd(text, action) {
+    var ul = $('alarmTimeline');
+    var li = document.createElement('li');
+    li.innerHTML = '<span class="t">' + alarmNow() + '</span><span class="e">' + text + '</span><span class="a">' + (action || '') + '</span>';
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 10) ul.removeChild(ul.lastChild);
+  }
+
+  function alarmFire(eventKey) {
+    var card = document.querySelector('.event-card[data-event="' + eventKey + '"]');
+    if (!card) return;
+    var enabled = card.querySelector('input[type=checkbox]').checked;
+    if (!enabled) return;
+    card.classList.add('fired');
+    setTimeout(function () { card.classList.remove('fired'); }, 900);
+  }
+
+  function renderAlarm() {
+    var banner = $('alarmBanner');
+    var icon = $('alarmIcon');
+    var tag = $('alarmStateTag');
+    var title = $('alarmTitle');
+    var meta = $('alarmMeta');
+    banner.className = 'alarm-banner';
+    if (alarm.state === 'recovered') {
+      banner.classList.add('recovered');
+      icon.textContent = '!';
+      tag.className = 'tag warn';
+      tag.textContent = '已恢复 · 未确认';
+      meta.textContent = 'Critical · 变量 Spindle.Temp · 触发值 86.4 ℃ · 10:24:01 · 已恢复 10:24:08';
+    } else if (alarm.state === 'acknowledged') {
+      banner.classList.add('acknowledged');
+      icon.textContent = '✓';
+      tag.className = 'tag accent';
+      tag.textContent = '已确认 · 仍激活';
+      meta.textContent = 'Critical · 变量 Spindle.Temp · 触发值 86.4 ℃ · 10:24:01 · 已确认 10:24:06';
+    } else if (alarm.state === 'normal') {
+      banner.classList.add('normal');
+      icon.textContent = '✓';
+      tag.className = 'tag ok';
+      tag.textContent = '正常';
+      meta.textContent = '没有活动报警 · 演示已复位';
+    } else {
+      icon.textContent = '!';
+      tag.className = 'tag bad';
+      tag.textContent = '激活 · 未确认';
+      meta.textContent = 'Critical · 变量 Spindle.Temp · 触发值 86.4 ℃ · 10:24:01';
+    }
+    title.innerHTML = alarm.state === 'normal'
+      ? '没有活动报警 <span class="tag ok" id="alarmStateTag">正常</span>'
+      : '主轴温度过高 <span class="tag ' + (alarm.state === 'recovered' ? 'warn' : alarm.state === 'acknowledged' ? 'accent' : 'bad') + '" id="alarmStateTag">' + tag.textContent + '</span>';
+    // re-query after innerHTML replacement
+    $('alarmTrigger').disabled = alarm.state !== 'normal';
+    $('alarmRecover').disabled = alarm.state === 'normal' || alarm.state === 'recovered';
+    $('alarmAck').disabled = alarm.state === 'normal';
+    $('alarmReset').disabled = false;
+  }
+
+  $('alarmTrigger').addEventListener('click', function () {
+    if (alarm.state !== 'normal') return;
+    alarm.state = 'active';
+    renderAlarm();
+    alarmAdd('报警激活 · 主轴温度过高', '→ 切换画面「报警详情」');
+    alarmFire('activated');
+  });
+  $('alarmRecover').addEventListener('click', function () {
+    if (alarm.state === 'normal' || alarm.state === 'recovered') return;
+    var wasAck = alarm.state === 'acknowledged';
+    alarm.state = wasAck ? 'normal' : 'recovered';
+    renderAlarm();
+    alarmAdd('报警取消 · 主轴温度过高', '→ 切回总览');
+    alarmFire('recovered');
+    if (wasAck) alarmAdd('报警清除 · 已确认且恢复', '→ Normal');
+  });
+  $('alarmAck').addEventListener('click', function () {
+    if (alarm.state === 'normal') return;
+    var wasRecovered = alarm.state === 'recovered';
+    alarm.state = wasRecovered ? 'normal' : 'acknowledged';
+    renderAlarm();
+    alarmAdd('报警确认 · 主轴温度过高', '→ 复位按钮');
+    alarmFire('acknowledged');
+    if (wasRecovered) alarmAdd('报警清除 · 已恢复且确认', '→ Normal');
+  });
+  $('alarmReset').addEventListener('click', function () {
+    alarm.state = 'normal';
+    renderAlarm();
+    $('alarmTimeline').innerHTML = '<li><span class="t">' + alarmNow() + '</span><span class="e">演示已复位 · 没有活动报警</span><span class="a"></span></li>';
+  });
+  document.querySelectorAll('.event-card select').forEach(function (sel) {
+    sel.addEventListener('change', function () {
+      alarmAdd('报警来源过滤 = ' + this.value, '配置变更（设计稿）');
+    });
+  });
+
+  // ---------- 04 Bit ----------
+  var bit = { word: 8, index: 3, type: 'int', missing: false, denied: false };
+
+  function bitLog(text) {
+    var ul = $('bitLog');
+    var li = document.createElement('li');
+    var now = new Date();
+    var t = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0') + ':' + String(now.getSeconds()).padStart(2, '0');
+    li.innerHTML = '<b>' + t + '</b> ' + text;
+    ul.insertBefore(li, ul.firstChild);
+    while (ul.children.length > 10) ul.removeChild(ul.lastChild);
+  }
+
+  function renderBit() {
+    var wordEl = $('bitWord');
+    var html = '';
+    for (var i = 7; i >= 0; i--) {
+      var on = ((bit.word >> i) & 1) === 1;
+      var target = bit.type === 'int' && i === bit.index;
+      html += '<div class="bit-cell ' + (on ? 'on' : '') + (target ? ' target' : '') + '"><span class="idx">bit' + i + '</span><span>' + (on ? '1' : '0') + '</span></div>';
+    }
+    wordEl.innerHTML = html;
+    var hex = '0x' + bit.word.toString(16).toUpperCase().padStart(2, '0');
+    $('bitSummary').textContent = bit.type === 'bool'
+      ? 'Station.StartFlag · ' + (bit.word ? 'TRUE' : 'FALSE') + ' · 布尔整体写'
+      : 'Station.ControlWord · ' + hex + ' · bit' + bit.index + ' = ' + (((bit.word >> bit.index) & 1) ? '1' : '0');
+    $('bitIndexLabel').textContent = String(bit.index);
+    $('bitIndex').disabled = bit.type === 'bool';
+    var banner = $('bitBanner');
+    if (bit.missing) {
+      banner.hidden = false;
+      banner.textContent = '变量缺失：Station.ControlWord 未解析到；按钮置灰，不编造写入成功。';
+    } else if (bit.denied) {
+      banner.hidden = false;
+      banner.textContent = '无写入权限：当前角色不满足 RequiredRole；按钮置灰，原因直接显示。';
+    } else {
+      banner.hidden = true;
+    }
+    var disabled = bit.missing || bit.denied;
+    $('bitSet').disabled = disabled;
+    $('bitReset').disabled = disabled;
+    $('bitToggle').disabled = disabled;
+    $('bitClear').disabled = disabled;
+    // action editor summary
+    var type = $('aeType').value;
+    var varName = $('aeVariable').value;
+    var idx = $('aeBitIndex').value;
+    var verb = type === 'SetBit' ? '← 1' : type === 'ResetBit' ? '← 0' : '← 取反';
+    $('aeSummary').textContent = varName.indexOf('Bool') >= 0 ? varName + ' ' + verb : varName + '.' + idx + ' ' + verb;
+  }
+
+  function bitApply(kind) {
+    if (bit.missing || bit.denied) return;
+    var before = bit.word;
+    if (bit.type === 'bool') {
+      if (kind === 'set') bit.word = 1;
+      else if (kind === 'reset') bit.word = 0;
+      else if (kind === 'toggle') bit.word = bit.word ? 0 : 1;
+    } else {
+      var mask = 1 << bit.index;
+      if (kind === 'set') bit.word |= mask;
+      else if (kind === 'reset') bit.word &= ~mask;
+      else if (kind === 'toggle') bit.word ^= mask;
+    }
+    bit.word &= 0xFF;
+    renderBit();
+    var label = kind === 'set' ? '置位' : kind === 'reset' ? '复位' : '取反';
+    bitLog(label + ' bit' + bit.index + ' → ' + '0x' + before.toString(16).toUpperCase() + ' → 0x' + bit.word.toString(16).toUpperCase());
+  }
+
+  $('bitSet').addEventListener('click', function () { bitApply('set'); });
+  $('bitReset').addEventListener('click', function () { bitApply('reset'); });
+  $('bitToggle').addEventListener('click', function () { bitApply('toggle'); });
+  $('bitClear').addEventListener('click', function () {
+    if (bit.missing || bit.denied) return;
+    var before = bit.word;
+    bit.word = 0;
+    renderBit();
+    bitLog('清零 → 0x' + before.toString(16).toUpperCase() + ' → 0x00');
+  });
+  $('bitTypeSeg').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-type]');
+    if (!btn) return;
+    bit.type = btn.dataset.type;
+    var buttons = this.querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) buttons[i].classList.toggle('on', buttons[i] === btn);
+    if (bit.type === 'bool') bit.word = bit.word ? 1 : 0;
+    renderBit();
+    bitLog('变量类型 = ' + (bit.type === 'bool' ? 'Bool（BitIndex 隐藏）' : '整型 Word（按位号读-改-写）'));
+  });
+  $('bitIndex').addEventListener('input', function () {
+    var v = Number(this.value);
+    if (isNaN(v)) v = 0;
+    bit.index = Math.max(0, Math.min(7, Math.round(v)));
+    this.value = String(bit.index);
+    renderBit();
+  });
+  $('bitMissing').addEventListener('change', function () {
+    bit.missing = this.checked;
+    renderBit();
+    bitLog('变量缺失 = ' + (this.checked ? '是' : '否'));
+  });
+  $('bitDenied').addEventListener('change', function () {
+    bit.denied = this.checked;
+    renderBit();
+    bitLog('无写入权限 = ' + (this.checked ? '是' : '否'));
+  });
+  $('aeType').addEventListener('change', renderBit);
+  $('aeVariable').addEventListener('change', renderBit);
+  $('aeBitIndex').addEventListener('input', renderBit);
+
+  // ---------- init ----------
+  renderSV();
+  renderSP();
+  renderAlarm();
+  renderBit();
+
+  // active TOC link
+  var sections = Array.prototype.slice.call(document.querySelectorAll('section[id]'));
+  var links = Array.prototype.slice.call(document.querySelectorAll('.toc a'));
+  if ('IntersectionObserver' in window) {
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        links.forEach(function (link) {
+          link.classList.toggle('active', link.getAttribute('href') === '#' + entry.target.id);
+        });
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    sections.forEach(function (section) { observer.observe(section); });
+  }
+})();
+</script>
+</body>
+</html>

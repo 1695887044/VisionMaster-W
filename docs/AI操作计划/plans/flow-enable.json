@@ -1,0 +1,72 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-enable",
+  "title": "重新启用一条已禁用的流程",
+  "version": "1.0.0",
+  "risk": "medium",
+  "description": "与 flow-disable 是同一个动态菜单项的另一面；执行前该流程必须处于禁用态。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "调试流程"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    },
+    {
+      "assert": "text_exists",
+      "text": "已禁用"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.enable",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.enable"
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "text_absent",
+      "text": "已禁用",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "text_absent",
+      "text": "已禁用"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "enable"]
+}

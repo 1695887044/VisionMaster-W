@@ -290,16 +290,162 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         public Func<ScadaElement, bool>? LayerVisibilityResolver { get; set; }
 
+        private Func<string, ImageSource?>? _imageAssetResolver;
+
         /// <summary>
         /// 方案图片解析器（相对路径 → 位图）。与 <see cref="LayerVisibilityResolver"/> 同一范式：
         /// 宿主/画布注入，控件不反向抓方案目录。null = 没有方案上下文（断言、单独预览），
         /// 此时图片类图元显示占位，不抛异常。
         /// </summary>
-        public Func<string, ImageSource?>? ImageAssetResolver { get; set; }
+        public Func<string, ImageSource?>? ImageAssetResolver
+        {
+            get => _imageAssetResolver;
+            set
+            {
+                if (ReferenceEquals(_imageAssetResolver, value))
+                    return;
+
+                _imageAssetResolver = value;
+                OnImageAssetResolverChanged();
+            }
+        }
+
+        /// <summary>图片解析器变更（含首次注入）时调用；派生类按需重解析图片</summary>
+        protected virtual void OnImageAssetResolverChanged()
+        {
+        }
 
         /// <summary>按注入的解析器把相对路径变成位图；没有解析器/空路径一律 null</summary>
         protected ImageSource? ResolveImageAsset(string? relativePath)
             => string.IsNullOrWhiteSpace(relativePath) ? null : ImageAssetResolver?.Invoke(relativePath);
+
+        private Func<string, byte[]?>? _imageBytesResolver;
+
+        /// <summary>
+        /// 方案图片的<b>原始字节</b>解析器（相对路径 → 文件内容）。
+        ///
+        /// 为什么位图解析器之外还要一条字节通道：GIF 动图必须自己拿 <c>GifBitmapDecoder</c>
+        /// 逐帧取，而 <see cref="ImageAssetResolver"/> 交出来的是"已解码的一张图"（首帧），
+        /// 帧序与帧延时都丢了。两条解析器由同一个宿主一起注入，指向同一份方案 Image 目录，
+        /// 不会出现"位图能显示、字节读不到"的分叉。
+        /// </summary>
+        public Func<string, byte[]?>? ImageBytesResolver
+        {
+            get => _imageBytesResolver;
+            set
+            {
+                if (ReferenceEquals(_imageBytesResolver, value))
+                    return;
+
+                _imageBytesResolver = value;
+                OnImageBytesResolverChanged();
+            }
+        }
+
+        /// <summary>字节解析器变更（含首次注入）时调用；动图类图元按需重新解码</summary>
+        protected virtual void OnImageBytesResolverChanged()
+        {
+        }
+
+        /// <summary>按注入的解析器取图片原始字节；没有解析器/空路径一律 null</summary>
+        protected byte[]? ResolveImageBytes(string? relativePath)
+            => string.IsNullOrWhiteSpace(relativePath) ? null : ImageBytesResolver?.Invoke(relativePath);
+
+        private Func<Guid, ScadaStateList?>? _stateListResolver;
+
+        /// <summary>
+        /// 方案级文本列表解析器（按稳定 Id 找列表）。与 <see cref="ImageAssetResolver"/> 同一范式：
+        /// 画布/宿主注入，控件不反向抓方案文档。
+        ///
+        /// 为什么需要“变更钩子”：ComboBox 要在解析器到位/换人时重解析候选项——
+        /// 设计期画布的解析器是 Loaded 之后才赋的，构造时拿不到列表。
+        /// </summary>
+        public Func<Guid, ScadaStateList?>? StateListResolver
+        {
+            get => _stateListResolver;
+            set
+            {
+                if (ReferenceEquals(_stateListResolver, value))
+                    return;
+
+                _stateListResolver = value;
+                OnStateListResolverChanged();
+            }
+        }
+
+        /// <summary>解析器变更（含首次注入）时调用；派生类按需重读状态列表</summary>
+        protected virtual void OnStateListResolverChanged()
+        {
+        }
+
+        /// <summary>按 Id 文本找文本列表；空/坏 Id/没有解析器一律 null</summary>
+        protected ScadaStateList? ResolveStateList(string? stateListId)
+        {
+            if (string.IsNullOrWhiteSpace(stateListId) || !Guid.TryParse(stateListId, out var id))
+                return null;
+
+            return StateListResolver?.Invoke(id);
+        }
+
+        private Func<Guid, ScadaPage?>? _pageResolver;
+
+        /// <summary>
+        /// 画面解析器（按稳定 Id 找画面）。SubPage 这类“嵌入另一张页”的图元用；
+        /// 与 <see cref="StateListResolver"/> 同一范式：画布/宿主注入，控件不反向抓文档。
+        /// </summary>
+        public Func<Guid, ScadaPage?>? PageResolver
+        {
+            get => _pageResolver;
+            set
+            {
+                if (ReferenceEquals(_pageResolver, value))
+                    return;
+
+                _pageResolver = value;
+                OnPageResolverChanged();
+            }
+        }
+
+        /// <summary>画面解析器变更（含首次注入）时调用；派生类按需重解析目标页</summary>
+        protected virtual void OnPageResolverChanged()
+        {
+        }
+
+        /// <summary>按 Id 文本找画面；空/坏 Id/没有解析器一律 null</summary>
+        protected ScadaPage? ResolvePage(string? pageId)
+        {
+            if (string.IsNullOrWhiteSpace(pageId) || !Guid.TryParse(pageId, out var id))
+                return null;
+
+            return PageResolver?.Invoke(id);
+        }
+
+        private Func<string, ScadaPage?>? _pageNameResolver;
+
+        /// <summary>
+        /// 画面名解析器（按名字找页）。SubPage 的 FollowVariable 模式用：
+        /// 变量里存的是画面名，名字只作展示与兜底，解析不到就显示缺页占位。
+        /// </summary>
+        public Func<string, ScadaPage?>? PageNameResolver
+        {
+            get => _pageNameResolver;
+            set
+            {
+                if (ReferenceEquals(_pageNameResolver, value))
+                    return;
+
+                _pageNameResolver = value;
+                OnPageNameResolverChanged();
+            }
+        }
+
+        protected virtual void OnPageNameResolverChanged()
+        {
+        }
+
+        /// <summary>按名字找画面；空白/没有解析器一律 null</summary>
+        protected ScadaPage? ResolvePageByName(string? pageName)
+            => string.IsNullOrWhiteSpace(pageName) ? null : PageNameResolver?.Invoke(pageName.Trim());
 
         /// <summary>
         /// 图层开关翻转后由宿主逐个调用，重算本控件的可见性。
@@ -597,6 +743,33 @@ namespace VisionMaster.Scada.Controls
                         return false;
 
                     SetValue(Canvas.TopProperty, y - ParentOffsetY - ParentOriginY);
+                    error = null;
+                    return true;
+
+                case ScadaAnimationType.DiagonalMove:
+                    if (!animation.TryEvaluateTargetPositionXY(
+                            number, Element?.X ?? 0d, Element?.Y ?? 0d, out double dx, out double dy, out error))
+                        return false;
+
+                    SetValue(Canvas.LeftProperty, dx - ParentOffsetX - ParentOriginX);
+                    SetValue(Canvas.TopProperty, dy - ParentOffsetY - ParentOriginY);
+                    error = null;
+                    return true;
+
+                case ScadaAnimationType.ProportionalMove:
+                    double startWidth = Element?.Width ?? ActualWidth;
+                    double startHeight = Element?.Height ?? ActualHeight;
+                    if (!animation.TryEvaluateTargetSize(number, startWidth, startHeight, out double width, out double height, out error))
+                        return false;
+
+                    SetValue(WidthProperty, width);
+                    SetValue(HeightProperty, height);
+
+                    // 比例移动以中心为锚点：宽高变化的一半从左上角补回来，图元不会“一边长一边跑”。
+                    double centeredX = (Element?.X ?? 0d) + (startWidth - width) / 2d;
+                    double centeredY = (Element?.Y ?? 0d) + (startHeight - height) / 2d;
+                    SetValue(Canvas.LeftProperty, centeredX - ParentOffsetX - ParentOriginX);
+                    SetValue(Canvas.TopProperty, centeredY - ParentOffsetY - ParentOriginY);
                     error = null;
                     return true;
 

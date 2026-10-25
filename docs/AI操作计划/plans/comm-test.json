@@ -1,0 +1,82 @@
+{
+  "schema": "vm-plan/1",
+  "id": "comm-test",
+  "title": "对一条通讯连接做连通测试",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "测试是\"连一次再关掉\"，不改变常驻连接状态；成功给 toast「连接 [X] 测试成功」。",
+  "params": {
+    "connection_name": {
+      "type": "string",
+      "required": true,
+      "example": "PLC1"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.system",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.system",
+      "expect": {
+        "element": "app.menu.system.hardware",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.system.hardware",
+      "expect": {
+        "window": "dialog.hardware",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.hardware.tab_comm"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.hardware.row",
+      "target_name": "${connection_name}"
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.hardware.comm_test_row"
+    },
+    {
+      "n": 7,
+      "do": "assert",
+      "assert": "toast_contains",
+      "text": "测试成功",
+      "timeout_ms": 30000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["comm", "test"]
+}

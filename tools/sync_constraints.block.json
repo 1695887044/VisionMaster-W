@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "seedHeader": "# Global rules\n\n<!-- agenthub-memory:begin -->\n## Agent memory hub (AgentHub - per-machine project memory)\n- Scope: per-machine project context, decision intent, pitfalls and conventions.\n- Single-source-of-truth rule (Code-First): on-disk code is the only reality;\n  memory is reference only. Read before write. When memory conflicts with the\n  code on disk, the code wins. Retire stale memories with supersedes.\n- Call memory_core at session start; memory_search before answering\n  \"how did we decide this before\"; memory_write after decisions.\n<!-- agenthub-memory:end -->\n",
+  "heading": "## 本项目（D:\\C#\\VM）硬约束 — DSH 与 ZCode 共用",
+  "note": "单一事实源是 `{0}`（当前 {1}）。本节由 `tools\\sync_constraints.ps1` 从该文件抽取生成，**不要手改**；改规则只改 AGENTS.md，然后重跑脚本。这里只放「违反即回滚 / 症状静默 / 验收口径」的 7 类，完整 R1–R184 以 AGENTS.md 为准。",
+  "footer": "> 本节之外的规则（UI 令牌、WPF 表格、HALCON、SCADA 图元等）不在镜像范围。遇到本仓库任何具体改动，先读 `AGENTS.md` 对应章节再动手。",
+  "rules": [
+    {
+      "title": "三条红线（违反即回滚，后果静默）",
+      "lines": [
+        "插件工程必须放 `Plugins\\` 下：`Directory.Build.targets` 按目录投递到 `Modules\\`，放别处加载不到。",
+        "契约程序集（`Core.Interfaces` / `Core.Controls` 等）**不许**拷进 `Modules\\`：两份静态状态，图投进去取不出来。",
+        "改了插件源码**必须重建该插件工程**：`Modules\\` 不由宿主带出，只重建宿主仍是旧 DLL。",
+        "判据统一看**产物内容**不看构建退出码：DLL mtime ≥ 该工程源码 mtime；`Help` 内嵌资源数 = 磁盘 .md 数。"
+      ]
+    },
+    {
+      "title": "构建命令（R179）",
+      "lines": [
+        "本机 `dotnet build` / `restore` 默认多进程会**静默失败**：报「生成失败 / 0 个错误」、退出码 1。",
+        "一律加 `-m:1 -nodeReuse:false`。",
+        "判据：`0 个错误` **且** 退出码 0 才算构建通过。"
+      ]
+    },
+    {
+      "title": "收尾验证只有一个入口（R182）",
+      "lines": [
+        "`tools\\run_gates.ps1`：依次跑 `audit_root.ps1` → `audit_artifacts.ps1` → 六个断言宿主（每个先按自己的 csproj 构建再跑），任一红即 exit 1。",
+        "`UIThemeSmokeTest` / `HelpProbe` **不在** `VisionMaster.sln` 里，`dotnet build VisionMaster.sln` 根本不重建它们。",
+        "`-SkipBuild` 只用于「刚构建完立刻复跑」，不是日常用法。"
+      ]
+    },
+    {
+      "title": "「没跑」和「跑绿了」必须能分开（R183）",
+      "lines": [
+        "捕获子进程输出**不要走管道**：`& $exe 2>&1 | Out-String` 按控制台代码页（本机 936）解码 UTF-8 → 日志成了「合法 UTF-8 的乱码」，统计正则永不命中，每个宿主回落打印「全部通过」。",
+        "**子进程零输出 = 判红。**",
+        "别用 `Start-Process` 跑被测进程（`-Wait` 等整棵进程树会挂死；去掉 `-Wait` 后 `ExitCode` 恒为 `$null`，`$null -ne 0` 判真反而印出 exit=0 报全绿）。"
+      ]
+    },
+    {
+      "title": "编码与写文件（R1–R5）",
+      "lines": [
+        "`.ps1` 一律**纯 ASCII**（含注释）；中文常量用码点 `[string][char]0x6807`。",
+        "PowerShell 5.1 **按 936 代码页读无 BOM 的 UTF-8 .ps1**，中文字面量会变乱码并报 `MissingEqualsInHashLiteral`。中文放单独 UTF-8 清单，脚本用 `[IO.File]::ReadAllLines($f, [Text.Encoding]::UTF8)` 读；不在 `-Command` 里传中文，用 `-File`。",
+        "**不用** `Get-Content` / `Set-Content` 往返编辑仓库文件（无 BOM UTF-8 静默损坏）；改文件用编辑工具。",
+        "必须写回时 `[IO.File]::WriteAllText($p, $text, (New-Object Text.UTF8Encoding($false)))`，只用 `String.Replace`。",
+        "写完自检：严格 UTF-8 解码不抛、行数合理、回读中文正常。"
+      ]
+    },
+    {
+      "title": "每轮结束必须留落盘物（R177）",
+      "lines": [
+        "会话会被压缩，早期推理会丢 → 每轮结束必须写 `docs/code-changes/` 或 `docs/架构文档/交接报告/交接报告-<日期>-<主题>.md`。",
+        "五段格式：当前状态 / 已做 / 未做 / 下一步 / 踩过的坑。",
+        "**没留 = 这轮结论等于没发生。**"
+      ]
+    },
+    {
+      "title": "根目录与 docs 落点（R166 / B2–B4）",
+      "lines": [
+        "根目录白名单唯一事实源 `tools\\root-layout.json`（8 个根文件）。**新增顶层条目必须先登记**，否则 `tools\\audit_root.ps1` 判红。",
+        "产物落点：日志 `artifacts\\logs\\<yyyyMMdd>\\`、渲染 `artifacts\\render\\<yyyyMMdd>\\`；禁止 `> xxx.log` 落根；一次性脚本放 `tools\\oneoff\\`。",
+        "docs 结构：`tools\\audit_docs.ps1` + `tools\\docs-layout.json`。`docs/` 根级只允许 `README.md`（文档中心，改结构先读它）与 `项目全景说明.md`；新增顶层目录/根文件必须登记进 `docs-layout.json`。",
+        "往 `docs/code-changes/`、`docs/meetings/`、`docs/performance/` 加条目后跑 `tools\\gen_docs_index.ps1` 刷新 `INDEX.md`（幂等）；`INDEX.md` 由脚本生成，**不要手改**。",
+        "本机 `Find`/全仓 `find` 极慢，别用全仓扫描代替定向查询。"
+      ]
+    }
+  ]
+}

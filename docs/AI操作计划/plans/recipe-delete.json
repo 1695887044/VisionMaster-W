@@ -1,0 +1,100 @@
+{
+  "schema": "vm-plan/1",
+  "id": "recipe-delete",
+  "title": "删除一份配方",
+  "version": "1.0.0",
+  "risk": "high",
+  "description": "只删方案内的配方定义，不删 .vms，也不回滚当前参数；确认框是原生 MessageBox。",
+  "params": {
+    "recipe_name": {
+      "type": "string",
+      "required": true,
+      "example": "产品A"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "click",
+      "target": "app.menu.root",
+      "expect": {
+        "element": "app.menu.system",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "app.menu.system",
+      "expect": {
+        "element": "app.menu.system.recipe",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "app.menu.system.recipe",
+      "expect": {
+        "window": "dialog.recipe",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.recipe.row",
+      "target_name": "${recipe_name}"
+    },
+    {
+      "n": 5,
+      "do": "click",
+      "target": "dialog.recipe.delete",
+      "expect": {
+        "window": "dialog.recipe_delete",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 6,
+      "do": "click",
+      "target": "dialog.recipe_delete.yes",
+      "expect": {
+        "window": "dialog.recipe_delete",
+        "state": "closed"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 7,
+      "do": "assert",
+      "assert": "element_absent",
+      "target": "dialog.recipe.row",
+      "name_contains": "${recipe_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_absent",
+      "target": "dialog.recipe.row",
+      "name_contains": "${recipe_name}"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["recipe", "delete"]
+}

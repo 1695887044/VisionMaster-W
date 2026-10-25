@@ -54,9 +54,9 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*" MinHeight="120" />
-                                <RowDefinition Height="Auto" />
+                                <RowDefinition x:Name="StripSplitterRow" Height="Auto" />
                                 <!--  单行缩略图条：只留"一张缩略图 + 横向滚动条"的高度，不给竖向留空带  -->
-                                <RowDefinition Height="112" MinHeight="72" />
+                                <RowDefinition x:Name="StripRow" Height="112" MinHeight="72" />
                             </Grid.RowDefinitions>
 
                             <!--  ============ 第一栏：当前图（对比模式下并排两张） ============  -->
@@ -126,6 +126,7 @@
 
                             <!--  ============ 第二栏：分隔条（拖动调整缩略图条高度） ============  -->
                             <GridSplitter
+                                x:Name="PART_StripSplitter"
                                 Grid.Row="1"
                                 Height="4"
                                 HorizontalAlignment="Stretch"
@@ -192,6 +193,18 @@
                             <Setter TargetName="CompareColumn" Property="Width" Value="*" />
                             <Setter TargetName="PART_CompareSplitter" Property="Visibility" Value="Visible" />
                             <Setter TargetName="PART_Big2" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <!--
+                            缩略图条关闭：**行高折成 0**（不是只藏元素——行定义本身仍会占 112px）。
+                            分隔条那一行同样折 0，否则留下一道 4px 的空槽。
+                            两处一起折才是"大图真的变大"，这是多格布局下留白的全部来源。
+                        -->
+                        <Trigger Property="ShowThumbnailStrip" Value="False">
+                            <Setter TargetName="StripRow" Property="Height" Value="0" />
+                            <Setter TargetName="StripRow" Property="MinHeight" Value="0" />
+                            <Setter TargetName="StripSplitterRow" Property="Height" Value="0" />
+                            <Setter TargetName="PART_StripSplitter" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="PART_List" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

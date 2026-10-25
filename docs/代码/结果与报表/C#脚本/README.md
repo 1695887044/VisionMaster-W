@@ -2,7 +2,7 @@
 
 本目录是 **C#脚本插件（`Plugin.CSharpScript`）** 的专题文档目录。原先分散的三份开发记录（引擎 / 白名单 / 编辑器）已汇集到这里（**保留，未删除**）。
 
-> ⚠️ **别和「图像脚本」搞混**：本插件跑 **C#（Roslyn）**；[`../图像脚本/图像脚本插件.md`](../图像脚本/图像脚本插件.md) 跑 **HALCON HDevelop 脚本**。两套引擎，两个插件。
+> ⚠️ **别和「图像脚本」搞混**：本插件跑 **C#（Roslyn）**；[`../图像脚本/图像脚本插件.md`](../../../代码/采图/图像脚本/图像脚本插件.md) 跑 **HALCON HDevelop 脚本**。两套引擎，两个插件。
 
 ---
 
@@ -52,11 +52,11 @@
 
 | 文件 | 内容已并入主文档的 |
 |---|---|
-| [`2026-09-16-CSharp脚本插件.md`](2026-09-16-CSharp脚本插件.md) | 第 1 章 + 第 2 章 + 第 4.2 节（命名空间遮蔽、CompilationErrorException、CopyLocal）+ 已知边界 8 条 |
-| [`2026-09-16-CSharp脚本扩展库白名单MVP.md`](2026-09-16-CSharp脚本扩展库白名单MVP.md) | 第 1.5 节（fail-closed 7 级判定）+ 第 3.6 节（启用三步 + whitelist 格式） |
-| [`2026-09-19-CSharpScript编辑器智能提示与高亮.md`](2026-09-19-CSharpScript编辑器智能提示与高亮.md) | 第 2.5 节（编辑器能力）+ 第 3.2 节（界面）+ 第 4.2 节④（xshd 三坑） |
+| [`2026-09-16-CSharp脚本插件.md`](../../../code-changes/2026-09-16-CSharp脚本插件.md) | 第 1 章 + 第 2 章 + 第 4.2 节（命名空间遮蔽、CompilationErrorException、CopyLocal）+ 已知边界 8 条 |
+| [`2026-09-16-CSharp脚本扩展库白名单MVP.md`](../../../code-changes/2026-09-16-CSharp脚本扩展库白名单MVP.md) | 第 1.5 节（fail-closed 7 级判定）+ 第 3.6 节（启用三步 + whitelist 格式） |
+| [`2026-09-19-CSharpScript编辑器智能提示与高亮.md`](../../../code-changes/2026-09-19-CSharpScript编辑器智能提示与高亮.md) | 第 2.5 节（编辑器能力）+ 第 3.2 节（界面）+ 第 4.2 节④（xshd 三坑） |
 
-> 📌 最后一份文档的**图像脚本编辑器部分**已并入 [`../图像脚本/图像脚本插件.md`](../图像脚本/图像脚本插件.md)。
+> 📌 最后一份文档的**图像脚本编辑器部分**已并入 [`../图像脚本/图像脚本插件.md`](../../../代码/采图/图像脚本/图像脚本插件.md)。
 
 ---
 
@@ -64,9 +64,9 @@
 
 | 文件 | 关系 |
 |---|---|
-| [`../图像脚本/图像脚本插件.md`](../图像脚本/图像脚本插件.md) | **姊妹但要区分**：那是 HDevelop 脚本，本插件是 C# |
-| [`../颜色检查/2026-09-25-线序检测投射与脚本引用集修复.md`](../颜色检查/2026-09-25-线序检测投射与脚本引用集修复.md) | 已归档，但"引用集 `type:reference` 根因""HostDir 整目录扫描""NewMarks/MarkLine/MarkText 来源""Modules 投递四步走"都是本插件硬知识（已在主文档重新表述） |
-| [`../code-changes/2026-09-20-插件构建投递收口Directory.Build.targets.md`](../code-changes/2026-09-20-插件构建投递收口Directory.Build.targets.md) | Roslyn dll 投递清单一行 |
+| [`../图像脚本/图像脚本插件.md`](../../../代码/采图/图像脚本/图像脚本插件.md) | **姊妹但要区分**：那是 HDevelop 脚本，本插件是 C# |
+| [`../颜色检查/2026-09-25-线序检测投射与脚本引用集修复.md`](../../../code-changes/2026-09-25-线序检测投射与脚本引用集修复.md) | 已归档，但"引用集 `type:reference` 根因""HostDir 整目录扫描""NewMarks/MarkLine/MarkText 来源""Modules 投递四步走"都是本插件硬知识（已在主文档重新表述） |
+| [`../code-changes/2026-09-20-插件构建投递收口Directory.Build.targets.md`](../../../code-changes/2026-09-20-插件构建投递收口Directory.Build.targets.md) | Roslyn dll 投递清单一行 |
 
 ---
 

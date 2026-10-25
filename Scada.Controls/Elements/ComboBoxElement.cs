@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -68,6 +70,18 @@ namespace VisionMaster.Scada.Controls
                                      "值必须是整数；非法项自动跳过，空串不报错。显示名改了不会改变已配好的值")]
         public partial string? Options { get; set; }
 
+        /// <summary>
+        /// 方案级共享文本列表（稳定 Id 的字符串形式；空 = 继续用 <see cref="Options"/>）。
+        ///
+        /// 为什么存字符串而不是 Guid：属性袋是 string→string，属性面板的“文本列表”行
+        /// 也按字符串写回；解析时再 TryParse。坏 Id 不抛，按“列表缺失”显示。
+        /// </summary>
+        [ScadaProperty(Key = "StateListId", DisplayName = "文本列表", Kind = ElementPropertyKind.StateList,
+                       Group = ScadaPropertyGroups.Data, DefaultValue = "", IsBindable = false,
+                       Description = "方案级共享文本列表：一份定义、多个下拉框引用；留空则继续用「选项映射」。" +
+                                     "列表改名不打断引用；删除后显示「未找到文本列表」")]
+        public partial string? StateListId { get; set; }
+
         /// <summary>模式：<see cref="ModeOutput"/> 只读 / <see cref="ModeInputOutput"/> 读写</summary>
         [ScadaProperty(Key = "Mode", DisplayName = "模式", Kind = ElementPropertyKind.Choice,
                        Group = ScadaPropertyGroups.General, DefaultValue = "InputOutput",
@@ -113,6 +127,14 @@ namespace VisionMaster.Scada.Controls
         public static readonly DependencyProperty SelectedTextProperty =
             SelectedTextPropertyKey.DependencyProperty;
 
+        private static readonly DependencyPropertyKey StateListMissingPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(StateListMissing), typeof(bool), typeof(ComboBoxElement),
+            new PropertyMetadata(false));
+
+        /// <summary>配了 StateListId 但解析不到列表（删除/坏 Id/解析器未注入）</summary>
+        public static readonly DependencyProperty StateListMissingProperty =
+            StateListMissingPropertyKey.DependencyProperty;
+
         private static readonly DependencyPropertyKey IsEditablePropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(IsEditable), typeof(bool), typeof(ComboBoxElement),
             new PropertyMetadata(false));
@@ -151,6 +173,9 @@ namespace VisionMaster.Scada.Controls
         /// <summary>当前值的显示文本（只读，见 <see cref="SelectedTextProperty"/>）</summary>
         public string? SelectedText => (string?)GetValue(SelectedTextProperty);
 
+        /// <summary>配了文本列表但解析不到（只读，见 <see cref="StateListMissingProperty"/>）</summary>
+        public bool StateListMissing => (bool)GetValue(StateListMissingProperty);
+
         /// <summary>此刻能不能改（只读，见 <see cref="IsEditableProperty"/>）</summary>
         public bool IsEditable => (bool)GetValue(IsEditableProperty);
 
@@ -170,7 +195,12 @@ namespace VisionMaster.Scada.Controls
                    || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
 
         protected override void OnRuntimeContextChanged(ScadaRuntimeContext? oldContext, ScadaRuntimeContext? newContext)
-            => UpdateEditable();
+        {
+            UpdateEditable();
+            ReparseOptions(); // 运行态上下文可能带来 StateLists（设计期解析器为 null 时靠它）
+        }
+
+        protected override void OnStateListResolverChanged() => ReparseOptions();
 
         protected override void OnElementRefreshed()
         {
@@ -200,6 +230,7 @@ namespace VisionMaster.Scada.Controls
         }
 
         private ComboBox? _combo;
+        private ScadaStateList? _subscribedStateList;
         private bool _dropDownOpened;
         private int _valueAtDropDownOpen;
 
@@ -246,6 +277,7 @@ namespace VisionMaster.Scada.Controls
 
         partial void OnValuePropertyChanged() => UpdateSelectedText();
         partial void OnOptionsPropertyChanged() => ReparseOptions();
+        partial void OnStateListIdPropertyChanged() => ReparseOptions();
         partial void OnModePropertyChanged() => UpdateEditable();
         partial void OnPresentationPropertyChanged()
         {
@@ -270,42 +302,124 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private void ReparseOptions()
         {
+            var stateList = FindStateList();
+            SubscribeStateList(stateList);
+
             var list = new ObservableCollection<ChoiceOption>();
             var seen = new HashSet<int>();
-            string? text = Options;
+            var missing = false;
 
-            if (!string.IsNullOrEmpty(text))
+            if (stateList != null)
             {
-                foreach (string raw in text!.Split(';'))
+                foreach (var entry in stateList.Entries)
                 {
-                    string entry = raw.Trim();
-
-                    if (entry.Length == 0)
+                    if (!seen.Add(entry.Value))
                         continue;
 
-                    int separator = entry.IndexOf('=');
-                    if (separator <= 0)
-                        continue; // 缺 "=" 或 "=" 前没有值：非法项
-
-                    string valueText = entry.Substring(0, separator).Trim();
-                    string display = entry.Substring(separator + 1).Trim();
-
-                    if (!int.TryParse(valueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
-                        continue;
-
-                    if (!seen.Add(value))
-                        continue; // 重复值保留第一条，避免 SelectedValue 命中两行
-
-                    list.Add(new ChoiceOption(value, display));
+                    list.Add(new ChoiceOption(
+                        entry.Value,
+                        string.IsNullOrWhiteSpace(entry.Text)
+                            ? entry.Value.ToString(CultureInfo.InvariantCulture)
+                            : entry.Text));
                 }
             }
+            else if (!string.IsNullOrWhiteSpace(StateListId))
+            {
+                // 配了列表但解析不到：删除、坏 Id、或解析器还没注入。
+                // 不静默退回 Options——那会让“列表配了却没生效”看起来像“列表本来就没配”。
+                missing = true;
+            }
+            else
+            {
+                ParseOptions(list, seen);
+            }
 
+            SetValue(StateListMissingPropertyKey, missing);
             SetValue(OptionListPropertyKey, list);
             UpdateSelectedText();
         }
 
+        /// <summary>老的 <see cref="Options"/> 解析（StateListId 为空时走这里）</summary>
+        private void ParseOptions(ObservableCollection<ChoiceOption> list, HashSet<int> seen)
+        {
+            string? text = Options;
+
+            if (string.IsNullOrEmpty(text))
+                return;
+
+            foreach (string raw in text!.Split(';'))
+            {
+                string entry = raw.Trim();
+
+                if (entry.Length == 0)
+                    continue;
+
+                int separator = entry.IndexOf('=');
+                if (separator <= 0)
+                    continue; // 缺 "=" 或 "=" 前没有值：非法项
+
+                string valueText = entry.Substring(0, separator).Trim();
+                string display = entry.Substring(separator + 1).Trim();
+
+                if (!int.TryParse(valueText, NumberStyles.Integer, CultureInfo.InvariantCulture, out int value))
+                    continue;
+
+                if (!seen.Add(value))
+                    continue; // 重复值保留第一条，避免 SelectedValue 命中两行
+
+                list.Add(new ChoiceOption(value, display));
+            }
+        }
+
+        private ScadaStateList? FindStateList()
+        {
+            var list = ResolveStateList(StateListId);
+            if (list != null)
+                return list;
+
+            if (string.IsNullOrWhiteSpace(StateListId)
+                || !Guid.TryParse(StateListId, out var id))
+                return null;
+
+            return RuntimeContext?.StateLists?.FirstOrDefault(item => item.StateListId == id);
+        }
+
+        private void SubscribeStateList(ScadaStateList? list)
+        {
+            if (ReferenceEquals(_subscribedStateList, list))
+                return;
+
+            if (_subscribedStateList != null)
+                _subscribedStateList.PropertyChanged -= OnStateListChanged;
+
+            _subscribedStateList = list;
+
+            if (list != null)
+                list.PropertyChanged += OnStateListChanged;
+        }
+
+        private void OnStateListChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            // 条目增删改都会推高 Version；列表对象换了（删除/重建）也会走到这里。
+            if (e.PropertyName == nameof(ScadaStateList.Version))
+                ReparseOptions();
+        }
+
         private void UpdateSelectedText()
         {
+            var stateList = FindStateList();
+            if (stateList != null)
+            {
+                SetValue(SelectedTextPropertyKey, stateList.DisplayText(Value));
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(StateListId))
+            {
+                SetValue(SelectedTextPropertyKey, "未找到文本列表");
+                return;
+            }
+
             foreach (var option in OptionList)
             {
                 if (option.Value != Value)

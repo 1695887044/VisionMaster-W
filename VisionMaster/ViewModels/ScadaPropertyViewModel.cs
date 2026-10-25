@@ -819,6 +819,185 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
+    /// 方案级文本列表的一行（Kind = <see cref="ElementPropertyKind.StateList"/>）。
+    ///
+    /// 行上是一个列表选择器 + 「管理…」：候选来自方案文档，不是手打；
+    /// 值为空 = 不使用列表（ComboBox 继续走旧的 Options）。
+    /// </summary>
+    public sealed class ScadaStateListRow : ScadaPropertyRow
+    {
+        private readonly Func<IReadOnlyList<ScadaStateList>> _lists;
+        private readonly Action<ScadaStateListRow> _manage;
+
+        public ScadaStateListRow(
+            ScadaElement element,
+            ElementPropertyDescriptor descriptor,
+            Func<IReadOnlyList<ScadaStateList>> lists,
+            Action<ScadaStateListRow> manage)
+            : base(element, descriptor)
+        {
+            _lists = lists ?? throw new ArgumentNullException(nameof(lists));
+            _manage = manage ?? throw new ArgumentNullException(nameof(manage));
+            ManageCommand = new DelegateCommand(() => _manage(this));
+        }
+
+        /// <summary>「管理…」：打开文本列表管理器</summary>
+        public DelegateCommand ManageCommand { get; }
+
+        /// <summary>选择器候选；第一项是“不使用文本列表”</summary>
+        public IReadOnlyList<ScadaStateListOption> Options
+        {
+            get
+            {
+                var result = new List<ScadaStateListOption>
+                {
+                    new(string.Empty, "（不使用文本列表）"),
+                };
+
+                var current = Value;
+                var matched = false;
+
+                foreach (var list in _lists())
+                {
+                    var id = list.StateListId.ToString("D");
+                    result.Add(new ScadaStateListOption(id, list.Name));
+                    if (string.Equals(id, current, StringComparison.OrdinalIgnoreCase))
+                        matched = true;
+                }
+
+                // 当前 Id 已不在文档里（列表被删）：给一个占位项，别让下拉框显示空白。
+                if (!string.IsNullOrWhiteSpace(current) && !matched)
+                    result.Add(new ScadaStateListOption(current, "（已删除的文本列表）"));
+
+                return result;
+            }
+        }
+
+        /// <summary>行摘要（测试/无障碍用）</summary>
+        public string Summary
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Value))
+                    return "未选择";
+
+                foreach (var option in Options)
+                {
+                    if (string.Equals(option.Value, Value, StringComparison.OrdinalIgnoreCase))
+                        return option.Name;
+                }
+
+                return "（已删除的文本列表）";
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            RaisePropertyChanged(nameof(Options));
+            RaisePropertyChanged(nameof(Summary));
+        }
+    }
+
+    /// <summary>文本列表选择器的一项：Value 是 Guid 字符串，Name 是给人看的名</summary>
+    public sealed class ScadaStateListOption
+    {
+        public ScadaStateListOption(string value, string name)
+        {
+            Value = value ?? string.Empty;
+            Name = name ?? string.Empty;
+        }
+
+        public string Value { get; }
+
+        public string Name { get; }
+    }
+
+    /// <summary>
+    /// 方案内画面的一行（Kind = <see cref="ElementPropertyKind.Page"/>）。
+    /// 候选只列可导航页（排除弹窗页与基座），当前值已删除时给占位项，不静默变成“未选择”。
+    /// </summary>
+    public sealed class ScadaPageRow : ScadaPropertyRow
+    {
+        private readonly Func<ScadaDocument> _document;
+
+        public ScadaPageRow(ScadaElement element, ElementPropertyDescriptor descriptor, Func<ScadaDocument> document)
+            : base(element, descriptor)
+        {
+            _document = document ?? throw new ArgumentNullException(nameof(document));
+        }
+
+        public IReadOnlyList<ScadaPageOption> Options
+        {
+            get
+            {
+                var result = new List<ScadaPageOption>
+                {
+                    new(string.Empty, "（未选择画面）"),
+                };
+
+                var document = _document();
+                var current = Value;
+                var matched = false;
+
+                foreach (var page in document.Pages)
+                {
+                    if (page.IsPopup || document.IsBasePage(page))
+                        continue;
+
+                    var id = page.PageId.ToString("D");
+                    result.Add(new ScadaPageOption(id, page.Name));
+                    if (string.Equals(id, current, StringComparison.OrdinalIgnoreCase))
+                        matched = true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(current) && !matched)
+                    result.Add(new ScadaPageOption(current, "（已删除的画面）"));
+
+                return result;
+            }
+        }
+
+        public string Summary
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Value))
+                    return "未选择";
+
+                foreach (var option in Options)
+                {
+                    if (string.Equals(option.Value, Value, StringComparison.OrdinalIgnoreCase))
+                        return option.Name;
+                }
+
+                return "（已删除的画面）";
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            RaisePropertyChanged(nameof(Options));
+            RaisePropertyChanged(nameof(Summary));
+        }
+    }
+
+    /// <summary>画面选择器的一项：Value 是 PageId 字符串，Name 是画面名</summary>
+    public sealed class ScadaPageOption
+    {
+        public ScadaPageOption(string value, string name)
+        {
+            Value = value ?? string.Empty;
+            Name = name ?? string.Empty;
+        }
+
+        public string Value { get; }
+
+        public string Name { get; }
+    }
+
+    /// <summary>
     /// 属性面板的一行<b>画面</b>属性（S3-e3）：没选中图元时，面板编辑的是画面自己。
     ///
     /// 与图元行唯一的差别就是读写落在哪儿——图元有属性袋（键值对，需要
@@ -2576,6 +2755,10 @@ namespace VisionMaster.ViewModels
                     {
                         ElementPropertyKind.AxisList => new ScadaAxisListRow(element, property, OnPickAxes, ResolveAxisName),
                         ElementPropertyKind.ColumnList => new ScadaGridColumnsRow(element, property, OnPickColumns),
+                        ElementPropertyKind.StateList => new ScadaStateListRow(
+                            element, property, () => _editor.Document.StateLists, OnManageStateLists),
+                        ElementPropertyKind.Page => new ScadaPageRow(
+                            element, property, () => _editor.Document),
                         _ => new ScadaPropertyRow(element, property, () => _editor.SolutionRoot),
                     });
                 }
@@ -2786,6 +2969,20 @@ namespace VisionMaster.ViewModels
                 if (!page.TrySetAxisOptions(row.Element, picked, out var error))
                     _notifier.ShowError(error);
             });
+        }
+
+        /// <summary>
+        /// 「管理…」：打开文本列表管理器。管理器编辑的是副本，确认后才写回文档；
+        /// 写回是原地覆盖（保留列表对象引用），ComboBox 的 Version 订阅不会断。
+        /// </summary>
+        private void OnManageStateLists(ScadaStateListRow row)
+        {
+            var view = new VisionMaster.Views.DialogViews.StateListManagerView(_editor.Document);
+            if (!UI.CustomControl.EasyDialog.ShowSync("文本列表", view))
+                return;
+
+            view.Commit();
+            row.RefreshValue();
         }
 
         /// <summary>

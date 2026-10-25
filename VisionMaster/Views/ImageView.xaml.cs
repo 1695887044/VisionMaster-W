@@ -7,6 +7,7 @@ using Core.Events;
 using Core.Halcon.Controls;
 using Core.Halcon.Helpers;
 using VisionMaster.EventModel;
+using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.Views
@@ -36,6 +37,72 @@ namespace VisionMaster.Views
 
             // 收到"切换画布布局"：重新摆一次格子（老方案存过的布局值据此恢复）
             GlobalEventBus.Subscribe<ImageCanvasChangeEvent>(e => ShowCanvas(e.ViewMode));
+
+            // 缩略图条的显隐依赖采集配置（见 ShouldShowStrip）。设置保存后会经
+            // ApplySettingsNow → Changed 通知一声，这里跟着重算——否则用户得切一次布局才看到变化。
+            //
+            // 为什么挂 Loaded/Unloaded 而不是构造时挂一次：本视图不止一份（Shell 一份、
+            // 运行驾驶舱一份、布局重建时 LayoutHelper 还会再 new），构造期直接订阅
+            // 等于每建一份就永久留一个订阅，切几次布局就多几份幽灵重算。
+            Loaded += (_, __) =>
+            {
+                var collection = ImageCollectionService.Instance;
+                if (collection != null) collection.Changed += OnCollectionChanged;
+
+                ApplyStripVisibility();
+                RefreshHints();
+            };
+            Unloaded += (_, __) =>
+            {
+                var collection = ImageCollectionService.Instance;
+                if (collection != null) collection.Changed -= OnCollectionChanged;
+            };
+        }
+
+        private void OnCollectionChanged(object? sender, EventArgs e) => ApplyStripVisibility();
+
+        /// <summary>
+        /// 每格缩略图条该不该显示。
+        ///
+        /// 判据是"这格可能不止一张图吗"：
+        /// · 收容关（默认）—— 每个（流程，窗口号）只留最新一张，条子永远只有一张，
+        ///   纯粹占高度（3×3 下能吃掉四成），直接不显示；
+        /// · 收容开 —— 有历史可回看，按用户在设置里（或右键菜单里）的选择显示；
+        /// · 采集总闸关 —— 本来就没有图，条子只是空占位。
+        /// </summary>
+        private static bool ShouldShowStrip(ImageGallerySettings? cfg)
+            => SupportsFrameHistory(cfg) && cfg.ShowThumbnailStrip;
+
+        /// <summary>
+        /// 这一格有没有"多张图"的可能。为 false 时锁定跟随/对比模式/缩略图条一律置灰
+        /// （那时它们点了也没有可观察的效果，留着可点等于让人以为软件没反应）。
+        /// 与 <see cref="ShouldShowStrip"/> 分开：条子还额外受用户自己的显示开关控制。
+        /// </summary>
+        private static bool SupportsFrameHistory(ImageGallerySettings? cfg)
+            => cfg != null && cfg.Enabled && cfg.KeepInjectedHistory;
+
+        /// <summary>
+        /// 把配置推给每一格（已摆出去的，含当前没显示的那些）。
+        /// 条子显隐与"能不能用锁定/对比"是两件事，一起在这里刷。
+        /// </summary>
+        private void ApplyStripVisibility()
+        {
+            var cfg = ImageCollectionService.Instance?.Settings;
+            var show = ShouldShowStrip(cfg);
+            var history = SupportsFrameHistory(cfg);
+
+            foreach (var canvas in _canvases.Values)
+            {
+                canvas.SupportsFrameHistory = history;
+                canvas.ShowThumbnailStrip = show;
+            }
+        }
+
+        /// <summary>采集配置可能改了"为什么没图"：提示文案要跟着重算（否则还停在旧原因上）</summary>
+        private void RefreshHints()
+        {
+            foreach (var pair in _canvases)
+                pair.Value.HintText = BuildHint(pair.Key);
         }
 
         /// <summary>当前形态（供方案配置保存时读取，见 <c>SolutionConfigApplier.Capture</c>）</summary>
@@ -98,18 +165,85 @@ namespace VisionMaster.Views
         /// </summary>
         private ImageGallery CreateCanvas(int viewIndex)
         {
+            var cfg = ImageCollectionService.Instance?.Settings;
             var canvas = new ImageGallery
             {
                 Margin = new Thickness(5),
                 ViewIndexFilter = viewIndex,
                 HintText = BuildHint(viewIndex),
+                ShowThumbnailStrip = ShouldShowStrip(cfg),
+                SupportsFrameHistory = SupportsFrameHistory(cfg),
                 // 数据源是采集服务的只读集合：控件只负责显示与筛选，不持有/不释放图像
                 ItemsSource = ImageCollectionService.Instance?.Frames
             };
 
             canvas.ClearRequested += (_, __) => ImageCollectionService.Instance?.Clear();
             canvas.ExportRequested += OnCanvasExportRequested;
+            canvas.ThumbnailStripToggleRequested += OnThumbnailStripToggleRequested;
             return canvas;
+        }
+
+        /// <summary>
+        /// 右键菜单里切了"显示缩略图条"：写回配置并让所有格一起跟随。
+        ///
+        /// 为什么由宿主落盘：控件在 Core.Halcon 里，拿不到 AppSettingsService（分层边界）。
+        /// 为什么必须写盘：这个选择是"这台机器的用法"，重启后应当还是关着的——
+        /// 只改当次界面等于每次开机都要再点一遍。
+        /// 多格布局下点哪一格都是同一个全局开关，所以写完统一广播一次（见 ApplyStripVisibility）。
+        /// </summary>
+        private void OnThumbnailStripToggleRequested(object? sender, EventArgs e)
+        {
+            // 以触发者那一格的当前值为准（它自己已经在点击时翻好了）
+            if (sender is not ImageGallery source) return;
+
+            var show = source.ShowThumbnailStrip;
+
+            // 先把其余各格同步过来：即使下面写盘失败，界面也是自洽的（不会一半显示一半折叠）
+            foreach (var canvas in _canvases.Values)
+                canvas.ShowThumbnailStrip = show;
+
+            var settings = TryGetSettings();
+            var gallery = settings?.Current.ImageGallery;
+            if (gallery == null) return;
+
+            var previous = gallery.ShowThumbnailStrip;
+            if (previous == show) return;
+
+            gallery.ShowThumbnailStrip = show;
+            try
+            {
+                settings!.Save();
+            }
+            catch (Exception ex)
+            {
+                // 写盘失败（装 Program Files / 普通用户运行）不能让界面回滚到"点了没反应"，
+                // 但要如实说明：本次有效、重启后回到旧值。
+                gallery.ShowThumbnailStrip = previous;
+                var restored = ShouldShowStrip(ImageCollectionService.Instance?.Settings);
+                foreach (var canvas in _canvases.Values)
+                    canvas.ShowThumbnailStrip = restored;
+
+                System.Windows.MessageBox.Show(
+                    Window.GetWindow(this),
+                    $"缩略图条设置没能写入 AppConfig.json，重启后会回到原来的状态：{ex.Message}",
+                    "画布", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// 取软件配置服务。<b>无 Prism 容器时返回 null</b>——断言宿主与设计器都会直接 new 本视图，
+        /// 那时 ContainerLocator.Current 为空，硬解会抛（"设置了属性时引发异常"那类难查的崩）。
+        /// </summary>
+        private static AppSettingsService? TryGetSettings()
+        {
+            try
+            {
+                return Prism.Ioc.ContainerLocator.Container?.Resolve<AppSettingsService>();
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -136,7 +270,11 @@ namespace VisionMaster.Views
                  + Environment.NewLine
                  + $"没有图就把插件的显示窗口号设成 {viewIndex}；"
                  + Environment.NewLine
-                 + "或在「系统参数设置 → 画布」里打开「兜底采集所有输出端口」。";
+                 + "或在「系统参数设置 → 画布」里打开「兜底采集所有输出端口」。"
+                 + Environment.NewLine
+                 + (cfg.KeepInjectedHistory
+                     ? "本格保留历史帧，下方缩略图条可回看前几张。"
+                     : "本格只显示该窗口最新一张；要回看历史请打开「保留插件注入图的历史帧」。");
         }
 
         /// <summary>

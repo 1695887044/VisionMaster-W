@@ -55,6 +55,12 @@ namespace VisionMaster.ViewModels
             ScadaActionType.WriteVariable => 1,
             ScadaActionType.Increment => 1,
             ScadaActionType.Decrement => 1,
+            // 位操作三条（v4）与「写变量/增量/减量」同一组：它们都是"改一个变量"，
+            // 排在一起用户找得到；组内次序由枚举值决定（SetBit=24 < ResetBit=25 < ToggleBit=26），
+            // OrderBy 是稳定排序，所以这里不用再写 2/3/4 那种伪次序。
+            ScadaActionType.SetBit => 1,
+            ScadaActionType.ResetBit => 1,
+            ScadaActionType.ToggleBit => 1,
             ScadaActionType.Navigate => 2,
             ScadaActionType.NavigateBack => 3,
             ScadaActionType.OpenPopup => 4,
@@ -76,6 +82,8 @@ namespace VisionMaster.ViewModels
             // 方案级配方：排在流程/运动之后——它是"整单换参数"，不是单步动作，
             // 与运动命令族混排会让"这条动作到底动没动设备"变得难判断。
             ScadaActionType.ApplyRecipe => 30,
+            // 播放声音：副作用类，排在最后；它不改变任何变量/设备状态。
+            ScadaActionType.PlaySound => 31,
             _ => 100,
         };
 

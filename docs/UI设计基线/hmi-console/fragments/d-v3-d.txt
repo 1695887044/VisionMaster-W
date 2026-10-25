@@ -1,0 +1,276 @@
+<!-- D-6 报警中心 -->
+<section class="screen-page" id="d-alarm" data-page="alarm">
+  <div class="tpl-head">
+    <div><h2><span>D-06</span>报警中心 · 运动报警与处置</h2>
+      <p>运动类报警靠轴控件里的「停止 / 清报警」就地处置，报警中心负责追溯与统计。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>报警清单 + 详情</span><span><b>右栏</b>轴控件 + 处置</span><span><b>出口</b>数据追溯</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip bad"><i></i>有未确认报警</span>
+      <span class="mode-pill">AUTO · 已暂停</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>未确认</span><b>2</b></div>
+      <div class="top-stat"><span>今日</span><b>14 条</b></div>
+      <div class="top-stat"><span>连续运行</span><b>62 h</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:22:18</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item active" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn bad"><i></i>等确认 2 条</div><div class="conn-sub">处置后自动解除暂停</div></div>
+      </div>
+      <div class="main">
+        <div class="card" style="flex:none;padding:11px;">
+          <div class="card-head"><div><b>报警清单</b><span>运动 / 通讯 / 视觉 / 安全 四类</span></div><span class="chip">Hmi.AlarmBanner</span></div>
+          <div class="alarm-list" style="margin-top:4px;">
+            <div class="alarm-row critical"><span class="sev">紧急</span><span class="time">15:11:52</span><span class="name">R 轴跟随误差超限 0.062 mm</span><span class="state">未确认</span></div>
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:04:07</span><span class="name">Z 轴速度超软限位 45 mm/s</span><span class="state">未确认</span></div>
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">14:47:22</span><span class="name">R 轴跟随误差接近阈值 0.018</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:52:44</span><span class="name">配方切换完成 · MC-XY 标准</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:41:03</span><span class="name">Y 轴回零完成</span><span class="state">已确认</span></div>
+            <div class="alarm-row info"><span class="sev">提示</span><span class="time">14:30:19</span><span class="name">视觉标定确认通过 RMS 0.014</span><span class="state">已确认</span></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) 460px;gap:12px;flex:1;min-height:0;">
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>报警详情 · R 轴跟随误差超限</b><span>R 旋转 · 44.812° · 持续 0.38 s</span></div><span class="chip">Hmi.MultiTrend</span></div>
+            <div class="wave-card" style="flex:1;">
+              <svg viewBox="0 0 640 200" preserveAspectRatio="none">
+                <line class="grid" x1="0" y1="50" x2="640" y2="50"></line>
+                <line class="grid" x1="0" y1="110" x2="640" y2="110"></line>
+                <line class="grid" x1="0" y1="170" x2="640" y2="170"></line>
+                <line class="zl" x1="0" y1="44" x2="640" y2="44"></line>
+                <polyline class="c1" points="0,180 60,178 120,172 180,150 240,96 300,58 340,26 380,40 420,90 480,150 540,172 600,180 640,182"></polyline>
+                <text class="axl" x="4" y="14">mm</text>
+                <text class="axl" x="500" y="38" style="fill:#FCA5A5;">阈值 0.050</text>
+                <text class="axl" x="330" y="20" style="fill:#FCA5A5;">峰值 0.062</text>
+                <rect x="336" y="20" width="52" height="160" fill="rgba(239,68,68,.12)"></rect>
+              </svg>
+            </div>
+            <div class="wave-legend"><span><i style="background:#38BDF8"></i>R 轴跟随误差</span><span><i style="background:#7F1D1D"></i>报警窗口 0.38 s</span><span><i style="background:#B45309"></i>阈值 0.050</span></div>
+            <div class="row" style="margin-top:9px;"><span class="chip">处置建议 1：降 R 速度到 240 mm/s</span><span class="chip">建议 2：查减速机背隙</span><span class="chip">建议 3：重做 R 增益整定</span></div>
+          </div>
+          <div class="card" style="padding:11px;">
+            <div class="card-head"><div><b>报警统计</b><span>今日 14 条</span></div><span class="chip">Hmi.KpiBoard</span></div>
+            <div class="kpi-grid" style="grid-template-columns:repeat(4,1fr);">
+              <div class="kpi"><span>运动</span><b>6</b><em>43%</em></div>
+              <div class="kpi"><span>通讯</span><b>1</b><em>7%</em></div>
+              <div class="kpi"><span>视觉</span><b>2</b><em>14%</em></div>
+              <div class="kpi"><span>安全</span><b>0</b><em>0%</em></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px;font-size:9px;margin-top:10px;">
+              <div class="detail-row"><span>15:18 已确认 Z 速度告警</span><b>李工</b></div>
+              <div class="detail-row"><span>15:12 已停止 R 轴</span><b>李工</b></div>
+              <div class="detail-row"><span>14:52 配方切换</span><b>王工</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>2 条未确认</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row critical"><span class="sev">紧急</span><span class="time">15:11:52</span><span class="name">R 轴跟随误差超限</span><span class="state">未确认</span></div>
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:04:07</span><span class="name">Z 轴速度超软限位</span><span class="state">未确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="flex:none;padding:0;border:0;background:transparent;">
+          <div class="axp axp-nopoints" style="width:280px;height:280px;">
+            <span class="axp-dims">280 × 280</span>
+            <div class="axp-hd">轴<span class="axp-combo"><b>AXIS-R 旋转</b><span class="car">▼</span></span></div>
+            <div class="axp-pos"><b>44.812</b><em>°</em></div>
+            <div class="axp-lamps">
+              <div class="axp-lamp on"><i class="on"></i>使能</div>
+              <div class="axp-lamp"><i></i>到位</div>
+              <div class="axp-lamp"><i></i>运动</div>
+              <div class="axp-lamp on"><i class="on g"></i>原点</div>
+              <div class="axp-lamp on"><i class="al"></i>报警</div>
+              <div class="axp-lamp"><i></i>正限位</div>
+              <div class="axp-lamp"><i></i>反限位</div>
+              <div class="axp-lamp"><i></i>急停</div>
+            </div>
+            <div class="axp-vel"><b>0.000</b><em>mm/s</em><span class="st">报警待清</span></div>
+            <div class="axp-cmds">
+              <span class="axp-btn">失能</span><span class="axp-btn hot dim">◀ 点动</span><span class="axp-btn hot dim">点动 ▶</span>
+              <span class="axp-btn dim">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn hot">清报警</span>
+            </div>
+            <div class="axp-msg">报警未清除：清除前点动与定位被拒绝</div>
+            <div class="axp-foot">就地处置<span class="tag">无需转到别的页</span></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;padding:10px;">
+          <div class="card-head"><div><b>处置动作</b><span>确认 / 全部确认</span></div><span class="chip">Hmi.AckButton</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px;">
+            <span class="btn primary" style="height:40px;">确认本条</span>
+            <span class="btn" style="height:40px;">全部确认</span>
+            <span class="btn danger" style="height:40px;">紧急停止</span>
+            <span class="btn" style="height:40px;">复位自动</span>
+          </div>
+          <div class="safe-strip ok" style="margin-top:auto;">处置记录全部落审计 · 保留 90 天</div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>等确认 2 条</span><span>自动已暂停</span><span>今日 14 条</span>
+      <span>处置走轴控件「清报警」</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<!-- D-7 数据追溯 -->
+<section class="screen-page" id="d-trace" data-page="trace">
+  <div class="tpl-head">
+    <div><h2><span>D-07</span>数据追溯 · 逐件轴位置记录</h2>
+      <p>每件记录 X/Y/Z/R 四轴位置、对位分与节拍，由 <b>Hmi.DataGrid</b> 展示；右侧用 <b>Hmi.AxisPanel</b> 回放最近一件的轴状态。</p></div>
+    <div class="tpl-meta"><span><b>主区</b>追溯表 + KPI</span><span><b>右栏</b>轴控件 + 分布</span><span><b>出口</b>（末页）</span></div>
+  </div>
+  <div class="screen">
+    <div class="topbar">
+      <div class="brand"><span class="logo">VM</span><div><b>精密运动控制工作站 · 1# 台</b><small>D 方案 · 伺服四轴 + 气动夹爪</small></div></div>
+      <span class="status-chip run"><i></i>运行中</span>
+      <span class="mode-pill">AUTO · 自动</span>
+      <div class="spacer"></div>
+      <div class="top-stat"><span>累计件数</span><b>4 128</b></div>
+      <div class="top-stat"><span>数据集</span><b>正常</b></div>
+      <div class="top-stat"><span>占用</span><b>4 128 / 20 000</b></div>
+      <div class="alarm-chip warning" data-nav="alarm"><i></i>2 条未确认</div>
+      <div class="user"><span>操作员</span><b>李工</b></div>
+      <div class="clock">15:24:41</div>
+    </div>
+    <div class="shell">
+      <div class="nav">
+        <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运动总览</div>
+        <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+        <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+        <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+        <div class="nav-item active" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+        <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心<span class="nav-badge">2</span></div>
+        <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+        <div class="nav-sep"></div>
+        <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+        <div class="nav-foot"><div class="conn"><i></i>数据表格 · 200 行缓冲</div><div class="conn-sub">采行由流程落 SampleVariable</div></div>
+      </div>
+      <div class="main">
+        <div class="card" style="flex:1;min-height:0;padding:11px;">
+          <div class="card-head"><div><b>逐件追溯 · 记录</b><span>SN / 四轴位置 / 对位分 / 单件耗时 / 结果 / 时间</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <table class="pm-table" style="margin-top:4px;font-size:9.5px;">
+            <thead><tr><th>SN</th><th>X (mm)</th><th>Y (mm)</th><th>Z (mm)</th><th>R (°)</th><th>对位分</th><th>耗时 (s)</th><th>结果</th><th>时间</th></tr></thead>
+            <tbody>
+              <tr><td class="k">MC-A7F21C-0184</td><td class="v">128.480</td><td class="v">64.000</td><td class="v">−12.500</td><td class="v">45.000</td><td class="v">0.972</td><td class="v">2.61</td><td class="v hl">OK</td><td class="v">15:24:38</td></tr>
+              <tr><td class="k">MC-A7F21C-0183</td><td class="v">128.492</td><td class="v">63.988</td><td class="v">−12.500</td><td class="v">44.960</td><td class="v">0.968</td><td class="v">2.63</td><td class="v hl">OK</td><td class="v">15:24:35</td></tr>
+              <tr><td class="k">MC-A7F21C-0182</td><td class="v">128.471</td><td class="v">64.014</td><td class="v">−12.500</td><td class="v">45.030</td><td class="v">0.981</td><td class="v">2.59</td><td class="v hl">OK</td><td class="v">15:24:33</td></tr>
+              <tr><td class="k">MC-A7F21C-0181</td><td class="v">128.455</td><td class="v">64.022</td><td class="v">−12.500</td><td class="v">44.981</td><td class="v">0.876</td><td class="v">2.72</td><td class="v">NG</td><td class="v">15:24:30</td></tr>
+              <tr><td class="k">MC-A7F21C-0180</td><td class="v">128.488</td><td class="v">63.995</td><td class="v">−12.500</td><td class="v">45.008</td><td class="v">0.964</td><td class="v">2.60</td><td class="v hl">OK</td><td class="v">15:24:28</td></tr>
+              <tr><td class="k">MC-A7F21C-0179</td><td class="v">128.502</td><td class="v">64.007</td><td class="v">−12.500</td><td class="v">44.996</td><td class="v">0.957</td><td class="v">2.64</td><td class="v hl">OK</td><td class="v">15:24:25</td></tr>
+              <tr><td class="k">MC-A7F21C-0178</td><td class="v">128.469</td><td class="v">64.018</td><td class="v">−12.500</td><td class="v">45.041</td><td class="v">0.949</td><td class="v">2.66</td><td class="v hl">OK</td><td class="v">15:24:22</td></tr>
+              <tr><td class="k">MC-A7F21C-0177</td><td class="v">128.481</td><td class="v">63.992</td><td class="v">−12.500</td><td class="v">44.973</td><td class="v">0.985</td><td class="v">2.58</td><td class="v hl">OK</td><td class="v">15:24:20</td></tr>
+            </tbody>
+          </table>
+          <div class="row" style="margin-top:auto;padding-top:9px;"><span class="btn primary">导出 CSV</span><span class="btn">按 SN 查询</span><span class="btn">按时间段</span><span class="chip">最新在上 · 100 行上限</span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;flex:none;">
+          <div class="card" style="padding:10px;"><div class="card-head"><div><b>平均节拍</b><span>本班</span></div></div><div style="font-family:var(--mono);font-size:22px;color:#93C5FD;">2.64<small style="font-size:11px;">s</small></div></div>
+          <div class="card" style="padding:10px;"><div class="card-head"><div><b>对位均值</b><span>1284 次</span></div></div><div style="font-family:var(--mono);font-size:22px;color:#86EFAC;">0.961</div></div>
+          <div class="card" style="padding:10px;"><div class="card-head"><div><b>NG 率</b><span>今日</span></div></div><div style="font-family:var(--mono);font-size:22px;color:#FCD34D;">0.83<small style="font-size:11px;">%</small></div></div>
+          <div class="card" style="padding:10px;"><div class="card-head"><div><b>回零次数</b><span>本班</span></div></div><div style="font-family:var(--mono);font-size:22px;color:#E6EEF7;">2</div></div>
+        </div>
+      </div>
+      <div class="rail">
+        <div class="card alarm-card">
+          <div class="card-head"><div><b>报警</b><span>2 条未确认</span></div><span class="card-link" data-nav="alarm">全部 →</span></div>
+          <div class="alarm-list">
+            <div class="alarm-row critical"><span class="sev">紧急</span><span class="time">15:11:52</span><span class="name">R 轴跟随误差超限</span><span class="state">未确认</span></div>
+            <div class="alarm-row warning"><span class="sev">告警</span><span class="time">15:04:07</span><span class="name">Z 轴速度超软限位</span><span class="state">未确认</span></div>
+          </div>
+        </div>
+        <div class="card" style="flex:none;padding:0;border:0;background:transparent;">
+          <div class="axp axp-nopoints" style="width:280px;height:280px;">
+            <span class="axp-dims">280 × 280</span>
+            <div class="axp-hd">轴<span class="axp-combo"><b>AXIS-X 横梁 · 回放</b><span class="car">▼</span></span></div>
+            <div class="axp-pos"><b>128.480</b><em>mm</em></div>
+            <div class="axp-lamps">
+              <div class="axp-lamp on"><i class="on"></i>使能</div>
+              <div class="axp-lamp on"><i class="on g"></i>到位</div>
+              <div class="axp-lamp"><i></i>运动</div>
+              <div class="axp-lamp on"><i class="on g"></i>原点</div>
+              <div class="axp-lamp"><i></i>报警</div>
+              <div class="axp-lamp"><i></i>正限位</div>
+              <div class="axp-lamp"><i></i>反限位</div>
+              <div class="axp-lamp"><i></i>急停</div>
+            </div>
+            <div class="axp-vel"><b>24.000</b><em>mm/s</em><span class="st">历史回放</span></div>
+            <div class="axp-cmds">
+              <span class="axp-btn dim">失能</span><span class="axp-btn hot dim">◀ 点动</span><span class="axp-btn hot dim">点动 ▶</span>
+              <span class="axp-btn dim">回零</span><span class="axp-btn danger dim">停止</span><span class="axp-btn dim">清报警</span>
+            </div>
+            <div class="axp-msg">回放态：命令按钮全部禁用</div>
+            <div class="axp-foot">SN MC-A7F21C-0184<span class="tag">CanOperate=False</span></div>
+          </div>
+        </div>
+        <div class="card" style="flex:1;min-height:0;padding:10px;">
+          <div class="card-head"><div><b>对位分数分布</b><span>近 1 h</span></div><span class="chip">Hmi.MultiTrend</span></div>
+          <div class="wave-card" style="height:96px;">
+            <svg viewBox="0 0 300 90" preserveAspectRatio="none">
+              <line class="grid" x1="0" y1="78" x2="300" y2="78"></line>
+              <rect x="14" y="58" width="24" height="20" fill="#38BDF8" opacity=".7"></rect>
+              <rect x="52" y="34" width="24" height="44" fill="#38BDF8" opacity=".8"></rect>
+              <rect x="90" y="12" width="24" height="66" fill="#38BDF8"></rect>
+              <rect x="128" y="22" width="24" height="56" fill="#38BDF8" opacity=".85"></rect>
+              <rect x="166" y="46" width="24" height="32" fill="#38BDF8" opacity=".7"></rect>
+              <rect x="204" y="62" width="24" height="16" fill="#F59E0B" opacity=".8"></rect>
+              <rect x="242" y="72" width="24" height="6" fill="#EF4444" opacity=".8"></rect>
+              <text class="axl" x="4" y="12">次</text>
+            </svg>
+          </div>
+          <div class="wave-legend"><span>0.90~0.93</span><span>→</span><span>&gt;0.99</span></div>
+        </div>
+        <div class="card" style="flex:none;padding:10px;">
+          <div class="card-head"><div><b>失败原因 Top 5</b><span>今日 41 次</span></div><span class="chip">Hmi.DataGrid</span></div>
+          <div style="display:flex;flex-direction:column;gap:5px;font-size:9px;">
+            <div class="detail-row"><span>对位分 &lt; 0.90</span><b>19 · 46%</b></div>
+            <div class="detail-row"><span>夹爪真空未到位</span><b>11 · 27%</b></div>
+            <div class="detail-row"><span>Z 轴到位超时</span><b>7 · 17%</b></div>
+            <div class="detail-row"><span>R 轴跟随误差</span><b>4 · 10%</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="bottombar">
+      <span><i class="dot"></i>数据表格正常</span><span>4 128 件</span><span>对位均值 0.961</span>
+      <span>回放态按钮禁用</span><span style="margin-left:auto">方案：CCG-运动控制工作站.vms</span><span>v1.0</span>
+    </div>
+  </div>
+</section>
+
+<div class="page-notes" id="notes-d">
+  <div class="note-card">
+    <h3>D 方案为什么改成「轴控件搭配」</h3>
+    <p><b>改之前的问题：</b>v2 的 D 方案自己画了四张轴卡、3×3 点动盘、独立点位表、四轴状态表——这些<b>控件本身就有</b>，画面上等于同一件事画了两遍。</p>
+    <p><b>改之后：</b>主区直接放 <span class="tag-list"><span>Hmi.AxisConsole 320×470</span><span>Hmi.AxisPanel 280×280</span><span>Hmi.AxisPointTable 340×300</span></span>，一个控件类三个预设，随页面需要选一个。轴选择器做到控件里（下拉），画面不再重复列四根轴。</p>
+    <p><b>控件本身就有的（不要重复画）：</b>轴下拉、位置大字、8 个灯（使能/到位/运动/原点/报警/正限位/反限位/急停）、速度、6 个命令键（使能/◀点动/点动▶/回零/停止/清报警）、点位表（示教/定位/速度可编辑）、操作结果提示。</p>
+    <p><b>控件真的没有的（橙色候选，不是已实现）：</b>3×3 八向点动盘、步长与倍率、目标位置数字输入、历史回放。<b>本次只在页面上用 Hmi.SelectorSwitch / Hmi.IOField 做替代或标候选，不改控件。</b></p>
+  </div>
+  <div class="note-card">
+    <h3>安全与权限（AxisPanelElement 已经内建）</h3>
+    <ul>
+      <li><b>点动按住才动：</b>按下 <code>CaptureMouse</code> 起，抬起 / 移出 / 失去捕获三路都发停止；控件卸载时兜底再发一次停止。</li>
+      <li><b>回零长按 0.5 s</b> 才触发（防误触），切轴时对旧轴显式发停止——停是安全动作，不过权限门禁。</li>
+      <li><b>权限在按下之前判：</b><code>CanOperate</code> 绑在按钮容器 <code>IsEnabled</code> 上，角色不够时按钮是灰的，不是按了没反应。</li>
+      <li><b>失败原因上屏：</b><code>CommandMessage</code> 常驻显示上一次操作结果，不会自动消失；成功为空串。</li>
+      <li><b>设计期不执行：</b>没有运行上下文时所有命令返回「设计期不执行命令（运行后可用）」，绝不静默空跑。</li>
+    </ul>
+  </div>
+</div>
+</section>

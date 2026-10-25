@@ -240,4 +240,182 @@
       </Setter.Value>
     </Setter>
   </Style>
+
+  <!--
+      ============================================================
+      v2.1「报警配置」基线新增（docs/UI设计基线/scada-alarm-config）
+      ============================================================
+      说明：DialogChip* / DialogTag* 会被应用级 FluentAliases.xaml 同名覆盖，
+      所以运行中 chip、规则标签这些"尺寸写死"的元素另起新键，不与覆盖层抢同一个名字。
+  -->
+  <!--  详情块句首的「规则」小标签：10.5 / accent-text / accent-light 底 / r3  -->
+  <Style x:Key="DialogRuleTag" TargetType="Border">
+    <Setter Property="Margin" Value="0,1,0,0" />
+    <Setter Property="Padding" Value="6,0" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <Style x:Key="DialogRuleTagText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="10.5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LineHeight" Value="16" />
+    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+  </Style>
+  <!--  运行中：绿色胶囊 + 6px 圆点（22 高；与标题栏计数同一行，不能把行撑高）  -->
+  <Style x:Key="DialogRunChip" TargetType="Border">
+    <Setter Property="Height" Value="22" />
+    <Setter Property="Padding" Value="8,0" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="11" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <Style x:Key="DialogRunChipText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+  </Style>
+  <Style x:Key="DialogChipDotSuccess" TargetType="Ellipse">
+    <Setter Property="Width" Value="6" />
+    <Setter Property="Height" Value="6" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+  </Style>
+  <!--  计数之间的 3px 分隔点  -->
+  <Style x:Key="DialogCountSeparator" TargetType="Ellipse">
+    <Setter Property="Width" Value="3" />
+    <Setter Property="Height" Value="3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+  </Style>
+  <!--  缺变量：不是胶囊，是"5px 琥珀点 + 琥珀文字"，跟在计数后面  -->
+  <Style x:Key="DialogIncompleteDot" TargetType="Ellipse">
+    <Setter Property="Width" Value="5" />
+    <Setter Property="Height" Value="5" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+  </Style>
+  <Style x:Key="DialogIncompleteText" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+  </Style>
+  <!--
+      文字链接（工具栏「清除」、删除回执「撤销」）：下划线由使用方的 TextBlock 加，
+      本样式只管字号/颜色/命中区/焦点环；不设悬停变色，链接的 affordance 靠下划线。
+  -->
+  <Style x:Key="DialogLinkButton" TargetType="Button">
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="2,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle">
+      <Setter.Value>
+        <!--  同 DialogFocusVisual 形制；本分册不能跨册 StaticResource（R30），就地内联  -->
+        <Style TargetType="Control">
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate>
+                <Border
+                    Margin="2"
+                    BorderBrush="{StaticResource DialogAccentBrush}"
+                    BorderThickness="2"
+                    CornerRadius="4"
+                    SnapsToDevicePixels="True" />
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </Setter.Value>
+    </Setter>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}" CornerRadius="3">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="DialogLinkButtonSuccess" BasedOn="{StaticResource DialogLinkButton}" TargetType="Button">
+    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+  </Style>
+  <!--
+      幽灵按钮（删除 / 底栏撤销）：透明底无框，悬停出浅底与描边。
+      为什么不用 DialogGhostButton：那一支在应用级被 FluentAliases 覆盖，圆角/内距对不上基线。
+      颜色一律走模板触发器写自身属性（不写子元素 Background），基于本样式的派生样式才改得动前景色。
+  -->
+  <Style x:Key="DialogQuietButton" TargetType="Button">
+    <Setter Property="Height" Value="30" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle">
+      <Setter.Value>
+        <Style TargetType="Control">
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate>
+                <Border
+                    Margin="2"
+                    BorderBrush="{StaticResource DialogAccentBrush}"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    SnapsToDevicePixels="True" />
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </Setter.Value>
+    </Setter>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border
+              x:Name="Bd"
+              Padding="{TemplateBinding Padding}"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="6"
+              SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+              <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogBorderLightBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
 </ResourceDictionary>

@@ -42,7 +42,9 @@ namespace VisionMaster.Services
             ScadaClipboardPayload? templatePayload,
             int templateRevision,
             IScadaTemplateVariableResolver resolver,
-            bool onlyStale = true)
+            bool onlyStale = true,
+            IReadOnlyList<string>? arrayRootsManifest = null,
+            int originalIndex = 0)
         {
             var warnings = new List<string>();
             var refreshedInstances = new List<ScadaTemplateRefreshInstance>();
@@ -90,6 +92,10 @@ namespace VisionMaster.Services
                             continue;
                         }
 
+                        var strictRoots = oldElements[0].TemplateStrictRoots;
+                        bool strict = strictRoots is { Count: > 0 }
+                                      && arrayRootsManifest is { Count: > 0 };
+
                         var settings = new ScadaTemplateExpansionOptions
                         {
                             Count = 1,
@@ -97,6 +103,14 @@ namespace VisionMaster.Services
                             Columns = 1,
                             OriginX = 0,
                             OriginY = 0,
+                            StrictArrayReplacement = strict,
+                            ArrayRoots = strict
+                                ? arrayRootsManifest!.ToHashSet(StringComparer.Ordinal)
+                                : null,
+                            SelectedArrayRoots = strict
+                                ? strictRoots!.ToHashSet(StringComparer.Ordinal)
+                                : null,
+                            OriginalIndex = originalIndex,
                         };
 
                         if (!ScadaTemplateExpansion.TryPlan(
@@ -165,6 +179,7 @@ namespace VisionMaster.Services
                                 templateId: templateId,
                                 templateIndex: instanceIndex,
                                 templateRevision: templateRevision,
+                                templateStrictRoots: strictRoots,
                                 groupIdOverride: group.Key,
                                 startZ: oldMinZ,
                                 layerIdOverride: oldLayer);

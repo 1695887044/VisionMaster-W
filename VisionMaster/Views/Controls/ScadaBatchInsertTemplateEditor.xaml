@@ -34,11 +34,15 @@
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <Setter Property="FontSize" Value="12" />
             </Style>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid Margin="4">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -112,9 +116,44 @@
             </Grid>
         </Grid>
 
+        <!--  严格替换  -->
+        <CheckBox
+            Grid.Row="4"
+            Margin="90,0,0,8"
+            VerticalAlignment="Center"
+            Content="严格替换（只替换勾选的数组，其余保持模板原始下标）"
+            FontSize="12"
+            IsChecked="{Binding StrictReplacement}"
+            IsEnabled="{Binding HasArrayRoots}" />
+
+        <Border
+            Grid.Row="5"
+            MaxHeight="110"
+            Margin="90,0,0,8"
+            Padding="8,6"
+            Background="{StaticResource ScadaPanelBackgroundBrush}"
+            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="4"
+            Visibility="{Binding StrictRootsVisible, Converter={StaticResource BoolToVisibility}}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <ItemsControl ItemsSource="{Binding ArrayRoots}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <CheckBox
+                                Margin="0,2"
+                                Content="{Binding Name}"
+                                FontSize="12"
+                                IsChecked="{Binding IsSelected}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Border>
+
         <!--  模板摘要  -->
         <TextBlock
-            Grid.Row="4"
+            Grid.Row="6"
             Margin="90,0,0,8"
             FontSize="11"
             Foreground="{StaticResource ScadaSecondaryTextBrush}"
@@ -123,7 +162,7 @@
 
         <!--  校验/警告结果  -->
         <Border
-            Grid.Row="5"
+            Grid.Row="7"
             Padding="10"
             Background="{StaticResource ScadaPanelBackgroundBrush}"
             BorderBrush="{StaticResource ScadaPanelBorderBrush}"

@@ -24,6 +24,7 @@ using VisionMaster.Lifetime;
 using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 using VisionMaster.Services;
+using VisionMaster.Services.Hardware;
 using ScadaEditorVM = VisionMaster.ViewModels.ScadaEditorViewModel;
 using ScadaToolboxVM = VisionMaster.ViewModels.ScadaToolboxViewModel;
 using ScadaPropertyVM = VisionMaster.ViewModels.ScadaPropertyViewModel;
@@ -113,12 +114,20 @@ namespace ScadaChecks
             ElementControlChecks();
             AxisPanelChecks();
             TankKpiChecks.Run();
+            RecipePanelChecks.Run();
             RunHubChecks.Run();
             ModuleLoaderChecks.Run();
             RenderCatalogChecks.Run();
             WebRendererCoverageChecks.Run();
             PageSnapshotChecks.Run();
             BackgroundAssetChecks.Run();
+            StateViewChecks.Run();
+            SubPageChecks.Run();
+            BitActionChecks.Run();
+            SoundActionChecks.Run();
+            BatchBVisualChecks.Run();
+            BatchCVisualChecks.Run();
+            BatchDChecks.Run();
             UserStoreConcurrencyChecks.Run();
             // 并发段有自己的计数与汇总（顶层 public 类），必须把它的结果并回主汇总：
             // 否则 UC16~UC18 的红条只出现在日志里，最终 Finish 仍报 0 失败。
@@ -2442,12 +2451,15 @@ namespace ScadaChecks
                 "Hmi.ProgressBar", "Hmi.Slider", "Hmi.IOField", "Hmi.Lamp", "Hmi.Clock", "Hmi.Gauge",
                 "Hmi.Valve", "Hmi.Pump", "Hmi.Motor", "Hmi.Pipe", "Hmi.AlarmBanner", "Hmi.ImageView",
                 "Hmi.Picture", "Hmi.Line",
+                "Hmi.Polygon", "Hmi.Bezier", "Hmi.DynamicLine", "Hmi.Gif",
                 "Hmi.Panel", "Hmi.AxisConsole", "Hmi.AxisPanel", "Hmi.AxisPointTable",
                 "Hmi.Tank", "Hmi.KpiBoard",
                 "Hmi.SelectorSwitch", "Hmi.TextField", "Hmi.ComboBox", "Hmi.AckButton",
                 "Hmi.DataGrid", "Hmi.RunMeter", "Hmi.QRCode", "Hmi.Barcode", "Hmi.MultiTrend",
+                "Hmi.RecipePanel", "Hmi.StateView", "Hmi.SubPage",
+                "Hmi.BitTable", "Hmi.IoMonitor", "Hmi.VariableMonitor",
             };
-            Check("35 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势）",
+            Check("45 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势、配方只读面板、状态图元、嵌入画面、多边形/贝塞尔/动态画线/GIF、位表与两个监视预设）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -2569,6 +2581,9 @@ namespace ScadaChecks
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "Value:当前值=0;Minimum:量程下限=0;Maximum:量程上限=100;ValueFormat:数值格式=0.#;" +
                     "Orientation:走向=Horizontal;TrackColor:空槽色=#FF3A3A3A;ShowValue:显示数值=True;" +
+                    "ShowTicks:显示刻度=False;TickCount:刻度段数=5;TickColor:刻度色=#FF9AA5B1;" +
+                    "ShowLimits:显示上下限=False;LowLimit:下限=20;HighLimit:上限=80;" +
+                    "LowColor:下限色=#FFF59E0B;HighColor:上限色=#FFEF4444;LimitColor:限制线色=#FFFFB020;" +
                     "Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF5A5A5A;StrokeThickness:边框粗细=1;CornerRadius:圆角=2;" +
                     "Foreground:数值颜色=#FFFFFFFF;FontSize:数值字号=11;FontWeight:数值字重=Bold",
                 ["Hmi.Slider"] =
@@ -2592,6 +2607,7 @@ namespace ScadaChecks
                     "Value:当前值=0;Minimum:量程下限=0;Maximum:量程上限=100;ValueFormat:数值格式=0.#;Unit:单位=;" +
                     "StartAngle:起始角=135;SweepAngle:扫过角=270;TickDivisions:刻度格数=5;" +
                     "TrackColor:盘底色=#FF3A3A3A;ScaleColor:刻度色=#FF9AA5B1;ShowValue:显示数值=True;" +
+                    "Style:样式=Classic;ProgressColor:进度色=#FF38BDF8;" +
                     "Fill:指针色=#FFE03A2B;Stroke:外圈色=#FF5A5A5A;StrokeThickness:外圈粗细=1;" +
                     "Foreground:数值颜色=#FFFFFFFF;FontSize:数值字号=13;FontWeight:数值字重=SemiBold;" +
                     "TextAlignment:数值对齐=Center",
@@ -2634,6 +2650,47 @@ namespace ScadaChecks
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "Source:图像=;Stretch:缩放方式=Uniform;PlaceholderText:无图提示=无图像;" +
                     "Fill:底色=#00FFFFFF;Stroke:边框色=#FF7A7A7A;StrokeThickness:边框粗细=1;CornerRadius:圆角=0",
+
+                // 批次 C 新增：多边形 / 贝塞尔 / 动态画线 / GIF 动图。
+                ["Hmi.Polygon"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Points:顶点=0.5,0;1,1;0,1;Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF1F5C9E;" +
+                    "StrokeThickness:边框粗细=1",
+                ["Hmi.Bezier"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Points:控制点=0,1;0.3,0;0.7,0;1,1;Stroke:边框色=#FF38BDF8;StrokeThickness:边框粗细=1",
+                ["Hmi.DynamicLine"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Length:长度=0.8;Angle:角度=0;Segments:段数=1;Amplitude:锯齿幅度=0.08;" +
+                    "Stroke:边框色=#FF34C759;StrokeThickness:边框粗细=1",
+                ["Hmi.Gif"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "SourcePath:动图=;Stretch:缩放方式=Uniform;PlaceholderText:无图提示=未设置动图;Loop:循环播放=True;" +
+                    "Fill:底色=#00FFFFFF;Stroke:边框色=#00FFFFFF;StrokeThickness:边框粗细=1;CornerRadius:圆角=0",
+
+                // 批次 D：位表与两个"同控件不同默认值"的监视预设。
+                ["Hmi.BitTable"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:监视值=0;BitCount:位数=8;StartBit:起始位=0;Columns:每行格数=8;" +
+                    "ShowIndex:显示位号=True;ShowValue:显示值=True;ShowLabels:显示标签=False;Labels:标签=;" +
+                    "OnColor:置位色=#FF34C759;OffColor:复位色=#FF2A3441;ValueForeground:值文字色=#FFFFFFFF;" +
+                    "Fill:填充色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=6;" +
+                    "Text:标题=;Foreground:标题颜色=#FFE6EEF7;FontSize:字号=12",
+                ["Hmi.IoMonitor"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:监视值=0;BitCount:位数=8;StartBit:起始位=0;Columns:每行格数=8;" +
+                    "ShowIndex:显示位号=True;ShowValue:显示值=True;ShowLabels:显示标签=True;" +
+                    "Labels:标签=I0.0,I0.1,I0.2,I0.3,I0.4,I0.5,I0.6,I0.7;" +
+                    "OnColor:置位色=#FF34C759;OffColor:复位色=#FF2A3441;ValueForeground:值文字色=#FFFFFFFF;" +
+                    "Fill:填充色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=6;" +
+                    "Text:标题=I/O 监视;Foreground:标题颜色=#FFE6EEF7;FontSize:字号=12",
+                ["Hmi.VariableMonitor"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Value:监视值=0;BitCount:位数=16;StartBit:起始位=0;Columns:每行格数=8;" +
+                    "ShowIndex:显示位号=True;ShowValue:显示值=True;ShowLabels:显示标签=False;Labels:标签=;" +
+                    "OnColor:置位色=#FF34C759;OffColor:复位色=#FF2A3441;ValueForeground:值文字色=#FFFFFFFF;" +
+                    "Fill:填充色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=6;" +
+                    "Text:标题=变量监视;Foreground:标题颜色=#FFE6EEF7;FontSize:字号=12",
             };
 
             foreach (var (typeKey, expected) in expectedSnapshots)
@@ -5124,6 +5181,37 @@ namespace ScadaChecks
             canvas.Zoom = 99;
             Check("缩放被夹进上界 8 倍（下界 0.1）", canvas.Zoom == 8, canvas.Zoom.ToString());
 
+            // ---------------- ②b 运行态滚轮不缩放 ----------------
+            //
+            // 运行窗口的画布是 IsReadOnly=true。操作员在跑画面时滚一下滚轮（或触摸板双指），
+            // 以前会以光标为锚把画面放大并偏移，而运行窗口没有复位入口（本批补了底条「适配」按钮）。
+            // 判据两条，缺一不可：
+            // ① 只读画布：倍率不动，且事件不被吞——报警条这类自带 ScrollViewer 的图元
+            //    在滚到尽头后事件会冒到画布，画布一吞，操作员就再也滚不动列表；
+            // ② 正例（可编辑画布）：同一条路确实会缩放——否则①可能只是"事件根本没到处理器"的假绿。
+            canvas.IsReadOnly = true;
+            canvas.Zoom = 1;
+            canvas.Offset = new Point(0, 0);
+            var readOnlyWheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, 120)
+            {
+                RoutedEvent = UIElement.MouseWheelEvent,
+            };
+            canvas.RaiseEvent(readOnlyWheel);
+            Check("[T-W1] 运行态（只读画布）滚轮不缩放、也不吞事件（报警条自己的 ScrollViewer 还能滚）",
+                Math.Abs(canvas.Zoom - 1) < 1e-9 && !readOnlyWheel.Handled,
+                $"zoom={canvas.Zoom} / handled={readOnlyWheel.Handled}");
+
+            canvas.IsReadOnly = false;
+            canvas.Zoom = 1;
+            var editWheel = new MouseWheelEventArgs(Mouse.PrimaryDevice, 0, 120)
+            {
+                RoutedEvent = UIElement.MouseWheelEvent,
+            };
+            canvas.RaiseEvent(editWheel);
+            Check("[T-W2] 正例：可编辑画布同一路径会放大（证明上一条不是「事件没到处理器」）",
+                canvas.Zoom > 1.05 && editWheel.Handled,
+                $"zoom={canvas.Zoom} / handled={editWheel.Handled}");
+
             // ---------------- ③ 放置：编辑器视图模型造模型，画布自己长控件 ----------------
 
             var workspace = new WorkspaceContext();
@@ -5289,9 +5377,9 @@ namespace ScadaChecks
 
             static int Shown(ScadaToolboxVM vm) => vm.Groups.Sum(g => g.Items.Count);
 
-            toolbox.SearchText = "矩形";
+            toolbox.SearchText = "多态灯";
             Check("搜索命中显示名", Shown(toolbox) == 1
-                && toolbox.Groups.SelectMany(g => g.Items).Single().TypeKey == "Hmi.Rectangle",
+                && toolbox.Groups.SelectMany(g => g.Items).Single().TypeKey == "Hmi.Lamp",
                 $"命中 {Shown(toolbox)}");
 
             toolbox.SearchText = "hmi.ind";
@@ -5378,16 +5466,9 @@ namespace ScadaChecks
             // 而红的原因跟被测代码毫无关系。
             const int UniversalRows = 2;
 
-            // 动画行（r4）：四种动画（外观变化 / 水平移动 / 垂直移动 / 可见性）各一行，恒加四行。
-            //
-            // 为什么不是"描述符声明了几个动画就几行"：动画不是图元类型的表态，而是"这一台设备上
-            // 这个图元要不要跟变量联动"——任何图元都可能需要，所以面板对每个已注册图元都出满四种
-            // （Rebuild 里用 Enum.GetValues<ScadaAnimationType>() 生成）。这四行因此与描述符无关，
-            // 是行账本里的第三个常量项，跟 UniversalRows 一个道理：少加就会集体报假红。
-            //
-            // 注意未注册图元（ElementRegistry.Find 返回 null）走的是"不认识"那一支，一行都不出，
-            // 动画行也不出；画面模式同理（动画只长在图元上）。
-            const int AnimationRows = 5;
+            // 动画行（r4）：外观变化 / 水平移动 / 垂直移动 / 可见性 / 启用对象 / 对角线移动 / 比例移动，
+            // 每个图元恒加 7 行。新增动画类型时这里要同步，否则整组行账本会集体假红。
+            const int AnimationRows = 7;
 
             static ScadaElement Named(string typeKey, string name)
             {
@@ -5487,7 +5568,7 @@ namespace ScadaChecks
                 panel.HeaderTitle == "1#料箱", panel.HeaderTitle);
 
             editor.SelectedElement = Named("Hmi.Ellipse", "罐体");
-            Check("换选中即整份重建：椭圆 12 条属性 + 5 条动画 + 1 条通用关系 = 18 行 6 组，且写入目标已换成新图元",
+            Check("换选中即整份重建：椭圆 12 条属性 + 7 条动画 + 2 条通用关系 = 21 行 6 组，且写入目标已换成新图元",
                 Total(panel) == 12 + AnimationRows + UniversalRows && panel.Groups.Count == 6
                 && panel.Element?.TypeKey == "Hmi.Ellipse",
                 $"{Total(panel)} 行 / {panel.Groups.Count} 组");
@@ -5532,7 +5613,7 @@ namespace ScadaChecks
                 && bitButtonDescriptor.Properties.Count == 21
                 && string.Join("/", panel.Groups.Select(g => g.Name))
                    == "基本/外观/文本/布局/状态/交互/事件/动画",
-                $"{Total(panel)} 行 / " + string.Join("/", panel.Groups.Select(g => g.Name)));
+                $"{Total(panel)} 行 / props={bitButtonDescriptor.Properties.Count} / " + string.Join("/", panel.Groups.Select(g => g.Name)));
 
             var startBtn = Named("Hmi.Button", "启动");
             editor.SelectedElement = startBtn;
@@ -5672,6 +5753,7 @@ namespace ScadaChecks
                 {
                     ScadaActionType.Log, ScadaActionType.WriteVariable,
                     ScadaActionType.Increment, ScadaActionType.Decrement,
+                    ScadaActionType.SetBit, ScadaActionType.ResetBit, ScadaActionType.ToggleBit,
                     ScadaActionType.Navigate,
                     ScadaActionType.NavigateBack, ScadaActionType.OpenPopup, ScadaActionType.ClosePopup,
                     ScadaActionType.StartFlow, ScadaActionType.PauseFlow, ScadaActionType.ResumeFlow,
@@ -5682,6 +5764,7 @@ namespace ScadaChecks
                     ScadaActionType.MotionClearAlarm, ScadaActionType.MotionJogStart,
                     ScadaActionType.MotionJogStop,
                     ScadaActionType.ApplyRecipe,
+                    ScadaActionType.PlaySound,
                 }),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
 
@@ -12401,10 +12484,12 @@ namespace ScadaChecks
         //    · 审计与关闭：成功 / 失败都留痕，署名来自注入的提供者。
         //  与 [VEd] 的关键差别：本弹窗的增删改名走 ScadaDocument 那三个"自带作用域"的方法，
         //  所以断言能直接数撤销栈条数——一次操作 = 一条记录，不会被外面多包一层拆成两条。
+        //  v2.1 复刻又加了一层界面契约：标题栏计数分段 / 组过滤 + 搜索 + 无结果态 /
+        //  删除回执与 6 秒倒计时 / 新增行的「待完成」提示 / 运行中 chip。
         // ==================================================================
         private static void AlarmConfigDialogChecks()
         {
-            Section("[ACfg] 报警配置弹窗：平铺表增删改 + 就地编辑 + 撤销作用域 + 审计");
+            Section("[ACfg] 报警配置弹窗：平铺表增删改 + 就地编辑 + 筛选 + 回执 + 撤销作用域 + 审计");
 
             Exception? failure = null;
 
@@ -12439,16 +12524,24 @@ namespace ScadaChecks
 
             // ---------------- ① 空方案：表里一条都没有 ----------------
 
-            Check("方案里一条报警都没有时表为空（空态提示靠 HasRows 显隐）",
-                vm.Rows.Count == 0 && !vm.HasRows && vm.AlarmCount == 0 && vm.CountHint == "共 0 条报警",
-                $"行数 {vm.Rows.Count} / HasRows={vm.HasRows} / 「{vm.CountHint}」");
+            Check("方案里一条报警都没有时表为空（空态与工具条靠 HasRows / ShowEmptyState 显隐）",
+                vm.Rows.Count == 0 && !vm.HasRows && vm.ShowEmptyState && vm.AlarmCount == 0
+                && vm.TotalHint == "共 0 条",
+                $"行数 {vm.Rows.Count} / HasRows={vm.HasRows} / 「{vm.TotalHint}」");
 
-            Check("刚打开时不预选任何一行（免得随手一个回车就把某条报警删了）",
-                vm.SelectedRow == null && !vm.HasSelection, $"选中=「{vm.SelectedRow?.Name}」");
+            Check("空方案不显示启用 / 严重 / 缺变量三段（标题栏只留「共 0 条」，不给一堆 0 凑数）",
+                !vm.ShowBreakdown && !vm.HasIncomplete && vm.EnabledCount == 0 && vm.CriticalCount == 0,
+                $"ShowBreakdown={vm.ShowBreakdown} / 「{vm.EnabledHint}·{vm.CriticalHint}·{vm.MissingHint}」");
 
-            Check("没有选中行时「删除」「选择变量」置灰，而「新增」始终可用（新增不需要先选）",
-                vm.AddCommand.CanExecute() && !vm.RemoveCommand.CanExecute() && !vm.PickVariableCommand.CanExecute(),
-                $"新增={vm.AddCommand.CanExecute()} / 删除={vm.RemoveCommand.CanExecute()} / 选变量={vm.PickVariableCommand.CanExecute()}");
+            Check("即便一个组都没有，组筛选候选里也有「全部」（否则筛选菜单是空的，点了像坏了）",
+                vm.GroupFilterOptions.Count == 1
+                && vm.GroupFilterOptions[0] == ScadaAlarmConfigDialogViewModel.AllGroupsLabel,
+                string.Join("、", vm.GroupFilterOptions));
+
+            Check("空表不预选任何一行，但「新增」始终可用（新增不需要先选）",
+                vm.SelectedRow == null && !vm.HasSelection
+                && vm.AddCommand.CanExecute() && !vm.RemoveCommand.CanExecute(),
+                $"选中=「{vm.SelectedRow?.Name}」/ 新增={vm.AddCommand.CanExecute()} / 删除={vm.RemoveCommand.CanExecute()}");
 
             // ---------------- ② 新增：自动命名 + 自动选中 + 默认值来自领域层 ----------------
 
@@ -12457,15 +12550,16 @@ namespace ScadaChecks
             Check("点「新增」真的建进方案（AddAlarm 内部自带作用域，弹窗不重复包一层）",
                 doc.Alarms.Count == 1 && vm.Rows.Count == 1, $"方案 {doc.Alarms.Count} 条 / 表 {vm.Rows.Count} 行");
 
-            Check("新增后条数提示与空态标志同步（不刷新的话标题栏还写着「共 0 条报警」）",
-                vm.AlarmCount == 1 && vm.CountHint == "共 1 条报警" && vm.HasRows,
-                $"「{vm.CountHint}」/ HasRows={vm.HasRows}");
+            Check("新增后计数与空态同步：共 1 条 / 启用 1 / 严重 0 / 缺变量 1",
+                vm.HasRows && !vm.ShowEmptyState && vm.TotalHint == "共 1 条"
+                && vm.EnabledHint == "启用 1" && vm.CriticalHint == "严重 0" && vm.MissingHint == "缺变量 1"
+                && vm.HasIncomplete,
+                $"「{vm.TotalHint}·{vm.EnabledHint}·{vm.CriticalHint}·{vm.MissingHint}」");
 
             var row1 = vm.Rows[0];
 
-            Check("新增后自动选中这一条（工具条的删除 / 选变量立刻可用）",
-                ReferenceEquals(vm.SelectedRow, row1) && vm.HasSelection
-                && vm.RemoveCommand.CanExecute() && vm.PickVariableCommand.CanExecute(),
+            Check("新增后自动选中这一条（详情块随即展开，删除按钮立刻可用）",
+                ReferenceEquals(vm.SelectedRow, row1) && vm.HasSelection && vm.RemoveCommand.CanExecute(),
                 $"选中=「{vm.SelectedRow?.Name}」");
 
             Check("新报警的名字是领域层自动给的「报警_1」",
@@ -12474,12 +12568,39 @@ namespace ScadaChecks
             Check("新报警的默认值来自 AddAlarm：种类高限、等级由 DefaultSeverity 推出（只在新建时给一次，之后改种类不再联动）",
                 row1.Kind == ScadaAlarmKind.High
                 && row1.Severity == ScadaAlarmKind.High.DefaultSeverity()
-                && row1.IsEnabled && row1.IsLimitKind && !row1.IsStaleKind && !row1.IsBooleanKind,
-                $"种类={row1.KindText} / 等级={row1.SeverityText} / 启用={row1.IsEnabled}");
+                && row1.IsEnabled && row1.IsLimitKind && !row1.IsStaleKind && !row1.IsBooleanKind
+                && row1.ThresholdText == "0" && row1.Model.Deadband == 0 && row1.Model.DelaySeconds == 0,
+                $"种类={row1.KindText} / 等级={row1.SeverityText} / 阈值={row1.ThresholdText}");
 
-            Check("还没选变量时变量列显示「未选变量」兜底文案（不是一片空白）",
-                !row1.HasVariable && row1.VariableDisplay == "未选变量" && row1.VariableName == null,
-                $"「{row1.VariableDisplay}」");
+            Check("主表判定值由 PrimaryValueText 统一投影（四限=Threshold，断线=StaleSeconds，单位槽只在断线出现）",
+                row1.PrimaryValueText == "0" && row1.ShowsPrimaryValueInput && !row1.HasThresholdUnit,
+                $"「{row1.PrimaryValueText}」/ 显示={row1.ShowsPrimaryValueInput} / 单位=「{row1.ThresholdUnit}」");
+
+            Check("还没选变量时变量列显示「未选变量」兜底文案，规则句也用占位主语（不是一片空白）",
+                !row1.HasVariable && row1.VariableDisplay == "未选变量" && row1.VariableName == null
+                && row1.RuleSubject == "（未选变量）",
+                $"「{row1.VariableDisplay}」/ 主语「{row1.RuleSubject}」");
+
+            Check("新增行带「待完成」提示：没绑变量时直说引擎会跳过求值，并警告默认阈值 0",
+                row1.ShowSetupHint && row1.IsNewlyAdded
+                && row1.SetupHintTitle == "先选监视变量"
+                && row1.SetupHintBody.Contains("直接跳过求值") && row1.SetupHintBody.Contains("高限 > 0"),
+                $"「{row1.SetupHintTitle}」/ {row1.SetupHintBody}");
+
+            Check("未选变量时规则句仍写全（占位主语 + 完整回退口径，不是空白一片）",
+                row1.RulePredicate == " > " && row1.RuleValue == "0"
+                && row1.RuleAfterValue == " 立即报警；回落到 " && row1.RuleDelay.Length == 0
+                && row1.RuleBeforeRecovery.Length == 0 && row1.RuleRecovery == "≤ 0" && row1.RuleTail == " 才恢复。",
+                $"{row1.RuleSubject}{row1.RulePredicate}{row1.RuleValue}{row1.RuleAfterValue}{row1.RuleBeforeRecovery}{row1.RuleRecovery}{row1.RuleTail}");
+
+            // 重新打开同一份方案：已有行照常可编辑，但不再挂「待完成」提示（那是新增瞬态）
+            var reopened = new ScadaAlarmConfigDialogViewModel(workspace, picker);
+            reopened.OnDialogOpened(new DialogParameters());
+            Check("重新打开方案时默认选中第一条（详情块直接可用，不用先点一下）",
+                reopened.Rows.Count == 1 && ReferenceEquals(reopened.SelectedRow?.Model, row1.Model)
+                && reopened.SelectedRow is { ShowSetupHint: false },
+                $"选中=「{reopened.SelectedRow?.Name}」/ 待完成={reopened.SelectedRow?.ShowSetupHint}");
+            reopened.OnDialogClosed();
 
             // ---------------- ③ 就地改字段：立刻写回 + 包一层作用域 ----------------
 
@@ -12488,8 +12609,13 @@ namespace ScadaChecks
             row1.ThresholdText = "80";
 
             Check("改阈值立刻写进模型（本弹窗没有「确定」，每一次编辑都当场落盘）",
-                row1.Model.Threshold == 80 && row1.ThresholdText == "80" && !vm.HasError,
+                row1.Model.Threshold == 80 && row1.ThresholdText == "80"
+                && !vm.HasError && !row1.HasInlineError,
                 $"模型={row1.Model.Threshold} / 框内=「{row1.ThresholdText}」");
+
+            Check("主表那一格与规则句都从同一份模型现算（80 / 回落到 ≤ 80）",
+                row1.PrimaryValueText == "80" && row1.RuleValue == "80" && row1.RuleRecovery == "≤ 80",
+                $"主表「{row1.PrimaryValueText}」/ {row1.RuleValue}{row1.RuleRecovery}");
 
             Check("一次字段编辑 = 撤销栈里一条记录，且记录名就是那次操作（撤销按钮据此显示提示）",
                 ScadaEditHistory.UndoCount == 1
@@ -12507,53 +12633,81 @@ namespace ScadaChecks
             Check("填的数字和原值一样时不产记录（「点了但没改」不该占一次撤销位）",
                 ScadaEditHistory.UndoCount == 0, $"{ScadaEditHistory.UndoCount} 条");
 
-            // ---------------- ④ 数值校验：解析不了回灌原值 + 中文原因 ----------------
+            // ---------------- ④ 数值校验：解析不了回灌原值 + 行内中文原因 ----------------
 
             row1.ThresholdText = "8O";   // 字母 O，不是零
 
-            Check("填了非数字（8O，字母 O）：回灌原值 + 一句中文原因，模型一个数都不动",
-                vm.HasError && row1.ThresholdText == "0" && row1.Model.Threshold == 0
-                && (vm.ErrorMessage ?? string.Empty).Contains("请填数字"),
-                $"提示=「{vm.ErrorMessage}」/ 框内=「{row1.ThresholdText}」/ 模型={row1.Model.Threshold}");
+            Check("填了非数字（8O，字母 O）：回灌原值 + 行内中文原因，模型一个数都不动，也不冒充全局错误",
+                row1.HasInlineError && row1.PrimaryValueHasError && !row1.NameHasError
+                && row1.InlineError.Contains("请填数字") && !vm.HasError
+                && row1.ThresholdText == "0" && row1.Model.Threshold == 0,
+                $"行内=「{row1.InlineError}」/ 框内=「{row1.ThresholdText}」/ 模型={row1.Model.Threshold}");
+
+            row1.ThresholdText = "0";   // 恢复：等值提交顺手清掉行内错误
+            Check("恢复成原值后行内错误即清（错误不粘在格子上）",
+                !row1.HasInlineError && !row1.PrimaryValueHasError, row1.InlineError);
 
             row1.ThresholdText = "   ";
             Check("清空数值格也算解析不了（给的是「不能为空」而不是「请填数字」），同样回灌原值",
-                vm.HasError && (vm.ErrorMessage ?? string.Empty).Contains("不能为空")
+                row1.HasInlineError && row1.PrimaryValueHasError
+                && row1.InlineError.Contains("不能为空")
                 && row1.ThresholdText == "0" && row1.Model.Threshold == 0,
-                $"提示=「{vm.ErrorMessage}」");
+                $"行内=「{row1.InlineError}」");
 
-            // 领域层的下限夹取：回差 / 延时夹到 0，断线判定夹到 1（填进去的负数不会原样落盘）
+            row1.ThresholdText = "0";
+
+            // 领域层的下限夹取：回差 / 延时夹到 0（填进去的负数不会原样落盘）
             row1.DeadbandText = "-5";
             Check("回差填负数被领域层夹到 0（弹窗不自己判，落值口径只由模型一处决定）",
-                row1.Model.Deadband == 0 && row1.DeadbandText == "0",
+                row1.Model.Deadband == 0 && row1.DeadbandText == "0" && !row1.DeadbandHasError,
                 $"模型={row1.Model.Deadband} / 框内=「{row1.DeadbandText}」");
 
-            row1.StaleSecondsText = "0";
-            Check("断线判定填 0 被夹到下限 1 秒（0 秒超时会让每次轮询都报断线）",
-                row1.Model.StaleSeconds == 1 && row1.StaleSecondsText == "1",
-                $"模型={row1.Model.StaleSeconds} / 框内=「{row1.StaleSecondsText}」");
+            row1.DelaySecondsText = "-3";
+            Check("延时填负数同样被夹到 0，规则句不会凭空多出「持续」那半句",
+                row1.Model.DelaySeconds == 0 && row1.RuleDelay.Length == 0
+                && row1.RuleAfterValue == " 立即报警；回落到 ",
+                $"模型={row1.Model.DelaySeconds} / 规则={row1.RuleSubject}{row1.RulePredicate}{row1.RuleValue}{row1.RuleAfterValue}{row1.RuleRecovery}{row1.RuleTail}");
 
-            // ---------------- ⑤ 种类与等级：下拉改值 + 摘要跟着换口径 ----------------
+            // ---------------- ⑤ 种类与等级：下拉改值 + 规则句跟着换口径 ----------------
 
             row1.Kind = ScadaAlarmKind.Stale;
-            Check("种类改「通信断线」立刻写回，且「阈值」那一格的显隐条件跟着翻（IsLimitKind 变假）",
-                row1.Model.Kind == ScadaAlarmKind.Stale && !row1.IsLimitKind && row1.IsStaleKind,
-                $"种类={row1.KindText} / 是四限={row1.IsLimitKind}");
+            Check("种类改「通信断线」立刻写回：阈值格翻成秒数并出现单位 s，回差与延时两格收起",
+                row1.Model.Kind == ScadaAlarmKind.Stale && !row1.IsLimitKind && row1.IsStaleKind
+                && row1.ShowsPrimaryValueInput && row1.HasThresholdUnit && row1.ThresholdUnit == "s"
+                && !row1.ShowDeadband && !row1.ShowDelay && row1.ShowStaleNote,
+                $"种类={row1.KindText} / 单位=「{row1.ThresholdUnit}」/ 回差={row1.ShowDeadband} / 延时={row1.ShowDelay}");
 
-            Check("种类一改条件摘要就换口径（断线走秒数，不走阈值）",
-                row1.ConditionText == "通信断线 > 1s", row1.ConditionText);
+            row1.PrimaryValueText = "0";
+            Check("主表阈值格改的就是断线秒数，且被领域层夹到下限 1 秒（0 秒会让每次轮询都报断线）",
+                row1.Model.StaleSeconds == 1 && row1.RuleValue == "1",
+                $"模型={row1.Model.StaleSeconds} / 规则值={row1.RuleValue}");
+
+            row1.PrimaryValueText = "5";
+            Check("种类一改规则句就换口径（断线走秒数，不回落到阈值；「持续」不重复出现）",
+                row1.RulePredicate == " 连续 " && row1.RuleValue == "5"
+                && row1.RuleAfterValue.Length == 0 && row1.RuleDelay.Length == 0
+                && row1.RuleBeforeRecovery == " 秒没有收到新值即报警；收到新值即恢复。"
+                && row1.RuleRecovery.Length == 0 && row1.RuleTail.Length == 0,
+                $"{row1.RuleSubject}{row1.RulePredicate}{row1.RuleValue}{row1.RuleBeforeRecovery}");
+
+            Check("断线说明句引用的是同一个判定值（「阈值 5 s」，不是写死的文案）",
+                row1.StaleNote.Contains("阈值 5 s"), row1.StaleNote);
 
             Check("改种类不动等级（领域层刻意不联动，用户特意调过的等级不该被静默推翻）",
                 row1.Severity == ScadaAlarmSeverity.Warning, row1.SeverityText);
 
             row1.Kind = ScadaAlarmKind.High;
-            Check("种类改回高限：摘要回到阈值口径，且回差为 0 时不追加「（回差 …）」",
-                row1.ConditionText == "高限 > 0", row1.ConditionText);
+            Check("种类改回高限：规则回到阈值口径，回差为 0 时恢复值就是阈值本身",
+                row1.RulePredicate == " > " && row1.RuleValue == "0" && row1.RuleRecovery == "≤ 0"
+                && row1.RuleAfterValue == " 立即报警；回落到 "
+                && !row1.HasThresholdUnit && row1.ShowDeadband && row1.ShowDelay,
+                $"{row1.RuleSubject}{row1.RulePredicate}{row1.RuleValue}{row1.RuleAfterValue}{row1.RuleRecovery}{row1.RuleTail}");
 
             row1.Severity = ScadaAlarmSeverity.Critical;
-            Check("等级下拉改值立刻写回（严重 / 警告 / 提示 三档来自枚举的 DisplayName）",
-                row1.Model.Severity == ScadaAlarmSeverity.Critical && row1.SeverityText == "严重",
-                row1.SeverityText);
+            Check("等级下拉改值立刻写回（严重 / 警告 / 提示 三档来自枚举的 DisplayName），严重计数同步",
+                row1.Model.Severity == ScadaAlarmSeverity.Critical && row1.SeverityText == "严重"
+                && vm.CriticalHint == "严重 1",
+                $"{row1.SeverityText} / 「{vm.CriticalHint}」");
 
             Check("下拉候选直接取枚举全量（枚举加成员时下拉自动跟上，不会漏）",
                 vm.KindOptions.Count == Enum.GetValues<ScadaAlarmKind>().Length
@@ -12562,11 +12716,28 @@ namespace ScadaChecks
                 && vm.SeverityOptions.All(o => o.DisplayName == o.Severity.DisplayName()),
                 $"种类 {vm.KindOptions.Count} 项 / 等级 {vm.SeverityOptions.Count} 项");
 
+            // 布尔型：条件只有真/假，延时是可选项，规则句不能出现阈值与回差
+            row1.Kind = ScadaAlarmKind.BoolOn;
+            row1.DelaySecondsText = "5";
+            Check("布尔型的规则句：为真 + 持续 5 秒即报警，回到假即恢复（没有阈值 / 回差那半句）",
+                row1.RulePredicate == " 为真" && row1.RuleValue.Length == 0
+                && row1.RuleAfterValue == " 持续 " && row1.RuleDelay == "5"
+                && row1.RuleBeforeRecovery == " 秒即报警；回到假即恢复。"
+                && row1.RuleRecovery.Length == 0 && row1.RuleTail.Length == 0
+                && !row1.ShowDeadband && row1.ShowDelay,
+                $"{row1.RuleSubject}{row1.RulePredicate}{row1.RuleAfterValue}{row1.RuleDelay}{row1.RuleBeforeRecovery}");
+
+            row1.Kind = ScadaAlarmKind.High;
+            row1.DelaySecondsText = "0";
+
             // ---------------- ⑥ 启用开关 + 长文本 ----------------
 
             row1.IsEnabled = false;
-            Check("停用开关写回模型（停用后运行态完全跳过它，但配置保留）",
-                !row1.Model.IsEnabled, $"启用={row1.IsEnabled}");
+            Check("停用开关写回模型，并让「启用 / 缺变量」两段同步（停用的行不再算缺变量）",
+                !row1.Model.IsEnabled && vm.EnabledHint == "启用 0"
+                && vm.MissingVariableCount == 0 && !vm.HasIncomplete
+                && vm.CriticalCount == 0 && vm.CriticalHint == "严重 0",
+                $"启用={row1.IsEnabled} / 「{vm.EnabledHint}·{vm.CriticalHint}·{vm.MissingHint}」");
 
             row1.IsEnabled = true;
 
@@ -12594,11 +12765,24 @@ namespace ScadaChecks
                 row1.Model.AlarmGroup == "冷却水" && vm.AlarmGroupSuggestions.Contains("冷却水"),
                 $"模型=「{row1.Model.AlarmGroup}」/ 候选 {vm.AlarmGroupSuggestions.Count} 项");
 
+            // 有筛选时点「新增」要先清掉筛选，否则新行可能立刻被筛没（设计基线 P5）
+            vm.SearchText = "不存在的报警";
+            Check("搜索无匹配时给无结果态（有行、有筛选、视图为空）",
+                vm.ShowNoResult && vm.VisibleRowCount == 0 && vm.HasSearch,
+                $"可见 {vm.VisibleRowCount} / ShowNoResult={vm.ShowNoResult} / 「{vm.NoResultTitle}」");
+
             vm.AddCommand.Execute();
             var row2 = vm.Rows[1];
+            Check("新增会先清掉搜索 / 组筛选（新行必须可见，不能被旧筛选藏起来）",
+                !vm.HasFilter && vm.SearchText.Length == 0 && !vm.ShowNoResult && vm.VisibleRowCount == 2,
+                $"搜索=「{vm.SearchText}」/ 可见 {vm.VisibleRowCount}");
 
             Check("第二条自动命名「报警_2」（取当前未被占用的最小号，不会与第一条撞名）",
                 row2.Name == "报警_2", row2.Name);
+
+            Check("新增第二条后第一条的「待完成」提示收起（它是新增瞬态，不跟着行漂）",
+                !row1.ShowSetupHint && row2.ShowSetupHint,
+                $"第一条={row1.ShowSetupHint} / 第二条={row2.ShowSetupHint}");
 
             row2.AlarmGroup = "冷却水";
             Check("第二条用同一个组名：历史值候选去重后仍只有一项（同一份方案里组名不重复出现）",
@@ -12613,13 +12797,18 @@ namespace ScadaChecks
 
             row1.ApplyGroupCommand.Execute("一号线");
             Check("从历史值下拉里挑一项等同于把名字敲进输入框（走的是同一个 setter，不是绕过校验的旁路）",
-                row1.Model.AlarmGroup == "一号线" && row1.AlarmGroup == "一号线",
-                $"模型=「{row1.Model.AlarmGroup}」");
+                row1.Model.AlarmGroup == "一号线" && row1.AlarmGroup == "一号线"
+                && vm.AlarmGroupSuggestions.Count == 1 && vm.AlarmGroupSuggestions[0] == "一号线",
+                $"模型=「{row1.Model.AlarmGroup}」/ 候选 {string.Join("、", vm.AlarmGroupSuggestions)}");
 
+            row1.AlarmGroup = "冷却水";
             row2.AlarmGroup = "";
             Check("清空报警组落 null 而不是空串，且候选里那项随之消失（组名是从现有报警回读出来的，不是另存一份清单）",
-                row2.Model.AlarmGroup == null && vm.AlarmGroupSuggestions.Count == 1,
+                row2.Model.AlarmGroup == null && vm.AlarmGroupSuggestions.Count == 1
+                && vm.AlarmGroupSuggestions[0] == "冷却水",
                 $"模型={(row2.Model.AlarmGroup == null ? "null" : $"「{row2.Model.AlarmGroup}」")} / 候选 {vm.AlarmGroupSuggestions.Count} 项");
+
+            row2.AlarmGroup = "一号线";
 
             // ---------------- ⑧ 改名：查重拒收 + 回灌 ----------------
 
@@ -12634,63 +12823,134 @@ namespace ScadaChecks
             row2.Name = "报警_1";   // 与第一条撞名
             row2.PropertyChanged -= OnRow2Changed;
 
-            Check("改名撞上已有名字：给中文原因、模型一个字节都不动",
-                vm.HasError && (vm.ErrorMessage ?? string.Empty).Contains("已存在同名报警")
+            Check("改名撞上已有名字：行内给中文原因、模型一个字节都不动、也不冒充全局错误",
+                row2.HasInlineError && row2.NameHasError
+                && row2.InlineError.Contains("已存在同名报警") && !vm.HasError
                 && row2.Name == "报警_2" && row2.Model.Name == "报警_2" && doc.Alarms.Count == 2,
-                $"提示=「{vm.ErrorMessage}」/ 名字=「{row2.Name}」");
+                $"行内=「{row2.InlineError}」/ 名字=「{row2.Name}」");
 
             Check("改名失败要抛一次变更通知（不抛的话输入框里留着的还是那个被拒的新名字）",
                 nameNotices > 0, $"通知 {nameNotices} 次");
 
             row2.Name = "冷却水温度";
             Check("改名成功立刻写回，并按新名字能查到（查重只挡重复，不挡正常改名）",
-                !vm.HasError && row2.Name == "冷却水温度"
+                !row2.HasInlineError && !row2.NameHasError && row2.Name == "冷却水温度"
                 && ReferenceEquals(doc.FindAlarmByName("冷却水温度"), row2.Model),
-                $"名字=「{row2.Name}」/ 提示=「{vm.ErrorMessage}」");
+                $"名字=「{row2.Name}」/ 行内=「{row2.InlineError}」");
 
             row2.Name = "   ";
             Check("改名清空被文档拒收（报警名必填，空名会让报警列表里出现一条没法称呼的记录）",
-                vm.HasError && (vm.ErrorMessage ?? string.Empty).Contains("不能为空") && row2.Name == "冷却水温度",
-                $"提示=「{vm.ErrorMessage}」");
+                row2.HasInlineError && row2.NameHasError && row2.InlineError.Contains("不能为空")
+                && row2.Name == "冷却水温度",
+                $"行内=「{row2.InlineError}」/ 名字=「{row2.Name}」");
 
-            // ---------------- ⑨ 选变量：预选参数 + 回填包作用域 ----------------
+            // ---------------- ⑨ 筛选：搜索（名称 / 变量 / 组）+ 组过滤 + 无结果态 ----------------
+
+            Check("组筛候选 = 全部 + 本方案用过的组名（去重排序，与报警组历史值同源）",
+                vm.GroupFilterOptions.Count == 3
+                && vm.GroupFilterOptions[0] == ScadaAlarmConfigDialogViewModel.AllGroupsLabel
+                && string.Join("/", vm.GroupFilterOptions.Skip(1)) == "一号线/冷却水",
+                string.Join("/", vm.GroupFilterOptions));
+
+            vm.SetGroupFilterCommand.Execute("冷却水");
+            Check("选组过滤：只剩该组的行，计数与「显示 X / Y」同步，清除按钮亮起",
+                vm.HasGroupFilter && vm.GroupFilter == "冷却水"
+                && vm.VisibleRowCount == 1 && vm.GroupAlarmCount == 1
+                && vm.ShownHint == "显示 1 / 2" && vm.ShowShownHint
+                && vm.ClearFilterButtonText == "清除筛选" && vm.ClearFilterCommand.CanExecute(),
+                $"「{vm.ShownHint}」/ 组内 {vm.GroupAlarmCount} 条");
+
+            vm.SearchText = "一号线";
+            Check("搜索与组过滤叠加：组内没有这条 → 无结果态，标题带搜索词、说明带当前组与组内条数",
+                vm.VisibleRowCount == 0 && vm.ShowNoResult
+                && vm.NoResultTitle == "没有匹配「一号线」的报警"
+                && vm.NoResultDescription.Contains("当前组筛选是「冷却水」")
+                && vm.NoResultDescription.Contains(" 1 条"),
+                $"「{vm.NoResultTitle}」/ {vm.NoResultDescription}");
+
+            vm.SearchText = "冷却";
+            Check("搜索会同时匹配报警组（「冷却」命中组名「冷却水」）",
+                vm.VisibleRowCount == 1 && !vm.ShowNoResult,
+                $"可见 {vm.VisibleRowCount}");
+
+            vm.ClearFilterCommand.Execute();
+            Check("一键清除同时清掉搜索与组过滤（其余行回来，无结果态撤下）",
+                !vm.HasFilter && vm.SearchText.Length == 0 && !vm.HasGroupFilter
+                && vm.GroupFilter == ScadaAlarmConfigDialogViewModel.AllGroupsLabel
+                && vm.VisibleRowCount == 2 && !vm.ShowNoResult && !vm.ShowShownHint
+                && !vm.ClearFilterCommand.CanExecute(),
+                $"搜索=「{vm.SearchText}」/ 组=「{vm.GroupFilter}」/ 可见 {vm.VisibleRowCount}");
+
+            // ---------------- ⑩ 选变量：按行传参 + 预选参数 + 回填包作用域 ----------------
 
             var targetVar = VariableFactory.CreateLocal("炉温", typeof(double), "炉膛温度", 23.0);
             workspace.GlobalVariables.Add(targetVar);
 
             vm.SelectedRow = row1;
+            vm.PickVariableForRowCommand.Execute(null);
+            vm.PickVariableForRowCommand.Execute("不是一行");
+            Check("命令参数不是行（null / 字符串）时静默空跑，不弹选择器、不抛异常（R27）",
+                picker.PickCalls == 0, $"调用 {picker.PickCalls} 次");
+
             picker.NextId = targetVar.VariableId;
             picker.NextName = targetVar.Name;
 
             ScadaEditHistory.Clear();
-            vm.PickVariableCommand.Execute();
+            vm.PickVariableForRowCommand.Execute(row1);
 
             Check("「选择变量」把当前绑定交给选择器做预选（不是传空让选择器从零开始）",
                 picker.PickCalls == 1 && picker.LastCurrentId == Guid.Empty && picker.LastCurrentName == null,
                 $"调用 {picker.PickCalls} 次 / 预选 Id={picker.LastCurrentId} / 预选名=「{picker.LastCurrentName}」");
 
-            Check("选完回填：变量列从「未选变量」翻成变量名，HasVariable 跟着翻",
+            Check("选完回填：变量列从「未选变量」翻成变量名，规则句主语也跟着换",
                 row1.HasVariable && row1.VariableName == "炉温" && row1.VariableDisplay == "炉温"
-                && row1.Model.VariableId == targetVar.VariableId,
-                $"「{row1.VariableDisplay}」/ HasVariable={row1.HasVariable}");
+                && row1.RuleSubject == "炉温" && row1.Model.VariableId == targetVar.VariableId,
+                $"「{row1.VariableDisplay}」/ 主语「{row1.RuleSubject}」/ HasVariable={row1.HasVariable}");
 
-            Check("回填包了一层作用域：Bind 的两次属性写（Id + 名字）合并成一条撤销记录，不会只退一半",
+            Check("回填包了一层作用域：Bind 的多次属性写（Id + 名字 + 下标）合并成一条撤销记录，不会只退一半",
                 ScadaEditHistory.UndoCount == 1
                 && (ScadaEditHistory.NextUndoLabel ?? string.Empty).Contains("选择变量"),
                 $"{ScadaEditHistory.UndoCount} 条 / 「{ScadaEditHistory.NextUndoLabel}」");
 
             var unbound = ScadaEditHistory.Undo();
             Check("撤销一次把绑定整体回退（Id 与名字一起回，界面回读同一份模型）",
-                unbound && row1.Model.VariableId == Guid.Empty && row1.VariableName == null && !row1.HasVariable,
+                unbound && row1.Model.VariableId == Guid.Empty && row1.VariableName == null && !row1.HasVariable
+                && row1.RuleSubject == "（未选变量）",
                 $"Id={row1.Model.VariableId} / 名=「{row1.VariableName}」");
+
+            var rebound = ScadaEditHistory.Redo();
+            Check("重做把绑定整体恢复（Id + 名字 + 下标一起回来，不是只回一半）",
+                rebound && row1.HasVariable && row1.Model.VariableId == targetVar.VariableId,
+                $"Id={row1.Model.VariableId} / 名=「{row1.VariableName}」");
+
+            Check("绑定后「待完成」提示改成核对判定值，并继续警告阈值还是默认 0",
+                row1.SetupHintTitle == "检查判定值" && row1.SetupHintBody.Contains("阈值还是默认 0"),
+                $"「{row1.SetupHintTitle}」/ {row1.SetupHintBody}");
+
+            row1.ThresholdText = "80";
+            Check("阈值改成工艺值后提示不再吓唬人（变量已选好、已参与求值）",
+                row1.SetupHintBody.Contains("已经参与运行态求值")
+                && !row1.SetupHintBody.Contains("默认 0"),
+                row1.SetupHintBody);
+
+            row1.ThresholdText = "0";   // 退回默认值，后面删除回执要验「恢复的是同一份模型」时再用 80 重设
 
             // 取消选择：回调一次都不触发，原绑定原样保留
             picker.NextId = Guid.Empty;
-            vm.PickVariableCommand.Execute();
-            Check("在选择器里点取消：回调一次都不触发，原绑定（这里是「未选变量」）原样保留",
-                picker.PickCalls == 2 && !row1.HasVariable, $"调用 {picker.PickCalls} 次 / HasVariable={row1.HasVariable}");
+            vm.PickVariableForRowCommand.Execute(row1);
+            Check("在选择器里点取消：回调一次都不触发，原绑定原样保留",
+                picker.PickCalls == 2 && row1.HasVariable && row1.Model.VariableId == targetVar.VariableId,
+                $"调用 {picker.PickCalls} 次 / HasVariable={row1.HasVariable}");
 
-            // ---------------- ⑩ 删除：删到空表 + 选中落到剩下第一条 ----------------
+            vm.SearchText = "炉温";
+            Check("搜索命中监视变量名（只把绑了炉温的那一行留下）",
+                vm.VisibleRowCount == 1 && ReferenceEquals(vm.RowsView.Cast<ScadaAlarmConfigRow>().First(), row1),
+                $"可见 {vm.VisibleRowCount}");
+            vm.SearchText = "";
+
+            // ---------------- ⑪ 删除：回执 + 就地撤销 + 删到空表 ----------------
+
+            row1.ThresholdText = "80";
 
             vm.SelectedRow = row1;
             var beforeRemove = doc.Alarms.Count;
@@ -12704,16 +12964,51 @@ namespace ScadaChecks
                 ReferenceEquals(vm.SelectedRow, row2) && vm.HasSelection
                 && vm.RemoveCommand.CanExecute(), $"选中=「{vm.SelectedRow?.Name}」");
 
-            Check("删完条数提示同步（标题栏的「共 N 条」要跟着少）",
-                vm.AlarmCount == 1 && vm.CountHint == "共 1 条报警", $"「{vm.CountHint}」");
+            Check("删完计数同步，并且底栏给出可撤销回执（而不是只弹一句「已删除」就没了）",
+                vm.AlarmCount == 1 && vm.TotalHint == "共 1 条"
+                && vm.HasReceipt && vm.ReceiptText == "已删除报警 [报警_1]"
+                && vm.CanUndoReceipt && !vm.ShowUndo,
+                $"「{vm.ReceiptText}」/ 可撤={vm.CanUndoReceipt} / ShowUndo={vm.ShowUndo}");
 
+            vm.ReceiptUndoCommand.Execute();
+            var restored = vm.Rows.FirstOrDefault(r => r.Name == "报警_1");
+            Check("回执上的「撤销」把整条报警恢复回来并选中它（模型对象还是原来那份：阈值 80 / 组 冷却水 / 绑定炉温）",
+                doc.Alarms.Count == 2 && restored != null && ReferenceEquals(vm.SelectedRow, restored)
+                && restored.Model.Threshold == 80 && restored.Model.AlarmGroup == "冷却水"
+                && restored.Model.VariableId == targetVar.VariableId && !vm.HasReceipt,
+                $"选中=「{vm.SelectedRow?.Name}」/ 阈值={restored?.Model.Threshold} / 组=「{restored?.Model.AlarmGroup}」");
+
+            // 回执 6 秒后自动消失，但删除本身仍能从全局撤销回来
+            vm.SelectedRow = restored;
+            vm.RemoveCommand.Execute();
+            Check("删除回执带倒计时起点（6 秒，够看清、够点撤销）",
+                vm.HasReceipt && vm.ReceiptSecondsRemaining == 6,
+                $"剩余 {vm.ReceiptSecondsRemaining} 秒");
+
+            for (var i = 0; i < 5; i++)
+                vm.TickStatus();
+            Check("倒计时未走完时回执一直留着",
+                vm.HasReceipt && vm.ReceiptSecondsRemaining == 1,
+                $"剩余 {vm.ReceiptSecondsRemaining} 秒");
+
+            vm.TickStatus();
+            Check("6 秒后回执自动消失，但全局撤销仍在（两个入口不会同时消失）",
+                !vm.HasReceipt && vm.ShowUndo && vm.UndoButtonText.Contains("删除报警 [报警_1]"),
+                $"ShowUndo={vm.ShowUndo} / 「{vm.UndoButtonText}」");
+
+            vm.SelectedRow = row2;
             vm.RemoveCommand.Execute();
             Check("允许删到一条不剩（「这个方案不需要报警」是完全正常的组态结果），空态提示重新出现",
-                doc.Alarms.Count == 0 && vm.Rows.Count == 0 && !vm.HasRows && vm.AlarmCount == 0
+                doc.Alarms.Count == 0 && vm.Rows.Count == 0 && !vm.HasRows && vm.ShowEmptyState
+                && vm.AlarmCount == 0 && vm.TotalHint == "共 0 条"
                 && vm.SelectedRow == null && !vm.RemoveCommand.CanExecute(),
                 $"方案 {doc.Alarms.Count} 条 / HasRows={vm.HasRows} / 选中=「{vm.SelectedRow?.Name}」");
 
-            // ---------------- ⑪ 关闭：本弹窗没有「确定」，关的就是窗 ----------------
+            Check("空表时不再显示全局撤销（没有可撤销的配置语境，让位给空态与回执）",
+                !vm.ShowUndo && vm.HasReceipt,
+                $"ShowUndo={vm.ShowUndo} / 回执={vm.HasReceipt}");
+
+            // ---------------- ⑫ 关闭：本弹窗没有「确定」，关的就是窗 ----------------
 
             IDialogResult? closed = null;
             vm.RequestClose = MakeDialogCloseListener(r => closed = r);
@@ -12726,7 +13021,33 @@ namespace ScadaChecks
             Check("标题固定写「报警配置」（弹窗标题栏直接绑它，不走硬编码字符串）",
                 vm.Title == "报警配置", vm.Title);
 
-            // ---------------- ⑫ 审计：成功与失败都记，署名来自注入的提供者 ----------------
+            vm.OnDialogClosed();
+            Check("关窗时行集合、选中与回执全部收干净（关掉的弹窗不再对账撤销栈）",
+                vm.Rows.Count == 0 && vm.SelectedRow == null && !vm.HasReceipt
+                && vm.TotalHint == "共 0 条",
+                $"行数 {vm.Rows.Count} / 选中=「{vm.SelectedRow?.Name}」/ 回执={vm.HasReceipt}");
+
+            // ---------------- ⑬ 运行态：标题栏 chip 与底栏提示跟随真实运行信号 ----------------
+
+            var flowState = new FakeFlowRunState { AnyFlowRunning = true };
+            var runningVm = new ScadaAlarmConfigDialogViewModel(workspace, picker, null, null, flowState);
+            runningVm.OnDialogOpened(new DialogParameters());
+
+            Check("打开时现读运行态：运行中亮 chip，底栏提示改成琥珀色后果说明",
+                runningVm.IsRunning && runningVm.ShowRunningChip && runningVm.StatusHintIsWarning
+                && runningVm.StatusHint.Contains("流程运行中"),
+                $"IsRunning={runningVm.IsRunning} / 「{runningVm.StatusHint}」");
+
+            flowState.AnyFlowRunning = false;
+            runningVm.TickStatus();
+            Check("流程停止后一拍内 chip 收起，提示回到「即时写回 + 进撤销栈」",
+                !runningVm.IsRunning && !runningVm.ShowRunningChip && !runningVm.StatusHintIsWarning
+                && runningVm.StatusHint.Contains("进撤销栈"),
+                $"IsRunning={runningVm.IsRunning} / 「{runningVm.StatusHint}」");
+
+            runningVm.OnDialogClosed();
+
+            // ---------------- ⑭ 审计：成功与失败都记，署名来自注入的提供者 ----------------
 
             string auditDir = Path.Combine(Path.GetTempPath(), "ScadaACfgAudit_" + Guid.NewGuid().ToString("N"));
             var audit = new ScadaAuditWriter(auditDir);
@@ -12767,8 +13088,10 @@ namespace ScadaChecks
                 acRows2[1]);
 
             auditedRow.ThresholdText = "8O";   // 解析不了：不写模型、也不落审计
-            Check("填了非数字不落审计（没写进模型的事不该在审计里冒充「改过」），只给一句中文原因",
-                AuditRows().Length == 2 && audited.HasError, $"提示=「{audited.ErrorMessage}」");
+            Check("填了非数字不落审计（没写进模型的事不该在审计里冒充「改过」），只在行内给一句中文原因",
+                AuditRows().Length == 2 && auditedRow.HasInlineError && auditedRow.PrimaryValueHasError
+                && !audited.HasError,
+                $"行内=「{auditedRow.InlineError}」");
 
             auditedRow.Name = "冷却水温度";
             var acRows3 = AuditRows();
@@ -12776,11 +13099,21 @@ namespace ScadaChecks
                 acRows3.Length == 3 && acRows3[2].Contains("报警改名") && acRows3[2].Contains("报警_1 → 冷却水温度"),
                 acRows3[2]);
 
-            audited.RemoveCommand.Execute();
+            picker.NextId = targetVar.VariableId;
+            picker.NextName = targetVar.Name;
+            audited.SelectedRow = auditedRow;
+            audited.PickVariableForRowCommand.Execute(auditedRow);
             var acRows4 = AuditRows();
-            Check("删除落一条「删除报警」审计",
-                acRows4.Length == 4 && acRows4[3].Contains("删除报警") && acRows4[3].Contains("成功"),
+            Check("选变量落一条「选择变量」审计，说明写清目标变量（现场改绑了哪一路要答得出）",
+                acRows4.Length == 4 && acRows4[3].Contains("选择变量") && acRows4[3].Contains("炉温"),
                 acRows4[3]);
+
+            audited.RemoveCommand.Execute();
+            var acRows5 = AuditRows();
+            Check("删除落一条「删除报警」审计",
+                acRows5.Length == 5 && acRows5[4].Contains("删除报警") && acRows5[4].Contains("成功"),
+                acRows5[4]);
+            audited.OnDialogClosed();
 
             // 没有打开的方案：新增必须失败，而且失败也要留痕
             var noSolution = new WorkspaceContext();
@@ -12790,15 +13123,17 @@ namespace ScadaChecks
             orphanVm.OnDialogOpened(new DialogParameters());
             orphanVm.AddCommand.Execute();
 
-            var acRows5 = AuditRows();
+            var acRows6 = AuditRows();
             Check("没有打开的方案时新增失败：给一句中文原因，且失败也落一条审计（「试着建但没建成」与「建成了」是两条不同的线索）",
                 orphanVm.HasError && (orphanVm.ErrorMessage ?? string.Empty).Contains("没有打开的方案")
-                && acRows5.Length == 5 && acRows5[4].Contains("新建报警") && acRows5[4].Contains("失败")
-                && acRows5[4].Contains("没有打开的方案"),
-                $"提示=「{orphanVm.ErrorMessage}」/ 审计={acRows5.LastOrDefault() ?? "（无）"}");
+                && acRows6.Length == 6 && acRows6[5].Contains("新建报警") && acRows6[5].Contains("失败")
+                && acRows6[5].Contains("没有打开的方案"),
+                $"提示=「{orphanVm.ErrorMessage}」/ 审计={acRows6.LastOrDefault() ?? "（无）"}");
 
             Check("取不到「此刻登录着谁」时署名回落「未登录」，而不是留一格空白（有人没登录就改了配置，这本身是线索）",
-                acRows5.Length == 5 && acRows5[4].Contains("未登录"), acRows5[4]);
+                acRows6.Length == 6 && acRows6[5].Contains("未登录"), acRows6[5]);
+
+            orphanVm.OnDialogClosed();
 
             ScadaEditHistory.Clear();   // 撤销栈是全局静态的，本段压栈、出段前清
         }
@@ -13876,6 +14211,15 @@ namespace ScadaChecks
         /// 所以断言工程能在控制台里把"选中 → 回填"这条链整条走完；真机那条链上换的是弹窗实现，
         /// 调用方一行不动。
         /// </summary>
+        /// <summary>
+        /// 假的运行态信号：报警配置弹窗只读 <c>AnyFlowRunning</c>，断言需要在不启动流程的前提下
+        /// 把「运行中」胶囊与底栏琥珀提示翻起来。
+        /// </summary>
+        private sealed class FakeFlowRunState : IFlowRunState
+        {
+            public bool AnyFlowRunning { get; set; }
+        }
+
         private sealed class FakeVariablePicker : IScadaVariablePicker
         {
             /// <summary>下一次 Pick 要回传的变量 Id；Empty 表示"用户点了取消"（回调一次都不触发）</summary>
@@ -16886,6 +17230,137 @@ namespace ScadaChecks
 
             ScadaEditHistory.Clear();
 
+            // ---------------- 严格替换：只换勾选的数组根 ----------------
+            var strictPayload = new ScadaClipboardPayload();
+
+            foreach (string root in new[] { "Ctl", "Sta", "ddd" })
+            {
+                var strictElement = new ScadaElementSnapshot
+                {
+                    TypeKey = "Hmi.Button",
+                    Name = $"{root}按钮",
+                    Width = 80,
+                    Height = 30,
+                };
+                strictElement.Bindings.Add(new ScadaBindingSnapshot
+                {
+                    TargetProperty = "Value",
+                    VariableName = root,
+                    ArrayIndex = 0,
+                });
+                strictPayload.Items.Add(strictElement);
+            }
+
+            bool strictParameterized = ScadaTemplateParameterizer.TryParameterize(
+                strictPayload, 0, out int strictChanged, out var strictRoots, out string? strictError);
+
+            Check("TP14 参数化输出数组根清单：Ctl / Sta / ddd",
+                strictParameterized
+                && strictChanged == 3
+                && strictRoots.SequenceEqual(new[] { "Ctl", "Sta", "ddd" }),
+                strictParameterized
+                    ? string.Join("/", strictRoots)
+                    : strictError ?? "参数化失败");
+
+            var strictVars = new List<IVariable>();
+
+            foreach (string root in new[] { "Ctl", "Sta", "ddd" })
+            {
+                strictVars.Add(VariableFactory.CreateLocal($"{root}[0]", typeof(int), "", 0));
+                strictVars.Add(VariableFactory.CreateLocal($"{root}[1]", typeof(int), "", 1));
+            }
+
+            var strictResolver = new ScadaTemplateVariableResolver(BuildRegistry(strictVars.ToArray()));
+
+            bool nonStrictExpanded = ScadaTemplateExpansion.TryPlan(
+                strictPayload,
+                new ScadaTemplateExpansionOptions { Count = 1, StartIndex = 1 },
+                strictResolver,
+                out var nonStrictPlan,
+                out var nonStrictErrors,
+                out _);
+
+            Check("TP14 非严格：Ctl / Sta / ddd 全部换成实例序号 1",
+                nonStrictExpanded
+                && nonStrictPlan!.Instances[0].Items[0].Bindings[0].VariableName == "Ctl[1]"
+                && nonStrictPlan.Instances[0].Items[1].Bindings[0].VariableName == "Sta[1]"
+                && nonStrictPlan.Instances[0].Items[2].Bindings[0].VariableName == "ddd[1]",
+                nonStrictExpanded
+                    ? $"{nonStrictPlan!.Instances[0].Items[0].Bindings[0].VariableName} / "
+                      + $"{nonStrictPlan.Instances[0].Items[1].Bindings[0].VariableName} / "
+                      + $"{nonStrictPlan.Instances[0].Items[2].Bindings[0].VariableName}"
+                    : DescribeErrors(nonStrictErrors));
+
+            bool strictExpanded = ScadaTemplateExpansion.TryPlan(
+                strictPayload,
+                new ScadaTemplateExpansionOptions
+                {
+                    Count = 1,
+                    StartIndex = 1,
+                    StrictArrayReplacement = true,
+                    ArrayRoots = new HashSet<string>(strictRoots, StringComparer.Ordinal),
+                    SelectedArrayRoots = new HashSet<string>(
+                        new[] { "Ctl", "Sta" }, StringComparer.Ordinal),
+                    OriginalIndex = 0,
+                },
+                strictResolver,
+                out var strictPlan,
+                out var strictErrors,
+                out _);
+
+            Check("TP14 严格：只换勾选的 Ctl / Sta，ddd 保持原始下标 0",
+                strictExpanded
+                && strictPlan!.Instances[0].Items[0].Bindings[0].VariableName == "Ctl[1]"
+                && strictPlan.Instances[0].Items[1].Bindings[0].VariableName == "Sta[1]"
+                && strictPlan.Instances[0].Items[2].Bindings[0].VariableName == "ddd[0]",
+                strictExpanded
+                    ? $"{strictPlan!.Instances[0].Items[0].Bindings[0].VariableName} / "
+                      + $"{strictPlan.Instances[0].Items[1].Bindings[0].VariableName} / "
+                      + $"{strictPlan.Instances[0].Items[2].Bindings[0].VariableName}"
+                    : DescribeErrors(strictErrors));
+
+            // 严格选择随实例落盘，关联刷新时必须沿用它
+            var strictTemplateId = Guid.NewGuid();
+            var strictDocument = new ScadaDocument();
+            var strictPage = new ScadaPage { Name = "严格刷新页" };
+            strictDocument.Pages.Add(strictPage);
+            strictPage.AddLayer();
+            ScadaEditHistory.Clear();
+
+            var strictInstance = ScadaClipboard.Materialize(
+                strictPage, strictPayload, 0, 0, "严格实例", groupAll: true,
+                templateId: strictTemplateId, templateIndex: 1, templateRevision: 1,
+                templateStrictRoots: new[] { "Ctl", "Sta" });
+
+            Check("TP14 严格选择随实例落盘",
+                strictInstance.Count == 3
+                && strictInstance.All(e => e.TemplateStrictRoots != null
+                                           && e.TemplateStrictRoots.SequenceEqual(new[] { "Ctl", "Sta" })),
+                strictInstance.Count == 3
+                    ? string.Join("/", strictInstance[0].TemplateStrictRoots ?? new List<string>())
+                    : $"count={strictInstance.Count}");
+
+            var strictRefresh = ScadaTemplateInstanceRefresher.Refresh(
+                strictDocument, strictTemplateId, strictPayload, 2, strictResolver,
+                arrayRootsManifest: strictRoots, originalIndex: 0);
+
+            var refreshedCtl = strictPage.Elements.FirstOrDefault(e => e.Name == "Ctl按钮");
+            var refreshedSta = strictPage.Elements.FirstOrDefault(e => e.Name == "Sta按钮");
+            var refreshedDdd = strictPage.Elements.FirstOrDefault(e => e.Name == "ddd按钮");
+
+            Check("TP14 关联刷新保留严格选择：Ctl/Sta 用 1，ddd 仍用 0",
+                strictRefresh.Refreshed == 1
+                && strictRefresh.Failed == 0
+                && refreshedCtl?.Bindings[0].VariableName == "Ctl[1]"
+                && refreshedSta?.Bindings[0].VariableName == "Sta[1]"
+                && refreshedDdd?.Bindings[0].VariableName == "ddd[0]"
+                && refreshedCtl?.TemplateStrictRoots != null
+                && refreshedCtl.TemplateStrictRoots.SequenceEqual(new[] { "Ctl", "Sta" }),
+                $"{strictRefresh.Refreshed}/{strictRefresh.Failed} / "
+                + $"{refreshedCtl?.Bindings[0].VariableName} / {refreshedSta?.Bindings[0].VariableName} / {refreshedDdd?.Bindings[0].VariableName}");
+
+            ScadaEditHistory.Clear();
+
             // ---------------- 批量插入：一次撤销 ----------------
             ScadaEditHistory.Clear();
             var page = new ScadaPage();
@@ -17565,7 +18040,11 @@ namespace ScadaChecks
                     });
 
                     bool updateSaved = updateStore.TrySave(
-                        "关联模板", updateV1, 3, out var updateInfo, out string? updateSaveError);
+                        "关联模板", updateV1, 3, new[] { "Ctl", "Sta", "ddd" },
+                        out var updateInfo, out string? updateSaveError);
+
+                    bool rootsSaved = updateStore.GetArrayRoots(updateInfo?.TemplateId ?? Guid.Empty)
+                        .SequenceEqual(new[] { "Ctl", "Sta", "ddd" });
 
                     Guid updateId = updateInfo?.TemplateId ?? Guid.Empty;
                     int updateEvents = 0;
@@ -17588,11 +18067,13 @@ namespace ScadaChecks
                         Height = 28,
                     });
 
-                    bool updated = updateStore.TryUpdate(updateId, updateV2, 7, out int updatedRevision,
-                        out string? updateError);
+                    bool updated = updateStore.TryUpdate(
+                        updateId, updateV2, 7, new[] { "ddd" },
+                        out int updatedRevision, out string? updateError);
 
-                    Check("更新模板定义：Revision 1→2、TemplateUpdated 带 Id/Revision、负载与参数下标换新",
+                    Check("更新模板定义：Revision 1→2、TemplateUpdated 带 Id/Revision、负载/参数下标/数组根换新",
                         updateSaved
+                        && rootsSaved
                         && updated
                         && updatedRevision == 2
                         && updateEvents == 1
@@ -17600,6 +18081,7 @@ namespace ScadaChecks
                         && updateEventRevision == 2
                         && updateStore.GetRevision(updateId) == 2
                         && updateStore.GetParameterIndex(updateId) == 7
+                        && updateStore.GetArrayRoots(updateId).SequenceEqual(new[] { "ddd" })
                         && updateStore.GetPayload(updateId)?.Items.Count == 1
                         && updateStore.GetPayload(updateId)?.Items[0].Name == "新定义"
                         && updateStore.Templates.Single(t => t.TemplateId == updateId).Revision == 2,
@@ -20306,10 +20788,12 @@ namespace ScadaChecks
                     .GroupBy(p => UI.CustomControl.PropertyGrid.PropertyGridDefaults.GroupSegment(p, 0))
                     .ToDictionary(g => g.Key, g => g.Count());
 
-                Check("页签按草稿上的 Group 生成：运行窗口 2 / 安全与留档 4 / 画布 9 / 日志 5 / 服务与启动 10 / 并行执行 2",
+                // 画布页签 2026-10-24 由 9 项增至 11 项（新增「保留插件注入图的历史帧」与
+                // 「显示缩略图条」），判据同步；其余页签未动。
+                Check("页签按草稿上的 Group 生成：运行窗口 2 / 安全与留档 4 / 画布 11 / 日志 5 / 服务与启动 10 / 并行执行 2",
                     byGroup.TryGetValue(SystemSettingsDraft.GroupRunWindow, out var runCount) && runCount == 2
                     && byGroup.TryGetValue(SystemSettingsDraft.GroupSafety, out var safetyCount) && safetyCount == 4
-                    && byGroup.TryGetValue(SystemSettingsDraft.GroupGallery, out var galleryCount) && galleryCount == 9
+                    && byGroup.TryGetValue(SystemSettingsDraft.GroupGallery, out var galleryCount) && galleryCount == 11
                     && byGroup.TryGetValue(SystemSettingsDraft.GroupLog, out var logCount) && logCount == 5
                     && byGroup.TryGetValue(SystemSettingsDraft.GroupServices, out var svcCount) && svcCount == 10
                     && byGroup.TryGetValue(SystemSettingsDraft.GroupParallel, out var parCount) && parCount == 2,

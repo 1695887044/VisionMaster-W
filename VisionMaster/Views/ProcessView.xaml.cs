@@ -29,6 +29,10 @@ namespace VisionMaster.Views
             // 所以清理必须可逆（离树摘干净让旧 VM 可 GC，入树重新挂上），不能用一次性 Dispose。
             Loaded += OnViewLoaded;
             Unloaded += OnViewUnloaded;
+            // 面板被 Collapsed（样式收起、探针隐藏、被别的面板顶掉）时**不触发** Unloaded，
+            // 订阅与 200ms 运行计时器会照旧跑：每拍遍历整棵流程树 + 抛两条统计通知。
+            // 与 Loaded/Unloaded 幂等共存，只是多一个触发点。
+            IsVisibleChanged += OnViewIsVisibleChanged;
             DataContextChanged += OnViewDataContextChanged;
 
             StepTree.PreviewMouseLeftButtonDown += OnTreePreviewMouseLeftButtonDown;
@@ -47,6 +51,25 @@ namespace VisionMaster.Views
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)
             => (DataContext as ViewModels.ProcessViewModel)?.Deactivate();
+
+        /// <summary>
+        /// 可见性变化：收起时摘订阅、显示时补挂（Activate/Deactivate 幂等）。
+        /// 收起状态下面板不渲染，但 `ProcessViewModel` 的 200ms 计时器会继续遍历整棵流程树
+        /// 并发统计通知——纯浪费，3000 节点下每拍都要走一遍全树。
+        /// 只在**已加载**时处理：未加载的元素 IsVisible=false 是初始态，此时 Activate 也无意义。
+        /// </summary>
+        private void OnViewIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (!IsLoaded) return;
+
+            var vm = DataContext as ViewModels.ProcessViewModel;
+            if (vm == null) return;
+
+            if ((bool)e.NewValue)
+                vm.Activate();
+            else
+                vm.Deactivate();
+        }
         private void moduleTree_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
             // 分支卡片没有算子级动作（它自己的条件在容器上配、名字由容器面板改），

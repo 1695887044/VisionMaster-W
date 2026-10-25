@@ -1,0 +1,87 @@
+{
+  "schema": "vm-plan/1",
+  "id": "step-rename",
+  "title": "重命名流程树里的步骤",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "右键流程树行 → 重命名，弹窗标题是「步序重命名」。",
+  "params": {
+    "step_name": {
+      "type": "string",
+      "required": true,
+      "example": "模板匹配"
+    },
+    "new_name": {
+      "type": "string",
+      "required": true,
+      "example": "模板匹配_定位"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "process.step_row",
+      "target_name": "${step_name}",
+      "expect": {
+        "element": "process.context.rename",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "process.context.rename",
+      "expect": {
+        "window": "dialog.step_rename",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "type",
+      "target": "dialog.step_rename.input",
+      "text": "${new_name}",
+      "clear": true
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.step_rename.ok",
+      "expect": {
+        "window": "dialog.step_rename",
+        "state": "closed"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 5,
+      "do": "assert",
+      "assert": "element_exists",
+      "target": "process.step_row",
+      "name_contains": "${new_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_exists",
+      "target": "process.step_row",
+      "name_contains": "${new_name}"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["step", "rename"]
+}

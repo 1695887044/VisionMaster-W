@@ -287,7 +287,8 @@ namespace Core.Interfaces
                     description,
                     prop.PropertyType,
                     () => captured.GetValue(this),
-                    v => captured.SetValue(this, v)));
+                    v => captured.SetValue(this, v),
+                    prop.GetCustomAttribute<StepConfigOptionsAttribute>()?.Kind));
             }
         }
 

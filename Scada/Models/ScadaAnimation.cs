@@ -280,6 +280,8 @@ namespace VisionMaster.Scada
             ScadaAnimationType.Appearance => States.Count == 0 ? "(还没有档位)" : $"{States.Count} 档外观",
             ScadaAnimationType.HorizontalMove => $"X → {_endX}（范围 {_rangeLow} ~ {_rangeHigh}）",
             ScadaAnimationType.VerticalMove => $"Y → {_endY}（范围 {_rangeLow} ~ {_rangeHigh}）",
+            ScadaAnimationType.DiagonalMove => $"X/Y → {_endX},{_endY}（范围 {_rangeLow} ~ {_rangeHigh}）",
+            ScadaAnimationType.ProportionalMove => $"宽高 → {_endX}×{_endY}（范围 {_rangeLow} ~ {_rangeHigh}）",
             ScadaAnimationType.Visibility => $"{_rangeLow} ~ {_rangeHigh} 时{(_visibleInRange ? "显示" : "隐藏")}",
             _ => string.Empty,
         };
@@ -404,6 +406,80 @@ namespace VisionMaster.Scada
             if (!double.IsFinite(position))
             {
                 error = $"范围「{_rangeLow} ~ {_rangeHigh}」算不出有效位置";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        /// <summary>
+        /// 「对角线移动」求值：同一条比例 t 同时插值 X 与 Y，终点是 <see cref="EndX"/>/<see cref="EndY"/>。
+        /// 夹到 [0,1] 的规则与单轴移动逐字一致。
+        /// </summary>
+        public bool TryEvaluateTargetPositionXY(
+            double value, double startX, double startY, out double x, out double y, out string? error)
+        {
+            x = startX;
+            y = startY;
+
+            if (!TryParseRange(out var low, out var high, out error))
+                return false;
+
+            if (high < low)
+            {
+                error = $"范围「{_rangeLow} ~ {_rangeHigh}」的下限比上限大，无法按比例换算";
+                return false;
+            }
+
+            double t = high > low
+                ? (value - low) / (high - low)
+                : (value >= high ? 1d : 0d);
+
+            t = Math.Clamp(t, 0d, 1d);
+            x = startX + t * (_endX - startX);
+            y = startY + t * (_endY - startY);
+
+            if (!double.IsFinite(x) || !double.IsFinite(y))
+            {
+                error = $"范围「{_rangeLow} ~ {_rangeHigh}」算不出有效位置";
+                return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        /// <summary>
+        /// 「比例移动」求值：同一条比例 t 同时插值宽高，终点是 <see cref="EndX"/>/<see cref="EndY"/>；
+        /// 目标小于 1 像素时按 1 处理（避免缩成不可见）。
+        /// </summary>
+        public bool TryEvaluateTargetSize(
+            double value, double startWidth, double startHeight, out double width, out double height, out string? error)
+        {
+            width = startWidth;
+            height = startHeight;
+
+            if (!TryParseRange(out var low, out var high, out error))
+                return false;
+
+            if (high < low)
+            {
+                error = $"范围「{_rangeLow} ~ {_rangeHigh}」的下限比上限大，无法按比例换算";
+                return false;
+            }
+
+            double t = high > low
+                ? (value - low) / (high - low)
+                : (value >= high ? 1d : 0d);
+
+            t = Math.Clamp(t, 0d, 1d);
+            width = Math.Max(1d, startWidth + t * (_endX - startWidth));
+            height = Math.Max(1d, startHeight + t * (_endY - startHeight));
+
+            if (!double.IsFinite(width) || !double.IsFinite(height))
+            {
+                error = $"范围「{_rangeLow} ~ {_rangeHigh}」算不出有效尺寸";
                 return false;
             }
 

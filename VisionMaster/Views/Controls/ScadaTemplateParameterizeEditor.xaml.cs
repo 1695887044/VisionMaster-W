@@ -31,8 +31,9 @@ namespace VisionMaster.Views.Controls
             out int changed,
             out IReadOnlyList<string> changes,
             out int parameterIndex,
+            out IReadOnlyList<string> arrayRoots,
             out string? error)
-            => _viewModel.TryApply(payload, out changed, out changes, out parameterIndex, out error);
+            => _viewModel.TryApply(payload, out changed, out changes, out parameterIndex, out arrayRoots, out error);
     }
 
     /// <summary>一条替换规则的编辑态；Find/Replace 都是文本，空 Find 的行会被忽略。</summary>
@@ -107,11 +108,13 @@ namespace VisionMaster.Views.Controls
             out int changed,
             out IReadOnlyList<string> changes,
             out int parameterIndex,
+            out IReadOnlyList<string> arrayRoots,
             out string? error)
         {
             changed = 0;
             changes = Array.Empty<string>();
             parameterIndex = 0;
+            arrayRoots = Array.Empty<string>();
             error = null;
 
             var changeList = new List<string>();
@@ -128,7 +131,8 @@ namespace VisionMaster.Views.Controls
                     return false;
                 }
 
-                if (!ScadaTemplateParameterizer.TryParameterize(payload, index, out int indexChanged, out error))
+                if (!ScadaTemplateParameterizer.TryParameterize(
+                        payload, index, out int indexChanged, out var roots, out error))
                 {
                     StatusText = error ?? "数组下标参数化失败";
                     return false;
@@ -136,6 +140,7 @@ namespace VisionMaster.Views.Controls
 
                 changed += indexChanged;
                 parameterIndex = index;
+                arrayRoots = roots;
 
                 if (indexChanged > 0)
                     changeList.Add($"数组下标 {index} → {{i}}（{indexChanged} 条引用）");

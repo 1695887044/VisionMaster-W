@@ -95,6 +95,25 @@ namespace VisionMaster.ViewModels
         /// 默认分支（Else）不可删、至少保留一条 Case 分支（编译期同样守）。</summary>
         public DelegateCommand<object?> RemoveCaseBranchCommand { get; init; }
 
+        /// <summary>
+        /// 流程栏右键「编辑绑定…」：打开变量绑定弹窗，锚点是当前选中步骤。
+        ///
+        /// 与画布右键走同一个弹窗、同一份参数（画布侧见 FlowCanvasView.OnModuleLinkRequested，
+        /// 传的也是 <c>TargetStep</c>）——弹窗自己按 TargetStep 构建上游候选树、写回 LinkedSources，
+        /// 所以这里不再重复"哪些端口可绑"的判断。
+        ///
+        /// 不做运行锁：与画布入口一致（绑定的写回在弹窗里，运行期改绑定影响的是下一轮编译）。
+        /// </summary>
+        public DelegateCommand OpenBindingCommand { get; }
+
+        /// <summary>
+        /// 流程栏右键「复制」：把当前选中步骤快照进 FlowClipboard（与画布共用同一份剪贴板）。
+        ///
+        /// 复制不改图纸、不受运行锁限制——口径与画布 <c>OnCopySelected</c> 一致
+        /// （"看"同族；粘贴才是结构编辑）。
+        /// </summary>
+        public DelegateCommand CopyStepCommand { get; }
+
         public object SelectStep
         {
             get => field;
@@ -167,6 +186,8 @@ namespace VisionMaster.ViewModels
             RenameParallelGroupCommand = new(RenameParallelGroup);
             RenameCaseBranchCommand = new(RenameCaseBranch);
             RemoveCaseBranchCommand = new(RemoveCaseBranch);
+            OpenBindingCommand = new(OpenBindingForSelectedStep);
+            CopyStepCommand = new(CopySelectedStep);
 
             _workspaceChanged = workspace as INotifyPropertyChanged;
 
@@ -566,6 +587,37 @@ namespace VisionMaster.ViewModels
             });
         }
 
+        /// <summary>
+        /// 流程栏右键「编辑绑定…」的处理器：以当前选中步骤为锚打开变量绑定弹窗。
+        /// 拿不到选中步骤就什么都不做（菜单项本就只在选中算子时有意义，这里防御一次，
+        /// 与 Rename/EditComment 的"空选中直接 break"同一写法）。
+        /// </summary>
+        private void OpenBindingForSelectedStep()
+        {
+            var target = CurrentSelectedStepModel;
+            if (target == null)
+                return;
+
+            dialogService.ShowDialog("DataBindView", new DialogParameters
+            {
+                { "TargetStep", target },
+            });
+        }
+
+        /// <summary>流程栏右键「复制」：无选中给回执（不静默空跑），有选中就进共享剪贴板。</summary>
+        private void CopySelectedStep()
+        {
+            var target = CurrentSelectedStepModel;
+            if (target == null)
+            {
+                ShowFeedback("请先选中一个步骤再复制", false);
+                return;
+            }
+
+            FlowClipboard.Copy(target);
+            ShowFeedback($"已复制「{target.StepName}」（在画布空白处右键粘贴）", true);
+        }
+
         /// <summary>UI 命令动作 → 门禁编辑类别的归一（豁免口径全在 EditGate.IsEditable，别再私写判据）</summary>
         private static ModuleEditAction ToEditAction(ModuleCommandAction action) => action switch
         {
@@ -664,45 +716,20 @@ namespace VisionMaster.ViewModels
                 }
                 case ModuleCommandAction.AddElseIf:
                 {
+                    // 结构动作的实现在 FlowBranchEditor（画布右键走同一份）：
+                    // 本处只负责"命令靶 = 当前选中项"与反馈出口，判型/插入位置不在这里写第二遍。
+                    // Result 统一接住：今天 AddElseIf 没有失败分支，但"一个入口说话、另一个不说"
+                    // 在下次加校验时会立刻变成静默空跑——三个动作走同一条反馈口径。
                     if (SelectStep is ConditionStep ifNode)
-                    {
-                        int insertIndex = ifNode.Children.Count;
-                        var lastBranch = ifNode.Children.LastOrDefault();
+                        ReportBranchResult(FlowBranchEditor.AddElseIfBranch(ifNode));
 
-                        if (lastBranch != null && lastBranch.BranchType == BranchType.Else)
-                        {
-                            insertIndex = ifNode.Children.Count - 1;
-                        }
-
-                        // 3. 插入数据
-                        ifNode.Children.Insert(
-                            insertIndex,
-                            new StepCollection
-                            {
-                                BranchType = BranchType.ElseIf,
-                                StepName = "ElseIf 分支",
-                            }
-                        );
-                    }
                     break;
                 }
                 case ModuleCommandAction.AddElse:
                 {
                     if (SelectStep is ConditionStep ifNode)
-                    {
-                        if (ifNode.Children.Any(c => c.BranchType == BranchType.Else))
-                        {
-                            Notifier.ShowWarning("该算子已经包含了 Else 分支！");
-                            break;
-                        }
-                        ifNode.Children.Add(
-                            new StepCollection
-                            {
-                                BranchType = BranchType.Else,
-                                StepName = "Else 分支",
-                            }
-                        );
-                    }
+                        ReportBranchResult(FlowBranchEditor.AddElseBranch(ifNode));
+
                     break;
                 }
                 case ModuleCommandAction.AddCase:
@@ -711,24 +738,8 @@ namespace VisionMaster.ViewModels
                     // 兜底分支之后的分支编译器会按"不可达分支"报错，插在前面才是有意义的顺序。
                     // 结构变更只动 Children → FlowModel 版本链自动递增（同 AddElseIf，无需手动 Version++）。
                     if (SelectStep is CaseStep caseNode)
-                    {
-                        int insertIndex = caseNode.Children.Count;
-                        var lastBranch = caseNode.Children.LastOrDefault();
+                        ReportBranchResult(FlowBranchEditor.AddCaseBranch(caseNode));
 
-                        if (lastBranch != null && lastBranch.BranchType == BranchType.Else)
-                        {
-                            insertIndex = caseNode.Children.Count - 1;
-                        }
-
-                        caseNode.Children.Insert(
-                            insertIndex,
-                            new StepCollection
-                            {
-                                BranchType = BranchType.Case,
-                                StepName = caseNode.NextCaseBranchName(),
-                            }
-                        );
-                    }
                     break;
                 }
             }
@@ -741,8 +752,7 @@ namespace VisionMaster.ViewModels
         //  （CollectSubscriptions 会订阅它），结构变更自己会递增；只有"分支改名"必须手动推进，
         //  因为 StepCollection.StepName 不在 FlowModel 的监听面里（它盯的是集合结构与 StepModel 的属性）。
 
-        /// <summary>
-        /// 三个结构命令的反馈出口：message + 是否"成功"档（成功=绿泡，否则=黄警示）。
+        /// <summary>三个结构命令的反馈出口：message + 是否"成功"档（成功=绿泡，否则=黄警示）。
         /// 默认实现走 UI 库弹泡；离屏断言宿主没有 WPF Application（Notifier.Show 内部直接取
         /// Application.Current.Dispatcher，headless 里会 NRE），所以默认实现先过一道空判，
         /// 断言宿主注入收集器就能读回文案（与 ConfirmDeleteParallelBranch 同一"可注入出口"手法）。
@@ -757,6 +767,19 @@ namespace VisionMaster.ViewModels
             else
                 Notifier.ShowWarning(message);
         };
+
+        /// <summary>
+        /// 分支结构动作的统一反馈：空文案（= 命令靶类型不对、菜单本不该出现）静默，
+        /// 其余一律走 <see cref="ShowFeedback"/>。四个动作（并行/ElseIf/Else/Case）共用，
+        /// 免得"某个入口说话了、另一个不说"演变成静默空跑。
+        /// </summary>
+        private void ReportBranchResult(FlowBranchEditor.Result result)
+        {
+            if (result.Message.Length == 0)
+                return;
+
+            ShowFeedback(result.Message, result.Success);
+        }
 
         /// <summary>
         /// 删除分支的二次确认出口。默认走 EasyDialog；断言宿主注入 (t, m) =&gt; false/true 就不弹真窗
@@ -784,8 +807,8 @@ namespace VisionMaster.ViewModels
 
         /// <summary>
         /// 添加一条并行分支（流程栏组头右键「添加分支」）。
-        /// 名字在"分支 N"里挑第一个未占用的 N：用户可能已经改过名（"左工位"），
-        /// 按"当前条数 + 1"命名会撞出两条"分支 3"。
+        /// 结构动作与自动命名在 <see cref="FlowBranchEditor.AddParallelBranch"/>（画布右键同一份），
+        /// 本处只管运行锁与反馈出口。
         /// </summary>
         private void AddParallelBranch(object? target)
         {
@@ -799,18 +822,11 @@ namespace VisionMaster.ViewModels
                 return;
             }
 
-            if (group.Children.Count >= ParallelStep.RecommendedMaxBranches)
-            {
-                ShowFeedback(
-                    $"并行分支已达上限 {ParallelStep.RecommendedMaxBranches} 条（并列泳道再宽一屏就放不下）",
-                    false);
+            var result = FlowBranchEditor.AddParallelBranch(group);
+            if (result.Message.Length == 0)
                 return;
-            }
 
-            string name = NextBranchName(group);
-            group.Children.Add(new StepCollection { BranchType = BranchType.Default, StepName = name });
-
-            ShowFeedback($"已添加「{name}」到「{group.StepName}」（可在分支上右键改名）", true);
+            ShowFeedback(result.Message, result.Success);
         }
 
         /// <summary>
@@ -919,19 +935,6 @@ namespace VisionMaster.ViewModels
 
             // 走 setter：ParallelStep.StepName 是语义属性，Version 由 FlowModel 版本链自动递增
             group.StepName = name;
-        }
-
-        /// <summary>
-        /// 在"分支 N"里挑第一个未被占用的 N（分支数有上限、名字空间无限，循环必然找到空位）。
-        /// </summary>
-        private static string NextBranchName(ParallelStep group)
-        {
-            for (int n = 1; ; n++)
-            {
-                string candidate = $"分支 {n}";
-                if (!group.Children.Any(c => c.StepName == candidate))
-                    return candidate;
-            }
         }
 
         /// <summary>
@@ -1097,6 +1100,7 @@ namespace VisionMaster.ViewModels
             if (dropInfo.Data == null || Workspace?.CurrentFlow == null)
             {
                 dropInfo.Effects = DragDropEffects.None;
+                DragHintPresenter.Hide(DragHintPresenter.ProcessTreeOwner);
                 return;
             }
 
@@ -1107,62 +1111,231 @@ namespace VisionMaster.ViewModels
             if (!isFromToolbox && !isFromCanvas)
             {
                 dropInfo.Effects = DragDropEffects.None;
+                DragHintPresenter.Hide(DragHintPresenter.ProcessTreeOwner);
                 return;
             }
-            // 3. 智能推断“落地点名称”和“UI 框选效果”
-            string destinationName = "主流程";
-            bool isHoveringContainer = false;
 
-            if (dropInfo.TargetItem is StepCollection branch)
+            // 3. 运行锁优先：此刻放哪儿都不许放，落点细节没有意义（与画布侧同一顺序）
+            if (IsRunLocked)
             {
-                destinationName = $"分支: {branch.StepName}";
-                isHoveringContainer = true;
-            }
-            else if (dropInfo.TargetItem is ConditionStep condition) // 💡 自动包含 If 和 While
-            {
-                destinationName = $"容器: {condition.StepName}";
-                isHoveringContainer = true;
-            }
-            else if (dropInfo.TargetItem is ForStep forStep) // 🌟 新增：识别 For 循环容器
-            {
-                destinationName = $"循环: {forStep.StepName}";
-                isHoveringContainer = true;
-            }
-            else if (dropInfo.TargetItem is ParallelStep parallel) // 并行分组：与 If/For 同款（落进第一条分支）
-            {
-                destinationName = $"并行: {parallel.StepName}";
-                isHoveringContainer = true;
+                dropInfo.DropTargetAdorner = DropTargetAdorners.Insert;
+                DragHintPresenter.Show(DragHintPresenter.ProcessTreeOwner, DragHintText.Locked, DragHintKind.Locked);
+                return;
             }
 
-            // 4. 设置 UI 样式：悬停在容器头上显示高亮框，悬停在算子之间显示插入线条
-            dropInfo.DropTargetAdorner = isHoveringContainer
+            // 4. 拖进自己或自己的子孙 → 结构成环（Drop 侧同样拦，这里只负责先说清楚）
+            if (IsDraggingIntoSelf(dropInfo.Data, dropInfo.TargetItem))
+            {
+                dropInfo.Effects = DragDropEffects.None;
+                DragHintPresenter.Show(DragHintPresenter.ProcessTreeOwner,
+                    DragHintText.Illegal("不能放进自己里面"), DragHintKind.Illegal);
+                return;
+            }
+
+            // 5. 落点解析：与 Drop 共用同一份（否则会出现"提示说 A、实际落 B"）
+            var resolved = ResolveProcessDrop(dropInfo);
+            string path = DragHintText.Path(resolved.Path);
+
+            // 6. 设置 UI 样式：悬停在容器头上显示高亮框，悬停在算子之间显示插入线条
+            dropInfo.DropTargetAdorner = resolved.IsContainerHover
                 ? DropTargetAdorners.Highlight
                 : DropTargetAdorners.Insert;
 
-            // 5. 根据来源设置终极动作
+            string draggedName = dropInfo.Data is ToolItemModel tool
+                ? tool.Name
+                : (dropInfo.Data as StepModel)?.StepName ?? string.Empty;
+
+            // 7. 循环控制指令的落点闸门（与 Drop 的 Copy 分支同一判据、同一文案）
+            if (isFromToolbox
+                && !StepFactory.AllowsLoopControl(
+                    (dropInfo.Data as ToolItemModel)?.ModuleTypeName,
+                    StepFactory.ContainerChainOf(Workspace.CurrentFlow.Steps, dropInfo.TargetItem)))
+            {
+                dropInfo.Effects = DragDropEffects.None;
+                DragHintPresenter.Show(DragHintPresenter.ProcessTreeOwner,
+                    DragHintText.Illegal(StepFactory.LoopControlPlacementMessage), DragHintKind.Illegal);
+                return;
+            }
+
+            // 8. 根据来源设置终极动作 + 提示文案
             if (isFromToolbox)
             {
                 // 场景 A：从工具箱拖来的 -> 永远是添加 (Copy)
                 dropInfo.Effects = DragDropEffects.Copy;
                 dropInfo.EffectText = "添加算子";
-                dropInfo.DestinationText = destinationName;
+                dropInfo.DestinationText = path;
+
+                DragHintPresenter.Show(DragHintPresenter.ProcessTreeOwner,
+                    DragHintText.Add(draggedName, path, resolved.Position), DragHintKind.Valid);
             }
-            else if (isFromCanvas)
+            else
             {
                 // 场景 B：在画布内部拖的 -> 无论是同级排序还是跨分支，永远是移动 (Move)
-
-                // 🛡️ 防御性编程：防止用户把一个大容器拖进自己的肚子里造成无限死循环死锁
-                if (dropInfo.Data == dropInfo.TargetItem)
-                {
-                    dropInfo.Effects = DragDropEffects.None;
-                    return;
-                }
-
                 dropInfo.Effects = DragDropEffects.Move;
                 dropInfo.EffectText = "移动算子";
-                dropInfo.DestinationText = destinationName;
+                dropInfo.DestinationText = path;
+
+                DragHintPresenter.Show(DragHintPresenter.ProcessTreeOwner,
+                    DragHintText.Move(draggedName, path, resolved.Position), DragHintKind.Valid);
             }
         }
+
+        /// <summary>
+        /// 拖出流程栏：只撤自己写的那条提示。
+        /// 不能无条件 Hide——gong 的 DragLeave 是 Dispatcher 延迟派发的，从流程栏移到画布时
+        /// 它可能排在画布的 DragOver 之后，无条件 Hide 会把画布刚写的提示抹掉。
+        /// </summary>
+        public void DragLeave(IDropInfo dropInfo) => DragHintPresenter.Hide(DragHintPresenter.ProcessTreeOwner);
+
+        /// <summary>
+        /// 流程栏落点解析（DragOver 与 Drop 共用一份，保证"提示说的"就是"实际落的"）。
+        ///
+        /// gong 在 TreeViewItem 上按鼠标纵向位置分三档：上/下 25% 把 TargetCollection 设为父集合
+        /// （插到容器旁边）、中间 50% 把 TargetCollection 设为该条目自己的空 Items（TargetItemCenter）。
+        /// 因此"落在容器上"与"落在容器旁"是两种不同结果，必须按 TargetCollection 判，
+        /// 不能只看 TargetItem 的类型——这正是此前提示会撒谎的地方。
+        /// </summary>
+        private ProcessDropTarget ResolveProcessDrop(IDropInfo info)
+        {
+            var flow = Workspace?.CurrentFlow;
+            IList? targetList = info.TargetCollection as IList;
+            int insertIndex = info.InsertIndex;
+            bool isContainerHover = false;
+            StepCollection? owningBranch = null;
+
+            if (targetList == null || !(targetList is IEnumerable<StepModel>))
+            {
+                switch (info.TargetItem)
+                {
+                    case StepCollection branch:
+                        targetList = branch.Steps;
+                        insertIndex = branch.Steps.Count;
+                        isContainerHover = true;
+                        owningBranch = branch;
+                        break;
+
+                    case ConditionStep condition when condition.Children.Count > 0: // 💡 包含 If 和 While
+                        targetList = condition.Children[0].Steps;
+                        insertIndex = condition.Children[0].Steps.Count;
+                        isContainerHover = true;
+                        owningBranch = condition.Children[0];
+                        break;
+
+                    case ForStep forStep when forStep.Children.Count > 0: // 🌟 For 循环肚子里
+                        targetList = forStep.Children[0].Steps;
+                        insertIndex = forStep.Children[0].Steps.Count;
+                        isContainerHover = true;
+                        owningBranch = forStep.Children[0];
+                        break;
+
+                    // 并行分组：与 If/For 同款落进第一条分支（分支卡片本身是独立落点）
+                    case ParallelStep parallel when parallel.Children.Count > 0:
+                        targetList = parallel.Children[0].Steps;
+                        insertIndex = parallel.Children[0].Steps.Count;
+                        isContainerHover = true;
+                        owningBranch = parallel.Children[0];
+                        break;
+
+                    default:
+                        targetList = flow?.Steps;
+                        insertIndex = targetList?.Count ?? 0;
+                        break;
+                }
+            }
+            else
+            {
+                // 直接落在某个 Steps 集合上（兄弟之间 / 容器上下边缘）：反查它属于哪条分支
+                owningBranch = FindOwningBranch(flow?.Steps, targetList);
+            }
+
+            if (targetList == null)
+                targetList = new ObservableCollection<StepModel>();
+
+            if (insertIndex < 0) insertIndex = 0;
+            if (insertIndex > targetList.Count) insertIndex = targetList.Count;
+
+            // 路径：容器链（由远及近）+ 分支名
+            var segments = new List<string?>();
+            if (owningBranch != null)
+            {
+                foreach (var ancestor in StepFactory.ContainerChainOf(flow?.Steps, owningBranch).Reverse())
+                    segments.Add(ancestor.StepName);
+
+                segments.Add(owningBranch.StepName);
+            }
+            else if (info.TargetItem is StepModel targetStep)
+            {
+                foreach (var ancestor in StepFactory.ContainerChainOf(flow?.Steps, targetStep).Reverse())
+                    segments.Add(ancestor.StepName);
+            }
+
+            // 位置：插到下一个兄弟之前，或追加到末尾
+            string position = DragHintText.PositionEnd;
+            if (!isContainerHover && insertIndex < targetList.Count)
+            {
+                if (targetList[insertIndex] is StepModel next)
+                    position = DragHintText.InsertBeforePosition(next.StepName);
+            }
+
+            return new ProcessDropTarget(targetList, insertIndex, segments, position, isContainerHover);
+        }
+
+        /// <summary>
+        /// 反查一个 Steps 集合属于哪条分支（用于把路径补成「容器 / 分支」）。
+        /// 找不到（顶层 Steps / 畸形结构）返回 null。
+        /// </summary>
+        private static StepCollection? FindOwningBranch(
+            ObservableCollection<StepModel>? roots,
+            IList? steps)
+        {
+            if (roots == null || steps == null)
+                return null;
+
+            foreach (var step in roots)
+            {
+                if (step is not IContainerStep container || container.Children == null)
+                    continue;
+
+                foreach (var branch in container.Children)
+                {
+                    if (branch?.Steps == null) continue;
+
+                    if (ReferenceEquals(branch.Steps, steps))
+                        return branch;
+
+                    var nested = FindOwningBranch(branch.Steps, steps);
+                    if (nested != null)
+                        return nested;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 拖拽目标是否落在被拖步骤自己（或自己的子孙）里——命中会形成结构环，
+        /// 之后编译/遍历都会无限递归。DragOver 与 Drop 共用。
+        /// </summary>
+        private bool IsDraggingIntoSelf(object? dragged, object? target)
+        {
+            if (dragged is not StepModel step || target == null)
+                return false;
+
+            if (ReferenceEquals(dragged, target))
+                return true;
+
+            // 目标的容器链里出现"正在拖的那个容器" → 目标在它的子树里
+            return StepFactory.ContainerChainOf(Workspace?.CurrentFlow?.Steps, target)
+                .Any(ancestor => ReferenceEquals(ancestor, step));
+        }
+
+        /// <summary>流程栏落点解析结果（DragOver 与 Drop 共用）</summary>
+        private sealed record ProcessDropTarget(
+            IList TargetList,
+            int InsertIndex,
+            IReadOnlyList<string?> Path,
+            string Position,
+            bool IsContainerHover);
 
         public void Drop(IDropInfo args)
         {
@@ -1171,6 +1344,9 @@ namespace VisionMaster.ViewModels
                 Notifier.ShowError("请先加载流程");
                 return;
             }
+
+            // 拖放结束：先收起落点提示条（Drop 之后不会再有 DragOver，不收就永远挂着）
+            DragHintPresenter.Hide();
 
             // 运行锁：从工具箱拖入、卡片间拖拽排序，都会走到这里，一并拦下
             if (IsRunLocked)
@@ -1182,47 +1358,19 @@ namespace VisionMaster.ViewModels
             if (args.Effects != DragDropEffects.Copy && args.Effects != DragDropEffects.Move)
                 return;
 
-            // ==========================================
-            // 第一步：智能解析要放进哪个“口袋”
-            // ==========================================
-            IList targetList = args.TargetCollection as IList;
-            int insertIndex = args.InsertIndex;
-
-            if (targetList == null || !(targetList is IEnumerable<StepModel>))
+            // 拖进自己或自己的子孙 → 结构成环（DragOver 已提前说过，这里兜住实际落子）
+            if (IsDraggingIntoSelf(args.Data, args.TargetItem))
             {
-                switch (args.TargetItem)
-                {
-                    case StepCollection branch:
-                        targetList = branch.Steps;
-                        insertIndex = branch.Steps.Count;
-                        break;
-
-                    case ConditionStep condition when condition.Children.Count > 0: // 💡 包含 If 和 While
-                        targetList = condition.Children[0].Steps;
-                        insertIndex = condition.Children[0].Steps.Count;
-                        break;
-
-                    case ForStep forStep when forStep.Children.Count > 0: // 🌟 新增：把算子丢进 For 循环肚子里
-                        targetList = forStep.Children[0].Steps;
-                        insertIndex = forStep.Children[0].Steps.Count;
-                        break;
-
-                    // 并行分组：与 If/For 同款落进第一条分支（分支卡片本身是独立落点；
-                    // 2026-10-09 前这里没有 Parallel 分支 → 拖到组头上会静默掉到主流程末尾）
-                    case ParallelStep parallel when parallel.Children.Count > 0:
-                        targetList = parallel.Children[0].Steps;
-                        insertIndex = parallel.Children[0].Steps.Count;
-                        break;
-
-                    default:
-                        targetList = Workspace.CurrentFlow.Steps;
-                        insertIndex = Workspace.CurrentFlow.Steps.Count;
-                        break;
-                }
+                ShowFeedback("不能放进自己里面", false);
+                return;
             }
 
-            if (insertIndex < 0) insertIndex = 0;
-            if (insertIndex > targetList.Count) insertIndex = targetList.Count;
+            // ==========================================
+            // 第一步：落点解析（与 DragOver 共用一份，保证"提示说的"就是"实际落的"）
+            // ==========================================
+            var resolved = ResolveProcessDrop(args);
+            IList targetList = resolved.TargetList;
+            int insertIndex = resolved.InsertIndex;
 
             // ==========================================
             // 第二步：场景 A - 从工具箱【新增】算子 (Copy)

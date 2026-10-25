@@ -81,4 +81,89 @@
     <Setter Property="VerticalAlignment" Value="Center" />
     <Setter Property="SnapsToDevicePixels" Value="True" />
   </Style>
+
+  <!--
+      ============================================================
+      v2.1「报警配置」基线（docs/UI设计基线/scada-alarm-config）
+      ============================================================
+      为什么另起新键、不复用 DialogCardTitle / DialogEmptyState*：
+      应用级 FluentAliases.xaml 最后合并、同名覆盖（见该文件「旧键兼容转发层」），
+      这几支会被换成 FluentTextSubtitleStyle/CaptionStyle 的字号与字重，
+      与基线写死的 14/600、11.5/600 对不上。新键不在覆盖名单里，字形尺寸可逐项钉住。
+  -->
+  <Style x:Key="DialogAlarmTitle" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+  </Style>
+  <!--  标题栏计数：11.5 / 第三级灰；数字由使用方套 <Run FontWeight="SemiBold">  -->
+  <Style x:Key="DialogCountText" TargetType="TextBlock">
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+  </Style>
+  <!--  详情块的字段标签：11 / 第三级灰；「· 为什么」后缀由视图用 muted 令牌再淡一档  -->
+  <Style x:Key="DialogFieldLabel" TargetType="TextBlock">
+    <Setter Property="Margin" Value="0,0,0,4" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+  </Style>
+  <!--  行内错误：11.5 / danger-text；左侧图标由视图给（与基线 .errline 同口径）  -->
+  <Style x:Key="DialogInlineFieldError" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <!--  空态 / 无结果：46×46 圆角块 + 14/600 标题 + 12 说明（基线的两处空态共用）  -->
+  <Style x:Key="DialogEmptyStateBadge" TargetType="Border">
+    <Setter Property="Width" Value="46" />
+    <Setter Property="Height" Value="46" />
+    <Setter Property="Margin" Value="0,0,0,4" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+  </Style>
+  <Style x:Key="DialogEmptyStateBadgeGlyph" TargetType="TextBlock">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontFamily" Value="{StaticResource DialogIconFont}" />
+    <Setter Property="FontSize" Value="18" />
+    <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+  </Style>
+  <Style x:Key="DialogEmptyTitle" TargetType="TextBlock">
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <Style x:Key="DialogEmptyDescription" TargetType="TextBlock">
+    <Setter Property="MaxWidth" Value="420" />
+    <Setter Property="Margin" Value="0,6,0,0" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="LineHeight" Value="19.8" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <!--  详情块的规则句：12.5 / 行高 19.4（1.55）；序号与数值由 Run 加粗，走使用方局部值  -->
+  <Style x:Key="DialogRuleText" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="LineHeight" Value="19.4" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+  <!--  断线行的补充说明：11.5 / 第三级灰（基线里是同一段 rule 换了字号与颜色）  -->
+  <Style x:Key="DialogRuleNote" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="LineHeight" Value="18" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
 </ResourceDictionary>

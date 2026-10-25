@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>报警配置 · 设计基线 v2.1</title>
+<style>
+  /* ===== 令牌：逐条对应 UI/Controls/Themes/Colors.xaml ===== */
+  :root {
+    --accent: #0EA5E9;
+    --accent-dark: #0284C7;
+    --accent-light: #E0F2FE;
+    --accent-soft: #F0F9FF;
+    --accent-border: #BAE6FD;
+    --accent-text: #0369A1;
+
+    --bg: #EEF2F7;
+    --surface: #FFFFFF;
+    --card-border: #E3E9F2;
+    --input-bg: #F8FAFC;
+    --border: #E2E8F0;
+    --border-light: #EEF2F7;
+    --border-strong: #CBD5E1;
+
+    --text: #0F172A;
+    --text-2: #475569;
+    --text-3: #64748B;
+    --muted: #94A3B8;
+
+    --success: #22C55E;
+    --success-text: #15803D;
+    --success-soft: #F0FDF4;
+    --success-border: #BBF7D0;
+
+    --danger: #EF4444;
+    --danger-text: #B91C1C;
+    --danger-soft: #FEF2F2;
+    --danger-border: #FECACA;
+
+    --warning: #F59E0B;
+    --warning-text: #B45309;
+    --warning-soft: #FFF4E5;
+    --warning-border: #FDE68A;
+
+    --row-hover: #F1F5F9;
+    --row-alt: #F8FAFC;
+
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+
+    --r-xs: 4px;
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+
+    --font: "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .stage {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-5);
+    padding: 24px 24px 48px;
+  }
+
+  /* ===== 状态切换条（设计稿工具，不是界面的一部分） ===== */
+  .statebar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  }
+  .statebar-label { padding: 0 8px 0 4px; font-size: 11.5px; color: var(--text-3); }
+  .statebar button {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .statebar button:hover { background: var(--row-hover); }
+  .statebar button.on {
+    background: var(--accent-light);
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+    font-weight: 500;
+  }
+  .statebar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .statebar .notes-toggle { margin-left: auto; border-color: var(--border); color: var(--text-2); }
+  .statebar .notes-toggle:hover { border-color: var(--border-strong); background: var(--row-hover); }
+  .statebar-note { flex: 1 0 100%; padding: 4px 4px 0; font-size: 11px; color: var(--muted); }
+
+  /* ===== 画面 + 功能介绍（右侧批注只用于评审，不属于 WPF 界面） ===== */
+  .workbench { display: flex; align-items: flex-start; gap: 24px; }
+  body.notes-off .notes { display: none; }
+
+  .notes {
+    width: 360px;
+    max-height: 640px;
+    overflow: auto;
+    padding: 16px 18px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+  }
+  .notes-kicker {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    color: var(--accent-text);
+  }
+  .notes h2 { margin: 3px 0 0; font-size: 14px; font-weight: 600; }
+  .notes-intro {
+    margin: 8px 0 0;
+    font-size: 12px;
+    line-height: 1.7;
+    color: var(--text-2);
+  }
+  .notes-list {
+    counter-reset: note;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .notes-list li {
+    counter-increment: note;
+    position: relative;
+    padding-left: 24px;
+    font-size: 11.5px;
+    line-height: 1.65;
+    color: var(--text-2);
+  }
+  .notes-list li::before {
+    content: counter(note);
+    position: absolute;
+    left: 0;
+    top: 1px;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 1px solid var(--accent-border);
+    color: var(--accent-text);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .notes-list b { color: var(--text); font-weight: 600; }
+  .notes-footnote {
+    margin: 12px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-light);
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--muted);
+  }
+
+  /* ===== 弹窗外壳（灰底 = 窗口；白卡 = 内容；底栏落在灰底上） ===== */
+  .dialog {
+    width: 920px;
+    height: 640px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-radius: var(--r-lg);
+    box-shadow: 0 12px 32px rgba(15, 23, 42, .12), 0 2px 6px rgba(15, 23, 42, .06);
+    overflow: hidden;
+  }
+
+  .card {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin: 16px 16px 0;
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* 标题栏 */
+  .titlebar {
+    flex: 0 0 44px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 14px 0 16px;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .titlebar h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .01em; }
+  .titlebar .bell { color: var(--accent); display: inline-flex; }
+  .titlebar .counts { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--text-3); }
+  .titlebar .counts b { font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .titlebar .counts .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--muted); }
+  .grow { flex: 1; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 22px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    font-size: 11.5px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+  .chip-accent { background: var(--accent-light); border-color: var(--accent-border); color: var(--accent-text); }
+  .chip-accent .dot { background: var(--accent); }
+  /* "运行中"是状态（绿点），"改动下一拍生效"是后果（底栏琥珀字）——两件事不用一个色说 */
+  .chip-success { background: var(--success-soft); border-color: var(--success-border); color: var(--success-text); }
+  .chip-success .dot { background: var(--success); }
+
+  .run-chip { display: none; }
+  body[data-state="running"] .run-chip { display: inline-flex; }
+
+  /* ===== 工具栏 ===== */
+  .toolbar {
+    flex: 0 0 48px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+  }
+  body[data-state="empty"] .toolbar { display: none; }
+
+  .sep-v { width: 1px; height: 20px; margin: 0 4px; background: var(--border); }
+
+  /* 组筛选：一段"下拉胶囊"，不是表单控件 */
+  .filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text-2);
+    font-size: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .filter:hover { border-color: var(--border-strong); }
+  .filter:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .filter .k { color: var(--text-3); }
+  .filter b { font-weight: 500; color: var(--text); }
+  .filter .g-one { display: none; }
+  body[data-state="filter"] .filter .g-all { display: none; }
+  body[data-state="filter"] .filter .g-one { display: inline; }
+  body[data-state="filter"] .filter {
+    background: var(--accent-soft);
+    border-color: var(--accent-border);
+    color: var(--accent-text);
+  }
+  body[data-state="filter"] .filter .k,
+  body[data-state="filter"] .filter b { color: var(--accent-text); }
+
+  .search {
+    position: relative;
+    width: 176px;
+    margin-left: auto;
+  }
+  .search svg {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+  }
+  .search input {
+    width: 100%;
+    height: 30px;
+    padding: 0 10px 0 29px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12px;
+  }
+  .search input::placeholder { color: var(--muted); }
+  .search input:hover { border-color: var(--border-strong); }
+  .search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(14, 165, 233, .14); }
+
+  .shown-count {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-3);
+    white-space: nowrap;
+  }
+  body[data-state="filter"] .shown-count,
+  body[data-state="nomatch"] .shown-count { display: inline-flex; }
+  .linkbtn {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--accent-text);
+    font-family: inherit;
+    font-size: 11.5px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .linkbtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+
+  /* ===== 表格 ===== */
+  .tablewrap { flex: 1; min-height: 0; overflow: auto; }
+  table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    height: 34px;
+    padding: 0 12px;
+    background: var(--row-alt);
+    border-bottom: 1px solid var(--border);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-2);
+    text-align: left;
+    white-space: nowrap;
+  }
+  thead th.c-center { text-align: center; }
+  thead th.num { text-align: right; padding-right: 20px; }
+
+  tbody td {
+    height: 46px;
+    padding: 0 8px;
+    border-bottom: 1px solid var(--border-light);
+    vertical-align: middle;
+    color: var(--text);
+  }
+  tbody tr.row:hover { background: var(--row-hover); }
+  tbody tr.row.is-selected { background: var(--accent-soft); }
+  tbody tr.row.is-selected:hover { background: var(--accent-light); }
+  tbody tr.row.is-selected td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  tbody tr.row.is-error td:first-child { box-shadow: inset 2px 0 0 var(--danger); }
+  /* 停用行：整行不降透明度（52% 的文字只有 3.6:1，读不清），
+     改成"文字降一级 + 等级色收起"，勾选框空着就是最终判据 */
+  tbody tr.row.is-off .cell-input,
+  tbody tr.row.is-off .cell-select,
+  tbody tr.row.is-off .picker,
+  tbody tr.row.is-off .dash,
+  tbody tr.row.is-off .unit { color: var(--text-3); }
+  tbody tr.row.is-off .cell-select.sev-critical,
+  tbody tr.row.is-off .cell-select.sev-warning,
+  tbody tr.row.is-off .cell-select.sev-info {
+    background: transparent;
+    color: var(--text-3);
+    font-weight: 400;
+  }
+  tbody tr.row.is-off .cell-select .chev,
+  tbody tr.row.is-off .picker .chev,
+  tbody tr.row.is-off .group .hist { color: var(--muted); }
+  tbody tr.row.is-hidden { display: none; }
+
+  /* 静默输入：静止时像文本，悬停出框，聚焦出主色环 */
+  .cell-input {
+    width: 100%;
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+  }
+  .cell-input:hover { border-color: var(--border); background: var(--surface); }
+  .cell-input:focus { outline: none; border-color: var(--accent); background: var(--input-bg); box-shadow: 0 0 0 3px rgba(14, 165, 233, .14); }
+  .cell-input.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .cell-input::placeholder { color: var(--muted); }
+  .cell-input.invalid {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+    color: var(--danger-text);
+  }
+
+  /* 监视变量：整格是一个"选择器按钮" */
+  .picker {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .picker .var { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .picker .chev { margin-left: auto; color: var(--muted); display: inline-flex; flex: 0 0 auto; }
+  .picker:hover { border-color: var(--accent-border); background: var(--accent-soft); }
+  .picker:hover .chev { color: var(--accent); }
+  .picker:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+  /* 未绑变量：这条报警不会参与运行态求值，必须自己举手（警示色常驻，不是悬停才露） */
+  .picker.unbound {
+    color: var(--warning-text);
+    background: var(--warning-soft);
+    border-color: var(--warning-border);
+  }
+  .picker.unbound .var { color: var(--warning-text); }
+  .picker.unbound .link-ico { color: var(--warning-text); display: inline-flex; }
+  .picker.unbound:hover { border-color: var(--warning); }
+
+  /* 种类 / 等级：静止无框 */
+  .cell-select {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    height: 30px;
+    padding: 0 9px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .cell-select .chev { margin-left: auto; color: var(--muted); display: inline-flex; }
+  .cell-select:hover { border-color: var(--border); background: var(--surface); }
+  .cell-select:hover .chev { color: var(--text-3); }
+  .cell-select:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+  /* 严重度：字段本身就是一块语义色（与运行态配色同族） */
+  .cell-select.sev-critical { background: var(--danger-soft); color: var(--danger-text); font-weight: 500; }
+  .cell-select.sev-critical:hover { border-color: var(--danger-border); }
+  .cell-select.sev-warning { background: var(--warning-soft); color: var(--warning-text); font-weight: 500; }
+  .cell-select.sev-warning:hover { border-color: var(--warning-border); }
+  .cell-select.sev-info { background: var(--accent-light); color: var(--accent-text); font-weight: 500; }
+  .cell-select.sev-info:hover { border-color: var(--accent-border); }
+  .cell-select.sev-critical .chev { color: var(--danger-text); opacity: .6; }
+  .cell-select.sev-warning .chev { color: var(--warning-text); opacity: .6; }
+  .cell-select.sev-info .chev { color: var(--accent-text); opacity: .6; }
+
+  /* 阈值列：所有数字共用同一条右边缘（右侧预留 20px），单位贴右 8px 挂槽，
+     否则「5 s」的单位会把 5 顶得跟 85 / 12 对不齐 */
+  tbody td.thresh { position: relative; padding-right: 20px; }
+  tbody td.thresh .cell-input { padding-right: 0; }
+  tbody td.thresh .dash { padding: 0; }
+  .len { display: block; }
+  .len .unit {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 11.5px;
+    line-height: 1;
+    color: var(--text-3);
+  }
+
+  .cell-check { display: grid; place-items: center; }
+  .cb {
+    appearance: none;
+    width: 15px; height: 15px;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    background: var(--surface);
+    cursor: pointer;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .cb:checked {
+    background: var(--accent) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M3.5 8.5 6.5 11.5 12.5 4.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/13px no-repeat;
+    border-color: var(--accent);
+  }
+  .cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .dash { display: block; padding: 0 9px; color: var(--muted); text-align: right; font-size: 12.5px; }
+
+  /* 组：输入 + 历史下拉箭头（不是 ComboBox） */
+  /* 组：输入 + 历史下拉箭头，箭头必须贴着文字（否则整列看着像一排悬空的下拉） */
+  .group { display: flex; align-items: center; gap: 2px; max-width: 138px; }
+  .group .cell-input { flex: 0 1 112px; min-width: 0; }
+  .group .hist {
+    width: 24px; height: 24px;
+    display: inline-grid; place-items: center;
+    border: 0;
+    border-radius: var(--r-xs);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .group .hist:hover { background: var(--row-hover); color: var(--text-2); }
+  .group .hist:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* 行内错误 */
+  .errline {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px 8px;
+    font-size: 11.5px;
+    color: var(--danger-text);
+  }
+  body[data-state="error"] .errline { display: flex; }
+  tr.errrow td { border-bottom: 0; height: auto; padding: 0; }
+  tr.errrow { display: none; }
+  body[data-state="error"] tr.errrow { display: table-row; }
+
+  /* ===== 展开行（详情） ===== */
+  tr.detailrow > td {
+    padding: 0;
+    height: auto;
+    border-bottom: 1px solid var(--border);
+    background: var(--row-alt);
+  }
+  tr.detailrow { display: none; }
+  tbody tr[data-row="new"] { display: none; }
+  body[data-state="filled"] tr.detailrow.d-limit,
+  body[data-state="running"] tr.detailrow.d-limit,
+  body[data-state="stale"] tr.detailrow.d-stale { display: table-row; }
+
+  .detail {
+    padding: 10px 16px 12px 18px;
+    border-left: 2px solid var(--accent);
+    background: var(--row-alt);
+  }
+  .detail .rule {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 8px;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text);
+  }
+  .detail .rule .tag-rule {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    font-size: 10.5px;
+    line-height: 16px;
+    padding: 0 6px;
+    border-radius: 3px;
+    background: var(--accent-light);
+    color: var(--accent-text);
+    letter-spacing: .03em;
+  }
+  .detail .rule b { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .fields3 { display: grid; grid-template-columns: 150px 150px 1fr; gap: 8px 14px; margin-bottom: 2px; }
+  .fields2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .fld { min-width: 0; }
+  .lbl {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: .02em;
+  }
+  .lbl .why { color: var(--muted); }
+  .fld .cell-input { background: var(--surface); border-color: var(--border); }
+  .fld .cell-input:hover { border-color: var(--border-strong); }
+  .fld .cell-input::placeholder { color: var(--muted); }
+  .detail .divider { height: 1px; margin: 8px 0; background: var(--border-light); }
+
+  /* 新增行的"待完成"提示：未绑变量这件事在详情块里必须写明后果，而不是只靠一格灰字 */
+  .setup-warn {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--warning-border);
+    border-radius: var(--r-sm);
+    background: var(--warning-soft);
+    color: var(--warning-text);
+    font-size: 11.5px;
+    line-height: 1.6;
+  }
+  .setup-warn .i { margin-top: 2px; }
+  .setup-warn b { font-weight: 600; }
+
+  /* ===== 空态 ===== */
+  .empty-block {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+  }
+  body[data-state="empty"] .empty-block { display: flex; }
+  body[data-state="empty"] .tablewrap { display: none; }
+  .empty-block .ico {
+    width: 46px; height: 46px;
+    display: grid; place-items: center;
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    margin-bottom: 4px;
+  }
+  .empty-block h3 { margin: 0; font-size: 14px; font-weight: 600; }
+  .empty-block p {
+    max-width: 400px;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.65;
+    color: var(--text-3);
+  }
+  .empty-block .actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* ===== 搜索无结果（与"空方案"是两件事：一条报警都没有 vs 一条都没匹配上） ===== */
+  .noresult {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 360px;
+    padding: 24px;
+    text-align: center;
+  }
+  body[data-state="nomatch"] .noresult { display: flex; }
+  body[data-state="nomatch"] tbody tr { display: none; }
+  .noresult .ico {
+    width: 46px; height: 46px;
+    display: grid; place-items: center;
+    border: 1px solid var(--accent-border);
+    border-radius: 10px;
+    background: var(--accent-soft);
+    color: var(--accent-text);
+    margin-bottom: 4px;
+  }
+  .noresult h4 { margin: 0; font-size: 14px; font-weight: 600; }
+  .noresult p { max-width: 420px; margin: 0; font-size: 12px; line-height: 1.65; color: var(--text-3); }
+  .noresult .actions { display: flex; gap: 8px; margin-top: 10px; }
+
+  /* ===== 底栏（落在灰底上） ===== */
+  .foot {
+    flex: 0 0 56px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 20px;
+  }
+  .foot .hint { font-size: 11.5px; color: var(--text-3); }
+  .foot .receipt {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .foot .receipt .ok { color: var(--success-text); display: inline-flex; }
+  body[data-state="receipt"] .foot .receipt { display: inline-flex; }
+  body[data-state="receipt"] .foot .hint { display: none; }
+  body[data-state="running"] .foot .hint.run-note { display: inline; }
+  body[data-state="running"] .foot .hint.idle-note { display: none; }
+  .foot .hint.run-note { display: none; color: var(--warning-text); }
+
+  /* ===== 按钮 ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--text-2);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 150ms ease-out, border-color 150ms ease-out, box-shadow 150ms ease-out;
+  }
+  .btn:hover { background: var(--row-hover); border-color: var(--border-strong); }
+  .btn:active { background: var(--border-light); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn-lg { height: 34px; padding: 0 18px; }
+
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn-primary:active { background: var(--accent-text); }
+  .btn-primary:focus-visible { outline: 2px solid var(--accent-dark); outline-offset: 2px; }
+
+  .btn-ghost { background: transparent; border-color: transparent; color: var(--text-2); }
+  .btn-ghost:hover { background: var(--row-hover); border-color: var(--border); }
+
+  .btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+  .btn[aria-disabled="true"]:hover { background: var(--surface); border-color: var(--border); }
+  .btn-ghost[aria-disabled="true"]:hover { background: transparent; border-color: transparent; }
+
+  .danger-ico { color: var(--danger); display: inline-flex; }
+  .accent-ico { color: var(--accent); display: inline-flex; }
+
+  .i { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
+  .i-12 { width: 12px; height: 12px; }
+  .i-16 { width: 16px; height: 16px; }
+  .i-24 { width: 24px; height: 24px; }
+
+  /* ===== 状态专属 ===== */
+  .c-none { display: none; }
+  body[data-state="empty"] .c-many { display: none; }
+  body[data-state="empty"] .c-none { display: inline; }
+  body[data-state="empty"] .btn-undo { display: none; }
+  body[data-state="receipt"] .btn-undo { display: none; }
+
+  /* 缺变量：只在存在"已启用但没绑变量"的行时出现 */
+  .c-incomplete { display: none; align-items: center; gap: 6px; color: var(--warning-text); }
+  .c-incomplete .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--warning); }
+  .c-incomplete b { color: var(--warning-text); }
+  body[data-state="new"] .c-incomplete { display: inline-flex; }
+
+  /* 新增行：追加在表尾、自动选中、名称格拿到焦点（主色环即聚焦态） */
+  body[data-state="new"] tr[data-row="new"] { display: table-row; background: var(--accent-light); }
+  body[data-state="new"] tr[data-row="new"] td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  body[data-state="new"] tr.d-new { display: table-row; }
+  body[data-state="new"] tr[data-row="new"] .cell-input.name {
+    border-color: var(--accent);
+    background: var(--input-bg);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, .14);
+  }
+
+  /* 选中行：只让当前状态那一行带高亮与左侧标线 */
+  body[data-state="filled"] tr[data-row="temp"],
+  body[data-state="running"] tr[data-row="temp"] { background: var(--accent-light); }
+  body[data-state="stale"] tr[data-row="stale"] { background: var(--accent-light); }
+  body[data-state="error"] tr[data-row="defect"] { background: var(--accent-light); }
+
+  body[data-state="filled"] tr[data-row="temp"] td:first-child,
+  body[data-state="running"] tr[data-row="temp"] td:first-child,
+  body[data-state="stale"] tr[data-row="stale"] td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  body[data-state="error"] tr[data-row="defect"] td:first-child { box-shadow: inset 2px 0 0 var(--danger); }
+
+  /* 重名：只有名称那格转红，其余单元格不受影响 */
+  body[data-state="error"] tr[data-row="defect"] td:first-child .cell-input {
+    border-color: var(--danger);
+    background: var(--danger-soft);
+    color: var(--danger-text);
+  }
+
+  /* 筛选：只留一号线的两条 */
+  body[data-state="filter"] tr.row:not([data-row="temp"]):not([data-row="flow"]) { display: none; }
+
+  /* 删除回执：被删那条不再占行 */
+  body[data-state="receipt"] tr[data-row="clamp"] { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+
+<body data-state="filled">
+<div class="stage">
+
+  <div class="statebar" role="group" aria-label="设计稿状态切换">
+    <span class="statebar-label">设计稿状态</span>
+    <button type="button" data-set="filled" class="on">默认 · 四限展开</button>
+    <button type="button" data-set="stale">断线展开</button>
+    <button type="button" data-set="filter">按组筛选</button>
+    <button type="button" data-set="nomatch" title="搜索有词但一条都没匹配">搜索无结果</button>
+    <button type="button" data-set="error">重名校验失败</button>
+    <button type="button" data-set="receipt">删除回执</button>
+    <button type="button" data-set="new" title="点「新增报警」之后的样子：未绑变量 + 默认阈值 0">新增行</button>
+    <button type="button" data-set="empty">空方案</button>
+    <button type="button" data-set="running">运行中</button>
+    <button type="button" class="notes-toggle" id="notes-toggle" aria-pressed="true">隐藏说明</button>
+    <span class="statebar-note">基线 v2.1 · 920×640 弹窗 + 右侧功能说明 · 九个画面 · 令牌取自 Colors.xaml</span>
+  </div>
+
+  <div class="workbench">
+  <div class="dialog">
+    <div class="card">
+
+      <!-- 标题栏 -->
+      <header class="titlebar">
+        <span class="bell">
+          <svg class="i i-16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2a3.6 3.6 0 0 0-3.6 3.6c0 3.4-1.4 4.4-1.4 4.4h10s-1.4-1-1.4-4.4A3.6 3.6 0 0 0 8 2Z"/><path d="M6.4 12.4a1.7 1.7 0 0 0 3.2 0"/></svg>
+        </span>
+        <h1>报警配置</h1>
+
+        <span class="counts">
+          <span class="run-chip chip chip-success"><span class="dot"></span>运行中</span>
+          <span class="c-many" title="全表条数（含停用）">共 <b id="count-total">7</b> 条</span>
+          <span class="c-none">共 <b>0</b> 条</span>
+          <span class="sep c-many"></span>
+          <span class="c-many" title="已勾选启用的条数">启用 <b id="count-on">6</b></span>
+          <span class="sep c-many"></span>
+          <span class="c-many" title="已启用且等级为「严重」的条数">严重 <b id="count-crit">2</b></span>
+          <span class="c-incomplete" title="已启用但还没选监视变量：运行态不会求值"><span class="dot"></span>缺变量 <b>1</b></span>
+        </span>
+      </header>
+
+      <!-- 工具栏 -->
+      <div class="toolbar">
+        <button type="button" class="btn btn-primary btn-lg">
+          <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+          新增报警
+        </button>
+        <button type="button" class="btn btn-ghost btn-lg" title="删除选中那条（可撤销）">
+          <span class="danger-ico"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9"/><path d="M6.5 4.5V3h3v1.5"/><path d="M5 4.5 5.6 13h4.8L11 4.5"/></svg></span>
+          删除
+        </button>
+
+        <span class="sep-v"></span>
+
+        <button type="button" class="filter" title="按报警组筛选（组名是自由文本，来自本方案已用过的值）">
+          <span class="k">组</span>
+          <b class="g-all">全部</b>
+          <b class="g-one">一号线</b>
+          <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg>
+        </button>
+
+        <span class="shown-count">
+          显示 <b id="shown-n">2</b> / 7
+          <button type="button" class="linkbtn">清除</button>
+        </span>
+
+        <div class="search">
+          <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.4 10.4 14 14"/></svg>
+          <input type="search" placeholder="搜索名称 / 变量 / 组" aria-label="搜索报警">
+        </div>
+      </div>
+
+      <!-- 空态 -->
+      <section class="empty-block">
+        <div class="ico">
+          <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a5 5 0 0 0-5 5c0 4.6-2 6-2 6h14s-2-1.4-2-6a5 5 0 0 0-5-5Z"/><path d="M10 18.5a2.3 2.3 0 0 0 4 0"/></svg>
+        </div>
+        <h3>这个方案还没有报警定义</h3>
+        <p>报警是方案级配置：跟着 .vms 文件走、进撤销栈。新建一条后，先选监视变量、再确认阈值与等级——没绑变量的报警运行态不会求值。</p>
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-lg">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>
+            新增报警
+          </button>
+        </div>
+      </section>
+
+      <!-- 表格 -->
+      <div class="tablewrap">
+        <table>
+          <colgroup>
+            <col style="width:150px">
+            <col style="width:158px">
+            <col style="width:118px">
+            <col style="width:86px">
+            <col style="width:100px">
+            <col style="width:54px">
+            <col>
+          </colgroup>
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>监视变量</th>
+              <th>种类</th>
+              <th class="num" title="四限 = 数值阈值；断线 = 秒数；布尔不用阈值">阈值</th>
+              <th>报警等级</th>
+              <th class="c-center">启用</th>
+              <th>报警组</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <!-- 1 · 断线 -->
+            <tr class="row" data-row="stale">
+              <td><input class="cell-input" value="通讯-触发变量断线" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker" title="点击更换监视变量">
+                  <span class="var">PLC_Trigger</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select" title="四限 / 布尔跳变 / 通信断线">
+                  通信断线
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh">
+                <span class="len">
+                  <input class="cell-input num" value="5" aria-label="断线判定秒数">
+                  <span class="unit">s</span>
+                </span>
+              </td>
+              <td>
+                <button type="button" class="cell-select sev-critical">
+                  严重
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="通讯" aria-label="报警组">
+                  <button type="button" class="hist" title="从本方案用过的组名里选">
+                    <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg>
+                  </button>
+                </div>
+              </td>
+            </tr>
+            <tr class="detailrow d-stale"><td colspan="7">
+              <div class="detail">
+                <p class="rule">
+                  <span class="tag-rule">规则</span>
+                  <span><b>PLC_Trigger</b> 连续 <b>5</b> 秒没有收到新值即报警；收到新值即恢复。</span>
+                </p>
+                <p class="rule" style="margin-bottom:12px;color:var(--text-3);font-size:11.5px;">
+                  断线种类不使用回差与延时（超时本身就是延时），所以这两格在本行不出现——右上「阈值 5 s」就是它的判定值。
+                </p>
+                <div class="fields2">
+                  <div class="fld">
+                    <label class="lbl">信息文本 <span class="why">· 留空则用名称</span></label>
+                    <input class="cell-input" value="PLC 触发变量超过 5 秒未刷新" aria-label="信息文本">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">故障原因</label>
+                    <input class="cell-input" value="Modbus 503 连接中断或 PLC 停止轮询" aria-label="故障原因">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">解决措施</label>
+                    <input class="cell-input" value="检查 PLC_Modbus 连接与寄存器 0，确认 PLC 处于运行态" aria-label="解决措施">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">附加信息</label>
+                    <input class="cell-input" placeholder="备注 / 相关点位" aria-label="附加信息">
+                  </div>
+                </div>
+              </div>
+            </td></tr>
+
+            <!-- 2 · 布尔为假 -->
+            <tr class="row" data-row="bool">
+              <td><input class="cell-input" value="通讯-S7心跳丢失" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker">
+                  <span class="var">S7_Heartbeat</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select">
+                  为假报警
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><span class="dash" title="布尔报警不使用阈值">—</span></td>
+              <td>
+                <button type="button" class="cell-select sev-warning">
+                  警告
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="通讯" aria-label="报警组">
+                  <button type="button" class="hist"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- 3 · 高限（重名错误态） -->
+            <tr class="row" data-row="defect">
+              <td><input class="cell-input" value="视觉-单件缺陷超限" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker">
+                  <span class="var">DefectCount</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select">
+                  高限
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><input class="cell-input num" value="10" aria-label="阈值"></td>
+              <td>
+                <button type="button" class="cell-select sev-warning">
+                  警告
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="视觉" aria-label="报警组">
+                  <button type="button" class="hist"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr class="errrow"><td colspan="7">
+              <div class="errline">
+                <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5.2v3.4"/><circle cx="8" cy="11" r=".7" fill="currentColor" stroke="none"/></svg>
+                已存在同名报警 [通讯-S7心跳丢失]，请更换名称（已恢复为原名）
+              </div>
+            </td></tr>
+
+            <!-- 4 · 高高限 -->
+            <tr class="row" data-row="temp">
+              <td><input class="cell-input" value="1#电机温度" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker">
+                  <span class="var">Pump1.Temp</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select">
+                  高高限
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><input class="cell-input num" value="85" aria-label="阈值"></td>
+              <td>
+                <button type="button" class="cell-select sev-critical">
+                  严重
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="一号线" aria-label="报警组">
+                  <button type="button" class="hist"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr class="detailrow d-limit"><td colspan="7">
+              <div class="detail">
+                <p class="rule">
+                  <span class="tag-rule">规则</span>
+                  <span><b>Pump1.Temp</b> &gt; <b>85</b> 持续 <b>2</b> 秒即报警；回落到 <b>≤ 82</b> 才恢复。</span>
+                </p>
+                <div class="fields3">
+                  <div class="fld">
+                    <label class="lbl">回差 <span class="why">· 抑制阈值抖动</span></label>
+                    <input class="cell-input num" value="3" aria-label="回差">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">延时（秒） <span class="why">· 0 = 立即</span></label>
+                    <input class="cell-input num" value="2" aria-label="延时秒数">
+                  </div>
+                  <div class="fld"></div>
+                </div>
+                <div class="divider"></div>
+                <div class="fields2">
+                  <div class="fld">
+                    <label class="lbl">信息文本 <span class="why">· 报警条上显示这一句，留空则用名称</span></label>
+                    <input class="cell-input" value="1#电机绕组温度超过 85℃" aria-label="信息文本">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">故障原因</label>
+                    <input class="cell-input" value="冷却水泵停转、阀门被误关或环境温度过高" aria-label="故障原因">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">解决措施</label>
+                    <input class="cell-input" value="检查冷却水回路与水泵电源，确认后复位热继电器" aria-label="解决措施">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">附加信息</label>
+                    <input class="cell-input" placeholder="备注 / 相关点位" aria-label="附加信息">
+                  </div>
+                </div>
+              </div>
+            </td></tr>
+
+            <!-- 5 · 低限 -->
+            <tr class="row" data-row="flow">
+              <td><input class="cell-input" value="冷却水流量" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker">
+                  <span class="var">Flow.Coolant</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select">
+                  低限
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><input class="cell-input num" value="12" aria-label="阈值"></td>
+              <td>
+                <button type="button" class="cell-select sev-warning">
+                  警告
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="一号线" aria-label="报警组">
+                  <button type="button" class="hist"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- 6 · 低限（提示） -->
+            <tr class="row" data-row="hopper">
+              <td><input class="cell-input" value="上料仓余量" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker">
+                  <span class="var">Hopper.Level</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select">
+                  低限
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><input class="cell-input num" value="15" aria-label="阈值"></td>
+              <td>
+                <button type="button" class="cell-select sev-info">
+                  提示
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="上料段" aria-label="报警组">
+                  <button type="button" class="hist"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- 7 · 停用 -->
+            <tr class="row is-off" data-row="clamp">
+              <td><input class="cell-input" value="夹具气压" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker">
+                  <span class="var">Clamp.AirPressure</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select">
+                  为假报警
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><span class="dash">—</span></td>
+              <td>
+                <button type="button" class="cell-select sev-warning">
+                  警告
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" value="二号工位" aria-label="报警组">
+                  <button type="button" class="hist"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+
+            <!-- 8 · 刚点「新增报警」：未绑变量、默认阈值 0（AddAlarm 的真实默认值） -->
+            <tr class="row is-incomplete" data-row="new">
+              <td><input class="cell-input name" value="报警_1" aria-label="报警名称"></td>
+              <td>
+                <button type="button" class="picker unbound" title="还没有监视变量：点这里选">
+                  <span class="link-ico"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.8 9.2 9.2 6.8"/><path d="M7.2 5.3 8.6 3.9a2.2 2.2 0 0 1 3.1 3.1l-1.4 1.4"/><path d="M8.8 10.7 7.4 12.1a2.2 2.2 0 0 1-3.1-3.1l1.4-1.4"/></svg></span>
+                  <span class="var">未选变量</span>
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td>
+                <button type="button" class="cell-select" title="新建默认是「高限」">
+                  高限
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="thresh"><input class="cell-input num" value="0" aria-label="阈值"></td>
+              <td>
+                <button type="button" class="cell-select sev-warning">
+                  警告
+                  <span class="chev"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></span>
+                </button>
+              </td>
+              <td class="cell-check"><input class="cb" type="checkbox" checked aria-label="启用"></td>
+              <td>
+                <div class="group">
+                  <input class="cell-input" placeholder="未分组" aria-label="报警组">
+                  <button type="button" class="hist" title="从本方案用过的组名里选"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6.5 8 10.5 12 6.5"/></svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr class="detailrow d-new"><td colspan="7">
+              <div class="detail">
+                <p class="setup-warn">
+                  <svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.6 14 13H2L8 2.6Z"/><path d="M8 6.4v3"/><circle cx="8" cy="11.1" r=".7" fill="currentColor" stroke="none"/></svg>
+                  <span><b>先选监视变量</b>：这条报警已经启用，但未绑定时引擎直接跳过求值，运行态永远不会报。新建默认是「高限 &gt; 0」，选好变量后请先把阈值改成工艺值——否则真实值一出现就会立即报警。</span>
+                </p>
+                <p class="rule">
+                  <span class="tag-rule">规则</span>
+                  <span><b>（未选变量）</b> &gt; <b>0</b> 立即报警；回落到 <b>≤ 0</b> 才恢复。</span>
+                </p>
+                <div class="fields3">
+                  <div class="fld">
+                    <label class="lbl">回差 <span class="why">· 抑制阈值抖动</span></label>
+                    <input class="cell-input num" value="0" aria-label="回差">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">延时（秒） <span class="why">· 0 = 立即</span></label>
+                    <input class="cell-input num" value="0" aria-label="延时秒数">
+                  </div>
+                  <div class="fld"></div>
+                </div>
+                <div class="divider"></div>
+                <div class="fields2">
+                  <div class="fld">
+                    <label class="lbl">信息文本 <span class="why">· 报警条上显示这一句，留空则用名称</span></label>
+                    <input class="cell-input" placeholder="留空则显示报警名" aria-label="信息文本">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">故障原因</label>
+                    <input class="cell-input" placeholder="为什么会报警" aria-label="故障原因">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">解决措施</label>
+                    <input class="cell-input" placeholder="现场该怎么做" aria-label="解决措施">
+                  </div>
+                  <div class="fld">
+                    <label class="lbl">附加信息</label>
+                    <input class="cell-input" placeholder="备注 / 相关点位" aria-label="附加信息">
+                  </div>
+                </div>
+              </div>
+            </td></tr>
+
+          </tbody>
+        </table>
+
+        <!-- 搜索无结果：表头留着（让人看见自己筛的是哪几列），表体换成一块说明 -->
+        <div class="noresult">
+          <div class="ico">
+            <svg class="i i-24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="5.5"/><path d="M14.2 14.2 20 20"/></svg>
+          </div>
+          <h4>没有匹配「<span id="noresult-q">夹具</span>」的报警</h4>
+          <p>搜索会同时匹配名称、监视变量与报警组。当前组筛选是「全部」，所以这条搜索扫的是全部 7 条。</p>
+          <div class="actions">
+            <button type="button" class="btn btn-lg">清除搜索</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 底栏 -->
+    <div class="foot">
+      <span class="receipt">
+        <span class="ok"><svg class="i i-12" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg></span>
+        已删除报警 [夹具气压]
+        <button type="button" class="linkbtn">撤销</button>
+      </span>
+
+      <button type="button" class="btn btn-ghost btn-undo" title="撤销上一次改动（Ctrl+Z 在弹窗内不生效，故给出按钮）">
+        <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6.5h6a3 3 0 0 1 0 6H6"/><path d="M6 3.8 3.2 6.5 6 9.2"/></svg>
+        撤销「<span id="undo-label">修改报警 [1#电机温度] 的阈值</span>」
+      </button>
+
+      <span class="hint idle-note">改动即时写入方案、进撤销栈；关窗不回滚。</span>
+      <span class="hint run-note">流程运行中：改动下一拍生效，无需重启画面。</span>
+
+      <span class="grow"></span>
+      <button type="button" class="btn btn-lg" title="Esc">关闭</button>
+    </div>
+
+  </div>
+
+  <aside class="notes" id="notes-panel" aria-label="功能说明（设计批注）">
+    <div class="notes-kicker">功能说明 · 设计批注</div>
+    <h2 id="notes-title">默认 · 四限展开</h2>
+    <p class="notes-intro" id="notes-intro"></p>
+    <ol class="notes-list" id="notes-list"></ol>
+    <p class="notes-footnote">本栏只用于评审，不属于 WPF 界面。点顶部「隐藏说明」可得到纯净画面。</p>
+  </aside>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var bar = document.querySelector('.statebar');
+    var search = document.querySelector('.search input');
+    var tablewrap = document.querySelector('.tablewrap');
+    var undoLabel = document.getElementById('undo-label');
+    var shownN = document.getElementById('shown-n');
+
+    // 计数跟着画面走：删除回执少一条，新增行多一条
+    var COUNTS = { receipt: [6, 6, 2], new: [8, 7, 2] };
+    // 筛选态显示 2/7；搜索无结果显示 0/7
+    var SHOWN = { filter: 2, nomatch: 0 };
+    // 撤销标签来自 ScadaEditHistory.NextUndoLabel，各态最后一次改动不同
+    var UNDO = { new: '新建报警 [报警_1]' };
+    var UNDO_DEFAULT = '修改报警 [1#电机温度] 的阈值';
+
+    // 每个画面的功能介绍：右侧批注随状态切换，讲清"这块是干什么的"
+    var NOTES = {
+      filled: {
+        title: '默认 · 四限展开',
+        intro: '报警配置用于给当前方案定义"什么情况算异常"。改动即时写入方案并进撤销栈，关窗不回滚，所以没有「确定」按钮。',
+        items: [
+          ['标题栏', '共 / 启用 / 严重 三个数回答"配了几条、几条在跑、几条严重"；有已启用但没绑变量的行时，追加琥珀色「缺变量 N」。'],
+          ['工具栏', '新增会追加一条默认报警并选中它；删除只作用于当前选中行。'],
+          ['表格', '七列就地编辑。阈值列随种类变形：四限是数值、断线是秒数、布尔显示「—」；报警等级带语义色块，扫表即可分辨轻重。'],
+          ['详情块', '选中行正下方展开。规则句按引擎口径写清"何时报警、何时恢复"；回差与延时只对四限出现，四个长文本是报警条与处理指引的来源。'],
+          ['底栏', '撤销按钮带上一次动作名；关闭不提交也不回滚。']
+        ]
+      },
+      stale: {
+        title: '断线展开',
+        intro: '断线报警判的是"多久没收到新值"，不是数值阈值。判定秒数因此搬到主表，回差与延时在这里没有意义。',
+        items: [
+          ['阈值列', '5 s 就是判定秒数（StaleSeconds），改它等于改"连续多久没刷新才报"。'],
+          ['规则句', '按引擎口径：连续 5 秒没有收到新值即报警；收到新值即恢复。'],
+          ['详情块', '不出现回差与延时——超时本身就是延时；用一句话解释，避免用户到处找这两格。'],
+          ['长文本', '信息文本 / 故障原因 / 解决措施 / 附加信息照旧，是报警条与现场处理指引的来源。']
+        ]
+      },
+      filter: {
+        title: '按组筛选',
+        intro: '报警组是自由文本 + 历史候选；筛选只改变"看见哪些行"，不改任何数据。',
+        items: [
+          ['组胶囊', '高亮 = 正在按「一号线」筛选；箭头可以换成本方案用过的其它组名。'],
+          ['匹配计数', '「显示 2 / 7」+ 清除，随时知道筛掉了多少条。'],
+          ['搜索', '搜索与组筛选叠加使用；无结果时文案会交代当前筛选范围。'],
+          ['标题栏', '计数仍是全表口径，不随筛选变化，避免把"筛掉了"误读成"删掉了"。']
+        ]
+      },
+      nomatch: {
+        title: '搜索无结果',
+        intro: '方案里有报警，但当前搜索 / 筛选一条都没匹配上——这和"一条报警都没有"是两件事。',
+        items: [
+          ['表头', '保留表头，让人看见自己筛的是哪几列。'],
+          ['说明块', '写明搜索匹配名称 / 变量 / 组，并交代当前组筛选是「全部」，所以扫的是全部 7 条。'],
+          ['清除搜索', '一键回到全表；组筛选保持不动。'],
+          ['与空方案的区别', '空方案是 0 条报警；这里是 7 条里 0 条命中。']
+        ]
+      },
+      error: {
+        title: '重名校验失败',
+        intro: '报警名在方案内唯一。改名撞车时文档拒绝写入并把名字回灌，界面把错误放到出错的那一格旁边。',
+        items: [
+          ['名称格', '红框 + 左侧红竖条；只有这一格标红，其余格保持原样。'],
+          ['行内错误', '紧贴行下方，写明冲突的名字与"已恢复为原名"，不再用屏幕顶部的红带。'],
+          ['为什么只标一格', '整行变红会让人以为整条作废，实际只有名称这一项没写进去。'],
+          ['顶部红带', '撤掉：错误在哪儿发生，就显示在哪儿。']
+        ]
+      },
+      receipt: {
+        title: '删除回执',
+        intro: '删除是即时生效的，没有二次确认；用底栏回执 + 就地撤销兜底。',
+        items: [
+          ['回执', '「已删除报警 [夹具气压]」+ 绿色对勾，表示动作已完成。'],
+          ['就地撤销', '与全局撤销走同一命令；此时全局撤销按钮隐藏，避免两个入口。'],
+          ['计数', '被删的是停用行，所以「启用」仍是 6，只有「共」从 7 变 6。'],
+          ['回执会自己消失', '约 6 秒后收起，不长期占用底栏（复刻时按 VM 计时器实现）。']
+        ]
+      },
+      new: {
+        title: '新增行（未绑变量）',
+        intro: '点「新增报警」得到的是 AddAlarm() 的真实默认值：已启用、未选变量、高限、阈值 0。这是一条还没配完的报警。',
+        items: [
+          ['缺变量计数', '标题栏「缺变量 1」= 已启用但没绑变量的条数；引擎对这些行直接跳过求值，运行态永远不会报。'],
+          ['变量格', '琥珀色「未选变量」，点整格选变量——这是让这条报警开始生效的第一步。'],
+          ['详情块提示', '先选变量；选好后先把阈值改成工艺值。默认「高限 > 0」意味着任何真实正值都会立即触发。'],
+          ['撤销', '文案变成「新建报警 [报警_1]」，一步撤回这次新增。'],
+          ['名称', '自动命名取最小未占用序号；报警_1 只是当前数据集里的名字。']
+        ]
+      },
+      empty: {
+        title: '空方案',
+        intro: '方案里还没有任何报警定义。空方案不是故障，但意味着运行态不会有任何报警。',
+        items: [
+          ['空态说明', '报警是方案级配置：随 .vms 文件走、进撤销栈。'],
+          ['唯一入口', '新增报警；工具栏与表头收起，不让人对着一张空表找操作。'],
+          ['与搜索无结果的区别', '这里是真的 0 条；搜索无结果是"有数据但没匹配上"。'],
+          ['计数', '标题栏只留「共 0 条」；撤销隐藏。']
+        ]
+      },
+      running: {
+        title: '运行中',
+        intro: '流程运行中也能打开并修改；引擎下一拍热挂新定义，不需要重启画面。',
+        items: [
+          ['绿色 chip', '只表示"正在运行"这个状态，不表示保存成功。'],
+          ['底栏琥珀提示', '说明改动何时生效：下一拍，无需重启画面。'],
+          ['不锁编辑', '现场"温度超限了想调阈值"不该被迫停流程；风险由即时写回 + 撤销栈兜底（P2，待裁定）。'],
+          ['计数', '与默认态一致；运行本身不会改变启用数或严重数。']
+        ]
+      }
+    };
+
+    var notesTitle = document.getElementById('notes-title');
+    var notesIntro = document.getElementById('notes-intro');
+    var notesList = document.getElementById('notes-list');
+
+    function renderNotes(name) {
+      var n = NOTES[name] || NOTES.filled;
+      notesTitle.textContent = n.title;
+      notesIntro.textContent = n.intro;
+      notesList.textContent = '';
+      n.items.forEach(function (it) {
+        var li = document.createElement('li');
+        var b = document.createElement('b');
+        b.textContent = it[0];
+        li.appendChild(b);
+        li.appendChild(document.createTextNode('：' + it[1]));
+        notesList.appendChild(li);
+      });
+    }
+
+    function setState(name) {
+      if (!document.querySelector('button[data-set="' + name + '"]')) return;
+      document.body.dataset.state = name;
+
+      var c = COUNTS[name] || [7, 6, 2];
+      document.getElementById('count-total').textContent = c[0];
+      document.getElementById('count-on').textContent = c[1];
+      document.getElementById('count-crit').textContent = c[2];
+
+      renderNotes(name);
+
+      var shown = SHOWN[name];
+      if (shownN) shownN.textContent = shown === undefined ? '' : shown;
+
+      undoLabel.textContent = UNDO[name] || UNDO_DEFAULT;
+      search.value = name === 'nomatch' ? '夹具' : '';
+      document.getElementById('noresult-q').textContent = '夹具';
+
+      bar.querySelectorAll('button[data-set]').forEach(function (b) {
+        b.classList.toggle('on', b.dataset.set === name);
+      });
+
+      // 新增行在表尾：切过去就滚到底，把新行和它的详情块带进视野
+      requestAnimationFrame(function () {
+        tablewrap.scrollTop = name === 'new' ? tablewrap.scrollHeight : 0;
+      });
+    }
+
+    bar.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-set]');
+      if (btn) setState(btn.dataset.set);
+    });
+
+    var notesToggle = document.getElementById('notes-toggle');
+    notesToggle.addEventListener('click', function () {
+      var off = document.body.classList.toggle('notes-off');
+      notesToggle.textContent = off ? '显示说明' : '隐藏说明';
+      notesToggle.setAttribute('aria-pressed', String(!off));
+    });
+
+    // ?notes=0 直接出纯净画面（无批注），便于与 WPF 截图逐一对照
+    if (/(^|[?&])notes=0(&|$)/.test(location.search)) {
+      document.body.classList.add('notes-off');
+      notesToggle.textContent = '显示说明';
+      notesToggle.setAttribute('aria-pressed', 'false');
+    }
+
+    setState(location.hash ? location.hash.slice(1) : 'filled');
+  })();
+</script>
+</body>
+</html>

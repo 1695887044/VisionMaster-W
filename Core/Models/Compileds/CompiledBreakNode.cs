@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces;
+﻿﻿﻿﻿﻿﻿﻿using Core.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -70,7 +70,11 @@ namespace VisionMaster.Models
             UpdateStepRuntimeState(context, StepRuntimeState.Running);
 
             context.CurrentFlowState = FlowControlState.Return;
-            context.Logger.Warn("执行 Return，主流程即将终止！");
+
+            // A5：Return 是"按指令终止"的正常出口，不是异常，所以走 Info（与上面 Break 的 Info 同级）。
+            // 旧实现是 Warn + 感叹号：一条每轮都收尾的流程会每轮吐一条 [WARN]，
+            // 把告警级别淹掉——真出事时运维会习惯性忽略 WARN，那比没有日志更糟。
+            context.Logger.Info("执行 Return，流程按指令正常终止");
 
             // Return 是"按指令终止"的正常出口（不是失败）：标成功，把它与"流程异常"区分开——
             // 现场要看得出这是设计里的收尾，而不是崩了

@@ -23,7 +23,8 @@ namespace VisionMaster.Services
             out IReadOnlyList<ScadaElement> created,
             out string? error,
             Guid templateId = default,
-            int templateRevision = 0)
+            int templateRevision = 0,
+            IReadOnlyList<string>? strictRoots = null)
         {
             created = Array.Empty<ScadaElement>();
             error = null;
@@ -99,7 +100,8 @@ namespace VisionMaster.Services
                                 page, plan.Instances[i], offsetX, offsetY, itemLabel, groupAll: true,
                                 templateId: templateId,
                                 templateIndex: settings.StartIndex + i,
-                                templateRevision: templateRevision);
+                                templateRevision: templateRevision,
+                                templateStrictRoots: strictRoots);
 
                             if (one.Count != expectedPerInstance)
                             {

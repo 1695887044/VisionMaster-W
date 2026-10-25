@@ -1,0 +1,74 @@
+{
+  "schema": "vm-plan/1",
+  "id": "flow-delete",
+  "title": "删除一条流程",
+  "version": "1.0.0",
+  "risk": "high",
+  "description": "删流程没有二次确认，且强制流程（Main 等）会被拒绝。执行前务必确认名称。",
+  "params": {
+    "flow_name": {
+      "type": "string",
+      "required": true,
+      "example": "临时流程"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    },
+    {
+      "assert": "text_absent",
+      "text": "运行中"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "flow.capsule",
+      "target_name": "${flow_name}",
+      "expect": {
+        "element": "flow.context.flow",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "flow.context.flow",
+      "expect": {
+        "element": "flow.context.delete",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 3,
+      "do": "click",
+      "target": "flow.context.delete"
+    },
+    {
+      "n": 4,
+      "do": "assert",
+      "assert": "element_absent",
+      "target": "flow.capsule",
+      "name_contains": "${flow_name}",
+      "timeout_ms": 5000
+    }
+  ],
+  "postconditions": [
+    {
+      "assert": "element_absent",
+      "target": "flow.capsule",
+      "name_contains": "${flow_name}"
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["flow", "delete"]
+}

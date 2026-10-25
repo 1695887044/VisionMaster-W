@@ -92,8 +92,8 @@ namespace VisionMaster.Models
     ///    不会污染父上下文；父上下文的 CurrentNodeId 停在容器 Id；
     ///  · UpdateStepRuntimeState 认出本类型走"整方法级分支快捷路径"（只 State+timing，
     ///    绝不触碰 FocusedStep，含 Skipped）；
-    ///  · CurrentSession/Logger/Workspace/Cameras/Motions/FlowInvoker 与父上下文同源共享
-    ///    （会话对象本身线程安全语义见 F7-F8）。
+    ///  · CurrentSession/Logger/Workspace/Cameras/Motions/FlowInvoker/Comms/Database 与父上下文同源共享
+    ///    ——**必须是同一批实例**，见下方构造注释（会话对象本身线程安全语义见 F7-F8）。
     /// </summary>
     public sealed class ParallelBranchExecutionContext : ExecutionContext
     {
@@ -111,11 +111,27 @@ namespace VisionMaster.Models
         /// （RunSequence 每节点 + 协作取消的算子）被立即唤醒——这是
         /// "失败 → 其余分支尽快取消"的通道；只靠父令牌的话，并行组内部取消
         /// 分支根本看不见，会一直跑到自然结束。
+        ///
+        /// 【为什么必须逐项搬运能力面，不能只调 base(...)】
+        /// base 的完整构造只负责 Logger/CurrentSession/Workspace/CancellationToken，
+        /// 其余能力面（Cameras/Motions/FlowInvoker/Comms/Database）是 ExecutionContext 上
+        /// 带默认值的 init 属性——走 base 就等于全部回落到 Null*Instance。结果是
+        /// "并行组里的数据库步骤/运动步骤/调用流程步骤必然失败，而同样的步骤放在
+        /// 并行组外面就正常"，症状随父上下文是否注入而变（2026-10-24 评审团 B3）。
+        /// 这里按 <see cref="ExecutionContext.RuntimeCapabilities"/> 清单逐项从父上下文搬运
+        /// （<see cref="ExecutionContextCapabilitySource.CopyInto"/>）；父上下文漏注入某项时
+        /// 子上下文同样拿到那一项的值，语义一致，且新增能力面自动覆盖，不需要再来改这个构造函数。
+        /// 守门：EngineContextWiringChecks 的"能力面清单漏搬"反射比对（新增能力面即判红）。
         /// </summary>
         public ParallelBranchExecutionContext(ExecutionContext parent, int branchIndex, CancellationToken branchToken)
             : base(parent.Logger, parent.CurrentSession, parent.Workspace, branchToken)
         {
             BranchIndex = branchIndex;
+
+            // 能力面与父上下文同源（同一批实例，不是拷贝）：分支与父执行共享同一个
+            // 相机仓库 / 运动卡 / 通讯层 / 数据库 / 流程调用器，语义与串行执行一致。
+            ExecutionContextCapabilitySource.CopyInto(parent, this);
+
             Registry = new BranchVariableRegistry(parent.LocalVariables);
             LocalVariables = Registry;
         }

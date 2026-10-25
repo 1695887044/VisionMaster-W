@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>流程画布 · 交互设计基线 v0.1（自绘版）</title>
+<style>
+  :root{
+    --bg:#F5F7FA; --panel:#FFFFFF; --line:#E2E8F0; --text:#0F172A; --sub:#64748B;
+    --run:#2563EB; --fail:#EF4444; --ok:#16A34A; --warn:#D97706;
+    --node-bg:#FFFFFF; --node-bd:#C9D2DE;
+    --frame-bd:#A5C0E8; --frame-hd:#EEF4FF;
+    --lane-tint:rgba(59,130,246,.06); --lane-bd:rgba(75,130,246,.15); --lane-hd:rgba(255,255,255,.70);
+    --link:#3B82F6; --order:#94A3B8; --illegal:#EF4444;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--text);background:var(--bg)}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--line);flex:0 0 auto}
+  header b{font-size:13px}
+  .tag{font-size:11px;color:var(--sub);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  button{font:inherit;padding:5px 12px;border:1px solid var(--line);border-radius:6px;background:#fff;cursor:pointer}
+  button:hover{border-color:#B9C6D8}
+  button.primary{background:var(--run);border-color:var(--run);color:#fff}
+  main{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
+  canvas#cv{display:block;width:100%;height:100%;cursor:default}
+  .hud{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.92);border:1px solid var(--line);
+       border-radius:8px;padding:8px 10px;font-size:11px;color:var(--sub);line-height:1.7;pointer-events:none;white-space:pre}
+  .legend{position:absolute;left:12px;bottom:12px;background:rgba(255,255,255,.94);border:1px solid var(--line);
+       border-radius:8px;padding:10px 12px;font-size:11px;color:var(--sub);line-height:1.8;max-width:430px}
+  .legend b{color:var(--text);font-size:11.5px}
+  .legend kbd{background:#F1F5F9;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;font:11px monospace;color:#334155}
+  #mm{position:absolute;right:12px;bottom:12px;width:180px;height:118px;background:rgba(255,255,255,.94);
+      border:1px solid var(--line);border-radius:8px;box-shadow:0 2px 10px rgba(15,23,42,.08)}
+  #mm canvas{display:block;width:100%;height:100%;border-radius:8px;cursor:crosshair}
+  footer{flex:0 0 auto;display:flex;gap:14px;align-items:center;padding:6px 12px;background:var(--panel);
+         border-top:1px solid var(--line);font-size:11px;color:var(--sub)}
+  #menu{position:absolute;display:none;min-width:200px;background:#fff;border:1px solid var(--line);border-radius:8px;
+        box-shadow:0 10px 30px rgba(15,23,42,.14);padding:4px;z-index:10;font-size:12.5px}
+  #menu .it{padding:6px 10px;border-radius:5px;cursor:pointer;display:flex;justify-content:space-between;gap:16px}
+  #menu .it:hover{background:#EFF6FF}
+  #menu .it.dis{color:#B6C2D2;cursor:default}
+  #menu .it.dis:hover{background:transparent}
+  #menu .sep{height:1px;background:var(--line);margin:4px 6px}
+  #menu .hd{padding:4px 10px;color:var(--sub);font-size:11px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <b>流程画布 · 交互设计基线</b>
+    <span class="tag">v0.1 草案 · 自绘（C2）交互规格</span>
+    <span style="flex:1"></span>
+    <button id="btnFit">适应全图</button>
+    <button id="btnReset">回到 100%</button>
+    <button id="btnStress">注入 3000 节点</button>
+    <button id="btnClear" class="primary">重建演示图</button>
+  </header>
+
+  <main>
+    <canvas id="cv"></canvas>
+    <div class="hud" id="hud"></div>
+    <div class="legend">
+      <b>交互规格（评审用）</b><br>
+      <kbd>滚轮</kbd> 以光标为中心缩放（0.01×~4×）　<kbd>中键拖</kbd>/<kbd>空格+左键拖</kbd> 平移<br>
+      <kbd>左键</kbd> 选中　<kbd>Ctrl+左键</kbd> 增减选　<kbd>空白处左键拖</kbd> 框选<br>
+      <kbd>拖节点</kbd> 移动选中集　<kbd>拖到另一节点上</kbd> 改执行顺序（显示插入线）<br>
+      <kbd>从右缘圆点拖到左缘圆点</kbd> 建数据连线（非法落点显示红虚线）<br>
+      <kbd>右键</kbd> 节点 / 连线 / 空白 三套菜单　<kbd>双击节点</kbd> 打开步骤参数<br>
+      <kbd>Delete</kbd> 删除选中　<kbd>Ctrl+A</kbd> 全选　<kbd>Esc</kbd> 取消/取消连线<br>
+      缩放 &lt; 0.40 不画文字；&lt; 0.15 只画色块（LOD 三档，见左上角读数）
+    </div>
+    <div id="mm"><canvas id="mmc" width="360" height="236"></canvas></div>
+    <div id="menu"></div>
+  </main>
+
+  <footer>
+    <span id="stMode">就绪</span>
+    <span id="stSel">选中 0</span>
+    <span id="stLod">LOD 全细节</span>
+    <span id="stDraw">绘制 0/0</span>
+    <span id="stFrame">一帧 0.0 ms</span>
+    <span style="flex:1"></span>
+    <span>Web 设计稿仅作设计媒介，不进入构建、不部署（AGENTS.md R126）</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+// ---------- 设计令牌（与 UI/Controls/Themes/Colors.xaml 同源） ----------
+const C = {
+  bg:"#F5F7FA", grid:"#E8EDF5",
+  nodeBg:"#FFFFFF", nodeBd:"#C9D2DE", text:"#0F172A", sub:"#94A3B8",
+  icon:"#3B82F6", iconBg:"#EFF6FF",
+  run:"#2563EB", fail:"#EF4444", ok:"#16A34A",
+  frameBd:"#A5C0E8", frameHd:"#EEF4FF", frameFill:"rgba(165,192,232,.10)",
+  laneFill:"rgba(59,130,246,.06)", laneBd:"rgba(75,130,246,.18)", laneHd:"rgba(255,255,255,.70)", laneText:"#5A6C99",
+  link:"#3B82F6", order:"#94A3B8", illegal:"#EF4444",
+  sel:"#2563EB", marquee:"rgba(37,99,235,.10)", marqueeBd:"#2563EB",
+};
+// 与 FlowLayoutStore / FlowCanvasViewModel 同源
+const NODE_W = 156, NODE_H = 58;
+const FRAME_PAD = 16, FRAME_HEADER = 46;
+const LANE_PAD = 14, LANE_HEADER = 28;
+
+// ---------- 视图 ----------
+const view = { x: 0, y: 0, z: 1 };
+const MIN_Z = 0.01, MAX_Z = 4;
+const LOD_TEXT = 0.40, LOD_SIMPLE = 0.15;
+let DPR = 1;
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+const mmc = document.getElementById("mmc");
+const mmx = mmc.getContext("2d");
+
+// ---------- 数据 ----------
+let nodes = [];       // {id,kind,x,y,w,h,title,sub,order,disabled,state,parent}
+let links = [];       // {from,to,order,illegal}
+let byId = new Map();
+let selected = new Set();
+let seq = 1;
+
+function node(o){ o.id = "n"+(seq++); if(o.w==null) o.w=NODE_W; if(o.h==null) o.h=NODE_H;
+  nodes.push(o); byId.set(o.id,o); return o; }
+
+function buildDemo(){
+  nodes = []; links = []; byId.clear(); selected.clear(); seq = 1;
+
+  // 一条主链 + 两个容器（If / For）+ 一条并行
+  const x0 = 60, gap = 86;
+  let y = 60;
+  const a1 = node({kind:"step",x:x0,y:y,title:"图像采集_0",sub:"图像采集",order:1});
+  y += gap;
+  const a2 = node({kind:"step",x:x0,y:y,title:"图像预处理_0",sub:"图像预处理",order:2});
+  y += gap;
+  const a3 = node({kind:"step",x:x0,y:y,title:"模板匹配_0",sub:"模板匹配",order:3});
+  y += gap;
+
+  // If 容器：两条泳道
+  const ifNode = node({kind:"container",x:x0,y:y,w:520,h:300,title:"判断_1",order:4});
+  const laneA = node({kind:"lane",x:x0+FRAME_PAD,y:y+FRAME_HEADER+FRAME_PAD,w:230,h:210,title:"If(1>0)"});
+  const laneB = node({kind:"lane",x:x0+FRAME_PAD+230+24,y:y+FRAME_HEADER+FRAME_PAD,w:230,h:210,title:"Else"});
+  const b1 = node({kind:"step",x:x0+FRAME_PAD+LANE_PAD,y:y+FRAME_HEADER+FRAME_PAD+LANE_HEADER+LANE_PAD,title:"通过_1",sub:"延时",order:5,parent:laneA.id});
+  const b2 = node({kind:"step",x:b1.x,y:b1.y+gap,title:"记录_1",sub:"变量赋值",order:6,parent:laneA.id});
+  const b3 = node({kind:"step",x:laneB.x+LANE_PAD,y:b1.y,title:"异常_1",sub:"延时",order:7,parent:laneB.id,disabled:true});
+  y += 300 + 40;
+
+  const a4 = node({kind:"step",x:x0,y:y,title:"几何查找_0",sub:"几何查找",order:8,state:"running"});
+  y += gap;
+
+  const forNode = node({kind:"container",x:x0,y:y,w:420,h:240,title:"循环_2",order:9});
+  const laneC = node({kind:"lane",x:x0+FRAME_PAD,y:y+FRAME_HEADER+FRAME_PAD,w:360,h:150,title:"循环体"});
+  const c1 = node({kind:"step",x:x0+FRAME_PAD+LANE_PAD,y:y+FRAME_HEADER+FRAME_PAD+LANE_HEADER+LANE_PAD,title:"循环体_2",sub:"延时",order:10,parent:laneC.id});
+  const c2 = node({kind:"step",x:c1.x,y:c1.y+gap,title:"累计_2",sub:"变量赋值",order:11,parent:laneC.id,state:"failed"});
+  y += 240 + 40;
+
+  const a5 = node({kind:"step",x:x0,y:y,title:"结果汇总_0",sub:"结果显示",order:12});
+  y += gap;
+  const a6 = node({kind:"step",x:x0,y:y,title:"OK",sub:"延时",order:13});
+
+  // 顺序链
+  const chain = [a1,a2,a3,ifNode,a4,forNode,a5,a6];
+  for(let i=1;i<chain.length;i++) links.push({from:chain[i-1].id,to:chain[i].id,order:true});
+  links.push({from:b1.id,to:b2.id,order:true});
+  links.push({from:c1.id,to:c2.id,order:true});
+
+  // 数据线（两条合法 + 一条非法）
+  links.push({from:a1.id,to:a2.id,order:false});
+  links.push({from:a2.id,to:a3.id,order:false});
+  links.push({from:b2.id,to:a1.id,order:false,illegal:true});
+
+  fitAll();
+  dirty();
+}
+
+// 3000 节点压测：网格铺开，用来验证"裁剪 + LOD"在真实规模下是否还跟手
+function buildStress(){
+  nodes = []; links = []; byId.clear(); selected.clear(); seq = 1;
+  const cols = 30, gapX = 196, gapY = 88;
+  const total = 3000;
+  for(let i=0;i<total;i++){
+    const cx = (i % cols), cy = Math.floor(i/cols);
+    node({kind:"step",x:60+cx*gapX,y:60+cy*gapY,
+      title:"算子_"+i,sub:i%7===0?"图像采集":(i%5===0?"模板匹配":"延时"),
+      order:i+1, disabled:(i%3===0), state:(i%97===0?"failed":(i%53===0?"running":"idle"))});
+  }
+  for(let i=1;i<total;i++) if(i%cols!==0) links.push({from:nodes[i-1].id,to:nodes[i].id,order:true});
+  fitAll(); dirty();
+}
+
+// ---------- 几何 ----------
+const sx = wx => wx*view.z + view.x;
+const sy = wy => wy*view.z + view.y;
+const wxOf = sxv => (sxv - view.x)/view.z;
+const wyOf = syv => (syv - view.y)/view.z;
+
+function contentBounds(){
+  if(!nodes.length) return null;
+  let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+  for(const n of nodes){
+    x1=Math.min(x1,n.x); y1=Math.min(y1,n.y);
+    x2=Math.max(x2,n.x+n.w); y2=Math.max(y2,n.y+n.h);
+  }
+  return {x:x1,y:y1,w:x2-x1,h:y2-y1};
+}
+
+function fitAll(){
+  const b = contentBounds(); if(!b) return;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  const z = Math.min((w-48)/b.w, (h-48)/b.h, MAX_Z);
+  view.z = Math.max(MIN_Z, z);
+  view.x = w/2 - (b.x + b.w/2)*view.z;
+  view.y = h/2 - (b.y + b.h/2)*view.z;
+}
+
+function drawOrder(){
+  // 容器框 < 泳道 < 内容；同层按 id 稳定
+  const rank = n => (n.kind==="container"?0:(n.kind==="lane"?1:2));
+  return nodes.slice().sort((a,b)=> rank(a)-rank(b) || 0);
+}
+
+function hitTest(px,py){
+  const wx = wxOf(px), wy = wyOf(py);
+  let best = null;
+  for(const n of drawOrder()){
+    if(wx>=n.x && wx<=n.x+n.w && wy>=n.y && wy<=n.y+n.h) best = n;
+  }
+  return best;
+}
+
+function hitLink(px,py){
+  // 近似：点到三次贝塞尔采样折线的最近距离
+  const tol = 6;
+  for(const l of links){
+    const a = byId.get(l.from), b = byId.get(l.to);
+    if(!a||!b) continue;
+    const p = anchor(a,"out"), q = anchor(b,"in");
+    for(let t=0;t<=1.001;t+=0.05){
+      const pt = bezier(p,q,t);
+      if(Math.hypot(sx(pt.x)-px, sy(pt.y)-py) <= tol) return l;
+    }
+  }
+  return null;
+}
+
+function anchor(n, side){
+  if(side==="out") return {x:n.x+n.w, y:n.y+n.h/2};
+  if(side==="in")  return {x:n.x, y:n.y+n.h/2};
+  return {x:n.x+n.w/2, y:n.y+n.h/2};
+}
+
+function bezier(p,q,t){
+  const dx = 60;
+  const c1 = {x:p.x+dx, y:p.y}, c2 = {x:q.x-dx, y:q.y};
+  const mt = 1-t;
+  return {
+    x: mt*mt*mt*p.x + 3*mt*mt*t*c1.x + 3*mt*t*t*c2.x + t*t*t*q.x,
+    y: mt*mt*mt*p.y + 3*mt*mt*t*c1.y + 3*mt*t*t*c2.y + t*t*t*q.y,
+  };
+}
+
+// ---------- 绘制 ----------
+let dirtyFlag = true;
+let lastFrameMs = 0;
+function dirty(){ dirtyFlag = true; }
+
+function lodTier(){
+  if(view.z < LOD_SIMPLE) return 0;   // 只画色块
+  if(view.z < LOD_TEXT) return 1;     // 无文字
+  return 2;                            // 全细节
+}
+
+function roundRect(c,x,y,w,h,r){
+  const rr = Math.max(0, Math.min(r, w/2, h/2));
+  c.beginPath();
+  c.moveTo(x+rr,y);
+  c.arcTo(x+w,y,x+w,y+h,rr);
+  c.arcTo(x+w,y+h,x,y+h,rr);
+  c.arcTo(x,y+h,x,y,rr);
+  c.arcTo(x,y,x+w,y,rr);
+  c.closePath();
+}
+
+function render(){
+  const t0 = performance.now();
+  const W = cv.clientWidth, H = cv.clientHeight;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = C.bg; ctx.fillRect(0,0,W,H);
+
+  // 点阵背景（缩放太小时不画，省一遍全屏图案）
+  if(view.z >= 0.35){
+    const step = 24*view.z;
+    if(step >= 6){
+      ctx.fillStyle = C.grid;
+      const ox = view.x % step, oy = view.y % step;
+      for(let x=ox; x<W; x+=step) for(let y=oy; y<H; y+=step) ctx.fillRect(x,y,1,1);
+    }
+  }
+
+  const tier = lodTier();
+  const vis = {x:wxOf(0)-64, y:wyOf(0)-64, w:W/view.z+128, h:H/view.z+128};
+  const inside = n => !(n.x+n.w<vis.x || n.x>vis.x+vis.w || n.y+n.h<vis.y || n.y>vis.y+vis.h);
+
+  let drawn = 0;
+
+  // 连线
+  for(const l of links){
+    const a = byId.get(l.from), b = byId.get(l.to);
+    if(!a||!b) continue;
+    if(!inside(a) && !inside(b)) continue;
+    const p = anchor(a,"out"), q = anchor(b,"in");
+    ctx.save();
+    ctx.setLineDash(l.order ? [4,4] : []);
+    ctx.strokeStyle = l.illegal ? C.illegal : (l.order ? C.order : C.link);
+    ctx.lineWidth = (l.order?1.2:1.6);
+    ctx.beginPath();
+    ctx.moveTo(sx(p.x), sy(p.y));
+    const dx = 60*view.z;
+    ctx.bezierCurveTo(sx(p.x)+dx, sy(p.y), sx(q.x)-dx, sy(q.y), sx(q.x), sy(q.y));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 临时连线
+  if(drag && drag.mode==="connect"){
+    const a = byId.get(drag.fromId);
+    if(a){
+      const p = anchor(a,"out");
+      ctx.save();
+      ctx.setLineDash([5,4]);
+      ctx.strokeStyle = drag.valid ? C.link : C.illegal;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(sx(p.x), sy(p.y));
+      ctx.bezierCurveTo(sx(p.x)+60*view.z, sy(p.y), drag.cur.x-60, drag.cur.y, drag.cur.x, drag.cur.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  // 节点
+  for(const n of drawOrder()){
+    if(!inside(n)) continue;
+    drawn++;
+    const X = sx(n.x), Y = sy(n.y), Wd = n.w*view.z, Hd = n.h*view.z;
+
+    if(tier===0){
+      ctx.fillStyle = n.kind==="step" ? (n.state==="failed"?"#FEE2E2":C.nodeBg)
+                    : (n.kind==="container" ? "rgba(165,192,232,.35)" : "rgba(59,130,246,.18)");
+      ctx.fillRect(X,Y,Wd,Hd);
+      continue;
+    }
+
+    if(n.kind==="container"){
+      roundRect(ctx,X,Y,Wd,Hd,12*view.z);
+      ctx.fillStyle = C.frameFill; ctx.fill();
+      ctx.strokeStyle = C.frameBd; ctx.lineWidth = Math.max(1,1.5*view.z); ctx.stroke();
+      const hh = Math.min(FRAME_HEADER, n.h)*view.z;
+      if(hh>2){
+        roundRect(ctx,X,Y,Wd,hh,12*view.z);
+        ctx.fillStyle = C.frameHd; ctx.fill();
+      }
+      if(tier===2 && Hd>20){
+        ctx.fillStyle = C.text; ctx.font = `600 ${12.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline="middle";
+        ctx.fillText(n.title, X+10*view.z, Y+hh/2);
+      }
+      if(n.id && selected.has(n.id)){
+        roundRect(ctx,X,Y,Wd,Hd,12*view.z);
+        ctx.strokeStyle = C.sel; ctx.lineWidth = Math.max(1.5,2*view.z); ctx.stroke();
+      }
+      continue;
+    }
+
+    if(n.kind==="lane"){
+      roundRect(ctx,X,Y,Wd,Hd,8*view.z);
+      ctx.fillStyle = C.laneFill; ctx.fill();
+      const hh = Math.min(LANE_HEADER, n.h)*view.z;
+      if(hh>2){ roundRect(ctx,X,Y,Wd,hh,8*view.z); ctx.fillStyle = C.laneHd; ctx.fill(); }
+      ctx.strokeStyle = C.laneBd; ctx.lineWidth = Math.max(1,1*view.z); ctx.stroke();
+      if(tier===2 && Hd>16){
+        ctx.fillStyle = C.laneText; ctx.font = `600 ${9.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline="middle";
+        ctx.fillText(n.title, X+8*view.z, Y+hh/2);
+      }
+      continue;
+    }
+
+    // step 卡片
+    ctx.save();
+    if(n.disabled) ctx.globalAlpha = 0.45;
+    roundRect(ctx,X,Y,Wd,Hd,10*view.z);
+    ctx.fillStyle = n.state==="failed" ? "#FFF7F7" : C.nodeBg; ctx.fill();
+    ctx.strokeStyle = n.state==="failed" ? C.fail : (selected.has(n.id) ? C.sel : (n.state==="running"?C.run:C.nodeBd));
+    ctx.lineWidth = Math.max(1,(selected.has(n.id)?2:1)*view.z);
+    ctx.stroke();
+
+    const iconS = 28*view.z;
+    if(iconS>6){
+      roundRect(ctx,X+10*view.z,Y+(Hd-iconS)/2,iconS,iconS,8*view.z);
+      ctx.fillStyle = C.iconBg; ctx.fill();
+      ctx.strokeStyle = "#BFD3F5"; ctx.lineWidth = Math.max(.6,1*view.z); ctx.stroke();
+    }
+
+    if(tier===2 && Wd>40){
+      ctx.fillStyle = C.text; ctx.font = `600 ${14*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline="alphabetic";
+      const tx = X+(10+28+8)*view.z, maxW = Wd - (10+28+8+10)*view.z - (n.order?18*view.z:0);
+      ctx.save(); ctx.beginPath(); ctx.rect(tx, Y, Math.max(4,maxW), Hd); ctx.clip();
+      ctx.fillText(n.title, tx, Y+Hd*0.46);
+      ctx.fillStyle = C.sub; ctx.font = `${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.fillText(n.sub, tx, Y+Hd*0.46 + 13*view.z);
+      ctx.restore();
+
+      if(n.order){
+        ctx.fillStyle = "#64748B"; ctx.font = `600 ${9*view.z}px "Segoe UI",sans-serif`;
+        ctx.textAlign="right"; ctx.fillText(n.order, X+Wd-8*view.z, Y+12*view.z); ctx.textAlign="left";
+      }
+    }
+    ctx.restore();
+
+    // 连接点：选中或悬停时才显示（常态不画，减少视觉噪声）
+    if(tier===2 && (selected.has(n.id) || hoverId===n.id)){
+      ctx.fillStyle = "#fff"; ctx.strokeStyle = C.icon; ctx.lineWidth = Math.max(1,1.4*view.z);
+      for(const p of [anchor(n,"in"),anchor(n,"out")]){
+        ctx.beginPath(); ctx.arc(sx(p.x),sy(p.y),5*view.z,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      }
+    }
+  }
+
+  // 框选矩形
+  if(drag && drag.mode==="marquee"){
+    const x=Math.min(drag.startX,drag.curX), y=Math.min(drag.startY,drag.curY);
+    const w=Math.abs(drag.curX-drag.startX), h=Math.abs(drag.curY-drag.startY);
+    ctx.fillStyle = C.marquee; ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle = C.marqueeBd; ctx.lineWidth=1; ctx.strokeRect(x+.5,y+.5,w,h);
+  }
+
+  // 改序插入线
+  if(drag && drag.mode==="reorder" && drag.insertAt){
+    const t = byId.get(drag.insertAt.id); if(t){
+      ctx.strokeStyle = C.sel; ctx.lineWidth = 2;
+      const yy = sy(t.y) + (drag.insertBefore ? -2 : t.h*view.z+2);
+      ctx.beginPath(); ctx.moveTo(sx(t.x)-8, yy); ctx.lineTo(sx(t.x+t.w)+8, yy); ctx.stroke();
+    }
+  }
+
+  lastFrameMs = performance.now() - t0;
+
+  // HUD
+  const tierName = ["只画色块","无文字","全细节"][tier];
+  document.getElementById("hud").textContent =
+    `缩放 ${view.z.toFixed(3)}×    LOD ${tierName}\n`
+  + `绘制 ${drawn} / ${nodes.length} 个节点    连线 ${links.length}\n`
+  + `一帧 ${lastFrameMs.toFixed(1)} ms（Canvas2D，软件）`;
+  document.getElementById("stLod").textContent = "LOD " + tierName;
+  document.getElementById("stDraw").textContent = `绘制 ${drawn}/${nodes.length}`;
+  document.getElementById("stFrame").textContent = `一帧 ${lastFrameMs.toFixed(1)} ms`;
+  document.getElementById("stSel").textContent = `选中 ${selected.size}`;
+
+  drawMinimap();
+  dirtyFlag = false;
+}
+
+function drawMinimap(){
+  const W = mmc.width, H = mmc.height;
+  mmx.setTransform(1,0,0,1,0,0);
+  mmx.clearRect(0,0,W,H);
+  const b = contentBounds(); if(!b) return;
+  const pad = 8;
+  const z = Math.min((W-pad*2)/b.w, (H-pad*2)/b.h);
+  const ox = (W - b.w*z)/2 - b.x*z, oy = (H - b.h*z)/2 - b.y*z;
+  mmx.fillStyle = "rgba(59,130,246,.35)";
+  for(const n of nodes) mmx.fillRect(ox+n.x*z, oy+n.y*z, Math.max(1,n.w*z), Math.max(1,n.h*z));
+  // 视口框
+  const vx = ox + wxOf(0)*z, vy = oy + wyOf(0)*z;
+  mmx.strokeStyle = C.sel; mmx.lineWidth = 2;
+  mmx.strokeRect(vx, vy, (cv.clientWidth/view.z)*z, (cv.clientHeight/view.z)*z);
+}
+
+// ---------- 交互 ----------
+let drag = null;       // {mode:'pan'|'marquee'|'move'|'reorder'|'connect', ...}
+let hoverId = null;
+let spaceDown = false;
+
+function setMode(t){ document.getElementById("stMode").textContent = t; }
+
+function screenPos(e){
+  const r = cv.getBoundingClientRect();
+  return {x:e.clientX-r.left, y:e.clientY-r.top};
+}
+
+cv.addEventListener("mousedown", e => {
+  const p = screenPos(e);
+  hideMenu();
+
+  if(e.button===1 || (e.button===0 && spaceDown)){
+    drag = {mode:"pan", sx:p.x, sy:p.y, vx:view.x, vy:view.y};
+    setMode("平移中"); cv.style.cursor="grabbing"; e.preventDefault(); return;
+  }
+  if(e.button!==0) return;
+
+  const n = hitTest(p.x,p.y);
+
+  // 从连接点起手 → 建连线
+  if(n && n.kind==="step"){
+    const out = anchor(n,"out"), inn = anchor(n,"in");
+    if(Math.hypot(sx(out.x)-p.x, sy(out.y)-p.y) <= 8){
+      drag = {mode:"connect", fromId:n.id, cur:p, valid:false}; setMode("拖线中"); return;
+    }
+    if(Math.hypot(sx(inn.x)-p.x, sy(inn.y)-p.y) <= 8){
+      drag = {mode:"connect", fromId:n.id, cur:p, valid:false}; setMode("拖线中"); return;
+    }
+  }
+
+  if(!n){
+    if(!e.ctrlKey) selected.clear();
+    drag = {mode:"marquee", startX:p.x, startY:p.y, curX:p.x, curY:p.y, base:new Set(selected)};
+    setMode("框选中"); dirty(); return;
+  }
+
+  // 泳道/容器不参与"移动"，但可以选中（与现有口径一致：容器框 IsDraggable=false）
+  if(e.ctrlKey){
+    if(selected.has(n.id)) selected.delete(n.id); else selected.add(n.id);
+  } else if(!selected.has(n.id)){
+    selected.clear(); selected.add(n.id);
+  }
+  dirty();
+
+  if(n.kind==="step" && selected.has(n.id)){
+    const moving = nodes.filter(x=>x.kind==="step" && selected.has(x.id)).map(x=>({id:x.id,x:x.x,y:x.y}));
+    drag = {mode:"move", sx:p.x, sy:p.y, moving, moved:false, target:n};
+    setMode("拖动节点");
+  }
+});
+
+cv.addEventListener("mousemove", e => {
+  const p = screenPos(e);
+  if(!drag){
+    const n = hitTest(p.x,p.y);
+    hoverId = n ? n.id : null;
+    cv.style.cursor = n ? (n.kind==="step" ? "move" : "default") : "default";
+    dirty();
+    return;
+  }
+
+  if(drag.mode==="pan"){
+    view.x = drag.vx + (p.x - drag.sx);
+    view.y = drag.vy + (p.y - drag.sy);
+    dirty(); return;
+  }
+
+  if(drag.mode==="marquee"){
+    drag.curX=p.x; drag.curY=p.y;
+    const x1=wxOf(Math.min(drag.startX,p.x)), y1=wyOf(Math.min(drag.startY,p.y));
+    const x2=wxOf(Math.max(drag.startX,p.x)), y2=wyOf(Math.max(drag.startY,p.y));
+    selected = new Set(drag.base);
+    for(const n of nodes){
+      if(n.kind==="lane") continue;
+      if(n.x < x2 && n.x+n.w > x1 && n.y < y2 && n.y+n.h > y1) selected.add(n.id);
+    }
+    dirty(); return;
+  }
+
+  if(drag.mode==="move"){
+    const dx = (p.x-drag.sx)/view.z, dy = (p.y-drag.sy)/view.z;
+    if(Math.abs(dx)>1 || Math.abs(dy)>1) drag.moved = true;
+    for(const m of drag.moving){ const n=byId.get(m.id); n.x = m.x+dx; n.y = m.y+dy; }
+    // 改序落点：找指针下的 step 节点
+    const over = hitTest(p.x,p.y);
+    drag.insertAt = (over && over.kind==="step" && !selected.has(over.id)) ? over : null;
+    drag.insertBefore = drag.insertAt ? (wyOf(p.y) < drag.insertAt.y + drag.insertAt.h/2) : false;
+    drag.mode = drag.insertAt ? "reorder" : "move";
+    dirty(); return;
+  }
+
+  if(drag.mode==="reorder"){
+    const dx = (p.x-drag.sx)/view.z, dy = (p.y-drag.sy)/view.z;
+    for(const m of drag.moving){ const n=byId.get(m.id); n.x=m.x+dx; n.y=m.y+dy; }
+    const over = hitTest(p.x,p.y);
+    drag.insertAt = (over && over.kind==="step" && !selected.has(over.id)) ? over : null;
+    drag.insertBefore = drag.insertAt ? (wyOf(p.y) < drag.insertAt.y + drag.insertAt.h/2) : false;
+    if(!drag.insertAt) drag.mode = "move";
+    dirty(); return;
+  }
+
+  if(drag.mode==="connect"){
+    drag.cur = p;
+    const t = hitTest(p.x,p.y);
+    drag.valid = !!(t && t.kind==="step" && t.id!==drag.fromId);
+    drag.toId = drag.valid ? t.id : null;
+    dirty(); return;
+  }
+});
+
+window.addEventListener("mouseup", e => {
+  if(!drag) return;
+  const p = screenPos(e);
+
+  if(drag.mode==="connect"){
+    if(drag.valid && drag.toId){
+      const exists = links.some(l=>l.from===drag.fromId && l.to===drag.toId && !l.order);
+      if(!exists) links.push({from:drag.fromId, to:drag.toId, order:false});
+    }
+    setMode("就绪");
+  } else if(drag.mode==="reorder" && drag.insertAt){
+    // 改序：把选中节点移到目标节点之前/之后（演示口径，真实实现走 FlowBranchEditor）
+    const moving = nodes.filter(n=>selected.has(n.id) && n.kind==="step");
+    const rest = nodes.filter(n=>!moving.includes(n));
+    let idx = rest.indexOf(drag.insertAt) + (drag.insertBefore?0:1);
+    rest.splice(idx,0,...moving);
+    nodes = rest;
+    setMode("已改执行顺序");
+  } else {
+    setMode("就绪");
+  }
+
+  drag = null;
+  cv.style.cursor = "default";
+  dirty();
+});
+
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  const p = screenPos(e);
+  const before = {x:wxOf(p.x), y:wyOf(p.y)};
+  const k = Math.exp(-e.deltaY * 0.0015);
+  view.z = Math.max(MIN_Z, Math.min(MAX_Z, view.z*k));
+  view.x = p.x - before.x*view.z;
+  view.y = p.y - before.y*view.z;
+  dirty();
+}, {passive:false});
+
+cv.addEventListener("contextmenu", e => {
+  e.preventDefault();
+  const p = screenPos(e);
+  const n = hitTest(p.x,p.y);
+  if(n){ showMenu(p.x,p.y, nodeMenu(n)); return; }
+  const l = hitLink(p.x,p.y);
+  if(l){ showMenu(p.x,p.y, linkMenu(l)); return; }
+  showMenu(p.x,p.y, emptyMenu());
+});
+
+cv.addEventListener("dblclick", e => {
+  const p = screenPos(e);
+  const n = hitTest(p.x,p.y);
+  if(n && n.kind==="step"){ setMode("双击：" + n.title + " → 打开步骤参数"); }
+});
+
+// 小地图点击/拖动 → 平移
+let mmDrag=false;
+function mmJump(e){
+  const r = mmc.getBoundingClientRect();
+  const px = (e.clientX-r.left)/r.width*mmc.width;
+  const py = (e.clientY-r.top)/r.height*mmc.height;
+  const b = contentBounds(); if(!b) return;
+  const pad=8, W=mmc.width, H=mmc.height;
+  const z = Math.min((W-pad*2)/b.w,(H-pad*2)/b.h);
+  const ox=(W-b.w*z)/2 - b.x*z, oy=(H-b.h*z)/2 - b.y*z;
+  const wxp = (px-ox)/z, wyp = (py-oy)/z;
+  view.x = cv.clientWidth/2 - wxp*view.z;
+  view.y = cv.clientHeight/2 - wyp*view.z;
+  dirty();
+}
+mmc.addEventListener("mousedown", e=>{ mmDrag=true; mmJump(e); });
+window.addEventListener("mousemove", e=>{ if(mmDrag) mmJump(e); });
+window.addEventListener("mouseup", ()=>{ mmDrag=false; });
+
+// ---------- 菜单 ----------
+const menu = document.getElementById("menu");
+function showMenu(x,y,items){
+  menu.innerHTML="";
+  for(const it of items){
+    if(it.sep){ const d=document.createElement("div"); d.className="sep"; menu.appendChild(d); continue; }
+    if(it.hd){ const d=document.createElement("div"); d.className="hd"; d.textContent=it.hd; menu.appendChild(d); continue; }
+    const d=document.createElement("div");
+    d.className = "it" + (it.dis?" dis":"");
+    d.innerHTML = `<span>${it.label}</span><span style="color:#94A3B8">${it.hint||""}</span>`;
+    if(!it.dis) d.onclick = ()=>{ hideMenu(); setMode(it.label); if(it.run) it.run(); };
+    menu.appendChild(d);
+  }
+  menu.style.display="block";
+  const r = menu.getBoundingClientRect();
+  menu.style.left = Math.min(x, cv.clientWidth - r.width - 8) + "px";
+  menu.style.top  = Math.min(y, cv.clientHeight - r.height - 8) + "px";
+}
+function hideMenu(){ menu.style.display="none"; }
+
+function nodeMenu(n){
+  const isC = n.kind==="container";
+  const items = [];
+  if(isC){
+    items.push({hd:"容器：" + n.title});
+    items.push({label:"添加 ElseIf 分支", hint:"仅 If"});
+    items.push({label:"添加 Else 分支", hint:"仅 If"});
+    items.push({label:"添加分支", hint:"仅并行分组"});
+    items.push({sep:true});
+  }
+  items.push({label:"编辑绑定…", hint:"打开变量绑定"});
+  items.push({label:"步骤参数…", hint:"双击同效"});
+  items.push({sep:true});
+  items.push({label:"复制", hint:"Ctrl+C"});
+  items.push({label: n.disabled ? "启用" : "禁用", hint:""});
+  items.push({sep:true});
+  items.push({label:"删除", hint:"Delete", run:()=>{ nodes = nodes.filter(x=>x!==n); byId.delete(n.id); selected.delete(n.id); dirty(); }});
+  return items;
+}
+function linkMenu(l){
+  return [
+    {hd: l.order ? "执行顺序（只读）" : "数据连线"},
+    {label:"编辑绑定…", dis:l.order},
+    {sep:true},
+    {label:"断开全部绑定", dis:l.order, hint:"可撤销"},
+    {label:"断开单条绑定", dis:l.order, hint:"逐条"},
+  ];
+}
+function emptyMenu(){
+  return [
+    {hd:"画布"},
+    {label:"粘贴", hint:"Ctrl+V"},
+    {sep:true},
+    {label:"适应全图", run:()=>{ fitAll(); dirty(); }},
+    {label:"整理布局", hint:"重排坐标"},
+  ];
+}
+
+// ---------- 键盘 ----------
+window.addEventListener("keydown", e => {
+  if(e.code==="Space"){ spaceDown=true; cv.style.cursor="grab"; }
+  if(e.key==="Escape"){ drag=null; selected.clear(); hideMenu(); setMode("就绪"); dirty(); }
+  if(e.key==="Delete"){
+    nodes = nodes.filter(n=>!selected.has(n.id));
+    for(const id of selected) byId.delete(id);
+    links = links.filter(l=>byId.has(l.from) && byId.has(l.to));
+    selected.clear(); dirty();
+  }
+  if(e.ctrlKey && e.key.toLowerCase()==="a"){
+    e.preventDefault();
+    selected = new Set(nodes.filter(n=>n.kind!=="lane").map(n=>n.id)); dirty();
+  }
+});
+window.addEventListener("keyup", e => {
+  if(e.code==="Space"){ spaceDown=false; cv.style.cursor="default"; }
+});
+
+// ---------- 按钮 ----------
+document.getElementById("btnFit").onclick = ()=>{ fitAll(); dirty(); };
+document.getElementById("btnReset").onclick = ()=>{ view.z=1; view.x=40; view.y=40; dirty(); };
+document.getElementById("btnStress").onclick = ()=>{ buildStress(); setMode("已注入 3000 节点"); };
+document.getElementById("btnClear").onclick = ()=>{ buildDemo(); setMode("已重建演示图"); };
+
+// ---------- 主循环 ----------
+function resize(){
+  const r = cv.getBoundingClientRect();
+  DPR = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width*DPR));
+  cv.height = Math.max(1, Math.round(r.height*DPR));
+  dirty();
+}
+window.addEventListener("resize", ()=>{ resize(); });
+
+function loop(){
+  if(dirtyFlag) render();
+  requestAnimationFrame(loop);
+}
+
+resize();
+buildDemo();
+loop();
+
+})();
+</script>
+</body>
+</html>

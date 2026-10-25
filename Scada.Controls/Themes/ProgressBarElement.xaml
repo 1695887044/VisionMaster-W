@@ -44,8 +44,12 @@
                             <!-- 填充块：长度与对齐由控件代码按走向摆（见 UpdateBarLayout） -->
                             <Border
                                 x:Name="FillBar"
-                                Background="{TemplateBinding Fill}"
+                                Background="{TemplateBinding DisplayFill}"
                                 CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}" />
+
+                            <!-- 刻度与限制线：线由控件代码按实际像素生成（数量随 TickCount 变） -->
+                            <Canvas x:Name="TickLayer" IsHitTestVisible="False" />
+                            <Canvas x:Name="LimitLayer" IsHitTestVisible="False" />
 
                             <TextBlock
                                 x:Name="ValueLabel"

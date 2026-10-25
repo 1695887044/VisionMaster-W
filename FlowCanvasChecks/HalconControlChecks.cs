@@ -3,6 +3,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using Core.Halcon.Controls;
+using Core.Halcon.Models;
 using HalconDotNet;
 using static FlowCanvasChecks.Program;
 
@@ -315,12 +316,46 @@ namespace FlowCanvasChecks
             R("[UX] 图集菜单含「钉住当前帧」", headers.Any(h => h.Contains("钉住当前帧")), string.Join("｜", headers));
             R("[UX] 图集菜单含「对比模式」", headers.Any(h => h.Contains("对比模式")), "");
             R("[UX] 图集菜单含「锁定跟随」", headers.Any(h => h.Contains("锁定跟随")), "");
+            R("[UX] 图集菜单含「显示缩略图条」", headers.Any(h => h.Contains("显示缩略图条")), "");
             R("[UX] 图集菜单保留清空/导出", headers.Any(h => h.Contains("清空画布")) && headers.Count(h => h.Contains("导出")) == 2, "");
 
-            // 行为：无选中帧时"钉住"不可点（菜单打开时同步 IsEnabled）
-            gallery.RaiseContextMenuOpenedForTest();
+            // 能力闸门（2026-10-24）：锁定/对比/条子三项只在"这格可能多张图"时才有可观察效果。
+            // 断言必须覆盖两个方向——只验"不支持时置灰"会漏掉"支持了却还是灰的"（那等于功能不可达）。
             var pinItem = gallery.ContextMenu!.Items.OfType<MenuItem>().First(m => (m.Header?.ToString() ?? "").Contains("钉住当前帧"));
+            var compareItem = gallery.ContextMenu.Items.OfType<MenuItem>().First(m => (m.Header?.ToString() ?? "").Contains("对比模式"));
+            var lockItem = gallery.ContextMenu.Items.OfType<MenuItem>().First(m => (m.Header?.ToString() ?? "").Contains("锁定跟随"));
+            var stripItem = gallery.ContextMenu.Items.OfType<MenuItem>().First(m => (m.Header?.ToString() ?? "").Contains("显示缩略图条"));
+
+            // ① 默认（SupportsFrameHistory=false，即收容关）：三项置灰，且钉住也置灰
+            gallery.SupportsFrameHistory = false;
+            gallery.RaiseContextMenuOpenedForTest();
+            R("[UX] 每格只有一张时：对比/锁定/条子三项置灰",
+                !compareItem.IsEnabled && !lockItem.IsEnabled && !stripItem.IsEnabled,
+                $"compare={compareItem.IsEnabled} lock={lockItem.IsEnabled} strip={stripItem.IsEnabled}");
             R("[UX] 无选中帧时钉住置灰", !pinItem.IsEnabled, "IsEnabled=" + pinItem.IsEnabled);
+            R("[UX] 置灰项带说明（指出去哪儿打开收容）",
+                !string.IsNullOrEmpty(compareItem.ToolTip?.ToString())
+                && compareItem.ToolTip!.ToString()!.Contains("保留插件注入图的历史帧"),
+                compareItem.ToolTip?.ToString() ?? "(无提示)");
+
+            // ② 反向：有历史能力 + 有选中帧 → 三项都能点、钉住也能点、提示清空
+            gallery.SupportsFrameHistory = true;
+            gallery.SelectedFrame = new ImageFrame("assert-menu-1");
+            gallery.RaiseContextMenuOpenedForTest();
+            R("[UX] 有历史能力时：对比/锁定/条子三项可点",
+                compareItem.IsEnabled && lockItem.IsEnabled && stripItem.IsEnabled,
+                $"compare={compareItem.IsEnabled} lock={lockItem.IsEnabled} strip={stripItem.IsEnabled}");
+            R("[UX] 有历史能力 + 有选中帧时钉住可点", pinItem.IsEnabled, "IsEnabled=" + pinItem.IsEnabled);
+            R("[UX] 可用时不留「为什么不能点」的提示", compareItem.ToolTip == null, compareItem.ToolTip?.ToString() ?? "(null，正确)");
+
+            // ③ 能力被收回时，已打开的对比模式与已钉住的基准要一起清掉
+            //   （那时左右两张是同一张图；留着基准还可能指向已被覆盖释放的 HImage）
+            gallery.IsCompareMode = true;
+            gallery.PinnedFrame = gallery.SelectedFrame;
+            gallery.SupportsFrameHistory = false;
+            R("[UX] 收容关闭时自动退出对比模式并清空对比基准",
+                !gallery.IsCompareMode && gallery.PinnedFrame == null,
+                $"IsCompareMode={gallery.IsCompareMode} PinnedFrame={(gallery.PinnedFrame == null ? "null" : "有")}");
         }
 
         /// <summary>批次 3（2026-10-08 第一批菜单重构）：菜单结构 / 新标注类型 / 清空守卫</summary>

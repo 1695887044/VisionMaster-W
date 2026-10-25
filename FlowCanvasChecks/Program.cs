@@ -65,6 +65,39 @@ namespace FlowCanvasChecks
                 return 0;
             }
 
+            // 流程切换卡顿量化：--switch-perf [方案路径] [reps] [phase] 起 Application + 真 ProcessView/FlowCanvasView，
+            // 对每条流程量 vm / layout / deferred 三段并给出 nop 地板（SetProperty 短路的空跑耗时）。
+            // **每个相位必须在独立进程里跑**：同进程连跑会累积污染（实测越靠后数字越大 6 倍以上）。
+            // 相位：canvas（默认，含冷）/ noorder / minimap / collapse / tree。
+            // 选择性运行，不进常规 gate（计时会抖，混进断言会让"红了"说不清原因）。
+            if (args.Length >= 1 && args[0] == "--switch-perf")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                int reps = args.Length >= 3 && int.TryParse(args[2], out var r) && r > 0 ? r : 1;
+                string phase = args.Length >= 4 ? args[3] : "canvas";
+                FlowSwitchPerf.Run(args.Length >= 2 ? args[1] : null, reps, phase);
+                return Environment.ExitCode;
+            }
+
+            // 自绘画布几何契约第 0 步：--surface-guards 起 STA 线程 + Application，用真流程断言
+            // IFlowCanvasGeometry 的三条语义（框选命中 / 批量位移写库 / FitToScreen 覆盖全量）。
+            // 独立路由：几何契约的断言不混进常规 gate 的节点池/连线计数里，红了能一眼定位。
+            if (args.Length >= 1 && args[0] == "--surface-guards")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                return CanvasSurfaceGuards.Run();
+            }
+
+            // C2 第 1 步验收：--surface-parity 把自绘层的几何与画布 VM 的权威值逐项对照
+            //（节点矩形 / 连线端点 / 命中 / FitToScreen），并对最大的一条流程出 PNG 供人眼对照。
+            if (args.Length >= 1 && args[0] == "--surface-parity")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                return SurfaceParityProbe.Run(
+                    args.Length >= 2 ? args[1] : null,
+                    args.Length >= 3 ? args[2] : null);
+            }
+
             // 尺寸实量子模式：--measure-canvas 起 Application、实例化真 FlowCanvasView 并量
             // 卡片/标题/小地图的 ActualWidth/ActualHeight，把机器可读行打给父进程（CanvasDesignChecks）。
             // 为什么是子进程：主断言进程 new Application 会让后续投射类断言失效且退出时挂住
@@ -125,6 +158,18 @@ namespace FlowCanvasChecks
             // [X] 数据线显隐（默认隐藏 / 非法线例外）/ 画布编辑入口 / 工具箱落点与工厂
             DataLinkVisibilityAndCanvasEditing();
 
+            // [YC] 画布分支编辑与落点防重叠（2026-10-23）：
+            //  容器 Children 订阅（流程栏加分支后画布即时刷新）/ 画布右键加分支（与流程栏同一份实现）/
+            //  拖入与粘贴的"后续兄弟顺移让位"（否则新卡片盖在下一个兄弟身上）
+            FlowBranchEditChecks.Run();
+
+            // [DH] 拖拽落点提示（2026-10-24，设计基线 docs/UI设计基线/drag-drop-hint v2）：
+            //  文案公式 / 状态通道生命周期 / 画布四档落点判定 / XAML 接线扫描
+            DragHintChecks.Run();
+
+            // [PM] 流程栏右键菜单入口完整性（编辑绑定与画布对齐）
+            ProcessMenuChecks.Run();
+
             // 2026-10-11 三视角评审收口第一批 + 第二批：
             // [G1] 画布编辑门禁（EditGate 豁免表 + 画布拦截点）
             // [G2] 撤销补口（引用型 Add/Delete 命令：拖入与删除可撤销、删除不清栈）
@@ -181,6 +226,7 @@ namespace FlowCanvasChecks
             // 执行层断言（流程引擎优化 A1/A2/A3/B1/B2/B3）
             ExecutionChecks.IfInsideLoopExecutes();
             ExecutionChecks.WhileLoopRunsAndExits();
+            ExecutionChecks.ReturnIsAnInfoNotAWarn();
             ExecutionChecks.ContainerStatesReportedAndBlueprintLinked();
             ExecutionChecks.DuplicateStartIsIgnored();
             ExecutionChecks.RuntimeStateDoesNotInvalidateVersion();
@@ -209,6 +255,10 @@ namespace FlowCanvasChecks
 
             // 引擎全面审查·第二批修复的断言（条件变量未绑定 / FlowID 新鲜度 / 锁定门禁 / 会话准备收口）
             FlowEngineFix2Checks.Run();
+
+            // 评审团 C1 + B3：执行上下文能力面的装配单点与清单完整性
+            //（单次执行注入 Database / 并行分支继承父能力面 / 新增能力面漏登记即判红）
+            EngineContextWiringChecks.Run();
 
             // 逻辑分支容器四项修复（For 上限 / 容器失败上浮 / Break 状态 / 循环体分支数校验）
             FlowContainerChecks.Run();
@@ -262,6 +312,9 @@ namespace FlowCanvasChecks
 
             // 变量赋值：运行时 / 全局两种作用域
             VariableAssignmentCheck.Run();
+
+            // 图像变量所有权：写入即拷贝 / 延迟一代释放 / 移出集合即释放（三条写路径共用的收口）
+            ImageVariableOwnershipChecks.Run();
 
             // 通讯立刻读 / 立刻写：元数据 / 端口候选 / 成功失败路径 / 发起前短路
             CommOperatorChecks.Run();

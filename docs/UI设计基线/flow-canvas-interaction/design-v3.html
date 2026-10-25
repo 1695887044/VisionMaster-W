@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>流程画布 · 设计基线 v3（现代视觉 · 两方向对比）</title>
+<style>
+  :root{
+    --bg:#F8FAFC; --surface:#FFFFFF; --line:#E2E8F0; --line-strong:#CBD5E1;
+    --ink:#0F172A; --ink-2:#475569; --ink-3:#94A3B8;
+    --accent:#4F46E5; --accent-soft:#EEF2FF; --accent-line:#C7D2FE;
+    --ok:#059669; --warn:#D97706; --danger:#DC2626;
+    --r-sm:8px; --r-md:10px; --r-lg:14px;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-2:0 4px 16px rgba(15,23,42,.08);
+    --shadow-focus:0 0 0 3px rgba(79,70,229,.16);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif}
+  #app{display:flex;flex-direction:column;height:100%}
+
+  header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface);
+    border-bottom:1px solid var(--line);flex:0 0 auto}
+  header .title{font-weight:600;font-size:13.5px}
+  header .ver{font-size:11px;color:var(--ink-3);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  .seg{display:flex;gap:2px;background:#F1F5F9;border-radius:var(--r-sm);padding:2px}
+  .seg button{border:0;background:transparent;padding:5px 14px;border-radius:6px;font:inherit;cursor:pointer;color:var(--ink-2)}
+  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-1);font-weight:600}
+  .spacer{flex:1}
+  .btn{font:inherit;padding:6px 14px;border:1px solid var(--line);border-radius:var(--r-sm);
+    background:var(--surface);cursor:pointer;color:var(--ink-2)}
+  .btn:hover{border-color:var(--line-strong);color:var(--ink)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{filter:brightness(1.06)}
+
+  main{position:relative;flex:1;min-height:0;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+
+  .panel{position:absolute;background:rgba(255,255,255,.94);border:1px solid var(--line);
+    border-radius:var(--r-md);box-shadow:var(--shadow-2);backdrop-filter:blur(6px)}
+  .hud{left:16px;top:16px;padding:10px 12px;font-size:11.5px;color:var(--ink-3);line-height:1.75;white-space:pre}
+  .hud b{color:var(--ink);font-weight:600}
+  .notes{left:16px;bottom:16px;padding:12px 14px;font-size:11.5px;color:var(--ink-2);line-height:1.85;max-width:520px;display:none}
+  .notes h4{margin:0 0 6px;font-size:12px;color:var(--ink)}
+  .notes kbd{background:#F1F5F9;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;
+    padding:0 4px;font:11px ui-monospace,Consolas,monospace;color:#334155}
+  .pager{right:16px;bottom:16px;display:flex;gap:8px;align-items:center;padding:8px 12px;font-size:12px}
+  .pager button{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 10px;cursor:pointer;font:inherit;color:var(--ink-2)}
+  .pager button:disabled{opacity:.45;cursor:default}
+  .pager select{border:1px solid var(--line);border-radius:6px;padding:2px 6px;font:inherit;background:var(--surface)}
+  #mini{right:16px;top:16px;width:180px;height:118px;overflow:hidden}
+  #mini canvas{border-radius:var(--r-md)}
+
+  footer{display:flex;gap:16px;align-items:center;padding:7px 16px;background:var(--surface);
+    border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3)}
+  footer .right{margin-left:auto}
+  .pill{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:1px 9px}
+  .dot{width:6px;height:6px;border-radius:50%}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="title">流程画布</span>
+    <span class="ver">v3 · 现代视觉 · 两方向对比</span>
+    <span class="seg">
+      <button id="tabA" class="on">A · 节点图（正交连线 + 聚焦）</button>
+      <button id="tabB">B · 流水线列表（内联引用）</button>
+    </span>
+    <span class="spacer"></span>
+    <button class="btn" id="btnStress">注入 3000 步</button>
+    <button class="btn primary" id="btnDemo">重建演示图</button>
+  </header>
+
+  <main>
+    <canvas id="cv"></canvas>
+    <div class="panel hud" id="hud"></div>
+    <div class="panel notes" id="notes"></div>
+    <div class="panel pager" id="pager" style="display:none">
+      <button id="prev">上一页</button>
+      <span id="pageInfo">1 / 1</span>
+      <button id="next">下一页</button>
+      <span style="color:var(--ink-3)">每页</span>
+      <select id="pageSize">
+        <option value="60">60</option>
+        <option value="120" selected>120</option>
+        <option value="300">300</option>
+      </select>
+    </div>
+    <div class="panel" id="mini" style="display:none"><canvas id="mmc" width="360" height="236"></canvas></div>
+  </main>
+
+  <footer>
+    <span class="pill"><span class="dot" style="background:var(--accent)"></span><span id="stMode">A · 节点图</span></span>
+    <span id="stRows">—</span>
+    <span id="stDraw">—</span>
+    <span id="stFrame">—</span>
+    <button class="btn" id="btnNotes" style="padding:2px 10px">设计说明</button>
+    <span class="right">Web 设计稿仅作设计媒介，不进入构建、不部署（AGENTS.md R126）</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+"use strict";
+
+/* ============ 设计令牌（与 UI/Controls/Themes/Colors.xaml 对齐，v3 修订） ============ */
+const T = {
+  bg:"#F8FAFC", grid:"#E6ECF4",
+  card:"#FFFFFF", cardBd:"#E2E8F0", cardBdHover:"#CBD5E1",
+  ink:"#0F172A", ink2:"#475569", ink3:"#94A3B8",
+  accent:"#4F46E5", accentSoft:"#EEF2FF", accentLine:"#C7D2FE",
+  ok:"#059669", warn:"#D97706", danger:"#DC2626",
+  groupBg:"rgba(79,70,229,.045)", groupBd:"rgba(79,70,229,.22)",
+  link:"#94A3B8", linkActive:"#4F46E5",
+  chipBg:"#EEF2FF", chipBd:"#C7D2FE", chipInk:"#4338CA",
+};
+
+const NODE_W = 176, NODE_H = 56, COL_GAP = 84, ROW_GAP = 26;
+const GROUP_PAD = 18, GROUP_HEADER = 38;
+
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let DPR = 1;
+
+/* ============ 数据 ============ */
+let seq = 1;
+const mk = o => Object.assign(o, { id: "n" + (seq++) });
+const step = (title, sub, o) => mk(Object.assign({ kind:"step", title, sub:sub||"延时", state:"idle", disabled:false }, o||{}));
+const group = (title, lanes) => mk({ kind:"group", title, lanes });
+
+let root = [], links = [], byId = new Map();
+let flatRows = [];                 // B 视图用
+let positions = new Map();         // A 视图用：id -> {x,y,w,h}
+let rowIndex = new Map();          // B 视图：stepId -> 行号
+
+function buildDemo(){
+  seq = 1; links = [];
+  const a1 = step("图像采集_0","图像采集");
+  const a2 = step("图像预处理_0","图像预处理");
+  const a3 = step("模板匹配_0","模板匹配");
+  const b1 = step("通过_1","延时");
+  const b2 = step("记录_1","变量赋值");
+  const b3 = step("异常_1","延时",{disabled:true});
+  const g1 = group("判断_1",[
+    { id:"laneA", title:"If(1>0)", steps:[b1,b2] },
+    { id:"laneB", title:"Else",     steps:[b3] },
+  ]);
+  const a4 = step("几何查找_0","几何查找",{state:"running"});
+  const c1 = step("循环体_2","延时");
+  const c2 = step("累计_2","变量赋值",{state:"failed"});
+  const g2 = group("循环_2",[{ id:"laneC", title:"循环体", steps:[c1,c2] }]);
+  const a5 = step("结果汇总_0","结果显示");
+  const a6 = step("OK","延时");
+
+  root = [a1,a2,a3,g1,a4,g2,a5,a6];
+  links = [
+    {from:a1.id,to:a2.id},{from:a2.id,to:a3.id},
+    {from:a3.id,to:b1.id},{from:b2.id,to:a4.id},
+    {from:c2.id,to:a5.id},{from:a5.id,to:a1.id},
+    {from:a4.id,to:c1.id},
+  ];
+  rebuild();
+}
+
+function buildStress(n){
+  seq = 1; links = [];
+  const total = n||3000;
+  const arr = []; let prev = null;
+  for(let i=0;i<total;i++){
+    const s = step("算子_"+i, i%7===0?"图像采集":(i%5===0?"模板匹配":"延时"),
+      {disabled:(i%3===0), state:(i%97===0?"failed":(i%53===0?"running":"idle"))});
+    arr.push(s);
+    if(prev && i%30!==0) links.push({from:prev.id,to:s.id});
+    prev = s;
+  }
+  root = arr;
+  rebuild();
+}
+
+/* ============ 布局：A 视图（列式节点图） ============ */
+function layoutGraph(){
+  positions = new Map(); byId = new Map();
+  let cursorY = 0;
+
+  function place(steps, depth){
+    let y = cursorY;
+    for(const s of steps){
+      const x = 40 + depth*(NODE_W + COL_GAP);
+      if(s.kind === "group"){
+        const gx = x, gy = y;
+        const innerX = gx + GROUP_PAD;
+        const innerY = gy + GROUP_HEADER + GROUP_PAD;
+        let laneX = innerX, maxBottom = innerY;
+        const lanes = [];
+        for(const lane of s.lanes){
+          const before = { y };
+          // 泳道内容：纵向堆叠
+          let ly = innerY;
+          const laneNodes = [];
+          for(const st of lane.steps){
+            positions.set(st.id, { x:laneX + 16, y:ly, w:NODE_W, h:NODE_H });
+            byId.set(st.id, st);
+            laneNodes.push({ id:st.id, y:ly });
+            ly += NODE_H + ROW_GAP;
+          }
+          const laneH = Math.max(NODE_H + 30, ly - innerY + 6);
+          lanes.push({ id:lane.id, title:lane.title, x:laneX, y:innerY, w:NODE_W + 32, h:laneH, nodes:laneNodes });
+          maxBottom = Math.max(maxBottom, innerY + laneH);
+          laneX += NODE_W + 32 + 28;
+        }
+        const gw = Math.max(...lanes.map(l => l.x + l.w)) + GROUP_PAD - gx;
+        const gh = maxBottom - gy + GROUP_PAD;
+        positions.set(s.id, { x:gx, y:gy, w:gw, h:gh, lanes });
+        byId.set(s.id, s);
+        y = gy + gh + ROW_GAP + 8;
+      } else {
+        positions.set(s.id, { x, y, w:NODE_W, h:NODE_H });
+        byId.set(s.id, s);
+        y += NODE_H + ROW_GAP;
+      }
+    }
+    cursorY = y;
+  }
+  place(root, 0);
+}
+
+/* ============ 布局：B 视图（流水线列表） ============ */
+function layoutList(){
+  flatRows = []; rowIndex = new Map(); byId = new Map();
+  let y = 0;
+  function walk(steps, depth){
+    for(const s of steps){
+      if(s.kind === "group"){
+        flatRows.push({ kind:"group", depth, y, h:GROUP_HEADER, node:s });
+        y += GROUP_HEADER;
+        for(const lane of s.lanes){
+          flatRows.push({ kind:"lane", depth:depth+1, y, h:26, node:lane });
+          y += 26;
+          walk(lane.steps, depth+2);
+        }
+        y += 10;
+      } else {
+        flatRows.push({ kind:"step", depth, y, h:NODE_H + 12, node:s });
+        rowIndex.set(s.id, flatRows.length-1);
+        byId.set(s.id, s);
+        y += NODE_H + 12;
+      }
+    }
+  }
+  walk(root, 0);
+  totalRows = y;
+}
+let totalRows = 0;
+
+/* ============ 视图状态 ============ */
+const view = { x:0, y:0, z:1 };
+const MIN_Z = 0.05, MAX_Z = 2.5;
+let mode = "A";
+let selected = null, hovered = null;
+let page = 0, pageSize = 120;
+let dirtyFlag = true, lastFrame = 0;
+const dirty = () => dirtyFlag = true;
+
+function rebuild(){
+  if(mode === "A") layoutGraph(); else layoutList();
+  page = 0;
+  if(mode === "A" && byId.size <= 60){
+    // 演示图：按 0.85 倍从左上角看起，卡片文字可读；大图才用适应全图
+    const b = contentBounds();
+    view.z = 0.85;
+    if(b){ view.x = 70 - b.x*view.z; view.y = 110 - b.y*view.z; }
+  } else {
+    fitAll();
+  }
+  dirty();
+}
+
+function contentBounds(){
+  if(mode === "A"){
+    let x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+    for(const p of positions.values()){
+      x1=Math.min(x1,p.x); y1=Math.min(y1,p.y);
+      x2=Math.max(x2,p.x+p.w); y2=Math.max(y2,p.y+p.h);
+    }
+    return isFinite(x1) ? {x:x1,y:y1,w:x2-x1,h:y2-y1} : null;
+  }
+  return totalRows>0 ? {x:0,y:0,w:520,h:totalRows} : null;
+}
+
+function fitAll(){
+  const b = contentBounds(); if(!b) return;
+  const W = cv.clientWidth, H = cv.clientHeight;
+  // 底部给说明面板留 150px，否则演示图会被压到面板下面
+  const z = Math.min((W-120)/b.w, (H-220)/b.h, 1.0);
+  view.z = Math.max(MIN_Z, z);
+  view.x = W/2 - (b.x + b.w/2)*view.z;
+  view.y = (H-140)/2 - (b.y + b.h/2)*view.z;
+}
+
+const X = v => v*view.z + view.x;
+const Y = v => v*view.z + view.y;
+const wxOf = s => (s - view.x)/view.z;
+const wyOf = s => (s - view.y)/view.z;
+
+/* ============ 绘制工具 ============ */
+function rr(c,x,y,w,h,r){
+  const k = Math.max(0, Math.min(r, w/2, h/2));
+  c.beginPath();
+  c.moveTo(x+k,y); c.arcTo(x+w,y,x+w,y+h,k); c.arcTo(x+w,y+h,x,y+h,k);
+  c.arcTo(x,y+h,x,y,k); c.arcTo(x,y,x+w,y,k); c.closePath();
+}
+
+function stateColor(s){
+  if(s.state === "failed") return T.danger;
+  if(s.state === "running") return T.accent;
+  return null;
+}
+
+/* ============ A：节点图 ============ */
+function drawGraph(){
+  const W = cv.clientWidth, H = cv.clientHeight;
+  const visible = { x:wxOf(0)-80, y:wyOf(0)-80, w:W/view.z+160, h:H/view.z+160 };
+  const inView = p => !(p.x+p.w < visible.x || p.x > visible.x+visible.w
+                     || p.y+p.h < visible.y || p.y > visible.y+visible.h);
+
+  // 聚焦集：选中/悬停节点的直接引用
+  const focusId = selected || hovered;
+  const focusSet = new Set();
+  if(focusId){
+    focusSet.add(focusId);
+    for(const l of links){
+      if(l.from === focusId) focusSet.add(l.to);
+      if(l.to === focusId) focusSet.add(l.from);
+    }
+  }
+  const dim = id => focusId && !focusSet.has(id);
+
+  // 分组框（先画，垫底）
+  for(const [id,p] of positions){
+    const n = byId.get(id);
+    if(!n || n.kind !== "group" || !inView(p)) continue;
+    ctx.save();
+    if(dim(id)) ctx.globalAlpha = 0.45;
+    rr(ctx, X(p.x), Y(p.y), p.w*view.z, p.h*view.z, 14*view.z);
+    ctx.fillStyle = T.groupBg; ctx.fill();
+    ctx.strokeStyle = T.groupBd; ctx.lineWidth = 1; ctx.setLineDash([4,4]); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // 分组标题
+    if(view.z >= 0.4){
+      ctx.fillStyle = T.ink2;
+      ctx.font = `600 ${11.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline = "middle";
+      ctx.fillText(n.title, X(p.x + 12), Y(p.y + GROUP_HEADER/2));
+      // 折叠图标位（视觉占位）
+      ctx.strokeStyle = T.ink3; ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      const cx = X(p.x + p.w - 16), cy = Y(p.y + GROUP_HEADER/2);
+      ctx.moveTo(cx-3, cy-2); ctx.lineTo(cx, cy+1); ctx.lineTo(cx+3, cy-2);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 泳道标签
+    for(const lane of p.lanes){
+      if(!inView(lane)) continue;
+      ctx.save();
+      if(dim(id)) ctx.globalAlpha = 0.45;
+      rr(ctx, X(lane.x), Y(lane.y), lane.w*view.z, lane.h*view.z, 10*view.z);
+      ctx.fillStyle = "rgba(255,255,255,.55)"; ctx.fill();
+      ctx.strokeStyle = "rgba(148,163,184,.35)"; ctx.lineWidth = 1; ctx.stroke();
+      if(view.z >= 0.45){
+        ctx.fillStyle = T.ink3;
+        ctx.font = `600 ${10*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        ctx.textBaseline = "top";
+        ctx.fillText(lane.title, X(lane.x + 10), Y(lane.y + 8));
+      }
+      ctx.restore();
+    }
+  }
+
+  // 连线：正交（带 8px 圆角），先画暗色底，再画高亮
+  const drawLink = (l, active) => {
+    const a = positions.get(l.from), b = positions.get(l.to);
+    if(!a || !b) return;
+    const ax = a.x + a.w, ay = a.y + a.h/2;
+    const bx = b.x, by = b.y + b.h/2;
+    const midX = ax + Math.max(28, Math.min(64, (bx-ax)/2));
+    ctx.beginPath();
+    ctx.moveTo(X(ax), Y(ay));
+    const r = 8*view.z;
+    ctx.lineTo(X(midX - r), Y(ay));
+    ctx.quadraticCurveTo(X(midX), Y(ay), X(midX), Y(ay + (by>ay?r:-r)));
+    ctx.lineTo(X(midX), Y(by - (by>ay?r:-r)));
+    ctx.quadraticCurveTo(X(midX), Y(by), X(midX + r), Y(by));
+    ctx.lineTo(X(bx), Y(by));
+    ctx.strokeStyle = active ? T.linkActive : T.link;
+    ctx.lineWidth = (active ? 2 : 1.3);
+    ctx.stroke();
+    // 箭头
+    ctx.beginPath();
+    ctx.moveTo(X(bx), Y(by));
+    ctx.lineTo(X(bx)-6*view.z, Y(by)-3.5*view.z);
+    ctx.lineTo(X(bx)-6*view.z, Y(by)+3.5*view.z);
+    ctx.closePath();
+    ctx.fillStyle = active ? T.linkActive : T.link;
+    ctx.fill();
+  };
+
+  for(const l of links) if(!focusId) drawLink(l, false);
+  if(focusId){
+    for(const l of links){
+      const on = l.from === focusId || l.to === focusId;
+      if(on) drawLink(l, true);
+    }
+  }
+
+  // 节点卡片
+  let drawn = 0;
+  for(const [id,p] of positions){
+    const n = byId.get(id);
+    if(!n || n.kind === "group" || !inView(p)) continue;
+    drawn++;
+    const x = X(p.x), y = Y(p.y), w = p.w*view.z, h = p.h*view.z;
+
+    ctx.save();
+    if(n.disabled) ctx.globalAlpha = 0.55;
+    if(dim(id)) ctx.globalAlpha *= 0.4;
+
+    // 卡片
+    ctx.shadowColor = "rgba(15,23,42,.06)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 1;
+    rr(ctx, x, y, w, h, 10*view.z);
+    ctx.fillStyle = T.card; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+    const sc = stateColor(n);
+    ctx.strokeStyle = id === selected ? T.accent : (sc || T.cardBd);
+    ctx.lineWidth = (id === selected ? 2 : 1) * Math.max(1, view.z);
+    ctx.stroke();
+
+    if(id === selected){
+      rr(ctx, x-2, y-2, w+4, h+4, 12*view.z);
+      ctx.strokeStyle = "rgba(79,70,229,.16)"; ctx.lineWidth = 3*view.z; ctx.stroke();
+    }
+
+    // 左侧状态色条
+    if(sc){
+      rr(ctx, x, y, 3*view.z, h, 2*view.z);
+      ctx.fillStyle = sc; ctx.fill();
+    }
+
+    if(view.z >= 0.4){
+      // 类型点 + 标题 + 副标题
+      ctx.beginPath();
+      ctx.arc(x + 16*view.z, y + h*0.36, 3*view.z, 0, Math.PI*2);
+      ctx.fillStyle = T.accent; ctx.globalAlpha *= 1; ctx.fill();
+
+      ctx.fillStyle = T.ink;
+      ctx.font = `600 ${13*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(n.title, x + 26*view.z, y + h*0.42);
+
+      ctx.fillStyle = T.ink3;
+      ctx.font = `${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.fillText(n.sub, x + 26*view.z, y + h*0.42 + 15*view.z);
+    }
+    ctx.restore();
+  }
+  return drawn;
+}
+
+/* ============ B：流水线列表 ============ */
+function pageCount(){ return Math.max(1, Math.ceil((root.length||1) / pageSize)); }
+
+function listRowsForPage(){
+  const steps = flatRows.filter(r=>r.kind==="step");
+  const from = page*pageSize, to = Math.min(steps.length, from+pageSize);
+  if(from >= steps.length) return [];
+  const y0 = steps[from].y, y1 = steps[to-1].y + steps[to-1].h;
+  return flatRows.filter(r=> r.y + r.h > y0 - 40 && r.y < y1 + 40);
+}
+
+function drawList(){
+  const W = cv.clientWidth, H = cv.clientHeight;
+  const list = listRowsForPage();
+  const visTop = wyOf(0), visBot = wyOf(H);
+  const X0 = 40;
+  let drawn = 0;
+
+  // 页内引用：先画正交短线（左侧沟槽），只在同一页且相邻 6 行内
+  const idx = new Map();
+  list.forEach((r,i)=> idx.set(r, i));
+  for(const l of links){
+    const ri = rowIndex.get(l.from), rj = rowIndex.get(l.to);
+    if(ri == null || rj == null) continue;
+    const rs = flatRows[ri], rt = flatRows[rj];
+    if(!list.includes(rs) || !list.includes(rt)) continue;
+    if(Math.abs(ri - rj) > 6) continue;
+
+    const gx = X0 - 22;
+    const sy = rs.y + rs.h/2, ty = rt.y + rt.h/2;
+    ctx.beginPath();
+    ctx.moveTo(X(X0 - 6), Y(sy));
+    ctx.lineTo(X(gx), Y(sy));
+    ctx.lineTo(X(gx), Y(ty));
+    ctx.lineTo(X(X0 - 6), Y(ty));
+    ctx.strokeStyle = T.link; ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(X(X0-6), Y(ty));
+    ctx.lineTo(X(X0-11), Y(ty)-3.5);
+    ctx.lineTo(X(X0-11), Y(ty)+3.5);
+    ctx.closePath(); ctx.fillStyle = T.link; ctx.fill();
+  }
+
+  for(const r of list){
+    if(r.y + r.h < visTop || r.y > visBot) continue;
+    drawn++;
+    const x = X0 + r.depth*22;
+
+    if(r.kind === "group"){
+      if(view.z < 0.35) continue;
+      ctx.fillStyle = T.ink2;
+      ctx.font = `600 ${12*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline = "middle";
+      ctx.fillText("▾  " + r.node.title, X(x), Y(r.y + r.h/2));
+      ctx.strokeStyle = T.groupBd; ctx.lineWidth = 1; ctx.setLineDash([3,3]);
+      ctx.beginPath(); ctx.moveTo(X(x), Y(r.y + r.h - 6)); ctx.lineTo(X(x + 440*view.z), Y(r.y + r.h - 6)); ctx.stroke();
+      ctx.setLineDash([]);
+      continue;
+    }
+    if(r.kind === "lane"){
+      if(view.z < 0.35) continue;
+      ctx.fillStyle = T.ink3;
+      ctx.font = `600 ${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline = "middle";
+      ctx.fillText(r.node.title, X(x), Y(r.y + r.h/2));
+      continue;
+    }
+
+    const n = r.node, h = r.h - 12, w = 420;
+    ctx.save();
+    if(n.disabled) ctx.globalAlpha = 0.55;
+
+    ctx.shadowColor = "rgba(15,23,42,.05)"; ctx.shadowBlur = 5; ctx.shadowOffsetY = 1;
+    rr(ctx, X(x), Y(r.y), w*view.z, h*view.z, 10*view.z);
+    ctx.fillStyle = T.card; ctx.fill();
+    ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+    const sc = stateColor(n);
+    ctx.strokeStyle = (n.id === selected) ? T.accent : (sc || T.cardBd);
+    ctx.lineWidth = Math.max(1, (n.id === selected ? 2 : 1) * view.z);
+    ctx.stroke();
+
+    if(view.z >= 0.4){
+      // 序号
+      ctx.fillStyle = T.ink3;
+      ctx.font = `600 ${10*view.z}px "Segoe UI",sans-serif`;
+      ctx.textBaseline = "middle"; ctx.textAlign = "right";
+      ctx.fillText(String(rowIndex.get(n.id)+1), X(x - 8), Y(r.y + h/2));
+      ctx.textAlign = "left";
+
+      ctx.beginPath();
+      ctx.arc(X(x + 16*view.z), Y(r.y + h*0.38), 3*view.z, 0, Math.PI*2);
+      ctx.fillStyle = sc || T.accent; ctx.fill();
+
+      ctx.fillStyle = T.ink;
+      ctx.font = `600 ${13*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.textBaseline = "alphabetic";
+      ctx.fillText(n.title, X(x + 26*view.z), Y(r.y + h*0.44));
+
+      ctx.fillStyle = T.ink3;
+      ctx.font = `${10.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+      ctx.fillText(n.sub, X(x + 26*view.z), Y(r.y + h*0.44 + 15*view.z));
+
+      // 引用 chip（跨页/远距离）
+      const chips = chipsFor(n);
+      let cx = X(x + w) - 10*view.z;
+      for(const c of chips.slice().reverse()){
+        ctx.font = `600 ${9.5*view.z}px "Segoe UI","Microsoft YaHei",sans-serif`;
+        const label = "← " + c.name;
+        const cw = ctx.measureText(label).width + 14*view.z;
+        cx -= cw + 6*view.z;
+        if(cx < X(x + 150*view.z)) break;
+        rr(ctx, cx, Y(r.y + h - 22*view.z), cw, 15*view.z, 4*view.z);
+        ctx.fillStyle = T.chipBg; ctx.fill();
+        ctx.strokeStyle = T.chipBd; ctx.lineWidth = Math.max(.6,1*view.z); ctx.stroke();
+        ctx.fillStyle = T.chipInk;
+        ctx.fillText(label, cx + 7*view.z, Y(r.y + h - 11*view.z));
+      }
+    }
+    ctx.restore();
+  }
+  return drawn;
+}
+
+function chipsFor(n){
+  const out = [];
+  const ri = rowIndex.get(n.id);
+  for(const l of links){
+    if(l.to !== n.id) continue;
+    const rj = rowIndex.get(l.from);
+    if(rj == null) continue;
+    if(Math.abs(ri - rj) <= 6) continue;     // 已画线
+    const src = byId.get(l.from);
+    if(src) out.push({ name: src.title });
+  }
+  return out;
+}
+
+/* ============ 主渲染 ============ */
+function render(){
+  const t0 = performance.now();
+  const W = cv.clientWidth, H = cv.clientHeight;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle = T.bg; ctx.fillRect(0,0,W,H);
+
+  if(view.z >= 0.35){
+    const step = 24*view.z;
+    if(step >= 7){
+      ctx.fillStyle = T.grid;
+      const ox = view.x % step, oy = view.y % step;
+      for(let x=ox;x<W;x+=step) for(let y=oy;y<H;y+=step) ctx.fillRect(x,y,1,1);
+    }
+  }
+
+  const drawn = mode === "A" ? drawGraph() : drawList();
+  lastFrame = performance.now() - t0;
+
+  const hud = document.getElementById("hud");
+  if(mode === "A"){
+    hud.innerHTML = `<b>${byId.size}</b> 个节点 · <b>${links.length}</b> 条引用<br>`
+      + `本帧绘制 <b>${drawn}</b>（视口裁剪）<br>`
+      + `一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`;
+  }else{
+    const steps = flatRows.filter(r=>r.kind==="step").length;
+    hud.innerHTML = `第 <b>${page+1} / ${pageCount()}</b> 页 · 每页 ${pageSize} 步<br>`
+      + `共 <b>${steps}</b> 步 · 本页行 ${listRowsForPage().length}<br>`
+      + `一帧 <b>${lastFrame.toFixed(1)}</b> ms · 缩放 ${view.z.toFixed(2)}×`;
+  }
+
+  document.getElementById("stRows").textContent = mode==="A" ? `节点 ${byId.size}` : `页 ${page+1}/${pageCount()}`;
+  document.getElementById("stDraw").textContent = `绘制 ${drawn}`;
+  document.getElementById("stFrame").textContent = `一帧 ${lastFrame.toFixed(1)} ms`;
+  document.getElementById("pageInfo").textContent = `${page+1} / ${pageCount()}`;
+
+  if(mode === "A") drawMini();
+  dirtyFlag = false;
+}
+
+function drawMini(){
+  const c = document.getElementById("mmc"), m = c.getContext("2d");
+  m.setTransform(1,0,0,1,0,0); m.clearRect(0,0,c.width,c.height);
+  const b = contentBounds(); if(!b) return;
+  const z = Math.min((c.width-12)/b.w, (c.height-12)/b.h);
+  const ox = (c.width-b.w*z)/2 - b.x*z, oy = (c.height-b.h*z)/2 - b.y*z;
+  m.fillStyle = "rgba(79,70,229,.35)";
+  for(const [id,p] of positions){
+    const n = byId.get(id); if(!n || n.kind==="group") continue;
+    m.fillRect(ox+p.x*z, oy+p.y*z, Math.max(1.5,p.w*z), Math.max(1,p.h*z));
+  }
+  m.strokeStyle = T.accent; m.lineWidth = 2;
+  m.strokeRect(ox + wxOf(0)*z, oy + wyOf(0)*z, (cv.clientWidth/view.z)*z, (cv.clientHeight/view.z)*z);
+}
+
+/* ============ 交互 ============ */
+let drag = null;
+
+function pos(e){ const r = cv.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; }
+
+function hitAt(p){
+  const wx = wxOf(p.x), wy = wyOf(p.y);
+  if(mode === "A"){
+    let best = null;
+    for(const [id,box] of positions){
+      const n = byId.get(id);
+      if(!n || n.kind === "group") continue;
+      if(wx>=box.x && wx<=box.x+box.w && wy>=box.y && wy<=box.y+box.h) best = id;
+    }
+    return best;
+  }
+  for(const r of listRowsForPage()){
+    if(r.kind !== "step") continue;
+    const x = 40 + r.depth*22;
+    if(wx>=x && wx<=x+420 && wy>=r.y && wy<=r.y+r.h) return r.node.id;
+  }
+  return null;
+}
+
+cv.addEventListener("mousedown", e=>{
+  const p = pos(e);
+  if(e.button === 1 || e.altKey){ drag = {mode:"pan", x:p.x, y:p.y}; return; }
+  const id = hitAt(p);
+  selected = id || null;
+  if(id){ drag = {mode:"move", x:p.x, y:p.y, id, moved:false}; }
+  dirty();
+});
+
+window.addEventListener("mousemove", e=>{
+  const p = pos(e);
+  if(drag && drag.mode === "pan"){
+    view.x += p.x - drag.x; view.y += p.y - drag.y;
+    drag.x = p.x; drag.y = p.y; dirty(); return;
+  }
+  if(drag && drag.mode === "move"){
+    if(Math.abs(p.x-drag.x) + Math.abs(p.y-drag.y) > 4) drag.moved = true;
+    if(drag.moved && mode === "A"){
+      const box = positions.get(drag.id);
+      if(box){ box.x += (p.x-drag.x)/view.z; box.y += (p.y-drag.y)/view.z; }
+      drag.x = p.x; drag.y = p.y; dirty();
+    }
+    return;
+  }
+  const id = hitAt(p);
+  if(id !== hovered){ hovered = id; dirty(); }
+});
+
+window.addEventListener("mouseup", ()=>{ drag = null; });
+
+cv.addEventListener("wheel", e=>{
+  e.preventDefault();
+  const p = pos(e);
+  const wx = wxOf(p.x), wy = wyOf(p.y);
+  view.z = Math.max(MIN_Z, Math.min(MAX_Z, view.z * Math.exp(-e.deltaY*0.0015)));
+  view.x = p.x - wx*view.z; view.y = p.y - wy*view.z;
+  dirty();
+}, {passive:false});
+
+/* ============ 切换 ============ */
+function setMode(m){
+  mode = m;
+  document.getElementById("tabA").classList.toggle("on", m==="A");
+  document.getElementById("tabB").classList.toggle("on", m==="B");
+  document.getElementById("stMode").textContent = m==="A" ? "A · 节点图" : "B · 流水线列表";
+  document.getElementById("pager").style.display = m==="B" ? "flex" : "none";
+  document.getElementById("mini").style.display = m==="A" ? "block" : "none";
+  document.getElementById("notes").innerHTML = m==="A" ? notesA() : notesB();
+  selected = null; hovered = null;
+  rebuild();
+  if(m === "B"){ view.z = 1; view.x = 0; view.y = 130; }
+  dirty();
+}
+
+function notesA(){
+  return `<h4>A · 节点图（保留空间结构，现代视觉）</h4>
+  曲线全部换成 <b>正交折线</b>（8px 圆角），不再有交叉的贝塞尔；
+  引用关系用 <b>聚焦高亮</b>解决：点选/悬停任一节点，其余节点降到 40% 透明，
+  与它相关的线高亮成主色——不需要把线画得更显眼，而是<b>把无关的压下去</b>。<br>
+  视口裁剪：只画视口内节点（HUD 显示"本帧绘制 N"）。`;
+}
+function notesB(){
+  return `<h4>B · 流水线列表（现代 CI / 自动化工具的做法）</h4>
+  按执行顺序的 <b>卡片流</b>，分组是可折叠小节（不是框）；
+  相邻引用用左侧细线，跨页/远距离用 <kbd>← 源名</kbd> 标签（点标签跳页）。<br>
+  <b>一页 ${pageSize} 步</b>：3000 步 = ${Math.ceil(3000/pageSize)} 页，只有当前页参与渲染。`;
+}
+
+document.getElementById("tabA").onclick = ()=> setMode("A");
+document.getElementById("tabB").onclick = ()=> setMode("B");
+document.getElementById("btnDemo").onclick = ()=>{ buildDemo(); setMode(mode); };
+document.getElementById("btnStress").onclick = ()=>{ buildStress(3000); setMode(mode); };
+document.getElementById("prev").onclick = ()=>{ if(page>0){page--; dirty();} };
+document.getElementById("next").onclick = ()=>{ if(page<pageCount()-1){page++; dirty();} };
+document.getElementById("pageSize").onchange = e=>{ pageSize = +e.target.value; page = 0; setMode("B"); };
+document.getElementById("btnNotes").onclick = ()=>{
+  const el = document.getElementById("notes");
+  el.style.display = el.style.display === "block" ? "none" : "block";
+};
+
+/* ============ 启动 ============ */
+function resize(){
+  const r = cv.getBoundingClientRect();
+  DPR = window.devicePixelRatio || 1;
+  cv.width = Math.max(1, Math.round(r.width*DPR));
+  cv.height = Math.max(1, Math.round(r.height*DPR));
+  dirty();
+}
+window.addEventListener("resize", resize);
+
+function loop(){
+  if(dirtyFlag){
+    try { render(); }
+    catch(err){ window.__err = String(err && err.stack || err); dirtyFlag = false; }
+  }
+  requestAnimationFrame(loop);
+}
+
+resize();
+buildDemo();
+setMode("A");
+loop();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,72 @@
+{
+  "schema": "vm-plan/1",
+  "id": "step-edit-comment",
+  "title": "编辑步骤注释",
+  "version": "1.0.0",
+  "risk": "low",
+  "description": "右键流程树行 → 编辑注释，弹窗标题是「注释重命名」；注释显示在画布节点下方。",
+  "params": {
+    "step_name": {
+      "type": "string",
+      "required": true,
+      "example": "模板匹配"
+    },
+    "comment": {
+      "type": "string",
+      "required": true,
+      "example": "取 ROI 中心作为定位结果"
+    }
+  },
+  "preconditions": [
+    {
+      "assert": "process_running",
+      "process": "VisionMaster"
+    },
+    {
+      "assert": "window",
+      "target": "app.main"
+    }
+  ],
+  "steps": [
+    {
+      "n": 1,
+      "do": "right_click",
+      "target": "process.step_row",
+      "target_name": "${step_name}",
+      "expect": {
+        "element": "process.context.comment",
+        "state": "visible"
+      },
+      "timeout_ms": 3000
+    },
+    {
+      "n": 2,
+      "do": "click",
+      "target": "process.context.comment",
+      "expect": {
+        "window": "dialog.step_comment",
+        "state": "visible"
+      },
+      "timeout_ms": 5000
+    },
+    {
+      "n": 3,
+      "do": "type",
+      "target": "dialog.step_comment.input",
+      "text": "${comment}",
+      "clear": true
+    },
+    {
+      "n": 4,
+      "do": "click",
+      "target": "dialog.step_comment.ok",
+      "expect": {
+        "window": "dialog.step_comment",
+        "state": "closed"
+      },
+      "timeout_ms": 5000
+    }
+  ],
+  "on_fail": "stop_and_report",
+  "tags": ["step", "comment"]
+}

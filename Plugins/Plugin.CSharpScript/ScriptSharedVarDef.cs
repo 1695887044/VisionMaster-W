@@ -114,6 +114,21 @@ namespace Plugin.CSharpScript
         public string EffectiveAlias =>
             string.IsNullOrWhiteSpace(Alias) ? (Name ?? "").Trim() : Alias.Trim();
 
+        /// <summary>
+        /// 别名留空时，把**此刻**的变量名固化成显式别名（已有别名不动）。
+        ///
+        /// 为什么必须固化：留空的语义是"用变量名"，而 <see cref="Name"/> 每次开配置都会被
+        /// 宿主快照覆盖成当前名。不固化的话，变量管理里一改名，脚本里写好的键就凭空变成
+        /// "未声明"——按 Id 寻址只保住了声明行，保不住脚本正文。
+        /// </summary>
+        public void CaptureAliasIfEmpty()
+        {
+            if (!string.IsNullOrWhiteSpace(Alias)) return;
+            string name = (Name ?? "").Trim();
+            if (name.Length == 0) return;
+            Alias = name;
+        }
+
         /// <summary>是否允许写：系统变量与只读声明都不允许</summary>
         [JsonIgnore]
         public bool CanWrite => !IsSystem && Access == ScriptSharedAccess.ReadWrite;

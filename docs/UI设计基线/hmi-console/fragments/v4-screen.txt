@@ -1,0 +1,232 @@
+      <section class="screen-page is-on" id="v4" data-page="v4">
+        <div class="tpl-head">
+          <div><h2><span>V4-01</span>轴控件新增「步进点动」· JogStepMm + ShowStepSelector</h2>
+            <p>改的是<b>一个控件类</b>（<code>AxisPanelElement</code>）的模板，不是新增图元：<code>Hmi.AxisPanel</code> / <code>Hmi.AxisConsole</code> / <code>Hmi.AxisPointTable</code> 三个预设同时生效。默认值 <code>ShowStepSelector=false</code>、<code>JogStepMm=0</code> —— 老方案打开后版面<b>与 v3 完全一致</b>，零回归。</p></div>
+          <div class="tpl-meta"><span><b>新增</b>1 行布局 + 2 个属性</span><span><b>位置</b>速度行与按钮行之间</span><span><b>尺寸</b>320×470 → 320×498</span></div>
+        </div>
+        <div class="screen">
+          <div class="topbar">
+            <div class="brand"><span class="logo">VM</span><div><b>轴控件 · 步进点动</b><small>JogStepMm / ShowStepSelector · 设计稿 v4</small></div></div>
+            <span class="status-chip run"><i></i>已使能</span>
+            <span class="mode-pill">MANUAL · 手动</span>
+            <div class="spacer"></div>
+            <div class="top-stat"><span>预览控件</span><b>AxisConsole</b></div>
+            <div class="top-stat"><span>变量</span><b>JogStepMm</b></div>
+            <div class="top-stat"><span>变量</span><b>ShowStepSelector</b></div>
+            <div class="alarm-chip"><i></i>无报警</div>
+            <div class="user"><span>角色</span><b>工程师</b></div>
+            <div class="clock">16:08:41</div>
+          </div>
+          <div class="shell">
+            <div class="nav">
+              <div class="nav-item" data-nav="overview"><i class="ico">▤</i>运动总览</div>
+              <div class="nav-item" data-nav="jog"><i class="ico">⇕</i>点动与回零</div>
+              <div class="nav-item" data-nav="axisparam"><i class="ico">⚙</i>轴参数</div>
+              <div class="nav-item" data-nav="monitor"><i class="ico">◎</i>视觉监控</div>
+              <div class="nav-item" data-nav="trace"><i class="ico">▦</i>数据追溯</div>
+              <div class="nav-item" data-nav="alarm"><i class="ico">⚑</i>报警中心</div>
+              <div class="nav-item" data-nav="recipe"><i class="ico">≡</i>工艺参数</div>
+              <div class="nav-sep"></div>
+              <div class="nav-item"><i class="ico">⏻</i>退出运行</div>
+              <div class="nav-foot"><div class="conn"><i></i>ZMotion VPLC532R 在线</div><div class="conn-sub">四轴 · 100 mm/s 点动上限</div></div>
+            </div>
+            <div class="main">
+
+              <div class="card" style="padding:12px;">
+                <div class="card-head"><div><b>三态对照 · 同一个控件类</b><span>关（v3 原样）／开（v4 新增一行）／单轴收起，尺寸按真实预设标注</span></div><span class="chip ok">零回归：默认关</span></div>
+                <div class="axp-trio">
+
+                  <div class="col">
+                    <div class="cap"><b>① ShowStepSelector=false</b> · <i>默认</i> · 与 v3 完全一致</div>
+                    <div class="axp" style="height:470px;">
+                      <span class="axp-dims">320 × 470</span>
+                      <div class="axp-hd">轴<span class="axp-combo"><b>AXIS-X 横梁</b><span class="car">▼</span></span></div>
+                      <div class="axp-pos"><b>128.480</b><em>mm</em></div>
+                      <div class="axp-lamps">
+                        <div class="axp-lamp on"><i class="on"></i>使能</div>
+                        <div class="axp-lamp on"><i class="on g"></i>到位</div>
+                        <div class="axp-lamp"><i></i>运动</div>
+                        <div class="axp-lamp on"><i class="on g"></i>原点</div>
+                        <div class="axp-lamp"><i></i>报警</div>
+                        <div class="axp-lamp"><i></i>正限位</div>
+                        <div class="axp-lamp"><i></i>反限位</div>
+                        <div class="axp-lamp"><i></i>急停</div>
+                      </div>
+                      <div class="axp-vel"><b>0.000</b><em>mm/s</em><span class="st">已到位</span></div>
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot">◀ 点动</span><span class="axp-btn hot">点动 ▶</span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg ok"></div>
+                      <div class="axp-points">
+                        <div class="axp-ph"><span>点位</span><span>位置(mm)</span><span>速度(mm/s)</span><span>操作</span></div>
+                        <div class="axp-prow"><span class="cap">P001 取料位</span><span class="pv">128.480</span><span class="ps">120.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P002 检测位</span><span class="pv">92.000</span><span class="ps">60.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P003 放料位</span><span class="pv">176.000</span><span class="ps">120.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P004 安全位</span><span class="pv">20.000</span><span class="ps">200.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P005 原点待机</span><span class="pv">0.000</span><span class="ps">30.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P006 换刀位</span><span class="pv">150.000</span><span class="ps">80.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                      </div>
+                      <div class="axp-foot">无步进行<span class="tag">AxisConsole · 默认</span></div>
+                    </div>
+                  </div>
+
+                  <div class="col">
+                    <div class="cap"><b>② ShowStepSelector=true</b> · <i>新增一行</i> · 高度 470 → 498</div>
+                    <div class="axp" style="height:498px;">
+                      <span class="axp-dims">320 × 498</span>
+                      <div class="axp-hd">轴<span class="axp-combo"><b>AXIS-X 横梁</b><span class="car">▼</span></span></div>
+                      <div class="axp-pos"><b>128.480</b><em>mm</em></div>
+                      <div class="axp-lamps">
+                        <div class="axp-lamp on"><i class="on"></i>使能</div>
+                        <div class="axp-lamp on"><i class="on g"></i>到位</div>
+                        <div class="axp-lamp"><i></i>运动</div>
+                        <div class="axp-lamp on"><i class="on g"></i>原点</div>
+                        <div class="axp-lamp"><i></i>报警</div>
+                        <div class="axp-lamp"><i></i>正限位</div>
+                        <div class="axp-lamp"><i></i>反限位</div>
+                        <div class="axp-lamp"><i></i>急停</div>
+                      </div>
+                      <div class="axp-vel"><b>0.000</b><em>mm/s</em><span class="st">已到位</span></div>
+                      <div class="axp-jog">
+                        <span class="lbl">步距</span>
+                        <span class="axp-steps"><span>0.01</span><span class="on">0.1</span><span>1</span><span>10</span><span class="dim">100</span></span>
+                        <span class="sep"></span>
+                        <span class="axp-rate"><b>10</b><em>mm/s</em><span class="x">×2</span></span>
+                        <span class="eff">→ 20 mm/s</span>
+                      </div>
+                      <div class="axp-cmds">
+                        <span class="axp-btn">失能</span><span class="axp-btn hot step">◀<span class="sub">.1</span></span><span class="axp-btn hot step">▶<span class="sub">.1</span></span>
+                        <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                      </div>
+                      <div class="axp-msg ok"></div>
+                      <div class="axp-points">
+                        <div class="axp-ph"><span>点位</span><span>位置(mm)</span><span>速度(mm/s)</span><span>操作</span></div>
+                        <div class="axp-prow"><span class="cap">P001 取料位</span><span class="pv">128.480</span><span class="ps">120.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P002 检测位</span><span class="pv">92.000</span><span class="ps">60.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P003 放料位</span><span class="pv">176.000</span><span class="ps">120.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P004 安全位</span><span class="pv">20.000</span><span class="ps">200.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P005 原点待机</span><span class="pv">0.000</span><span class="ps">30.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                        <div class="axp-prow"><span class="cap">P006 换刀位</span><span class="pv">150.000</span><span class="ps">80.00</span><span class="po"><span>示教</span><span>定位</span></span></div>
+                      </div>
+                      <div class="axp-foot">步距 0.1 mm<span class="tag">Console · 启用步进</span></div>
+                    </div>
+                  </div>
+
+                  <div class="col">
+                    <div class="cap"><b>③ ShowCommands=false</b> · <i>仍启用步进</i> · 步进行跟着收起</div>
+                    <div class="axp" style="height:280px;width:280px;">
+                      <span class="axp-dims">280 × 280</span>
+                      <div class="axp-hd">轴<span class="axp-combo"><b>AXIS-Z 升降</b><span class="car">▼</span></span></div>
+                      <div class="axp-pos"><b>−12.500</b><em>mm</em></div>
+                      <div class="axp-lamps">
+                        <div class="axp-lamp on"><i class="on"></i>使能</div>
+                        <div class="axp-lamp on"><i class="on g"></i>到位</div>
+                        <div class="axp-lamp"><i></i>运动</div>
+                        <div class="axp-lamp"><i></i>原点</div>
+                        <div class="axp-lamp"><i></i>报警</div>
+                        <div class="axp-lamp"><i></i>正限位</div>
+                        <div class="axp-lamp on"><i class="al"></i>反限位</div>
+                        <div class="axp-lamp"><i></i>急停</div>
+                      </div>
+                      <div class="axp-vel"><b>0.000</b><em>mm/s</em><span class="st">已撞 −30 软限位</span></div>
+                      <div class="axp-gap" style="margin:0 9px 8px"><i>规则</i><span><b>ShowCommands=false</b> 时没有点动按钮，步进选择器无意义 → 整行一起收起，避免出现"能选步距却没地方点"的假入口</span></div>
+                      <div class="axp-foot">纯监视态<span class="tag">AxisPanel · 紧凑</span></div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0;">
+
+                <div class="card" style="padding:12px;">
+                  <div class="card-head"><div><b>步进点动的真实行为</b><span>与"按住走"共存，不替代它</span></div><span class="chip">点动 · 两步语义</span></div>
+                  <div class="axp" style="height:230px;background:#181C22;">
+                    <div class="axp-hd">轴<span class="axp-combo"><b>AXIS-Y 拖板</b><span class="car">▼</span></span></div>
+                    <div class="axp-pos"><b>64.000</b><em>mm</em></div>
+                    <div class="axp-jog">
+                      <span class="lbl">步距</span>
+                      <span class="axp-steps"><span class="on">0.01</span><span>0.1</span><span>1</span><span>10</span><span>100</span></span>
+                      <span class="sep"></span>
+                      <span class="axp-rate"><b>10</b><em>mm/s</em><span class="x">×1</span></span>
+                      <span class="eff">→ 10 mm/s</span>
+                    </div>
+                    <div class="axp-cmds">
+                      <span class="axp-btn">失能</span><span class="axp-btn hot step">◀<span class="sub">.01</span></span><span class="axp-btn hot step">▶<span class="sub">.01</span></span>
+                      <span class="axp-btn">回零</span><span class="axp-btn danger">停止</span><span class="axp-btn">清报警</span>
+                    </div>
+                    <div class="axp-msg">点动 +0.01 mm 已完成 · 目标 64.010 · 用时 41 ms</div>
+                    <div class="axp-foot">点一下走一格<span class="tag">JogStep</span></div>
+                  </div>
+                  <div class="row" style="margin-top:9px;flex-wrap:wrap;gap:6px;">
+                    <span class="chip ok">单击 = 走一格（JogStep）</span>
+                    <span class="chip">按住 = 连续走（JogStart/Stop）</span>
+                    <span class="chip warn">长按 → 按住语义（300 ms 后转连续）</span>
+                  </div>
+                </div>
+
+                <div class="card" style="padding:12px;">
+                  <div class="card-head"><div><b>两个新属性 · 属性面板长这样</b><span>都归在「操作」分组，紧跟点动速度</span></div><span class="chip">FlatPropertyGrid</span></div>
+                  <div style="margin-top:2px;">
+                    <div class="axp-prop"><span class="k">JogVelocity</span><span class="v">10 <em>mm/s</em></span><span class="tag def">既有</span></div>
+                    <div class="axp-prop"><span class="k">JogStepMm</span><span class="v">0 <em>mm · 0=关闭</em></span><span class="tag new">新增</span></div>
+                    <div class="axp-prop"><span class="k">ShowStepSelector</span><span class="v">False</span><span class="tag new">新增</span></div>
+                    <div class="axp-prop"><span class="k">ConfirmCommands</span><span class="v">True</span><span class="tag def">既有</span></div>
+                    <div class="axp-prop"><span class="k">ShowCommands</span><span class="v">True</span><span class="tag def">既有</span></div>
+                    <div class="axp-prop"><span class="k">ShowPoints</span><span class="v">True <em>（Console 预设）</em></span><span class="tag def">既有</span></div>
+                    <div class="axp-prop"><span class="k">PointsRows</span><span class="v">6</span><span class="tag def">既有</span></div>
+                  </div>
+                  <div class="axp-gap" style="margin:10px 0 0"><i>口径</i><span><b>JogStepMm</b> 与点动速度是两件事：前者是"走多远"，后者是"走多快"。<b>0 = 关闭步进</b>，此时点动按钮与 v3 完全一致（只按住走），避免老方案里出现"点一下不动"的困惑。</span></div>
+                </div>
+
+              </div>
+
+              <div class="card" style="padding:12px;flex:none;">
+                <div class="card-head"><div><b>落点与约束</b><span>改模板要守住的几条</span></div><span class="chip">AxisPanelElement.xaml</span></div>
+                <table class="axp-iom">
+                  <thead><tr><th>约定</th><th>取值 / 规则</th><th>为什么</th></tr></thead>
+                  <tbody>
+                    <tr><td>插入位置</td><td>RootGrid 的 <b>Row3（速度行）与 Row4（操作按钮）之间</b>，新增一行 <code>.axp-jog</code></td><td>步距是点动的参数，必须紧贴点动按钮；放到灯上面会打断"状态→操作"的阅读顺序</td></tr>
+                    <tr><td>行高</td><td>26 px（选择器 20 px + 上下各 3 px）</td><td>触摸屏点得到；Console 470 → <b>498</b>，AxisPanel 280 → <b>308</b></td></tr>
+                    <tr><td>档位</td><td><b>0.01 / 0.1 / 1 / 10 / 100</b> mm（5 档，超出轴行程的档位自动置灰）</td><td>与 ZMotion 每脉冲 0.0763 µm 对得上：0.01 mm 是最小可辨识档，不至于走到"靠脉冲糊弄"</td></tr>
+                    <tr><td>选中态</td><td>珊瑚红底 <code>rgba(255,97,97,.22)</code> + 1px 描边</td><td>与位置大字同色，面板里只有"当前生效值"用这个红</td></tr>
+                    <tr><td>倍率显示</td><td><code>×N</code> 徽标 = <b>派生值</b>，不是第三个属性</td><td>倍率由步距档位换算（1 mm 档自动 ×2 提速），避免"速度 × 倍率"两套真值打架</td></tr>
+                    <tr><td>单击 / 按住</td><td>单击走一格（<b>300 ms</b> 内抬起 = 步进）；超过 300 ms 转连续点动</td><td>触摸屏上手会抖：只用 0/1 判定会把"想按一格"变成"一直走"</td></tr>
+                    <tr><td>停止语义不变</td><td>松手 / 移出 / 失捕获三路都发 <code>JogStop</code>；切轴先对<b>旧轴</b>停</td><td>v3 已验证的安全行为不许因为加了步进而退化</td></tr>
+                    <tr><td>灰态</td><td><code>CanOperate=false</code> 时整行与按钮一起灰掉，<b>不静默空跑</b></td><td>沿用 <code>CheckCanRun</code> 的"权限+出口+选中轴"三闸门</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+            <div class="rail">
+              <div class="card" style="padding:11px;">
+                <div class="card-head"><div><b>这次改动的边界</b><span>只碰一个类</span></div><span class="chip ok">2 属性 + 1 行</span></div>
+                <div class="axp-prop"><span class="k">AxisPanelElement.cs</span><span class="v">+2 [ScadaProperty]</span><span class="tag new">改</span></div>
+                <div class="axp-prop"><span class="k">AxisPanelElement.xaml</span><span class="v">+1 行 + 2 段样式</span><span class="tag new">改</span></div>
+                <div class="axp-prop"><span class="k">BuiltInElements.cs</span><span class="v">3 个预设无需改（属性自动同步）</span><span class="tag def">不动</span></div>
+                <div class="axp-prop"><span class="k">ScadaChecks</span><span class="v">+3 条断言（单击走一格 / 默认关 / 长按转连续）</span><span class="tag new">加</span></div>
+                <div class="axp-prop"><span class="k">其它图元</span><span class="v">0 处影响</span><span class="tag def">不动</span></div>
+              </div>
+              <div class="card" style="padding:11px;">
+                <div class="card-head"><div><b>拍摄点</b><span>这张图从哪里来</span></div><span class="chip">证据</span></div>
+                <div style="font-size:9.5px;color:var(--c-text-2);line-height:1.7;">
+                  锚点 <code>#app-d/jogstep</code> · 1920×1080<br>
+                  上图三列即三个预设的真实版面<br>
+                  右侧是属性面板与改动清单
+                </div>
+              </div>
+              <div class="card" style="flex:1;min-height:0;padding:11px;">
+                <div class="card-head"><div><b>待你裁定</b><span>三条都需要你点头</span></div><span class="chip warn">Q9~Q11</span></div>
+                <div style="display:flex;flex-direction:column;gap:6px;font-size:9.5px;color:var(--c-text-2);line-height:1.55;">
+                  <div><b style="color:#FCD34D;">Q9</b> 档位取 <b>0.01/0.1/1/10/100</b> 五档，够不够？要不要改成 1/10/100 µm 的精细档？</div>
+                  <div><b style="color:#FCD34D;">Q10</b> 单击走一格 / 按住连续 的 <b>300 ms</b> 分界，是否符合现场手感？</div>
+                  <div><b style="color:#FCD34D;">Q11</b> 倍率做<b>派生显示</b>（不给独立属性）够不够？还是你要一个可配的 <code>JogRateOptions</code>？</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bottombar"><span>设计稿 v4 · 轴控件步进点动</span><span>预览数据为示例值</span><span class="right">hmi-console · 2026-10-24</span></div>
+        </div>
+      </section>

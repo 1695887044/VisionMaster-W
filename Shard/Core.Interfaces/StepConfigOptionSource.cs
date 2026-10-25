@@ -64,6 +64,69 @@ namespace Core.Interfaces
     }
 
     /// <summary>
+    /// 取候选的三种"空"状态。<see cref="Ok"/> 之外**都不是**"可以手填"的理由，
+    /// 而是界面要说清的原因（见 <see cref="StepConfigOptionSource"/> 的 2026-10-24 口径）。
+    /// </summary>
+    public enum StepConfigOptionFailureKind
+    {
+        /// <summary>取到了候选，或有来源登记且清单不为空。</summary>
+        Ok = 0,
+
+        /// <summary>宿主没有为这个类别注册任何来源 —— **程序缺陷**（插件声明了 OptionKind 就该有人注册）。</summary>
+        NoProvider = 1,
+
+        /// <summary>来源登记了，但当前清单为空 —— 正常业务状态（还没配卡 / 没有已启用的轴）。</summary>
+        EmptyList = 2,
+
+        /// <summary>来源自己抛了异常 —— **程序缺陷**，异常文本在 <see cref="StepConfigOptionResult.ProviderErrors"/>。</summary>
+        ProviderThrew = 3,
+    }
+
+    /// <summary>带原因的候选结果。<see cref="Items"/> 永远是具体列表（可能是空），从不返回 null。</summary>
+    public sealed class StepConfigOptionResult
+    {
+        internal StepConfigOptionResult(
+            StepConfigOptionKind kind,
+            IReadOnlyList<StepConfigOption> items,
+            bool hasProvider,
+            IReadOnlyList<string>? providerErrors)
+        {
+            Kind = kind;
+            Items = items ?? Array.Empty<StepConfigOption>();
+            HasProvider = hasProvider;
+            ProviderErrors = providerErrors ?? Array.Empty<string>();
+        }
+
+        public StepConfigOptionKind Kind { get; }
+
+        /// <summary>去重合并后的候选（可能为空）。</summary>
+        public IReadOnlyList<StepConfigOption> Items { get; }
+
+        /// <summary>是否至少有一个来源为这个类别登记过（BooleanChoice 恒 true：契约层自带）。</summary>
+        public bool HasProvider { get; }
+
+        /// <summary>取候选时被吞掉的异常文本（"类型名: 消息"），空表示没有来源抛错。</summary>
+        public IReadOnlyList<string> ProviderErrors { get; }
+
+        /// <summary>三态判据。**判"能不能选"只看 <see cref="Items"/>.Count**，这个只判"为什么选不到"。</summary>
+        public StepConfigOptionFailureKind Failure
+            => ProviderErrors.Count > 0 ? StepConfigOptionFailureKind.ProviderThrew
+             : !HasProvider ? StepConfigOptionFailureKind.NoProvider
+             : Items.Count == 0 ? StepConfigOptionFailureKind.EmptyList
+             : StepConfigOptionFailureKind.Ok;
+
+        /// <summary>是否属于"程序缺陷"（要红着脸报错，而不是当正常空态）。</summary>
+        public bool IsDefect
+            => Failure is StepConfigOptionFailureKind.NoProvider or StepConfigOptionFailureKind.ProviderThrew;
+
+        internal static StepConfigOptionResult BuiltIn(IReadOnlyList<StepConfigOption> items)
+            => new(StepConfigOptionKind.BooleanChoice, items, hasProvider: true, providerErrors: null);
+
+        internal static StepConfigOptionResult NoProvider(StepConfigOptionKind kind)
+            => new(kind, Array.Empty<StepConfigOption>(), hasProvider: false, providerErrors: null);
+    }
+
+    /// <summary>
     /// 步骤参数候选项的来源注册表（宿主注入，消费方只读）。
     ///
     /// 【为什么放在契约层而不是 UI 库】
@@ -78,8 +141,17 @@ namespace Core.Interfaces
     /// 【为什么是"注入"而不是自己取】候选项来自"当前方案的运动卡与轴映射"，
     /// 那是宿主的领域。契约层只保留一个函数指针，由宿主决定候选怎么算
     /// （例如只列"已启用"的轴、给卡地址配一个人能认出来的显示名）。
-    /// 未注册时返回空列表：界面退化成可自由输入的文本框，而不是把人堵死 ——
-    /// 还没配卡的时候本来就该允许手填。
+    ///
+    /// 【2026-10-24 口径变更（用户裁决）：名字类字段不再允许手填】
+    /// 旧口径是"未注册时返回空列表：界面退化成可自由输入的文本框，而不是把人堵死 ——
+    /// 还没配卡的时候本来就该允许手填"。实测这是一条**静默缺陷**：轴名/卡名这类字段
+    /// 是框架权威清单，用户手填一个不存在的轴名时界面毫无提示，要到运行期才炸；
+    /// 而"没注册来源"和"注册了但清单为空"两种完全不同的原因，在界面上又长得一模一样。
+    /// 现口径：**候选取不到时不放开手填，而是把原因说清楚**（见 <see cref="GetOptionsResult"/>）：
+    ///   · 该类别压根没登记来源 → 程序缺陷（宿主本应注册），红字报错；
+    ///   · 已登记但清单为空 → 正常业务状态（还没配卡/没启用轴），给出"去哪里配"的入口；
+    ///   · 来源自己抛异常 → 程序缺陷，异常被吞掉会让界面看起来"只是没数据"。
+    /// 三种状态必须可区分，所以下面的读取入口返回的是**带原因的**结果，而不是裸空列表。
     /// </summary>
     public static class StepConfigOptionSource
     {
@@ -116,20 +188,40 @@ namespace Core.Interfaces
                 _providers = _providers.Append(provider).ToArray();
         }
 
-        /// <summary>取某类别的候选（含显示文本）。未注册/取不到时返回空列表，调用方应容忍空</summary>
+        /// <summary>取某类别的候选（含显示文本）。未注册/取不到时返回空列表，调用方应容忍空。
+        /// <para>⚠ 只取列表会**丢掉失败原因**（"没登记来源"与"登记了但为空"都变成空列表）。
+        /// 需要区分三种状态的地方请用 <see cref="GetOptionsResult"/>。</para></summary>
         public static IReadOnlyList<StepConfigOption> GetOptionItems(StepConfigOptionKind kind)
+            => GetOptionsResult(kind).Items;
+
+        /// <summary>
+        /// 取某类别候选的**带原因**结果：三种"空"必须能分开。
+        ///
+        /// 【为什么不能只返回列表】"取不到候选"在界面上要渲染成三种完全不同的东西：
+        ///   · <see cref="StepConfigOptionFailureKind.NoProvider"/> —— 宿主压根没为这个类别注册来源，
+        ///     是**程序缺陷**（插件声明了 OptionKind，宿主本应注册），要红字报错；
+        ///   · <see cref="StepConfigOptionFailureKind.EmptyList"/> —— 来源登记了但当前清单为空
+        ///     （还没配运动卡 / 方案里没有已启用的轴），是**正常业务状态**，给"去哪里配"的入口；
+        ///   · <see cref="StepConfigOptionFailureKind.ProviderThrew"/> —— 来源自己抛了异常。
+        ///     以前这里是 <c>catch { }</c> 静默跳过，界面看起来只是"没数据"，
+        ///     真正的缺陷被藏起来；现在把异常文本带出来。
+        /// 三种状态下界面都**不再放开手填**（名字类字段是框架权威清单，见类注释的 2026-10-24 口径）。
+        /// </summary>
+        public static StepConfigOptionResult GetOptionsResult(StepConfigOptionKind kind)
         {
             // 布尔二选一是封闭集合，不需要任何宿主来源；优先返回，避免被测试夹具的
             // Register(kind => ...) 覆盖成空列表（否则 bool 端口又退回文本框 + 链接）。
             if (kind == StepConfigOptionKind.BooleanChoice)
-                return BooleanChoices;
+                return StepConfigOptionResult.BuiltIn(BooleanChoices);
 
             var providers = _providers;
             if (providers.Length == 0)
-                return Array.Empty<StepConfigOption>();
+                return StepConfigOptionResult.NoProvider(kind);
 
             var result = new List<StepConfigOption>();
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            List<string>? failures = null;
+            var produced = false;
 
             foreach (var provider in providers)
             {
@@ -138,6 +230,7 @@ namespace Core.Interfaces
                     var options = provider(kind);
                     if (options == null) continue;
 
+                    produced = true;
                     foreach (var option in options)
                     {
                         if (option == null) continue;
@@ -145,13 +238,15 @@ namespace Core.Interfaces
                         if (seen.Add(option.Value)) result.Add(option);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // 单个来源失败不该让绑定界面/端口声明崩：跳过它，其它来源照常
+                    // 单个来源失败不该让绑定界面/端口声明崩：跳过它，其它来源照常。
+                    // 但**不能静默**：把异常文本收集起来，交给界面按"程序缺陷"报出来。
+                    (failures ??= new List<string>()).Add(ex.GetType().Name + ": " + ex.Message);
                 }
             }
 
-            return result;
+            return new StepConfigOptionResult(kind, result, produced, failures);
         }
 
         /// <summary>
@@ -164,14 +259,14 @@ namespace Core.Interfaces
         /// <summary>
         /// 某类别**当前是否取得到候选**。
         ///
-        /// 【为什么要这个辅助】"取不到候选"是一个**正常的业务状态**（还没配运动卡、方案里没有
-        /// 已启用的轴、宿主没注册来源），而界面在两种状态下要渲染成两种东西：
-        /// 有候选 → 下拉（值只能从候选里选）；无候选 → 可手填的输入框 + "无候选，可手填"提示。
-        /// 判据只有这一个入口，别让各处自己写"Count &gt; 0"再各自解释一遍。
+        /// 【口径 2026-10-24 已改】旧注释把"取不到候选"一律当成正常业务状态，于是界面统一退化成
+        /// "可手填的输入框 + 无候选，可手填"。现在名字类字段不再允许手填：**取不到候选时要么是
+        /// 还没配（给"去哪里配"的入口），要么是宿主漏注册（程序缺陷，红字）**——这两种必须分开，
+        /// 所以要判"为什么取不到"请用 <see cref="GetOptionsResult"/> 看
+        /// <see cref="StepConfigOptionResult.Failure"/>，本方法只回答"现在有没有得选"。
         ///
-        /// 【口径】只做判定时调它；**要显示候选列表请直接 <see cref="GetOptionItems"/> 后判 Count**
-        /// —— 候选由宿主现算（可能查方案），连着调两次会取两遍、还可能取到不一致的两份。
-        /// 本方法不改变任何既有语义：未注册/取不到仍是空列表（不是异常、不是 null）。
+        /// 【调用代价】候选由宿主现算（可能查方案），连着调两次会取两遍、还可能取到不一致的两份；
+        /// 既要列表又要判空时请**只调一次 <see cref="GetOptionsResult"/>** 再判 Items.Count。
         /// </summary>
         public static bool HasOptions(StepConfigOptionKind kind) => GetOptionItems(kind).Count > 0;
     }

@@ -23,8 +23,10 @@ namespace VisionMaster.Services
     /// ---------
     /// ① **插件主动注入**（主）：<see cref="IImagePreviewCapture.Capture"/> 在**发布线程**上同步
     ///    把图拷走（关键：这张图活不过发布方的下一轮，异步到 UI 线程再拷就晚了——见该接口的说明），
-    ///    事件订阅 <see cref="OnRealtimePreview"/> 只作无钩子时的兜底。逐条进列表，不做槽位合并。
-    ///    这张图说明什么由插件自己讲，不靠步骤名去猜。
+    ///    事件订阅 <see cref="OnRealtimePreview"/> 只作无钩子时的兜底。
+    ///    占用槽位随"收容"开关（<see cref="ImageGallerySettings.KeepInjectedHistory"/>）变：
+    ///    默认关 = 每个（流程，窗口号）只留最新一张，新图顶掉旧图并当场释放；
+    ///    打开 = 每帧各占一条，列表可回看历史。这张图说明什么由插件自己讲，不靠步骤名去猜。
     /// ② **运行完成兜底枚举**（辅，默认关）：订阅 <see cref="FlowEngineService.FlowRunCompleted"/>，
     ///    每跑完一轮遍历 <c>session.ExecutionEngine.PluginLookup</c> 里每个插件的 <c>Outputs</c>，
     ///    把没被主动注入的 <see cref="HImage"/> 端口也收进来（这些图没有说明信息）。由
@@ -154,13 +156,79 @@ namespace VisionMaster.Services
         {
             RunOnUi(() =>
             {
-                TrimToLimits(CurrentSettings());
+                var cfg = CurrentSettings();
+
+                // 收容开关可能刚被翻过：已收下的注入帧要当场按新口径重整槽位，
+                // 否则同一窗口会同时出现"旧键那条"与"新键这条"两张图（见 ImageFrame.Reslot）。
+                ReslotInjectedFrames(cfg);
+
+                TrimToLimits(cfg);
                 OnChanged();
             });
 
             // 保留期可能刚被改小：立刻按新值清一次（后台，别占 UI 线程做目录遍历）
             System.Threading.Tasks.Task.Run(() => CleanupExpiredAlarmFrames());
         }
+
+        /// <summary>
+        /// 按当前收容开关给**已收下的注入帧**重算槽位键，并同步索引。
+        ///
+        /// 收容关（默认）：每个（流程，窗口号）只留最新一张——同槽的多帧按最旧优先淘汰；
+        /// 收容开：每帧各占一条（唯一键），历史上都保留。
+        ///
+        /// 只动注入帧：兜底采集帧的位置是"流程+步骤+端口"，本来就被端口数封顶，
+        /// 跟着收敛等于把可见的中间过程图白扔掉。
+        /// </summary>
+        private void ReslotInjectedFrames(ImageGallerySettings cfg)
+        {
+            var injected = _frames.Where(f => f.IsInjectedPreview).ToList();
+            if (injected.Count == 0) return;
+
+            // 先把这批帧从索引里摘掉，重算完再按新键重建——索引与帧必须一起改，
+            // 只改一侧的后果是"图在集合里但覆盖打不中"，下一帧就会多出一条重复。
+            foreach (var frame in injected)
+            {
+                if (_slotIndex.TryGetValue(frame.SlotKey, out var current) && ReferenceEquals(current, frame))
+                    _slotIndex.Remove(frame.SlotKey);
+            }
+
+            if (cfg.KeepInjectedHistory)
+            {
+                // 收容开：帧之间不能再合并。已经是唯一键的保持不动，合并进来的分不到历史，
+                // 仍按"一帧一条"处理（补一个唯一键，绝不退化成按窗口合并）。
+                foreach (var frame in injected)
+                {
+                    frame.Reslot("\u0002" + Guid.NewGuid().ToString("N"));
+                    _slotIndex[frame.SlotKey] = frame;
+                }
+                return;
+            }
+
+            // 收容关：按（流程，窗口号）收敛，每个位置只留序列号最大的那张
+            foreach (var group in injected.GroupBy(PreviewSlotKey, StringComparer.Ordinal))
+            {
+                var ordered = group.OrderByDescending(f => f.Sequence).ToList();
+                for (int i = 1; i < ordered.Count; i++)
+                {
+                    RemoveFrame(ordered[i]);
+                }
+
+                var keeper = ordered[0];
+                keeper.Reslot(group.Key);
+                _slotIndex[keeper.SlotKey] = keeper;
+            }
+        }
+
+        /// <summary>
+        /// 注入帧"不保留历史"时占的槽位：流程 + 窗口号。
+        ///
+        /// 为什么按窗口号而不是"流程+插件"：现场按窗口看画面（第 N 格 ↔ 窗口号 N），
+        /// 同一窗口后来的图就该顶掉先来的——哪怕它们是不同插件发的（相机图 → 处理结果图，
+        /// 这正是调参时最想看到的"同一路图在推进"）。按插件分会把同一格塞进多张，
+        /// 于是格子显示的仍是"某个插件最后发的那张"，与"这个窗口最后一张"不是一回事。
+        /// </summary>
+        private static string PreviewSlotKey(ImageFrame frame)
+            => "\u0003" + (frame.FlowName ?? string.Empty) + "\u0001" + frame.ViewIndex;
 
         /// <summary>
         /// 清理超过保留期的报警图集（程序目录 <c>AlarmFrames/yyyy-MM-dd/...</c>）。
@@ -391,14 +459,58 @@ namespace VisionMaster.Services
                     if (port.Value?.Value is not HImage image) continue;
                     if (!SafeIsInitialized(image)) continue;
 
-                    // 端口兜底采集的图没有窗口号 → 归到第 1 格（多格布局下不至于凭空消失）
+                    // 归属窗口号取插件自己声明的"显示窗口号"——**不能一律塞第 1 格**：
+                    // 多流程并跑时每条流程各发自己的窗口，全塞 1 会让第 1 格被所有流程刷满、
+                    // 其余各格永远空着。插件没声明 / 声明为 0（不显示）时才回落到窗口 1，
+                    // 因为兜底的语义是"至少让这张图有地方出现"，而不是"按不显示的意图丢弃"。
+                    var viewIndex = ReadDisplayViewIndex(plugin);
                     var frame = BuildFrame(session.FlowName, stepName, port.Key, image,
-                        title: null, info: null, annotations: null, uniqueSlot: false, viewIndex: 1, cfg);
+                        title: null, info: null, annotations: null, uniqueSlot: false,
+                        viewIndex: viewIndex > 0 ? viewIndex : 1, cfg);
                     if (frame != null) frames.Add(frame);
                 }
             }
 
             return frames;
+        }
+
+        /// <summary>
+        /// 读插件声明的"显示窗口号"（1~9；0 = 不显示 / 未声明）。读不到一律返回 0。
+        ///
+        /// 为什么要在宿主侧读、而不是让插件报上来：兜底采集的时机是"一轮跑完之后遍历输出端口"，
+        /// 那一刻插件已经退出 RunAlgorithm，没有上下文可问；窗口号只存在于插件的配置属性上。
+        ///
+        /// 两种声明形态都要认（R84 同类坑：同一个语义在两个程序集里各写一套）：
+        /// ① <c>[StepConfig] public int DisplayViewIndex</c> —— 普通属性，插件自己读它发布；
+        /// ② <c>InputPort&lt;int&gt; DisplayViewIndex</c> —— 端口，值在 <c>IPort.Value</c> 里。
+        /// 都不是则返回 0，由调用方回落到窗口 1。
+        /// </summary>
+        private static int ReadDisplayViewIndex(IVisionPlugin plugin)
+        {
+            const string name = "DisplayViewIndex";
+            if (plugin == null) return 0;
+
+            try
+            {
+                // ① 端口形态：值可能被变量/上游链接改过，以运行期值为准
+                if (plugin.Inputs != null && plugin.Inputs.TryGetValue(name, out var port)
+                    && port?.Value != null)
+                {
+                    return Convert.ToInt32(port.Value, System.Globalization.CultureInfo.InvariantCulture);
+                }
+
+                // ② 普通属性形态：插件发布时读的就是它，兜底采集必须与它一致
+                var prop = plugin.GetType().GetProperty(
+                    name, System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (prop != null && prop.PropertyType == typeof(int) && prop.CanRead)
+                    return (int)prop.GetValue(plugin);
+            }
+            catch
+            {
+                // 读窗口号失败不该让整轮兜底采集作废（其它端口的图仍然有收集价值）
+            }
+
+            return 0;
         }
 
         /// <summary>
@@ -514,10 +626,24 @@ namespace VisionMaster.Services
             {
                 source.GetImageSize(out int width, out int height);
                 copy = source.CopyImage();
+
+                // 缩略图无条件生成：收容关时条子虽然不显示，但用户随时可能在设置里打开收容，
+                // 那时条子要显示的是**已收下的这批帧**——省掉这一步，打开收容后条子里
+                // 会全是"无预览"占位（那些帧永远补不回来）。宁可每帧多一次缩小，
+                // 也不要把"Thumbnail 是否为空"变成依赖配置的隐式契约。
                 var thumbnail = MakeThumbnail(copy, cfg.ThumbnailMaxSize);
 
-                // 注入帧给唯一槽位键：列表要一条条列出来，不能被同名槽位合并掉
-                return new ImageFrame(uniqueSlot ? "\u0002" + Guid.NewGuid().ToString("N") : null)
+                // 注入帧的槽位键随"收容"开关变：
+                //   收容开 = 唯一键（每帧一条，列表能回看历史）；
+                //   收容关 = 流程 + 窗口号（同窗口后来的图顶掉先来的，旧的当场释放）。
+                // 兜底采集帧（uniqueSlot=false）仍按"流程+步骤+端口"占槽，由端口数天然封顶。
+                string? slotKey = null;
+                if (uniqueSlot && !cfg.KeepInjectedHistory)
+                    slotKey = "\u0003" + (flowName ?? string.Empty) + "\u0001" + (viewIndex <= 0 ? 1 : viewIndex);
+                else if (uniqueSlot)
+                    slotKey = "\u0002" + Guid.NewGuid().ToString("N");
+
+                return new ImageFrame(slotKey)
                 {
                     FlowName = flowName ?? string.Empty,
                     StepName = stepName ?? string.Empty,
@@ -530,7 +656,8 @@ namespace VisionMaster.Services
                     InfoRows = info,
                     Image = copy,
                     Thumbnail = thumbnail,
-                    Annotations = annotations
+                    Annotations = annotations,
+                    IsInjectedPreview = uniqueSlot
                 };
             }
             catch (Exception ex)

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
 
 namespace VisionMaster.Scada.Controls
 {
@@ -32,10 +33,22 @@ namespace VisionMaster.Scada.Controls
     /// 运行时的接法（S6）：把 <see cref="Value"/> 绑到工程变量上，指针就活了。
     /// </summary>
     [TemplatePart(Name = PartValueLabel, Type = typeof(TextBlock))]
+    [TemplatePart(Name = PartNeedle, Type = typeof(Path))]
+    [TemplatePart(Name = PartProgress, Type = typeof(Path))]
     public partial class GaugeElement : ScadaElementBase
     {
         /// <summary>模板部件名：表盘下方的数值文字</summary>
         public const string PartValueLabel = "ValueLabel";
+
+        /// <summary>模板部件名：指针</summary>
+        public const string PartNeedle = "Needle";
+
+        /// <summary>模板部件名：环形进度弧</summary>
+        public const string PartProgress = "Progress";
+
+        public const string StyleClassic = "Classic";
+        public const string StyleRing = "Ring";
+        public const string StylePlus = "Plus";
 
         // 声明次序 = 属性面板里的行序（生成器按源码次序收集）：数据 → 刻度 → 外观 → 文字，
         // 与原先手写描述符的分组次序一致。
@@ -108,6 +121,19 @@ namespace VisionMaster.Scada.Controls
                        Description = "关掉只留指针（读数由旁边的数值域承担），一个没有读数的表盘在工业现场几乎没用，所以默认开")]
         public partial bool ShowValue { get; set; }
 
+        /// <summary>外观样式：Classic 指针表 / Ring 环形进度 / Plus 加粗环形</summary>
+        [ScadaProperty(Key = "Style", DisplayName = "样式", Kind = ElementPropertyKind.Choice,
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "Classic",
+                       Choices = new[] { "Classic", "Ring", "Plus" }, AffectsRender = false,
+                       Description = "Classic = 指针表；Ring = 环形进度（隐藏指针）；Plus = 加粗环形 + 读数")]
+        public partial string? GaugeStyle { get; set; }
+
+        /// <summary>环形进度的颜色</summary>
+        [ScadaProperty(Key = "ProgressColor", DisplayName = "进度色", Kind = ElementPropertyKind.Color,
+                       Group = ScadaPropertyGroups.Appearance, DefaultValue = "#FF38BDF8",
+                       Description = "Ring / Plus 样式的进度弧颜色；Classic 样式不生效")]
+        public partial Brush? ProgressColor { get; set; }
+
         #region 推导结果（只读）
 
         private static readonly DependencyPropertyKey FaceGeometryPropertyKey = DependencyProperty.RegisterReadOnly(
@@ -127,6 +153,12 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>指针（含中心轴环，只读）</summary>
         public static readonly DependencyProperty NeedleGeometryProperty = NeedleGeometryPropertyKey.DependencyProperty;
+
+        private static readonly DependencyPropertyKey ProgressGeometryPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(ProgressGeometry), typeof(Geometry), typeof(GaugeElement), new PropertyMetadata(null));
+
+        /// <summary>环形进度弧（只读；Ring/Plus 样式用）</summary>
+        public static readonly DependencyProperty ProgressGeometryProperty = ProgressGeometryPropertyKey.DependencyProperty;
 
         private static readonly DependencyPropertyKey NeedleAnglePropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(NeedleAngle), typeof(double), typeof(GaugeElement), new PropertyMetadata(0d));
@@ -187,6 +219,9 @@ namespace VisionMaster.Scada.Controls
         /// <summary>指针几何（只读，见 <see cref="NeedleGeometryProperty"/>）</summary>
         public Geometry? NeedleGeometry => (Geometry?)GetValue(NeedleGeometryProperty);
 
+        /// <summary>环形进度弧（只读，见 <see cref="ProgressGeometryProperty"/>）</summary>
+        public Geometry? ProgressGeometry => (Geometry?)GetValue(ProgressGeometryProperty);
+
         /// <summary>指针当前角度（只读，见 <see cref="NeedleAngleProperty"/>）</summary>
         public double NeedleAngle => (double)GetValue(NeedleAngleProperty);
 
@@ -224,6 +259,11 @@ namespace VisionMaster.Scada.Controls
         partial void OnStartAnglePropertyChanged() => UpdateDial();
         partial void OnSweepAnglePropertyChanged() => UpdateDial();
         partial void OnTickDivisionsPropertyChanged() => UpdateDial();
+        partial void OnGaugeStylePropertyChanged()
+        {
+            NormalizeStyle();
+            UpdateDial();
+        }
 
         // 「显不显数值」是个纯模板层的开关，但本环境下 ControlTemplate.Triggers 里的 DataTrigger
         // 不触发（见 ScadaElementBase.SetPartVisible），所以由代码翻，模板里也不写 Visibility 初值。
@@ -233,6 +273,13 @@ namespace VisionMaster.Scada.Controls
         {
             // 数值文字的显隐与尺寸无关，先办掉——下面尺寸为 0 时会提前 return，别把它漏在外面。
             SetPartVisible(PartValueLabel, ShowValue);
+
+            bool ring = !string.Equals(GaugeStyle, StyleClassic, StringComparison.OrdinalIgnoreCase);
+            SetPartVisible(PartNeedle, !ring);
+            SetPartVisible(PartProgress, ring);
+
+            if (GetTemplateChild(PartProgress) is Path progressPath)
+                progressPath.StrokeThickness = string.Equals(GaugeStyle, StylePlus, StringComparison.OrdinalIgnoreCase) ? 14d : 10d;
 
             // ---- 与尺寸无关的两项：先算，保证断言环境（不跑布局）里也是对的 ----
 
@@ -255,6 +302,7 @@ namespace VisionMaster.Scada.Controls
                 SetValue(FaceGeometryPropertyKey, null);
                 SetValue(ScaleGeometryPropertyKey, null);
                 SetValue(NeedleGeometryPropertyKey, null);
+                SetValue(ProgressGeometryPropertyKey, null);
                 return;
             }
 
@@ -270,6 +318,7 @@ namespace VisionMaster.Scada.Controls
                 SetValue(FaceGeometryPropertyKey, null);
                 SetValue(ScaleGeometryPropertyKey, null);
                 SetValue(NeedleGeometryPropertyKey, null);
+                SetValue(ProgressGeometryPropertyKey, null);
                 return;
             }
 
@@ -279,6 +328,49 @@ namespace VisionMaster.Scada.Controls
             SetValue(FaceGeometryPropertyKey, Freeze(new EllipseGeometry(new Point(cx, cy), radius, radius)));
             SetValue(ScaleGeometryPropertyKey, BuildScale(cx, cy, radius, start, sweep));
             SetValue(NeedleGeometryPropertyKey, BuildNeedle(cx, cy, radius, NeedleAngle, needleThickness));
+            SetValue(ProgressGeometryPropertyKey,
+                ring ? BuildProgress(cx, cy, radius, start, sweep, Ratio()) : null);
+        }
+
+        /// <summary>环形进度弧：从起始角画到当前值对应的角度；比例 0 时不画。</summary>
+        private Geometry? BuildProgress(double cx, double cy, double radius, double start, double sweep, double ratio)
+        {
+            if (ratio <= 0.001d || Math.Abs(sweep) < 0.01d)
+                return null;
+
+            double progressSweep = sweep * Math.Clamp(ratio, 0d, 1d);
+            double arcRadius = radius * 0.86d;
+
+            var figure = new PathFigure
+            {
+                StartPoint = PointOnCircle(cx, cy, arcRadius, start),
+                IsClosed = false,
+                IsFilled = false,
+            };
+
+            figure.Segments.Add(new ArcSegment(
+                point: PointOnCircle(cx, cy, arcRadius, start + progressSweep),
+                size: new Size(arcRadius, arcRadius),
+                rotationAngle: 0d,
+                isLargeArc: Math.Abs(progressSweep) > 180d,
+                sweepDirection: progressSweep >= 0d ? SweepDirection.Clockwise : SweepDirection.Counterclockwise,
+                isStroked: true));
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(figure);
+            return Freeze(geometry);
+        }
+
+        private void NormalizeStyle()
+        {
+            string canonical = string.Equals(GaugeStyle, StyleRing, StringComparison.OrdinalIgnoreCase)
+                ? StyleRing
+                : string.Equals(GaugeStyle, StylePlus, StringComparison.OrdinalIgnoreCase)
+                    ? StylePlus
+                    : StyleClassic;
+
+            if (!string.Equals(GaugeStyle, canonical, StringComparison.Ordinal))
+                GaugeStyle = canonical;
         }
 
         /// <summary>

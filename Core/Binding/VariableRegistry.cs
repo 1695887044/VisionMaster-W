@@ -403,21 +403,35 @@ namespace VisionMaster.Binding
             switch (e.Action)
             {
                 case NotifyCollectionChangedAction.Add:
-                case NotifyCollectionChangedAction.Remove:
                     lock (_gate)
                     {
-                        if (e.OldItems != null)
-                            foreach (IVariable old in e.OldItems)
-                                RemoveFromIndex(old);
-
                         if (e.NewItems != null)
                             foreach (IVariable added in e.NewItems)
                                 AddToIndex(added);
                     }
                     break;
 
+                case NotifyCollectionChangedAction.Remove:
+                    lock (_gate)
+                    {
+                        if (e.OldItems != null)
+                            foreach (IVariable old in e.OldItems)
+                                RemoveFromIndex(old);
+                    }
+
+                    // 索引更新完、锁外再释放：释放会广播 ValueChanged，订阅方可能反查注册表。
+                    // 变量被移出集合 = 再没有人能按名/Id 找到它，它自己拷贝的图像副本应当当场释放
+                    // （一张 500 万彩图 ≈ 15MB，靠 GC 收等于长期占着）。
+                    if (e.OldItems != null)
+                        foreach (IVariable removed in e.OldItems)
+                            VariableValueOwner.Release(removed);
+                    break;
+
                 case NotifyCollectionChangedAction.Reset:
-                    // Clear() 也走这里：集合已空，重建即为清空
+                    // Clear() 也走这里：集合已空。旧索引里的用户变量没人再引用，先释放它们的副本再重建。
+                    // 注意：集合实例被整体替换（GlobalVariables setter → Attach → Rebuild）不走这里——
+                    // 那条路上旧变量可能被搬到新集合里继续用，不能释放。
+                    ReleaseIndexedUserVariables();
                     Rebuild();
                     break;
 
@@ -426,6 +440,21 @@ namespace VisionMaster.Binding
                     Rebuild();
                     break;
             }
+        }
+
+        /// <summary>
+        /// 释放旧索引里**用户变量**持有的值（Clear 前调用；系统变量是派生只读量，另源、不碰）。
+        /// 快照后逐个释放：<see cref="VariableValueOwner.Release"/> 会派发 ValueChanged，
+        /// 订阅方在回调里反查本注册表时不能正持锁，也不能看到"释放了一半"的表。
+        /// </summary>
+        private void ReleaseIndexedUserVariables()
+        {
+            List<IVariable> previous;
+            lock (_gate)
+                previous = new List<IVariable>(_byId.Values);
+
+            foreach (var variable in previous)
+                VariableValueOwner.Release(variable);
         }
 
         /// <summary>

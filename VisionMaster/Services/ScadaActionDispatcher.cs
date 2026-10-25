@@ -14,8 +14,9 @@ namespace VisionMaster.Services
     ///
     /// 现在接通了哪些动作
     /// ---------
-    /// 十八个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
+    /// 二十六个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
     /// <see cref="IScadaValueSource"/> 解析后落 <c>IWritableVariable.TryWrite</c>（S6 接入）；
+    /// 「置位 / 复位 / 取反」走同一条通道做"读-改-写"（v4 位操作，见 <see cref="ExecuteBitAction"/>）；
     /// 「切换画面」走 <see cref="IScadaNavigator"/> 找画面并换 <c>CurrentPage</c>（S8 接入）；
     /// 「返回上一页」走同一个出口的 <see cref="IScadaNavigator.GoBack"/>（页栈回退，P0 接入）；
     /// 「启动流程 / 暂停流程 / 恢复流程 / 停止流程 / 执行一次」走 <see cref="IScadaFlowRunner"/>
@@ -153,6 +154,12 @@ namespace VisionMaster.Services
         private readonly IRecipeCommandSink? _recipes;
 
         /// <summary>
+        /// 播放声音出口（组态动作表的「播放声音」）。可为 null——没接线时按“未接入”跳过。
+        /// 与报警声音服务分开：报警声音跟严重度/静音策略走，本动作是操作员按一下的即时反馈。
+        /// </summary>
+        private readonly IScadaSoundPlayer? _sounds;
+
+        /// <summary>
         /// 执行前二次确认出口（P0）。可为 null——没接线时按“取消”处理，
         /// 绝不静默放行；断言工程/离线场景可以注入一个假实现。
         /// </summary>
@@ -176,7 +183,8 @@ namespace VisionMaster.Services
             IScadaFlowRunner? flows = null,
             MotionActionExecutor? motions = null,
             IScadaConfirmationService? confirmations = null,
-            IRecipeCommandSink? recipes = null)
+            IRecipeCommandSink? recipes = null,
+            IScadaSoundPlayer? sounds = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _values = values ?? throw new ArgumentNullException(nameof(values));
@@ -186,6 +194,7 @@ namespace VisionMaster.Services
             _motions = motions;
             _confirmations = confirmations;
             _recipes = recipes;
+            _sounds = sounds;
         }
 
         /// <inheritdoc/>
@@ -471,6 +480,17 @@ namespace VisionMaster.Services
 
                 case ScadaActionType.Decrement:
                     ExecuteStepVariable(action, -1, head, stamp);
+                    return;
+
+                // 位操作三条（v4）：与写变量/增量共用同一条寻址与写入通道，只是写的是"一位"。
+                case ScadaActionType.SetBit:
+                case ScadaActionType.ResetBit:
+                case ScadaActionType.ToggleBit:
+                    ExecuteBitAction(action, head, stamp);
+                    return;
+
+                case ScadaActionType.PlaySound:
+                    ExecutePlaySound(action, head, stamp);
                     return;
 
                 case ScadaActionType.Navigate:
@@ -899,12 +919,369 @@ namespace VisionMaster.Services
                 $"{handle.Name}：{Text(before)} → {Text(value)}");
         }
 
+        /// <summary>
+        /// 执行一条位操作动作（置位 / 复位 / 取反）。
+        ///
+        /// 与「写变量」「增量/减量」共用<b>同一条</b>寻址与写入通道
+        /// （<see cref="IScadaValueSource"/> → <c>handle.Value</c> → <c>handle.TryWrite</c>），
+        /// 不新开写口：写租约、设备侧失败原因、审计格式三处必须一致，
+        /// 否则同一次点击在"写变量"和"置位"两条路上会给出两套说法。
+        ///
+        /// 两条路按变量类型分：
+        /// ① <b>Bool</b>：置位写 true、复位写 false、取反写 !当前值；<see cref="ScadaAction.BitIndex"/>
+        ///    在这里没有意义（Bool 只有一位），留空或填 0 都按"整体写"处理。
+        /// ② <b>整型</b>（byte/sbyte/short/ushort/int/uint/long/ulong）：位号必填，且必须落在
+        ///    <c>0..31</c> 与类型位宽的交集内；读当前值 → 改那一位 → 按声明类型写回。
+        ///    整型里其余位原样保留——这正是"读-改-写"存在的理由（写死掩码会覆盖别的位）。
+        /// ③ 其余类型（float/double/decimal/string/数组/图像）明确拒绝，<b>不做字符串拼接</b>：
+        ///    把 "1" 拼到字符串变量上不是位操作，静默成功会让现场以为置位生效了。
+        ///
+        /// 失败分档与「写变量」逐字对齐：没选变量 / 找不到变量记 Skipped（Warn，配置问题），
+        /// 类型不符 / 位号越界 / 当前值读不出来 / 设备拒写记 Failed（Error，这次真没成）。
+        /// </summary>
+        /// <summary>
+        /// 播放声音：不改变任何变量，只调用宿主声音出口。档位非法时按 Info 兜底并在日志里说明，
+        /// 不静默；没有播放器/没有声卡记 Skipped（配置/环境问题，不是这次动作写错了）。
+        /// </summary>
+        private void ExecutePlaySound(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_sounds == null)
+            {
+                const string reason = "未接入声音播放器";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            if (!_sounds.IsAvailable)
+            {
+                string reason = _sounds.UnavailableReason ?? "声音设备不可用";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            var kind = action.SoundKind;
+            var severity = kind switch
+            {
+                "Critical" => ScadaAlarmSeverity.Critical,
+                "Warning" => ScadaAlarmSeverity.Warning,
+                _ => ScadaAlarmSeverity.Info,
+            };
+
+            try
+            {
+                _sounds.Play(severity, 100);
+                string suffix = string.Equals(kind, "Info", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(kind, "Warning", StringComparison.OrdinalIgnoreCase)
+                                || string.Equals(kind, "Critical", StringComparison.OrdinalIgnoreCase)
+                    ? string.Empty
+                    : $"（未知档位「{kind}」按 Info 播放）";
+                Ok(stamp, action, $"{head} → {action.Describe()}{suffix}", kind);
+            }
+            catch (Exception ex)
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：播放失败：{ex.Message}", ex.Message);
+            }
+        }
+
+        private void ExecuteBitAction(ScadaAction action, string head, AuditStamp stamp)
+        {
+            // ① 没选变量：配置漏了。措辞与「写变量」「增量/减量」同一句
+            if (!action.HasVariable)
+            {
+                Skipped(stamp, action,
+                    $"{head} → {action.Type.DisplayName()}：还没选变量，本条未执行", "还没选变量");
+                return;
+            }
+
+            // ② 找不到变量：改名或删了（Id 对不上、名字也对不上）
+            if (!_values.TryResolve(action.ToReference(), out var handle, out var resolveError) || handle == null)
+            {
+                string reason = string.IsNullOrWhiteSpace(resolveError)
+                    ? $"找不到变量「{action.ToReference().DisplayText}」"
+                    : resolveError!;
+
+                Skipped(stamp, action,
+                    $"{head} → {action.Describe()}：{reason}，本条未执行",
+                    reason);
+                return;
+            }
+
+            // 可空包装（bool? / int?）按底层类型判：变量的"是不是布尔/整型"由底层类型回答
+            var dataType = Nullable.GetUnderlyingType(handle.DataType) ?? handle.DataType;
+
+            if (dataType == typeof(bool))
+            {
+                // Bool 没有“第 N 位”这回事：只允许留空或 0（旧配置可能显式写 0）。
+                // 填 5 还按整体写，会把“配错了位号”静默变成“置位成功”。
+                if (action.BitIndex is { } bitIndex && bitIndex != 0)
+                {
+                    string reason = $"变量「{handle.Name}」是 Bool，位号只能留空或 0（当前填 {bitIndex}）";
+                    Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                    return;
+                }
+
+                ExecuteBitBool(action, handle, head, stamp);
+                return;
+            }
+
+            if (IsIntegerType(dataType))
+            {
+                ExecuteBitInteger(action, handle, dataType, head, stamp);
+                return;
+            }
+
+            // ③ 非 Bool / 非整型：拒绝并说清类型名，不做字符串拼接
+            string typeReason = $"变量「{handle.Name}」不是 Bool 或整型（{dataType.Name}），不能置位/复位/取反";
+            Failed(stamp, action, $"{head} → {action.Describe()}：{typeReason}", typeReason);
+        }
+
+        /// <summary>
+        /// Bool 变量的位操作：整体写。
+        ///
+        /// 置位/复位是"绝对值写"，不依赖当前值（当前值读不出来也照写）；
+        /// 只有取反必须先读到当前值——读不出来就拒绝，绝不按 false 起猜：
+        /// 那会把一次"取反"静默变成"置位"，而现场看到的只是"位一直是 1"。
+        /// </summary>
+        private void ExecuteBitBool(ScadaAction action, IScadaValueHandle handle, string head, AuditStamp stamp)
+        {
+            var before = handle.Value;
+            bool next;
+
+            switch (action.Type)
+            {
+                case ScadaActionType.SetBit:
+                    next = true;
+                    break;
+
+                case ScadaActionType.ResetBit:
+                    next = false;
+                    break;
+
+                default:
+                    if (!TryReadBool(before, out var current))
+                    {
+                        string reason = $"变量「{handle.Name}」当前值「{Text(before)}」不是有效布尔，无法取反";
+                        Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                        return;
+                    }
+
+                    next = !current;
+                    break;
+            }
+
+            if (!handle.TryWrite(next, out var writeError))
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：写入失败：{writeError}", writeError);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → {action.Describe()}",
+                $"{handle.Name}：{Text(before)} → {Text(next)}");
+        }
+
+        /// <summary>
+        /// 整型变量的位操作：读当前值 → 改那一位 → 按声明类型写回。
+        ///
+        /// 位号上限取"设计口径 31"与"类型位宽"的较小者：
+        /// 设计基线定的是 0~31（现场字变量都是 32 位），但 byte/short 装不下第 8/16 位，
+        /// 那一位在类型里根本不存在，必须当场拒绝而不是写进高位再被截断。
+        /// </summary>
+        private void ExecuteBitInteger(
+            ScadaAction action, IScadaValueHandle handle, Type dataType, string head, AuditStamp stamp)
+        {
+            int maxIndex = Math.Min(31, IntegerBitWidth(dataType) - 1);
+
+            if (!action.BitIndex.HasValue)
+            {
+                string reason = $"变量「{handle.Name}」是整型（{dataType.Name}），必须填位号 0~{maxIndex}";
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            int index = action.BitIndex.Value;
+            if (index < 0 || index > maxIndex)
+            {
+                string reason = $"位号 {index} 越界：变量「{handle.Name}」（{dataType.Name}）的可用位号是 0~{maxIndex}";
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            // 旧值先取快照：写成功后 handle.Value 已是新值，而审计要回答"从多少改到多少"
+            var before = handle.Value;
+
+            if (!TryReadBits(before, dataType, out var bits))
+            {
+                string reason = $"变量「{handle.Name}」当前值「{Text(before)}」不是有效的 {dataType.Name} 数值，无法读-改-写";
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            // 位运算统一在 ulong 上做：有符号类型先按二进制补码摊开，改完再按原类型收回去，
+            // 负数的符号位不会被"取绝对值"之类的转换弄丢。
+            var mask = 1UL << index;
+            var nextBits = action.Type switch
+            {
+                ScadaActionType.SetBit => bits | mask,
+                ScadaActionType.ResetBit => bits & ~mask,
+                _ => bits ^ mask,
+            };
+
+            var value = FromBits(nextBits, dataType);
+
+            if (!handle.TryWrite(value, out var writeError))
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：写入失败：{writeError}", writeError);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → {action.Describe()}",
+                $"{handle.Name}：{Text(before)} → {Text(value)}");
+        }
+
         private static bool IsNumericType(Type type)
             => type == typeof(byte) || type == typeof(sbyte)
             || type == typeof(short) || type == typeof(ushort)
             || type == typeof(int) || type == typeof(uint)
             || type == typeof(long) || type == typeof(ulong)
             || type == typeof(float) || type == typeof(double) || type == typeof(decimal);
+
+        /// <summary>
+        /// 能不能按位读写。浮点/十进制<b>不在内</b>：它们没有"第 N 位"这回事，
+        /// 按位改出来的值再转回 double 只会得到一个谁也看不懂的数。
+        /// </summary>
+        private static bool IsIntegerType(Type type)
+            => type == typeof(byte) || type == typeof(sbyte)
+            || type == typeof(short) || type == typeof(ushort)
+            || type == typeof(int) || type == typeof(uint)
+            || type == typeof(long) || type == typeof(ulong);
+
+        /// <summary>整型位宽（位号上限的第二个判据，见 <see cref="ExecuteBitInteger"/>）</summary>
+        private static int IntegerBitWidth(Type type)
+            => type == typeof(byte) || type == typeof(sbyte) ? 8
+            : type == typeof(short) || type == typeof(ushort) ? 16
+            : type == typeof(int) || type == typeof(uint) ? 32
+            : 64;
+
+        /// <summary>
+        /// 把当前值摊成"按位可读"的 <c>ulong</c>（有符号负数按二进制补码展开）。
+        /// 当前值可能是装箱的别的数值类型（旧数据/驱动回读），先按声明类型转一次再摊；
+        /// 转不过去返回 false，由调用方给一句"不是有效数值"。
+        /// </summary>
+        private static bool TryReadBits(object? value, Type dataType, out ulong bits)
+        {
+            bits = 0;
+            if (value == null)
+                return false;
+
+            try
+            {
+                switch (Type.GetTypeCode(dataType))
+                {
+                    case TypeCode.SByte:
+                        bits = unchecked((ulong)Convert.ToSByte(value, CultureInfo.InvariantCulture));
+                        return true;
+                    case TypeCode.Byte:
+                        bits = Convert.ToByte(value, CultureInfo.InvariantCulture);
+                        return true;
+                    case TypeCode.Int16:
+                        bits = unchecked((ulong)Convert.ToInt16(value, CultureInfo.InvariantCulture));
+                        return true;
+                    case TypeCode.UInt16:
+                        bits = Convert.ToUInt16(value, CultureInfo.InvariantCulture);
+                        return true;
+                    case TypeCode.Int32:
+                        bits = unchecked((ulong)Convert.ToInt32(value, CultureInfo.InvariantCulture));
+                        return true;
+                    case TypeCode.UInt32:
+                        bits = Convert.ToUInt32(value, CultureInfo.InvariantCulture);
+                        return true;
+                    case TypeCode.Int64:
+                        bits = unchecked((ulong)Convert.ToInt64(value, CultureInfo.InvariantCulture));
+                        return true;
+                    case TypeCode.UInt64:
+                        bits = Convert.ToUInt64(value, CultureInfo.InvariantCulture);
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 把改好的位收回到变量的声明类型。
+        /// 用 <c>unchecked</c> 截断而不是范围校验：位模式本来就是按类型位宽定义的，
+        /// 高位在窄类型里"不存在"这件事已经由位号上限挡住了。
+        /// </summary>
+        private static object FromBits(ulong bits, Type dataType)
+        {
+            switch (Type.GetTypeCode(dataType))
+            {
+                case TypeCode.SByte:
+                    return unchecked((sbyte)bits);
+                case TypeCode.Byte:
+                    return unchecked((byte)bits);
+                case TypeCode.Int16:
+                    return unchecked((short)bits);
+                case TypeCode.UInt16:
+                    return unchecked((ushort)bits);
+                case TypeCode.Int32:
+                    return unchecked((int)bits);
+                case TypeCode.UInt32:
+                    return unchecked((uint)bits);
+                case TypeCode.Int64:
+                    return unchecked((long)bits);
+                default:
+                    return bits;
+            }
+        }
+
+        /// <summary>
+        /// 当前值是不是布尔（取反要用）。只认真正的 <c>bool</c> 与可解析的布尔文本：
+        /// 数值 0/1 也认（PLC 变量偶尔以整数承载布尔），但别的一律不算——
+        /// 拿"非零算真"去猜会把 -1 / 255 这类哨兵值当成 true，静默把取反做错。
+        /// </summary>
+        private static bool TryReadBool(object? value, out bool result)
+        {
+            switch (value)
+            {
+                case bool flag:
+                    result = flag;
+                    return true;
+
+                case string text when bool.TryParse(text, out var parsed):
+                    result = parsed;
+                    return true;
+
+                case null:
+                    result = false;
+                    return false;
+
+                default:
+                    // 数值只认精确的 0/1（PLC 变量偶尔以整数承载布尔）。
+                    // 刻意不用 Convert.ToBoolean 的"非零算真"：-1 / 255 这类哨兵值会被当成 true，
+                    // 一次取反就静默做错，而现场只看到"位一直是 1"。
+                    try
+                    {
+                        var number = Convert.ToDecimal(value, CultureInfo.InvariantCulture);
+                        if (number == 0m || number == 1m)
+                        {
+                            result = number == 1m;
+                            return true;
+                        }
+                    }
+                    catch
+                    {
+                        // 落到下面的 false：不是布尔，也不是 0/1
+                    }
+
+                    result = false;
+                    return false;
+            }
+        }
 
         private static bool TryNumber(object? value, out double number)
         {

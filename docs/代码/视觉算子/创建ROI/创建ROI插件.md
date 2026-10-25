@@ -790,4 +790,4 @@ find_shape_model (ImageSearch, ModelID, 0, rad(360), 0.5, 1, 0.3, 'least_squares
 | `2026-09-27-ROI输出形态补齐（Domain图与裁剪原点）.md`（同目录） | 第 1.2 节 + 第 5.3 节 + 附录 E 的 `RunOutputForms` |
 
 **未并入、但保留为参考的跨插件文档**（只是顺带提到创建 ROI）：
-`docs/code-changes/2026-09-25-插件配置视图样式统一.md`、`docs/软件手册.md`、`docs/设计思想.md`、`docs/新插件端口速查.md`、`docs/模板匹配/模板匹配插件.md`（ROI 与模板匹配的衔接读那里）。
+`docs/code-changes/2026-09-25-插件配置视图样式统一.md`、`docs/工程纪律/软件手册.md`、`docs/工程纪律/设计思想.md`、`docs/工程纪律/新插件端口速查.md`、`docs/模板匹配/模板匹配插件.md`（ROI 与模板匹配的衔接读那里）。
