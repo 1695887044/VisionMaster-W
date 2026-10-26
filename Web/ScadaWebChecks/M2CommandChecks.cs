@@ -35,10 +35,10 @@ namespace ScadaWebChecks
     ///   M2-04 cmd.element 动作副本过滤：Navigate 被剔除、源钩子未被修改、审计记 mirror-mode
     ///   M2-05 cmd.input 写值：走 IScadaValueWriter、审计带旧值→新值
     ///   M2-06 cmd.alarm.ack：单条 / 全部确认各走各的出口
-    ///   M2-07 权限拒绝：只读总闸 / 只读会话 / 未登录 / 角色不足 / HighestRoleOnly（含平局）
+    ///   M2-07 权限拒绝：只读总闸 / 只读会话 / 未登录 / 缺权限 Key（B3 按 Key，无角色档位）
     ///   M2-08 双层限速：会话 5/s、图元 2/s 跨会话共享、窗口恢复、Reset
-    ///   M2-09 caps：快照默认 false/null、按 RequiredRole 与总闸算 canOperate
-    ///   M2-10 presence：只给 SessionRef、绝不出现 SessionId；canOperate 与策略同源
+    ///   M2-09 caps：快照默认 false/null、按 RequiredPermission 与总闸算 canOperate
+    ///   M2-10 presence：只给 SessionRef、绝不出现 SessionId；身份是组 + 权限快照
     ///   M2-11 确认令牌：绑定三元组、单次、过期、他人/他图元不匹配
     ///   M2-12 版本闸：轮次 / 页 / 页版本不符各回对应码
     ///   M2-13 动作白名单：不在表里跳过并审计；全部被跳过回 E_ACTION_FORBIDDEN；运动默认禁用
@@ -54,6 +54,23 @@ namespace ScadaWebChecks
     {
         private static int _failed;
         private static int _total;
+
+        // 三档常见权限组合。B3 之后它们只是"三个权限集合"，不是角色——
+        // 名字保留是为了让用例读起来还能对上现场分工（管理员/工程师/操作员）。
+        private static readonly string[] AdminPerms = ScadaPermissionKeys.BuiltInKeys.ToArray();
+
+        private static readonly string[] EngineerPerms =
+        {
+            ScadaPermissionKeys.ViewRuntime,
+            ScadaPermissionKeys.ControlRun,
+            ScadaPermissionKeys.Start,
+            ScadaPermissionKeys.Stop,
+        };
+
+        private static readonly string[] OperatorPerms =
+        {
+            ScadaPermissionKeys.ViewRuntime,
+        };
 
         /// <summary>本段通过的条数（Program 用它并入总 PASS 数；只影响计数，不改变任何断言）</summary>
         public static int Pass => _total - _failed;
@@ -76,6 +93,7 @@ namespace ScadaWebChecks
                 await CheckPumpDispatcherAsync();
                 await CheckPumpSessionCapacityAsync();
                 CheckElementFilter();
+                CheckHalfEventSilence();
                 CheckInputWrite();
                 CheckAlarmAck();
                 CheckPermissionDenials();
@@ -102,7 +120,7 @@ namespace ScadaWebChecks
         private static async Task CheckPumpSerialAsync()
         {
             var log = new FakeLog();
-            var session = NewSession("张工", ScadaRole.Engineer);
+            var session = NewSession("张工", EngineerPerms);
 
             var order = new List<int>();
             var inHandler = 0;
@@ -151,7 +169,7 @@ namespace ScadaWebChecks
         private static async Task CheckPumpDispatcherAsync()
         {
             var log = new FakeLog();
-            var session = NewSession("李工", ScadaRole.Engineer);
+            var session = NewSession("李工", EngineerPerms);
 
             var (dispatcher, thread) = StartDispatcherThread();
 
@@ -188,8 +206,8 @@ namespace ScadaWebChecks
         private static async Task CheckPumpSessionCapacityAsync()
         {
             var log = new FakeLog();
-            var sessionA = NewSession("A", ScadaRole.Engineer);
-            var sessionB = NewSession("B", ScadaRole.Engineer);
+            var sessionA = NewSession("A", EngineerPerms);
+            var sessionB = NewSession("B", EngineerPerms);
 
             var entered = new ManualResetEventSlim(false);
             var gate = new ManualResetEventSlim(false);
@@ -246,7 +264,7 @@ namespace ScadaWebChecks
             hook.Actions.Add(new ScadaAction { Type = ScadaActionType.WriteVariable, VariableName = "启动", Value = "1" });
             world.Element.EventHooks.Add(hook);
 
-            var session = world.RegisterSession("操作员甲", ScadaRole.Operator);
+            var session = world.RegisterSession("操作员甲", OperatorPerms);
             var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
             ScadaEventHook? dispatchedHook = world.Dispatcher.Calls.Count == 1
@@ -274,14 +292,61 @@ namespace ScadaWebChecks
                 + $"mirror审计={mirrorAudit} code={result.Code}");
         }
 
-        private static void CheckInputWrite()
+        /// <summary>
+        /// 半事件必须静默（2026-10-25 真机发现的口径偏差）。
+        ///
+        /// <para>网页按钮发 <c>Pressed</c> + <c>Released</c> 两个半事件，现场通常只给
+        /// <c>Pressed</c> 配动作。旧实现把"这个事件没配钩子"当错误回 <c>E_NOT_OPERABLE</c>，
+        /// 于是每次点击松手都弹一条红字——动作其实已经成功了，红条只让人以为点失败；
+        /// 而桌面端在同样情形下是<b>静默 0 次回调</b>（`ScadaRuntime.RaiseElementEvent` 第三道闸）。</para>
+        ///
+        /// <para>这两条一起钉：① 半事件 → 成功且 hooks=0；② 整块图元一个事件都没配 → 仍报错
+        /// （死控件要说话，那是现场最难自查的一类问题）。</para>
+        /// </summary>
+        private static void CheckHalfEventSilence()
         {
-            using var world = new World();
+            // ① 只有 Pressed 钩子，发 Released → 静默成功
+            {
+                using var world = new World();
+                var hook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+                hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "按下" });
+                world.Element.EventHooks.Add(hook);
+
+                var session = world.RegisterSession("操作员半事件", OperatorPerms);
+                var released = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Released));
+
+                Check("M2-04b 半事件（只配 Pressed，发 Released）静默成功，不再回 E_NOT_OPERABLE",
+                    released.Ok && released.Code == ScadaWebErrorCodes.Ok,
+                    $"ok={released.Ok} code={released.Code ?? "<null>"} message={released.Message ?? "<null>"}");
+
+                // 反向：同一颗按钮的 Pressed 仍然照常执行（别把静默做成"一律不执行"）
+                var pressed = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
+
+                Check("M2-04c 反向：同一颗按钮的 Pressed 仍然照常执行",
+                    pressed.Ok && world.Dispatcher.Calls.Count == 1,
+                    $"ok={pressed.Ok} 分发={world.Dispatcher.Calls.Count}");
+            }
+
+            // ② 一个事件都没配 → 仍是 E_NOT_OPERABLE（死控件要说清）
+            {
+                using var world = new World();
+                var session = world.RegisterSession("操作员死控件", OperatorPerms);
+                var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
+
+                Check("M2-04d 一个事件都没配的图元仍回 E_NOT_OPERABLE，且文案说「没有配置任何事件动作」",
+                    !result.Ok && result.Code == ScadaWebErrorCodes.NotOperable
+                    && (result.Message ?? string.Empty).Contains("没有配置任何事件动作", StringComparison.Ordinal),
+                    $"code={result.Code} message={result.Message}");
+            }
+        }
+
+        private static void CheckInputWrite()
+        {            using var world = new World();
 
             world.Element.Bindings.Add(new ScadaBinding { TargetProperty = "Value", IsEnabled = true });
             world.Element.Properties["Value"] = "10";
 
-            var session = world.RegisterSession("操作员乙", ScadaRole.Operator);
+            var session = world.RegisterSession("操作员乙", OperatorPerms);
             var command = new ScadaWebCommand
             {
                 Kind = ScadaWebCommandKinds.Input,
@@ -339,7 +404,7 @@ namespace ScadaWebChecks
             slider.Properties["ConfirmDanger"] = "False";
             sliderWorld.Page.Elements.Add(slider);
 
-            var sliderSession = sliderWorld.RegisterSession("操作员丁", ScadaRole.Operator);
+            var sliderSession = sliderWorld.RegisterSession("操作员丁", OperatorPerms);
 
             ScadaWebCommandResult SliderInput(string requestId, string value) => sliderWorld.Router.Handle(new ScadaWebCommand
             {
@@ -384,7 +449,7 @@ namespace ScadaWebChecks
         private static void CheckAlarmAck()
         {
             using var world = new World();
-            var session = world.RegisterSession("操作员丙", ScadaRole.Operator);
+            var session = world.RegisterSession("操作员丙", OperatorPerms);
 
             var alarmId = Guid.NewGuid();
 
@@ -450,7 +515,7 @@ namespace ScadaWebChecks
             // ① 总闸 AllowCommands=false：即使角色/策略都允许也拒绝
             {
                 using var world = new World(allowCommands: false);
-                var session = world.RegisterSession("管理员甲", ScadaRole.Administrator);
+                var session = world.RegisterSession("管理员甲", AdminPerms);
                 var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
                 Check("M2-07a",
@@ -463,8 +528,8 @@ namespace ScadaWebChecks
             // ② 只读会话 / ③ 未登录
             {
                 using var world = new World();
-                var readOnly = world.RegisterSession("只读票", ScadaRole.Engineer, readOnly: true);
-                var anonymous = world.RegisterSession(userName: null, role: ScadaRole.Operator, readOnly: true);
+                var readOnly = world.RegisterSession("只读票", EngineerPerms, readOnly: true);
+                var anonymous = world.RegisterSession(userName: null, permissions: OperatorPerms, readOnly: true);
 
                 var readOnlyResult = world.Router.Handle(world.ElementCommand(readOnly, ScadaEventType.Pressed));
                 var anonymousResult = world.Router.Handle(world.ElementCommand(anonymous, ScadaEventType.Pressed));
@@ -476,99 +541,108 @@ namespace ScadaWebChecks
                     + $"message={anonymousResult.Message}");
             }
 
-            // ④ 角色不足（原因逐字来自 ScadaRoleExtensions.Allows）
+            // ④ 缺权限 Key（B3：判权按 Key，没有角色档位）
             {
                 using var world = new World();
-                world.Element.RequiredRole = ScadaRole.Engineer;
-                var session = world.RegisterSession("操作员丁", ScadaRole.Operator);
+                // 图元要求「停止」，会话只有「看运行画面」——两件独立的事，缺一个就拒。
+                world.Element.RequiredPermission = ScadaPermissionKeys.Stop;
+                var session = world.RegisterSession("操作员丁", OperatorPerms);
 
                 var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
                 Check("M2-07c",
-                    !result.Ok && result.Code == ScadaWebErrorCodes.Role
-                    && (result.Message ?? string.Empty).Contains("工程师", StringComparison.Ordinal)
-                    && (result.Message ?? string.Empty).Contains("操作员", StringComparison.Ordinal),
+                    !result.Ok && result.Code == ScadaWebErrorCodes.Policy
+                    && (result.Message ?? string.Empty).Contains(
+                        ScadaPermissionKeys.DisplayName(ScadaPermissionKeys.Stop), StringComparison.Ordinal),
                     $"code={result.Code} message={result.Message}");
+
+                // 反向：同一张图元、会话补上 Stop 之后必须放行（证明拒的是"缺这个 Key"，
+                // 不是"这条路径一律拒"）。图元要有动作，否则会在"没配动作"那一步被拒——
+                // 那样断言通过也说明不了权限闸放行了。
+                var hook = new ScadaEventHook { Event = ScadaEventType.Pressed };
+                hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "按下" });
+                world.Element.EventHooks.Add(hook);
+
+                var withStop = world.RegisterSession("操作员丁2",
+                    new[] { ScadaPermissionKeys.ViewRuntime, ScadaPermissionKeys.Stop });
+                var allowed = world.Router.Handle(world.ElementCommand(withStop, ScadaEventType.Pressed));
+
+                Check("M2-07c2",
+                    allowed.Ok,
+                    $"补上 Stop 后 code={allowed.Code} message={allowed.Message}");
             }
 
-            // ⑤ HighestRoleOnly：只有最高档可点；平局都可点；没有已认证会话 → 全员只读
+            // ⑤ 没有"最高档才能点"这回事（B3 删掉了 ClickPolicy）
             {
-                var settings = new ScadaWebSettings
-                {
-                    AllowCommands = true,
-                    ClickPolicy = ScadaWebClickPolicy.HighestRoleOnly
-                };
+                var settings = new ScadaWebSettings { AllowCommands = true };
 
                 var presence = new ScadaWebPresence(settings);
                 var policy = new ScadaWebAccessPolicy(settings, presence);
 
-                var engineer = NewSession("工程师", ScadaRole.Engineer);
-                var operatorUser = NewSession("操作员", ScadaRole.Operator);
-                var admin = NewSession("管理员", ScadaRole.Administrator);
+                // 三个人在线，权限集合各不相同；没有谁比谁"高"。
+                var viewer = NewSession("只看画面", OperatorPerms);
+                var engineer = NewSession("工程师", EngineerPerms);
+                var admin = NewSession("管理员", AdminPerms);
 
+                presence.Register(viewer);
                 presence.Register(engineer);
-                presence.Register(operatorUser);
                 presence.Register(admin);
 
-                var engineerAllowed = policy.CanOperate(engineer, requiredRole: null, out _, out _);
-                var operatorAllowed = policy.CanOperate(operatorUser, requiredRole: null, out var oCode, out var oReason);
-                var adminAllowed = policy.CanOperate(admin, requiredRole: null, out _, out _);
+                // 同一个 Key（ViewRuntime）三人都有 → 三人都可操作。
+                var viewerAllowed = policy.Can(viewer, ScadaPermissionKeys.ViewRuntime, out _, out _);
+                var engineerAllowed = policy.Can(engineer, ScadaPermissionKeys.ViewRuntime, out _, out _);
+                var adminAllowed = policy.Can(admin, ScadaPermissionKeys.ViewRuntime, out _, out _);
 
-                // 平局：第二个工程师也能点（最高角色相同）
-                var engineer2 = NewSession("工程师2", ScadaRole.Engineer);
-                presence.Register(engineer2);
-                presence.Unregister(admin);
-                var tieAllowed = policy.CanOperate(engineer2, requiredRole: null, out _, out _);
+                // 只有 admin 有 UserAdministration → 只有他能过。
+                var viewerAdmin = policy.Can(viewer, ScadaPermissionKeys.UserAdministration, out var vCode, out var vReason);
+                var engineerAdmin = policy.Can(engineer, ScadaPermissionKeys.UserAdministration, out _, out _);
+                var adminAdmin = policy.Can(admin, ScadaPermissionKeys.UserAdministration, out _, out _);
 
-                // 没有已认证会话：只剩匿名观众 → 全员只读
-                var emptySettings = new ScadaWebSettings { AllowCommands = true, ClickPolicy = ScadaWebClickPolicy.HighestRoleOnly };
-                var emptyPresence = new ScadaWebPresence(emptySettings);
-                var emptyPolicy = new ScadaWebAccessPolicy(emptySettings, emptyPresence);
-                var anonymous = NewSession(userName: null, role: ScadaRole.Operator, readOnly: false);
-                var anonymousAllowed = emptyPolicy.CanOperate(anonymous, requiredRole: null, out _, out _);
+                // 匿名观众仍然不可操作（认证闸排在权限之前，与 Key 无关）。
+                var anonymous = NewSession(userName: null, OperatorPerms, readOnly: false);
+                var anonymousAllowed = policy.Can(anonymous, ScadaPermissionKeys.ViewRuntime, out var aCode, out _);
 
                 Check("M2-07d",
-                    !engineerAllowed && !operatorAllowed && adminAllowed && tieAllowed && !anonymousAllowed
-                    && oCode == ScadaWebErrorCodes.Policy
-                    && (oReason ?? string.Empty).Contains("管理员", StringComparison.Ordinal),
-                    $"在线有管理员时：工程师={engineerAllowed} 管理员={adminAllowed} 操作员={operatorAllowed}"
-                    + $"（{oCode}：{oReason}）；管理员离开后两个工程师平局={tieAllowed} 匿名={anonymousAllowed}");
+                    viewerAllowed && engineerAllowed && adminAllowed
+                    && !viewerAdmin && !engineerAdmin && adminAdmin
+                    && vCode == ScadaWebErrorCodes.Policy
+                    && (vReason ?? string.Empty).Contains(
+                        ScadaPermissionKeys.DisplayName(ScadaPermissionKeys.UserAdministration), StringComparison.Ordinal)
+                    && !anonymousAllowed && aCode == ScadaWebErrorCodes.Unauthenticated,
+                    $"同一 Key 三人={viewerAllowed}/{engineerAllowed}/{adminAllowed}；"
+                    + $"用户管理 Key={viewerAdmin}/{engineerAdmin}/{adminAdmin}（{vCode}：{vReason}）；"
+                    + $"匿名={anonymousAllowed}（{aCode}）");
             }
 
-            // M2-07e：AllOperators 的监管项在"用的时候"复核。
-            // 模块启动时的夹取会被随后的 ConfigCheck.Load() 原地回写覆盖，
-            // 所以判权必须自己再验一次；缺项时回退 HighestRoleOnly（工程师不可点、管理员可点）。
-            using (var fallbackWorld = new World(clickPolicy: ScadaWebClickPolicy.AllOperators))
+            // M2-07e：删掉 ClickPolicy 之后，"监管闸门"这套组合校验也随之消失。
+            // 反向钉住：RequireAudit=false 仍然是非法配置，Normalize 必须夹回 true
+            //（审计不可关闭这条纪律不能因为删策略而丢掉）。
             {
-                fallbackWorld.Settings.RequireAudit = false;
+                var settings = new ScadaWebSettings { AllowCommands = true, RequireAudit = false };
+                var messages = ScadaWebAccessPolicy.Normalize(settings);
 
-                var engineer = fallbackWorld.RegisterSession("工程师回退", ScadaRole.Engineer);
-                var admin = fallbackWorld.RegisterSession("管理员回退", ScadaRole.Administrator);
-
-                var engineerOk = fallbackWorld.Policy.CanOperate(engineer, requiredRole: null, out _, out _);
-                var adminOk = fallbackWorld.Policy.CanOperate(admin, requiredRole: null, out _, out _);
-
-                Check("M2-07e", !engineerOk && adminOk,
-                    $"监管缺项时 AllOperators 回退 HighestRoleOnly：工程师={engineerOk} 管理员={adminOk}");
+                Check("M2-07e",
+                    settings.RequireAudit && messages.Count == 1,
+                    $"RequireAudit={settings.RequireAudit} messages={string.Join("；", messages)}");
             }
 
             // M2-14：租约进 CanOperate（C77 ③④）。
             // AllOperatorsRequiresLease + OperationLeaseEnabled 同时为 true 时，
             // 未持租约的会话必须 E_LEASE_HELD；acquire 后本人可点、他人仍不可点；release 后恢复拒绝。
-            using (var leaseWorld = new World(clickPolicy: ScadaWebClickPolicy.AllOperators))
+            using (var leaseWorld = new World())
             {
                 leaseWorld.Settings.OperationLeaseEnabled = true;
                 leaseWorld.Settings.AllOperatorsRequiresLease = true;
 
-                var holder = leaseWorld.RegisterSession("租约A", ScadaRole.Operator);
-                var other = leaseWorld.RegisterSession("租约B", ScadaRole.Operator);
+                var holder = leaseWorld.RegisterSession("租约A", OperatorPerms);
+                var other = leaseWorld.RegisterSession("租约B", OperatorPerms);
 
-                var before = leaseWorld.Policy.CanOperate(holder, requiredRole: null, out var beforeCode, out _);
+                var before = leaseWorld.Policy.Can(holder, null, out var beforeCode, out _);
                 var acquired = leaseWorld.Lease.TryAcquire(holder, out var acquireError);
-                var holderAfter = leaseWorld.Policy.CanOperate(holder, requiredRole: null, out _, out _);
-                var otherAfter = leaseWorld.Policy.CanOperate(other, requiredRole: null, out var otherCode, out _);
+                var holderAfter = leaseWorld.Policy.Can(holder, null, out _, out _);
+                var otherAfter = leaseWorld.Policy.Can(other, null, out var otherCode, out _);
                 leaseWorld.Lease.Release(holder);
-                var afterRelease = leaseWorld.Policy.CanOperate(holder, requiredRole: null, out _, out _);
+                var afterRelease = leaseWorld.Policy.Can(holder, null, out _, out _);
 
                 Check("M2-14",
                     !before && beforeCode == ScadaWebErrorCodes.LeaseHeld
@@ -631,7 +705,7 @@ namespace ScadaWebChecks
             hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "记录" });
             world.Element.EventHooks.Add(hook);
 
-            var session = world.RegisterSession("限速用户", ScadaRole.Operator);
+            var session = world.RegisterSession("限速用户", OperatorPerms);
 
             var first = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
             var second = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
@@ -651,13 +725,14 @@ namespace ScadaWebChecks
             var defaults = new ElementSnapshot();
 
             using var world = new World();
-            world.Element.RequiredRole = ScadaRole.Engineer;
+            world.Element.RequiredPermission = ScadaPermissionKeys.Stop;
 
-            var engineer = world.RegisterSession("工程师甲", ScadaRole.Engineer);
-            var operatorUser = world.RegisterSession("操作员戊", ScadaRole.Operator);
+            var engineer = world.RegisterSession("工程师甲", EngineerPerms);
+            var operatorUser = world.RegisterSession("操作员戊", OperatorPerms);
 
-            var engineerSnapshot = new ElementSnapshot { RequiredRole = "Engineer" };
-            var operatorSnapshot = new ElementSnapshot { RequiredRole = "Engineer" };
+            // 快照上的判据是 RequiredPermission（Key）；旧 .vms 只有 RequiredRole 时按映射兜底。
+            var engineerSnapshot = new ElementSnapshot { RequiredPermission = ScadaPermissionKeys.Stop };
+            var operatorSnapshot = new ElementSnapshot { RequiredPermission = ScadaPermissionKeys.Stop };
 
             var engineerOk = world.Policy.CanOperate(engineer, engineerSnapshot, out var engineerReason);
             var operatorOk = world.Policy.CanOperate(operatorUser, operatorSnapshot, out var operatorReason);
@@ -667,17 +742,17 @@ namespace ScadaWebChecks
             var built = pageSnapshot?.Elements.FirstOrDefault(e => e.ElementId == world.Element.ElementId.ToString("D"));
 
             // 总闸关掉 → 谁都不行
-            var closedSettings = new ScadaWebSettings { AllowCommands = false, ClickPolicy = ScadaWebClickPolicy.AllOperators };
+            var closedSettings = new ScadaWebSettings { AllowCommands = false };
             var closedPresence = new ScadaWebPresence(closedSettings);
             var closedPolicy = new ScadaWebAccessPolicy(closedSettings, closedPresence);
-            var closedSession = NewSession("工程师乙", ScadaRole.Engineer);
+            var closedSession = NewSession("工程师乙", EngineerPerms);
             closedPresence.Register(closedSession);
             var closedOk = closedPolicy.CanOperate(closedSession, engineerSnapshot, out var closedReason);
 
             Check("M2-09",
                 defaults.CanOperate == false && defaults.OperateReason == null
                 && engineerOk && !operatorOk
-                && (operatorReason ?? string.Empty).Contains("工程师", StringComparison.Ordinal)
+                && (operatorReason ?? string.Empty).Contains("权限", StringComparison.Ordinal)
                 && built != null && !built.CanOperate && built.OperateReason == null
                 && !closedOk && (closedReason ?? string.Empty).Contains("只读模式", StringComparison.Ordinal),
                 $"默认=({defaults.CanOperate},{defaults.OperateReason ?? "<null>"}) "
@@ -688,16 +763,12 @@ namespace ScadaWebChecks
 
         private static void CheckPresence()
         {
-            var settings = new ScadaWebSettings
-            {
-                AllowCommands = true,
-                ClickPolicy = ScadaWebClickPolicy.AllOperators
-            };
+            var settings = new ScadaWebSettings { AllowCommands = true };
 
             var presence = new ScadaWebPresence(settings);
 
-            var engineer = NewSession("张三", ScadaRole.Engineer, ip: "10.1.1.10");
-            var operatorUser = NewSession("李四", ScadaRole.Operator, ip: "10.1.1.11");
+            var engineer = NewSession("张三", EngineerPerms, ip: "10.1.1.10");
+            var operatorUser = NewSession("李四", OperatorPerms, ip: "10.1.1.11");
 
             presence.Register(engineer);
             presence.Register(operatorUser);
@@ -720,35 +791,34 @@ namespace ScadaWebChecks
             Check("M2-10",
                 snapshot.Count == 2 && !leakedSessionId && hasRefs
                 && engineerRow?.CanOperate == true && operatorRow?.CanOperate == true
-                && engineerRow?.Ip == "10.1.1.10" && engineerRow?.Role == "Engineer"
-                && engineerRow?.RoleDisplay == "工程师"
+                && engineerRow?.Ip == "10.1.1.10"
+                && engineerRow?.GroupId == "G-test" && engineerRow?.GroupName == "测试组"
                 && afterUnregister == 1,
                 $"entries={snapshot.Count} 泄漏 SessionId={leakedSessionId} 含 SessionRef={hasRefs} "
-                + $"张三 canOperate={engineerRow?.CanOperate} role={engineerRow?.Role}/{engineerRow?.RoleDisplay} "
+                + $"张三 canOperate={engineerRow?.CanOperate} group={engineerRow?.GroupId}/{engineerRow?.GroupName} "
                 + $"ip={engineerRow?.Ip} 摘除后={afterUnregister}");
 
-            // HighestRoleOnly 下普通操作员在列表里就是"不可操作"（与命令路由同源）
-            var strictSettings = new ScadaWebSettings
-            {
-                AllowCommands = true,
-                ClickPolicy = ScadaWebClickPolicy.HighestRoleOnly
-            };
-
-            var strictPresence = new ScadaWebPresence(strictSettings);
-            var strictEngineer = NewSession("王五", ScadaRole.Engineer);
-            var strictOperator = NewSession("赵六", ScadaRole.Operator);
+            // B3：在线列表里没有角色字段——身份是「用户组 + 权限快照」。
+            // 反向：两个组的会话都在列表里，但谁的 Key 集合不同不影响"能不能操作"（各看各的）。
+            var strictPresence = new ScadaWebPresence(settings);
+            var strictEngineer = NewSession("王五", EngineerPerms);
+            var strictOperator = NewSession("赵六", OperatorPerms);
             strictPresence.Register(strictEngineer);
             strictPresence.Register(strictOperator);
 
             var strictRows = strictPresence.Snapshot();
             var strictEngineerRow = strictRows.First(e => e.SessionRef == strictEngineer.SessionRef);
             var strictOperatorRow = strictRows.First(e => e.SessionRef == strictOperator.SessionRef);
+            var rowType = typeof(ScadaWebPresenceEntry);
 
             Check("M2-10b",
-                strictEngineerRow.CanOperate && !strictOperatorRow.CanOperate
-                && (strictOperatorRow.OperateReason ?? string.Empty).Contains("工程师", StringComparison.Ordinal),
-                $"工程师={strictEngineerRow.CanOperate} 操作员={strictOperatorRow.CanOperate}"
-                + $"（{strictOperatorRow.OperateReason}）");
+                rowType.GetProperty("Role") == null
+                && rowType.GetProperty("RoleDisplay") == null
+                && rowType.GetProperty("GroupId") != null
+                && rowType.GetProperty("GroupName") != null
+                && strictEngineerRow.CanOperate && strictOperatorRow.CanOperate,
+                $"presence 字段={string.Join(",", rowType.GetProperties().Select(p => p.Name))}；"
+                + $"工程师={strictEngineerRow.CanOperate} 操作员={strictOperatorRow.CanOperate}");
         }
 
         // ==================================================================
@@ -785,7 +855,7 @@ namespace ScadaWebChecks
 
             // 路由：危险动作无令牌 → E_CONFIRM；申请令牌后带令牌 → 成功
             using var world = new World(requireConfirmForDangerous: true);
-            var session = world.RegisterSession("操作员己", ScadaRole.Operator);
+            var session = world.RegisterSession("操作员己", OperatorPerms);
 
             var dangerous = new ScadaEventHook { Event = ScadaEventType.Pressed };
             dangerous.Actions.Add(new ScadaAction { Type = ScadaActionType.StopFlow, FlowName = "主线" });
@@ -835,7 +905,7 @@ namespace ScadaWebChecks
                 hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "确认后记录" });
                 confirmOnly.Element.EventHooks.Add(hook);
 
-                var operatorUser = confirmOnly.RegisterSession("操作员确认", ScadaRole.Operator);
+                var operatorUser = confirmOnly.RegisterSession("操作员确认", OperatorPerms);
                 var confirmOnlyResult = confirmOnly.Router.Handle(
                     confirmOnly.ElementCommand(operatorUser, ScadaEventType.Pressed));
 
@@ -849,7 +919,7 @@ namespace ScadaWebChecks
         private static void CheckVersionGates()
         {
             using var world = new World();
-            var session = world.RegisterSession("操作员庚", ScadaRole.Operator);
+            var session = world.RegisterSession("操作员庚", OperatorPerms);
 
             var staleRun = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed, runGeneration: 999));
             var stalePage = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed, pageId: Guid.NewGuid().ToString("D")));
@@ -925,7 +995,7 @@ namespace ScadaWebChecks
                 hook.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow, FlowName = "主线" });
                 world.Element.EventHooks.Add(hook);
 
-                var session = world.RegisterSession("操作员辛", ScadaRole.Operator);
+                var session = world.RegisterSession("操作员辛", OperatorPerms);
                 var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
                 var notAllowedAudit = world.Audit.Rows.Any(r =>
@@ -963,7 +1033,7 @@ namespace ScadaWebChecks
                 hook.Actions.Add(new ScadaAction { Type = ScadaActionType.StartFlow, FlowName = "主线" });
                 world.Element.EventHooks.Add(hook);
 
-                var session = world.RegisterSession("操作员壬", ScadaRole.Operator);
+                var session = world.RegisterSession("操作员壬", OperatorPerms);
                 var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
                 Check("M2-13b",
@@ -983,7 +1053,11 @@ namespace ScadaWebChecks
                 hook.Actions.Add(new ScadaAction { Type = ScadaActionType.MotionEnable, AxisName = "X" });
                 world.Element.EventHooks.Add(hook);
 
-                var session = world.RegisterSession("操作员癸", ScadaRole.Operator);
+                // 这条测的是"运动白名单 + 总闸"两闸，权限闸必须已经放行——
+                // 否则会在 E_POLICY 上先被拒，断言通过也证明不了白名单生效。
+                // 运动族动作的兜底 Key 是 AxisJog（见 ScadaRuntime.RequiredPermissionFor）。
+                var session = world.RegisterSession("操作员癸",
+                    new[] { ScadaPermissionKeys.ViewRuntime, ScadaPermissionKeys.AxisJog });
                 var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
                 var allowedSet = world.Router.AllowedActions.Contains(ScadaActionType.MotionEnable);
@@ -1036,7 +1110,7 @@ namespace ScadaWebChecks
                 });
                 world.Element.EventHooks.Add(hook);
 
-                var session = world.RegisterSession("操作员子", ScadaRole.Operator);
+                var session = world.RegisterSession("操作员子", OperatorPerms);
                 var result = world.Router.Handle(world.ElementCommand(session, ScadaEventType.Pressed));
 
                 Check("M2-13f",
@@ -1061,7 +1135,7 @@ namespace ScadaWebChecks
                 });
                 world.Page.Elements.Add(input);
 
-                var session = world.RegisterSession("操作员丑", ScadaRole.Operator);
+                var session = world.RegisterSession("操作员丑", OperatorPerms);
                 var command = new ScadaWebCommand
                 {
                     Kind = ScadaWebCommandKinds.Input,
@@ -1095,7 +1169,7 @@ namespace ScadaWebChecks
                 hook.Actions.Add(new ScadaAction { Type = ScadaActionType.Log });
                 world.Element.EventHooks.Add(hook);
 
-                var session = world.RegisterSession("操作员寅", ScadaRole.Operator);
+                var session = world.RegisterSession("操作员寅", OperatorPerms);
                 var command = world.ElementCommand(session, ScadaEventType.Pressed);
                 var executed = world.Router.Handle(command);
 
@@ -1120,7 +1194,7 @@ namespace ScadaWebChecks
             // 控制队列与数据队列分开：控制满 64 条时数据仍可写；Dispose 后两者都拒绝。
             // 这是“ack/bye 不排在 256 条值帧后面”的最小可测证据（发送顺序需真 WS，见 S1 ack p95）。
             {
-                var session = NewSession("容量测试", ScadaRole.Operator);
+                var session = NewSession("容量测试", OperatorPerms);
 
                 var controlOk = 0;
                 for (var i = 0; i < ScadaWebSession.ControlCapacity; i++)
@@ -1157,7 +1231,6 @@ namespace ScadaWebChecks
         {
             public World(
                 bool allowCommands = true,
-                ScadaWebClickPolicy clickPolicy = ScadaWebClickPolicy.AllOperators,
                 int commandRatePerSecond = 100,
                 int elementRatePerSecond = 100,
                 bool allowMotionCommands = false,
@@ -1168,7 +1241,6 @@ namespace ScadaWebChecks
                 Settings = new ScadaWebSettings
                 {
                     AllowCommands = allowCommands,
-                    ClickPolicy = clickPolicy,
                     CommandRatePerSecond = commandRatePerSecond,
                     ElementRatePerSecond = elementRatePerSecond,
                     AllowMotionCommands = allowMotionCommands,
@@ -1251,11 +1323,11 @@ namespace ScadaWebChecks
 
             public ScadaWebSession RegisterSession(
                 string? userName,
-                ScadaRole role,
+                IReadOnlyList<string>? permissions = null,
                 bool readOnly = false,
                 string ip = "10.0.0.5")
             {
-                var session = NewSession(userName, role, readOnly, ip);
+                var session = NewSession(userName, permissions, readOnly, ip);
                 Presence.Register(session);
                 return session;
             }
@@ -1293,15 +1365,19 @@ namespace ScadaWebChecks
         /// </summary>
         private static ScadaWebSession NewSession(
             string? userName,
-            ScadaRole role,
+            IReadOnlyList<string>? permissions = null,
             bool readOnly = false,
-            string ip = "10.0.0.5")
+            string ip = "10.0.0.5",
+            string groupId = "G-test",
+            string groupName = "测试组")
         {
             var grant = new ScadaWebTicketGrant
             {
                 Ticket = Guid.NewGuid().ToString("N"),
                 UserName = userName,
-                Role = role,
+                GroupId = groupId,
+                GroupName = groupName,
+                Permissions = permissions ?? Array.Empty<string>(),
                 ReadOnly = readOnly || userName == null,
                 ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5)
             };

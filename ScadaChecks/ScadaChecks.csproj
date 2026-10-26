@@ -12,6 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- B3：角色制并发夹具已下线，改由 SolutionUserChecks 的 [SL]/[SL-g] 覆盖。 -->
+    <Compile Remove="UserStoreConcurrencyChecks.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- 引用主程序即可拿到 Core / Core.Interfaces / Communication 的全部 public 面。
          VM.Scada.Controls 由 VisionMaster 传递引用：再显式引一次会让它被两条引用链
          各构建一次，WPF 的 _wpftmp 与主工程抢同一个 obj，报 RG1000「BAML 键重复」。 -->

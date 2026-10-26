@@ -306,6 +306,35 @@ namespace FlowCanvasChecks
                     "texts=" + res.Plan.Texts.Count + " shapes=" + res.Plan.Shapes.Count + " infoRows=" + res.InfoRows.Count);
                 res.DisposeTemps();
             }
+            {
+                // A 类插件的 Annotations 列表：5 种 MeasureType 都要翻译成 BakePlan，
+                // 位置口径与 HalconBase.RenderAnnotations 对齐（Line 文本在中点、Point 文本在 r-14/c+6）。
+                var marks = new List<MeasureAnnotation>
+                {
+                    new() { Type = MeasureType.Line, Points = new[] { 100.0, 50.0, 100.0, 250.0 }, Text = "L", Color = "green" },
+                    new() { Type = MeasureType.Angle, Points = new[] { 150.0, 300.0, 150.0, 400.0, 250.0, 300.0 }, Text = "A", Color = "yellow" },
+                    new() { Type = MeasureType.Text, Points = new[] { 30.0, 30.0 }, Text = "T", Color = "white" },
+                    new() { Type = MeasureType.Polyline, Points = new[] { 300.0, 100.0, 300.0, 150.0, 350.0, 150.0 }, Text = "P", Color = "cyan", ShowVertices = true },
+                    new() { Type = MeasureType.Point, Points = new[] { 200.0, 320.0 }, Text = "PT", Color = "red" },
+                };
+
+                var res = Build(marks, W, H);
+                int lines = res.Plan.Shapes.Count(s => s.Kind == BakeShapeKind.Line);
+                int crosses = res.Plan.Shapes.Count(s => s.Kind == BakeShapeKind.Cross);
+                var lineText = res.Plan.Texts.FirstOrDefault(t => t.Text == "L");
+                var pointText = res.Plan.Texts.FirstOrDefault(t => t.Text == "PT");
+
+                Check("RD-ANN1 Annotations → 线段/十字/文字都进了 plan（Line+Angle+Polyline 共 1+2+2 段）",
+                    lines == 5 && crosses >= 3 && res.Plan.Texts.Count >= 5,
+                    $"lines={lines} crosses={crosses} texts={res.Plan.Texts.Count}");
+                Check("RD-ANN2 Line 文本落在两点中点 (100,150)",
+                    lineText.Text == "L" && Math.Abs(lineText.Row - 100.0) < 0.01 && Math.Abs(lineText.Col - 150.0) < 0.01,
+                    $"row={lineText.Row} col={lineText.Col}");
+                Check("RD-ANN3 Point 文本落在 (r-14,c+6) = (186,326)",
+                    pointText.Text == "PT" && Math.Abs(pointText.Row - 186.0) < 0.01 && Math.Abs(pointText.Col - 326.0) < 0.01,
+                    $"row={pointText.Row} col={pointText.Col}");
+                res.DisposeTemps();
+            }
         }
 
         // ==================================================================
@@ -467,6 +496,48 @@ namespace FlowCanvasChecks
                     double outside = product == null ? -1 : BandMax(product, 200, 10, 290, 390);
                     Check("没写字的地方仍是黑底（右下角 max ≤40）", outside <= 40,
                         "band(200..290,10..390) max=" + outside);
+                    p.Dispose();
+                }
+
+                // ---- A 类 Annotations 真的烧进像素（绿线 + 红点）----
+                {
+                    const int W = 400, H = 300;
+                    using var img = BlackCanvas(W, H);
+                    var marks = new List<MeasureAnnotation>
+                    {
+                        new() { Type = MeasureType.Line, Points = new[] { 100.0, 50.0, 100.0, 250.0 }, Color = "green" },
+                        new() { Type = MeasureType.Point, Points = new[] { 200.0, 320.0 }, Color = "red" },
+                    };
+                    var p = NewPlugin(0, img, It("r1", marks));
+                    var (ctx, log) = NewContext();
+                    p.Execute(ctx);
+                    var product = p.AnnotatedImage.TypedValue;
+                    Check("RD-ANN4 Annotations 烧录产出非 null、尺寸不变",
+                        product != null && SizeOf(product) == (W, H),
+                        product == null ? "(null) warns=[" + string.Join(" | ", log.Warns) + "]" : SizeOf(product).ToString());
+                    if (product != null)
+                    {
+                        HOperatorSet.CountChannels(product, out HTuple chn);
+                        double green = ChannelMax(product, 2, 98, 148, 102, 152);
+                        double red = ChannelMax(product, 1, 198, 318, 202, 322);
+                        Check("RD-ANN5 绿线在 (100,150) 命中绿通道、红点在 (200,320) 命中红通道",
+                            chn.I == 3 && green >= 180 && red >= 180,
+                            $"channels={chn.I} green={green} red={red}");
+                    }
+                    p.Dispose();
+                }
+
+                // ---- BakeWhenNotDisplayed=false + viewIndex=0：直接跳过烘焙 ----
+                {
+                    const int W = 200, H = 150;
+                    using var img = BlackCanvas(W, H);
+                    var p = NewPlugin(0, img, It("r1", 42.0, "F2", "mm"));
+                    p.BakeWhenNotDisplayed = false;
+                    var (ctx, _) = NewContext();
+                    p.Execute(ctx);
+                    Check("RD-ANN6 不显示且关掉『不显示时也烘焙』→ AnnotatedImage 为空（省掉全幅 dump）",
+                        p.AnnotatedImage.TypedValue == null,
+                        p.AnnotatedImage.TypedValue == null ? "(null)" : "非空");
                     p.Dispose();
                 }
             }

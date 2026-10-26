@@ -114,6 +114,13 @@ namespace Plugin.GeometryRelation
         /// <summary>参与残差统计的点数（0 = 没算）</summary>
         public OutputPort<int> ResidualCount { get; } = new("ResidualCount", "参与残差统计的点数（0=没算）");
 
+        /// <summary>
+        /// 本轮投射用的标注列表（托管对象，**不烘焙、不开窗**）。
+        /// 接「结果显示」的任意结果项，由它把标注烧进最终展示图；SCADA 只认像素。
+        /// </summary>
+        public OutputPort<List<MeasureAnnotation>> Annotations { get; } =
+            new("Annotations", "标注列表（接「结果显示」烧成图，供图像赋值/SCADA 使用）");
+
         #endregion
 
         public override void RunAlgorithm(IExecutionContext context)
@@ -127,6 +134,7 @@ namespace Plugin.GeometryRelation
             ResidualRms.Value = double.NaN;
             ResidualMax.Value = double.NaN;
             ResidualCount.Value = 0;
+            Annotations.Value = null!;
 
             var op = Op.ActualValue;
             var a = A.ActualValue;
@@ -490,9 +498,9 @@ namespace Plugin.GeometryRelation
         private void Publish(GeometryParam a, GeometryParam b, GeometryOp op)
         {
             var src = SrcImage.ActualValue;
+            if (src == null || !src.IsInitialized()) return;
+
             var viewIndex = DisplayViewIndex.ActualValue;
-            if (src == null || !src.IsInitialized() || viewIndex <= 0) return;
-            if (viewIndex > 9) viewIndex = 9;
 
             var ann = new List<MeasureAnnotation>();
             AddGeometry(ann, a, src, "green");
@@ -506,6 +514,12 @@ namespace Plugin.GeometryRelation
                 Text = $"{OpLabel(op)} = {Value.Value}",
                 Color = IsOk.TypedValue ? "green" : "yellow"
             });
+
+            // 标注先交端口：显示窗口=0 也要给「结果显示」合成最终图用
+            Annotations.Value = ann;
+
+            if (viewIndex <= 0) return;
+            if (viewIndex > 9) viewIndex = 9;
 
             var info = new List<ImageInfoRow>
             {

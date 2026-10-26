@@ -103,6 +103,34 @@ internal static partial class Program
             [@"caliper\caliper_with_tilt.png"] = @"caliper_with_tilt.png",
             [@"caliper\caliper_calib_01.png"] = @"caliper_calib_01.png",
             [@"brake_disk\brake_disk_part_01.png"] = @"brake_disk_part_01.png",
+            [@"board\board_01.png"] = @"board_01.png",
+            [@"board\board_02.png"] = @"board_02.png",
+            [@"..\board\board-01.png"] = @"board-01.png",
+            [@"..\board\board-02.png"] = @"board-02.png",
+            [@"..\test\blank_1200x800.png"] = @"blank_1200x800.png",
+            [@"caliper\caliper_1.png"] = @"caliper_1.png",
+            [@"caliper\caliper_2.png"] = @"caliper_2.png",
+            [@"caliper\caliper_3.png"] = @"caliper_3.png",
+            [@"caliper\caliper_4.png"] = @"caliper_4.png",
+            [@"caliper\caliper_calib_01.png"] = @"caliper_calib_01.png",
+            [@"bead\adhesive_bead_01.png"] = @"adhesive_bead_01.png",
+            [@"bead\adhesive_bead_ref.png"] = @"adhesive_bead_ref.png",
+            [@"color\color_fuses_01.png"] = @"color_fuses_01.png",
+            [@"color\color_pieces_01.png"] = @"color_pieces_01.png",
+            [@"datacode\qrcode\qr_workpiece_01.png"] = @"qr_workpiece_01.png",
+            [@"datacode\qrcode\qr_workpiece_02.png"] = @"qr_workpiece_02.png",
+            [@"ocr\lot_number_01.png"] = @"lot_number_01.png",
+            [@"ocr\lot_number_02.png"] = @"lot_number_02.png",
+            [@"pcb_anomaly\good\pcb_board_good_01.png"] = @"pcb_board_good_01.png",
+            [@"pcb_anomaly\anomaly\pcb_board_anomaly_01.png"] = @"pcb_board_anomaly_01.png",
+            [@"mvtec_logo.png"] = @"mvtec_logo.png",
+            [@"line_flow.gif"] = @"line_flow.gif",
+            [@"..\卡尺测试\1-宽度40px.png"] = @"1-宽度40px.png",
+            [@"..\卡尺测试\2-两点距240px.png"] = @"2-两点距240px.png",
+            [@"..\卡尺测试\3-点到线距200px.png"] = @"3-点到线距200px.png",
+            [@"..\卡尺测试\4-圆直径200px.png"] = @"4-圆直径200px.png",
+            [@"..\卡尺测试\5-角度90.png"] = @"5-角度90.png",
+            [@"..\颜色\合成颜色_8bit.png"] = @"synthetic_color_8bit.png",
         };
 
     /// <summary>
@@ -148,6 +176,22 @@ internal static partial class Program
     // ------------------------------------------------------------------
 
     /// <summary>
+    /// 故意不存在的方案内资产（负样本）。
+    ///
+    /// 「综合测试台」有一条"读不存在图(应失败)"的负例步骤，它的 FilePath 必须指向一个
+    /// **真的不存在**的文件才测得到失败分支。这条引用仍然是方案内相对路径
+    /// （<c>Image\no_such_image.png</c>），满足"不引用方案目录之外"的硬要求；
+    /// 只是生成期没有源文件可复制，故在这里显式登记、跳过复制。
+    ///
+    /// 白名单只许收录"故意缺失"的负样本；正常图片缺源仍应让 WriteFolderSolution 抛异常。
+    /// </summary>
+    static readonly System.Collections.Generic.HashSet<string> AllowedMissingAssets =
+        new(System.StringComparer.OrdinalIgnoreCase)
+        {
+            @"Image\no_such_image.png",
+        };
+
+    /// <summary>
     /// 把方案写进「一个方案一个文件夹」布局：
     /// ① 建 &lt;方案名&gt;\ 与 Image/Alarms/History/Logs；
     /// ② 把 .vms 里出现的每个 Image\xxx.png 从样图库复制进方案自己的 Image\；
@@ -175,6 +219,9 @@ internal static partial class Program
         var copied = new System.Collections.Generic.List<string>();
         foreach (var rel in referenced)
         {
+            if (AllowedMissingAssets.Contains(rel))
+                continue;
+
             var source = SourceImagePathOf(rel);
             if (!System.IO.File.Exists(source))
                 throw new System.IO.FileNotFoundException("样图不存在：" + source);
@@ -256,7 +303,10 @@ internal static partial class Program
     static bool IsImagePathKey(string key)
         => string.Equals(key, "SourcePath", System.StringComparison.Ordinal)
            || string.Equals(key, "FilePath", System.StringComparison.Ordinal)
-           || string.Equals(key, "SourceImagePath", System.StringComparison.Ordinal);
+           || string.Equals(key, "SourceImagePath", System.StringComparison.Ordinal)
+           || string.Equals(key, "RefImagePath", System.StringComparison.Ordinal)
+           || string.Equals(key, "RefNoBeadImagePath", System.StringComparison.Ordinal)
+           || string.Equals(key, "PreviewImagePath", System.StringComparison.Ordinal);
 
     /// <summary>
     /// 这些键的值是**方案内资产**：只能是 <c>Image\文件名</c>，绝对路径与 <c>..\</c> 一律判红。
@@ -337,9 +387,24 @@ internal static partial class Program
             ["ImageFormat"] = "png",
         });
 
-    /// <summary>Excel 报表（方案内相对输出/输入）。</summary>
-    static JObject CcgExcel(string seed, string name)
-        => Action(seed, name, "数据处理", P_EXCEL, "Excel导出", "\uf1c3", new JObject
+    /// <summary>默认六方案沿用的通用列定义（与旧 <see cref="CsvRecord"/> 逐项一致）。</summary>
+    static JArray DefaultCsvColumns() => new()
+    {
+        Col("时间", "BuiltIn", "", "Timestamp"),
+        Col("序号", "BuiltIn", "", "Sequence"),
+        Col("结果", "Variable", "CurrentResult", "Timestamp"),
+        Col("OCR", "Variable", "OcrText", "Timestamp"),
+        Col("缺陷数", "Variable", "DefectCount", "Timestamp"),
+    };
+
+    /// <summary>
+    /// Excel 报表（方案内相对输出/输入）。
+    /// <paramref name="csvStep"/> 非空时写 <c>SourceStepName</c>——默认六方案沿用旧
+    /// <see cref="Excel"/> 的显式源步骤名；CCG 三套不传，保持原样。
+    /// </summary>
+    static JObject CcgExcel(string seed, string name, string csvStep = null)
+    {
+        var inputs = new JObject
         {
             ["SourcePathTemplate"] = HistorySourcePathTemplate,
             ["OutputDirectoryTemplate"] = HistoryOutputDirectoryTemplate,
@@ -349,7 +414,26 @@ internal static partial class Program
             ["IncludeHeader"] = true,
             ["AutoFitColumns"] = true,
             ["OpenAfterExport"] = false,
-        });
+        };
+
+        if (!string.IsNullOrEmpty(csvStep))
+            inputs["SourceStepName"] = csvStep;
+
+        return Action(seed, name, "数据处理", P_EXCEL, "Excel导出", "\uf1c3", inputs);
+    }
+
+    /// <summary>
+    /// 按方案自己的 <c>SolutionName</c> 决定文件夹名并落盘。
+    /// 压测方案的节点数写在名字里（<c>压测方案-3000节点</c>），不能由调用方另给常量。
+    /// </summary>
+    static string WriteSolutionInFolder(JObject solution)
+    {
+        var name = solution["SolutionName"]?.Value<string>();
+        if (string.IsNullOrWhiteSpace(name))
+            throw new System.InvalidOperationException("方案缺少 SolutionName，无法确定文件夹名");
+
+        return WriteFolderSolution(solution, name!);
+    }
 
     static bool SameContent(string a, string b)
         => string.Equals(Sha256Of(a), Sha256Of(b), System.StringComparison.OrdinalIgnoreCase);

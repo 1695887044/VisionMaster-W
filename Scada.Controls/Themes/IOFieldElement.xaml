@@ -79,6 +79,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock
@@ -102,9 +103,23 @@
                                     FontSize="{TemplateBinding FontSize}"
                                     FontWeight="{TemplateBinding FontWeight}"
                                     Foreground="{TemplateBinding DisplayBrush}"
-                                    Text="{TemplateBinding ValueText}"
+                                    Text="{TemplateBinding ValueOnlyText}"
                                     TextAlignment="{TemplateBinding TextAlignment}"
                                     TextTrimming="CharacterEllipsis" />
+
+                                <!--
+                                    单位独立一列（2026-10-25 评审 §2）：数值列右对齐、单位列固定宽左对齐，
+                                    一列域上下扫读时小数点才对得齐。单位为空时这一列宽 0，不占位。
+                                -->
+                                <TextBlock
+                                    x:Name="UnitDisplay"
+                                    Grid.Column="2"
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{TemplateBinding FontFamily}"
+                                    FontSize="{TemplateBinding FontSize}"
+                                    Foreground="{StaticResource HmiTextMutedBrush}"
+                                    Text="{TemplateBinding Unit}" />
 
                                 <!--
                                     编辑框：字体/对齐与上面的 TextBlock 逐项对齐，进编辑态字不跳。
@@ -130,8 +145,10 @@
                         </Border>
 
                         <!--
-                            可写提示：hover 才出现的铅笔。纯 XAML 矢量图标（不赌字体），
-                            不参与命中（IsHitTestVisible=False），因此不会抢走“点框进入编辑”的点击。
+                            可写提示：铅笔。2026-10-25 评审 Q1 改为**常显**（Opacity 0.7）：
+                            触摸屏没有 hover，原来只在鼠标悬停时才出现 = 现场根本看不出这个域能改。
+                            悬停时提亮到 1，作为"正指着它"的加强反馈，不再是唯一入口。
+                            不参与命中（IsHitTestVisible=False），不会抢走"点框进入编辑"的点击。
                         -->
                         <Border
                             x:Name="PencilPlate"
@@ -143,7 +160,7 @@
                             Background="{StaticResource HmiSurfaceRaisedBrush}"
                             CornerRadius="4"
                             IsHitTestVisible="False"
-                            Opacity="0"
+                            Opacity="0.7"
                             Visibility="{Binding IsEditable, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource IOFieldBoolToVisibility}}">
                             <Path
                                 Width="10"
@@ -190,6 +207,17 @@
             <DataTrigger Binding="{Binding IsEditable, RelativeSource={RelativeSource Self}}" Value="True">
                 <Setter Property="Cursor" Value="IBeam" />
             </DataTrigger>
+
+            <!--
+                禁用态（2026-10-25 评审 P1）：原来禁用与只读同形，操作员点了没反应会反复点。
+                禁用时：底色收起、字降亮、光标回箭头——"没有写通道/没有权限"要一眼看出来。
+                只改外观，不动 IsEditable 的语义（那个仍由控件算）。
+            -->
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Cursor" Value="Arrow" />
+                <Setter Property="Fill" Value="Transparent" />
+                <Setter Property="Foreground" Value="{StaticResource HmiTextMutedBrush}" />
+            </Trigger>
         </Style.Triggers>
     </Style>
 </ResourceDictionary>

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.Runtime;
+using System.Runtime.InteropServices;
 using System.Threading;
 
 namespace VisionMaster.Helpers
@@ -20,14 +21,13 @@ namespace VisionMaster.Helpers
         private Process _currentProcess;
         private readonly Stopwatch _cpuStopwatch = new();
         private TimeSpan _lastTotalProcessorTime;
+        private TimeSpan _lastSampleTime;
         private readonly object _cpuLock = new();
         private bool _disposed;
 
         // 性能计数器（Windows平台）
         private PerformanceCounter _diskReadCounter;
         private PerformanceCounter _diskWriteCounter;
-        private PerformanceCounter _networkSentCounter;
-        private PerformanceCounter _networkReceivedCounter;
         #endregion
 
         #region 构造函数与析构函数
@@ -47,8 +47,6 @@ namespace VisionMaster.Helpers
 
                     _diskReadCounter = new PerformanceCounter("Process", "IO Read Bytes/sec", instanceName);
                     _diskWriteCounter = new PerformanceCounter("Process", "IO Write Bytes/sec", instanceName);
-                    _networkSentCounter = new PerformanceCounter("Process", "IO Other Bytes/sec", instanceName);
-                    _networkReceivedCounter = new PerformanceCounter("Process", "IO Other Bytes/sec", instanceName);
                 }
                 catch
                 {
@@ -73,6 +71,7 @@ namespace VisionMaster.Helpers
 
             _currentProcess.Refresh();
             var gcMemoryInfo = GC.GetGCMemoryInfo();
+            var systemMemory = GetSystemMemoryMB();
 
             return new SystemMetrics
             {
@@ -83,8 +82,11 @@ namespace VisionMaster.Helpers
                 VirtualMemoryMB = _currentProcess.VirtualMemorySize64 / (1024.0 * 1024.0),
                 ManagedMemoryMB = GC.GetTotalMemory(false) / (1024.0 * 1024.0),
                 LohSizeMB = gcMemoryInfo.GenerationInfo[2].SizeAfterBytes / (1024.0 * 1024.0),
-                SystemTotalMemoryMB = gcMemoryInfo.TotalAvailableMemoryBytes / (1024.0 * 1024.0),
-                SystemAvailableMemoryMB = gcMemoryInfo.TotalAvailableMemoryBytes / (1024.0 * 1024.0),
+                // 物理内存总量 / 可用量：只有 GlobalMemoryStatusEx 给的是"机器还剩多少"。
+                // GC.GetGCMemoryInfo().TotalAvailableMemoryBytes 是 GC 的可用上限（容器/物理上限），
+                // 拿来当"可用内存"会永远显示满值（2026-10-25 修）。
+                SystemTotalMemoryMB = systemMemory.TotalMB,
+                SystemAvailableMemoryMB = systemMemory.AvailableMB,
 
                 // CPU指标
                 CpuUsagePercent = CalculateCpuUsage(),
@@ -101,8 +103,6 @@ namespace VisionMaster.Helpers
                 // IO指标
                 DiskReadBytesPerSec = GetDiskReadSpeed(),
                 DiskWriteBytesPerSec = GetDiskWriteSpeed(),
-                NetworkSentBytesPerSec = GetNetworkSentSpeed(),
-                NetworkReceivedBytesPerSec = GetNetworkReceivedSpeed(),
 
                 // 进程信息
                 ProcessId = _currentProcess.Id,
@@ -218,25 +218,53 @@ namespace VisionMaster.Helpers
         {
             return _diskWriteCounter?.NextSample().RawValue ?? 0;
         }
-
-        /// <summary>
-        /// 获取网络发送速度 (字节/秒)
-        /// </summary>
-        public long GetNetworkSentSpeed()
-        {
-            return _networkSentCounter?.NextSample().RawValue ?? 0;
-        }
-
-        /// <summary>
-        /// 获取网络接收速度 (字节/秒)
-        /// </summary>
-        public long GetNetworkReceivedSpeed()
-        {
-            return _networkReceivedCounter?.NextSample().RawValue ?? 0;
-        }
         #endregion
 
         #region 内部实现
+        /// <summary>
+        /// 物理内存总量 / 可用量（MB）。失败或非 Windows 返回 (0, 0)。
+        ///
+        /// 不能用 <c>GC.GetGCMemoryInfo().TotalAvailableMemoryBytes</c> 代替"可用内存"：
+        /// 那是 GC 的可用上限（容器限额或物理内存），进程用掉多少它都不变。
+        /// </summary>
+        private static (double TotalMB, double AvailableMB) GetSystemMemoryMB()
+        {
+            if (!OperatingSystem.IsWindows())
+                return (0, 0);
+
+            try
+            {
+                var status = new MEMORYSTATUSEX { dwLength = (uint)Marshal.SizeOf<MEMORYSTATUSEX>() };
+                if (!GlobalMemoryStatusEx(ref status))
+                    return (0, 0);
+
+                return (status.ullTotalPhys / (1024.0 * 1024.0), status.ullAvailPhys / (1024.0 * 1024.0));
+            }
+            catch
+            {
+                // 取不到就报 0，由界面显示占位符；不要拿 GC 上限冒充
+                return (0, 0);
+            }
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MEMORYSTATUSEX
+        {
+            public uint dwLength;
+            public uint dwMemoryLoad;
+            public ulong ullTotalPhys;
+            public ulong ullAvailPhys;
+            public ulong ullTotalPageFile;
+            public ulong ullAvailPageFile;
+            public ulong ullTotalVirtual;
+            public ulong ullAvailVirtual;
+            public ulong ullAvailExtendedVirtual;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
+
         private double CalculateCpuUsage()
         {
             _currentProcess.Refresh();
@@ -245,12 +273,19 @@ namespace VisionMaster.Helpers
             var currentTotalProcessorTime = _currentProcess.TotalProcessorTime;
 
             double cpuTimeDiff = (currentTotalProcessorTime - _lastTotalProcessorTime).TotalMilliseconds;
-            double timeDiff = (currentTime - _lastTotalProcessorTime).TotalMilliseconds;
-
-            double cpuUsage = (cpuTimeDiff / timeDiff) / Environment.ProcessorCount * 100.0;
+            // 分母必须是"两次采样的墙钟间隔"。
+            // 旧实现写成 (currentTime - _lastTotalProcessorTime)：拿墙钟减上次的 CPU 时间，
+            // 两个时间基准混用，进程跑得越久分母越大，CPU 读数会一路趋近 0（真机显示 0.0% 即此）。
+            double timeDiff = (currentTime - _lastSampleTime).TotalMilliseconds;
 
             // 更新历史记录
             _lastTotalProcessorTime = currentTotalProcessorTime;
+            _lastSampleTime = currentTime;
+
+            if (timeDiff <= 0)
+                return 0;
+
+            double cpuUsage = (cpuTimeDiff / timeDiff) / Environment.ProcessorCount * 100.0;
 
             // 限制范围在 0-100
             return Math.Max(0, Math.Min(100, cpuUsage));
@@ -301,8 +336,6 @@ namespace VisionMaster.Helpers
                 _currentProcess?.Dispose();
                 _diskReadCounter?.Dispose();
                 _diskWriteCounter?.Dispose();
-                _networkSentCounter?.Dispose();
-                _networkReceivedCounter?.Dispose();
             }
 
             _disposed = true;
@@ -342,8 +375,6 @@ namespace VisionMaster.Helpers
         // IO指标
         public long DiskReadBytesPerSec { get; set; }
         public long DiskWriteBytesPerSec { get; set; }
-        public long NetworkSentBytesPerSec { get; set; }
-        public long NetworkReceivedBytesPerSec { get; set; }
 
         // 进程信息
         public int ProcessId { get; set; }

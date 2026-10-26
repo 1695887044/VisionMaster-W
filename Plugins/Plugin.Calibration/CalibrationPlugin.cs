@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -26,11 +27,14 @@ namespace Plugin.Calibration
     /// 职责（单一）：产出 <see cref="CalibrationTransform"/>——"像素 ↔ 毫米 / 机械坐标"的变换本身。
     /// **不做运行期坐标换算**（那是「坐标变换」插件的活）：两个插件都能换算，早晚出现两套行为不一致。
     ///
-    /// 运行期行为（为什么每轮重算而不是"只存不算"）
+    /// 运行期行为（两种模式，和商业软件的“标定 / 标定引用”对齐）
     /// ---------
-    /// ① 下游（坐标变换）要接本插件的输出端口，运行期必须有产物；
-    /// ② 求解是微秒级，重算成本可忽略；
-    /// ③ 存储的点与输出的矩阵**永不脱节**——改了表格忘了重新标定这种情况在结构上不可能发生。
+    /// ① **计算模式（默认）**：按当前表格/取点求解并输出，同时可写入方案标定资产
+    ///    （<see cref="SaveToCatalog"/>）。放在独立的 Calib/换型流程里，生产节拍不调用；
+    /// ② **引用模式（<see cref="UseSavedCalibration"/>）**：按资产 Id/名字从方案标定目录加载，
+    ///    不读图、不重算，产线流程只做坐标变换乘法；
+    /// ③ 计算模式的“每轮重算”只用于标定/换型本身：求解是微秒级，且存储点与输出矩阵永不脱节；
+    ///    引用模式才是生产节拍的常态，失配（相机序列号/资产不存在）会明确失败，绝不静默回退旧结果。
     ///
     /// 配置态（画布取点）
     /// ---------
@@ -150,6 +154,7 @@ namespace Plugin.Calibration
         {
             CancelPick();   // 模式切换后取点目标语义已变（P 行 → A/B），取消待命
             OnPropertyChanged(nameof(ShowPointTable));   // 表格/网格行可见性 = f(模式)
+            OnPropertyChanged(nameof(UndistortHintText));   // 去畸变开关是否适用也 = f(模式)
             RefreshStatus();
         }
 
@@ -311,6 +316,33 @@ namespace Plugin.Calibration
                 value ? StatusLevel.Warning : StatusLevel.Info);
         }
 
+        /// <summary>
+        /// 标定来源：false = 本步骤按当前表格重算（默认）；true = 从方案标定资产按 Id/名字加载，
+        /// 不读图、不重算。商业软件的“标定加载/标定引用”就是后者。
+        /// </summary>
+        [StepConfig, DefaultValue(false)]
+        public partial bool UseSavedCalibration { get; set; }
+
+        /// <summary>要引用的方案标定资产 Id（GUID 文本；优先于名字）</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string SavedCalibrationId { get; set; }
+
+        /// <summary>要引用的方案标定资产名（Id 为空或找不到时按名字兜底）</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string SavedCalibrationName { get; set; }
+
+        /// <summary>计算成功后是否把结果写入方案标定资产（随 .vms 保存，供下游引用）</summary>
+        [StepConfig, DefaultValue(true)]
+        public partial bool SaveToCatalog { get; set; }
+
+        /// <summary>写入方案资产时用的名字（留空 = 步骤名）</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string CatalogAssetName { get; set; }
+
+        /// <summary>写入方案资产时用的稳定 Id（留空 = 由步骤名确定性生成）</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string CatalogAssetId { get; set; }
+
         /// <summary>标定数据是否可编辑（界面绑定 IsEnabled；锁定 = 只读防误改）</summary>
         public bool IsEditable => !IsCalibrationLocked;
 
@@ -318,6 +350,15 @@ namespace Plugin.Calibration
         /// 标定表与网格规模行是否可见（九点/透视共用同一张标定表；界面绑定 Visibility，模式切换时经 OnModeChanged 通知）。
         /// </summary>
         public bool ShowPointTable => Mode is CalibrationMode.NinePoint or CalibrationMode.Perspective or CalibrationMode.Mesh;
+
+        /// <summary>模式卡片文案：走 [Display(Name)] 单一来源（R40/R84），改显示名界面自动跟。</summary>
+        [JsonIgnore] public string PixelScaleLabel => ModeLabel(CalibrationMode.PixelScale);
+        [JsonIgnore] public string NinePointLabel => ModeLabel(CalibrationMode.NinePoint);
+        [JsonIgnore] public string PerspectiveLabel => ModeLabel(CalibrationMode.Perspective);
+        [JsonIgnore] public string MeshLabel => ModeLabel(CalibrationMode.Mesh);
+
+        private static string ModeLabel(CalibrationMode mode)
+            => StepConfigOption.ForEnum(typeof(CalibrationMode), mode.ToString()).Display;
 
         /// <summary>
         /// 标定配置的最后改动时间（UTC）：由 <see cref="ComputeCalibration"/> 按"输入签名"推进——
@@ -749,6 +790,14 @@ namespace Plugin.Calibration
         /// <summary>配置实例是否已释放</summary>
         private volatile bool _disposed;
 
+        /// <summary>
+        /// 配置灌值期间抑制求解刷新：`ApplyConfigValues` 会逐个 set 配置属性，
+        /// 每个带 `OnXxxChanged` 的属性都会触发 `RefreshStatus → ComputeCalibration`；
+        /// 不抑制的话，`CalibrationStampUtc` 写入之后仍有 `Intrinsics`/`CaltabDescrFile`/
+        /// `UndistortBeforeCalibration` 等属性触发重算，把方案里存的时间刷成"刚刚"。
+        /// </summary>
+        private bool _initializing;
+
         /// <summary>标记 ⇄ 表格 同步的重入守卫（拖动回写时不要再触发反向刷新）</summary>
         private bool _syncingMarkers;
 
@@ -809,8 +858,8 @@ namespace Plugin.Calibration
             SourceImage.ValueChanged += OnSourceImageValueChanged;
         }
 
-        private void OnSourceImagePathValueChanged(object? sender, EventArgs e) => EnsurePreviewLoaded();
-        private void OnSourceImageValueChanged(object? sender, EventArgs e) => RefreshOnlineImage();
+        private void OnSourceImagePathValueChanged(object? sender, EventArgs e) => PostToUIAsync(EnsurePreviewLoaded);
+        private void OnSourceImageValueChanged(object? sender, EventArgs e) => PostToUIAsync(RefreshOnlineImage);
 
         #region IPluginCustomViewProvider
 
@@ -826,28 +875,42 @@ namespace Plugin.Calibration
         public override void Initialize(IStepConfigData stepData)
         {
             _disposed = false;
-            base.Initialize(stepData);
-
-            // 内参标定的标定板候选（HALCON 的 calib 目录）——只在这里扫一次；
-            // 扫不到（HALCONROOT 没配）时下拉为空、说明行给原因，不阻断插件加载
-            RefreshCaltabDescriptorOptions();
-
-            // 旧方案迁移：四值全 0 的行 = 旧版"空行"约定 → 还原成 null（新模型里 0 是合法值）
-            // 在这里做而不是 ValueConverter 里做：迁移语义只属于标定插件，不污染全局转换器
+            _initializing = true;
             int migrated = 0;
-            foreach (var row in PointRows)
-                if (row != null && row.NormalizeLegacyAllZero())
-                    migrated++;
 
-            // 载入即对齐输入签名：防止"打开方案就推进标定时间戳"（签名没变就不动 stamp）
-            _lastInputSignature = BuildInputSignature();
+            try
+            {
+                base.Initialize(stepData);
 
-            // 新步骤/空表：先铺一张 N×N 网格，界面一打开就有可填的行
-            if (PointRows.Count == 0)
-                RebuildGrid(preserveValues: false);
+                // 内参标定的标定板候选（HALCON 的 calib 目录）——只在这里扫一次；
+                // 扫不到（HALCONROOT 没配）时下拉为空、说明行给原因，不阻断插件加载
+                RefreshCaltabDescriptorOptions();
 
-            EnsurePreviewLoaded();
-            RefreshOnlineImage();   // 实时图（如试运行桥接/变量链接送达）优先接管画布
+                // 旧方案迁移：四值全 0 的行 = 旧版"空行"约定 → 还原成 null（新模型里 0 是合法值）
+                // 在这里做而不是 ValueConverter 里做：迁移语义只属于标定插件，不污染全局转换器
+                foreach (var row in PointRows)
+                    if (row != null && row.NormalizeLegacyAllZero())
+                        migrated++;
+
+                // 新方案没有标定时间：补一个；从方案载入的时间是权威，保持不动。
+                if (CalibrationStampUtc == default)
+                    CalibrationStampUtc = DateTime.UtcNow;
+
+                // 载入即对齐输入签名：之后的首次 RefreshStatus 只记签名、不推进 stamp。
+                _lastInputSignature = BuildInputSignature();
+
+                // 新步骤/空表：先铺一张 N×N 网格，界面一打开就有可填的行
+                if (PointRows.Count == 0)
+                    RebuildGrid(preserveValues: false);
+
+                EnsurePreviewLoaded();
+                RefreshOnlineImage();   // 实时图（如试运行桥接/变量链接送达）优先接管画布
+            }
+            finally
+            {
+                _initializing = false;
+            }
+
             RefreshStatus();
 
             if (migrated > 0)
@@ -914,6 +977,12 @@ namespace Plugin.Calibration
             ResidualRmsPx.Value = 0;
             ResidualMaxPx.Value = 0;
 
+            if (UseSavedCalibration)
+            {
+                LoadSavedCalibration(context);
+                return;
+            }
+
             var attempt = ComputeCalibration();
             if (!attempt.Succeeded)
             {
@@ -931,6 +1000,7 @@ namespace Plugin.Calibration
 
             ApplyRowResiduals(t);
             RebuildResidualAnnotations();   // 运行求解后同样刷新（图集标注随帧渲染）
+            TrySaveCalibrationAsset(context, t);
 
             var hint = CalibrationMath.DiagnoseRadialBands(
                 t.ResidualByRadiusBands, t.ResidualBandCounts, MinEdgeResidualForHint());
@@ -954,9 +1024,128 @@ namespace Plugin.Calibration
         }
 
         /// <summary>
+        /// 标定引用模式：从方案标定资产按 Id/名字加载，不读图、不重算。
+        /// 与商业软件的“标定加载”同一语义；失配时明确失败，绝不静默退回当前表格的计算结果。
+        /// </summary>
+        private void LoadSavedCalibration(IExecutionContext context)
+        {
+            var catalog = context.Calibrations;
+            CalibrationAsset? asset = null;
+
+            if (Guid.TryParse((SavedCalibrationId ?? string.Empty).Trim(), out var id) && id != Guid.Empty)
+                catalog.TryGet(id, out asset);
+            if (asset == null && !string.IsNullOrWhiteSpace(SavedCalibrationName))
+                catalog.TryGetByName(SavedCalibrationName.Trim(), out asset);
+
+            if (asset == null)
+            {
+                ErrorMessage.Value = string.IsNullOrWhiteSpace(SavedCalibrationId)
+                    && string.IsNullOrWhiteSpace(SavedCalibrationName)
+                    ? "标定引用：未选择方案标定资产（请填资产 Id 或名字）"
+                    : "标定引用：方案标定资产不存在（请检查 Id/名字，或先运行标定流程写入资产）";
+                context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                return;
+            }
+
+            var transform = asset.Transform;
+            if (transform == null || transform.MmPerPixel <= 0)
+            {
+                ErrorMessage.Value = $"标定引用：资产「{asset.Name}」的结果为空或像素当量无效";
+                context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                return;
+            }
+
+            var upstreamSerial = (SourceSerial.ActualValue ?? string.Empty).Trim();
+            var assetSerial = (transform.CameraSerial ?? string.Empty).Trim();
+            if (upstreamSerial.Length > 0 && assetSerial.Length > 0
+                && !string.Equals(upstreamSerial, assetSerial, StringComparison.OrdinalIgnoreCase))
+            {
+                ErrorMessage.Value = $"标定引用：资产「{asset.Name}」属于相机「{assetSerial}」，"
+                    + $"当前图像来自「{upstreamSerial}」——请换用对应相机的标定资产";
+                context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                return;
+            }
+
+            // 尺寸自证：参考模式不读图，但接了 SourceImage 就顺手核对一次。
+            // 下游「坐标变换」只在接了 SrcImage 时才查尺寸；这里补上，避免"没接 SrcImage 就一路放行"。
+            var source = SourceImage.ActualValue;
+            if (source != null && source.IsInitialized())
+            {
+                try
+                {
+                    source.GetImageSize(out int width, out int height);
+                    if (transform.SourceImageWidth > 0 && transform.SourceImageHeight > 0
+                        && (width != transform.SourceImageWidth || height != transform.SourceImageHeight))
+                    {
+                        ErrorMessage.Value = $"标定引用：资产「{asset.Name}」的标定图是 "
+                            + $"{transform.SourceImageWidth}×{transform.SourceImageHeight}，当前图像是 {width}×{height}"
+                            + "——换分辨率/换相机后需重新标定";
+                        context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                        return;
+                    }
+                }
+                catch
+                {
+                    // 读不到尺寸就不拦：下游（坐标变换）接了 SrcImage 时会再查一次
+                }
+            }
+
+            Success.Value = true;
+            Transform.TypedValue = transform;
+            MmPerPixel.Value = transform.MmPerPixel;
+            ResidualRmsPx.Value = transform.ResidualRmsPx;
+            ResidualMaxPx.Value = transform.MaxResidualPx;
+            context.Logger?.Info(
+                $"{InstanceName} 加载方案标定资产「{asset.Name}」v{asset.Version}："
+                + $"当量 {transform.MmPerPixel:0.######} mm/px（{transform.SourceImageWidth}×{transform.SourceImageHeight}）");
+        }
+
+        /// <summary>
+        /// 计算成功后把结果写入方案标定资产。锁定资产不会被覆盖（保存失败只记警告，
+        /// 不影响本次标定输出——计算本身仍然有效）。
+        /// </summary>
+        private void TrySaveCalibrationAsset(IExecutionContext context, CalibrationTransform transform)
+        {
+            if (!SaveToCatalog) return;
+
+            var name = string.IsNullOrWhiteSpace(CatalogAssetName)
+                ? (InstanceName ?? "标定")
+                : CatalogAssetName.Trim();
+            var id = Guid.TryParse((CatalogAssetId ?? string.Empty).Trim(), out var parsed) && parsed != Guid.Empty
+                ? parsed
+                : DeterministicGuid("calibration:" + (InstanceName ?? string.Empty) + ":" + name);
+
+            // 资产锁只由资产自己的管理入口控制：不要拿步骤锁（IsCalibrationLocked）去写它。
+            // 旧实现把步骤锁写进资产，导致"步骤锁过一次 → 资产永久锁定"，解锁步骤后也无法再更新。
+            context.Calibrations.TryGet(id, out var existingAsset);
+            var asset = new CalibrationAsset
+            {
+                CalibrationId = id,
+                Name = name,
+                Description = string.Empty,
+                IsLocked = existingAsset?.IsLocked ?? false,
+                Transform = transform,
+            };
+
+            if (!context.Calibrations.Save(asset, out var error))
+                context.Logger?.Warn($"{InstanceName} 标定资产「{name}」未写入方案：{error}");
+            else
+                context.Logger?.Info($"{InstanceName} 标定资产已写入方案目录：「{name}」v{asset.Version}");
+        }
+
+        private static Guid DeterministicGuid(string seed)
+        {
+            using var sha1 = System.Security.Cryptography.SHA1.Create();
+            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(seed));
+            var bytes = new byte[16];
+            Array.Copy(hash, bytes, 16);
+            return new Guid(bytes);
+        }
+
+        /// <summary>
         /// 运行期日志里的**内参摘要**（带内参时才有内容）：事后追溯"这份标定到底用了哪套相机模型"。
         /// 为什么必须进日志：内参是随步骤落盘的配置、界面上不一定看得见（流程跑在别的机器上时更看不到），
-        /// 出了坐标偏差再回头查"当时用的是 kappa 多少"，只有日志能回答。
+        /// 出了坐标偏差再回头查"当时 kappa 多少"，只有日志能回答。
         /// </summary>
         private static string IntrinsicsLogSummary(CalibrationTransform t)
         {
@@ -1344,6 +1533,13 @@ namespace Plugin.Calibration
             {
                 if (!UndistortBeforeCalibration)
                     return "未启用：取点直接用原始（畸变）像素，标定结果与历史行为逐字一致。";
+
+                // 像素当量没有 *Undistorted 的契约成员：开关在本模式下不生效。
+                // 不能落到下面"已启用…产出 *Undistorted"的文案里——那是谎称已生效。
+                if (Mode == CalibrationMode.PixelScale)
+                    return "像素当量模式不适用：该模式的当量由原始像素距离算出，契约里也没有 PixelScaleUndistorted；"
+                         + "「取点前先去畸变」在本模式下会被忽略。若需要去畸变，请改用九点/透视/网格标定，"
+                         + "或先在图像域去畸变。";
 
                 var dto = Intrinsics;
                 if (dto == null)
@@ -1829,16 +2025,23 @@ namespace Plugin.Calibration
             {
                 var hom = t.ProjectiveMatrix;
                 if (!CalibrationMath.IsUsableProjective(hom))
+                {
+                    ClearRowResiduals();
                     return;
+                }
 
                 foreach (var row in PointRows)
                 {
-                    if (row == null || !row.IsFilled) { if (row != null) row.ResidualPx = 0; continue; }
+                    if (row == null) continue;
+                    if (!row.IsFilled) { row.ResidualPx = 0; continue; }
 
                     // 带内参时：先把原始像素去畸变（矩阵定义在去畸变域）；当量也是该域的局部当量——
                     // 两侧同域相除才是像素口径的残差。
                     if (!TryToMatrixFrame(t, row.ImageRow!.Value, row.ImageCol!.Value, out double r, out double c))
+                    {
+                        row.ResidualPx = 0;
                         continue;
+                    }
 
                     if (CalibrationMath.TryMapPixelToXYProj(hom!, r, c, out var x, out var y, out _))
                     {
@@ -1847,6 +2050,12 @@ namespace Plugin.Calibration
                         double mmPerPixel = CalibrationMath.DeriveMmPerPixelProjective(hom!, r, c, out _);
                         if (mmPerPixel > 0)
                             row.ResidualPx = Math.Sqrt(dx * dx + dy * dy) / mmPerPixel;
+                        else
+                            row.ResidualPx = 0;
+                    }
+                    else
+                    {
+                        row.ResidualPx = 0;
                     }
                 }
                 return;
@@ -1867,15 +2076,22 @@ namespace Plugin.Calibration
         private void ApplyRowResidualsFromMatrix(CalibrationTransform t, double[]? matrix)
         {
             if (matrix == null || !CalibrationMath.IsUsableMatrix(matrix))
+            {
+                ClearRowResiduals();
                 return;
+            }
 
             foreach (var row in PointRows)
             {
-                if (row == null || !row.IsFilled) { if (row != null) row.ResidualPx = 0; continue; }
+                if (row == null) continue;
+                if (!row.IsFilled) { row.ResidualPx = 0; continue; }
 
                 // 带内参时先把原始像素去畸变（矩阵与当量都在去畸变域）
                 if (!TryToMatrixFrame(t, row.ImageRow!.Value, row.ImageCol!.Value, out double r, out double c))
+                {
+                    row.ResidualPx = 0;
                     continue;
+                }
 
                 if (CalibrationMath.TryMapPixelToXY(matrix!, r, c, out var x, out var y))
                 {
@@ -1884,8 +2100,21 @@ namespace Plugin.Calibration
                     double mmPerPixel = CalibrationMath.DeriveMmPerPixel(matrix!, out _);
                     if (mmPerPixel > 0)
                         row.ResidualPx = Math.Sqrt(dx * dx + dy * dy) / mmPerPixel;
+                    else
+                        row.ResidualPx = 0;
+                }
+                else
+                {
+                    row.ResidualPx = 0;
                 }
             }
+        }
+
+        /// <summary>矩阵/基线不可用时把逐行残差归零（表格不能留着上一轮的旧数字）。</summary>
+        private void ClearRowResiduals()
+        {
+            foreach (var row in PointRows)
+                if (row != null) row.ResidualPx = 0;
         }
 
         /// <summary>
@@ -1983,7 +2212,7 @@ namespace Plugin.Calibration
         /// </summary>
         private void RefreshStatus()
         {
-            if (_disposed) return;
+            if (_disposed || _initializing) return;
 
             var attempt = ComputeCalibration();
             var t = attempt.Transform;
@@ -2144,6 +2373,8 @@ namespace Plugin.Calibration
         /// <summary>路径与已载入的不一致就载图（手工输入/浏览/链接变更都汇到这里）</summary>
         private void EnsurePreviewLoaded()
         {
+            if (_disposed) return;
+
             var path = SourceImagePath.GetTypedValue();
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -2428,8 +2659,21 @@ namespace Plugin.Calibration
                     return false;
                 }
 
-                // 5 列：第一列是序号，丢掉
-                int start = trimmed.Count == 5 ? 1 : 0;
+                // 5 列：第一列是序号，丢掉。但首列不是序号时必须报错——
+                // 否则用户粘了 5 列真实数据，第一列会被静默丢弃（数据错位/丢失最难查）。
+                int start = 0;
+                if (trimmed.Count == 5)
+                {
+                    string first = trimmed[0].Trim();
+                    if (first.Length > 0
+                        && !int.TryParse(first, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                    {
+                        error = $"剪贴板第 {i + 1} 行有 5 列，但第一列「{first}」不是序号——"
+                              + "5 列格式要求第一列是序号；如果是 5 列真实数据，请先删掉多余的一列";
+                        return false;
+                    }
+                    start = 1;
+                }
                 var values = new double?[4];
                 for (int k = 0; k < 4; k++)
                 {
@@ -2439,9 +2683,14 @@ namespace Plugin.Calibration
                         values[k] = null;   // 空格子 = 未填（半填行语义由运行期把关）
                         continue;
                     }
-                    if (!double.TryParse(cell, out var v))
+                    if (!double.TryParse(cell, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
                     {
                         error = $"剪贴板第 {i + 1} 行「{cell}」不是数字";
+                        return false;
+                    }
+                    if (!double.IsFinite(v))
+                    {
+                        error = $"剪贴板第 {i + 1} 行「{cell}」不是有限数（NaN/Infinity 不能作为坐标）";
                         return false;
                     }
                     values[k] = v;
@@ -3019,6 +3268,8 @@ namespace Plugin.Calibration
                 ScaleBRow = ScaleBRow,
                 ScaleBCol = ScaleBCol,
                 CameraSerial = (CameraSerial ?? string.Empty).Trim(),
+                Intrinsics = Intrinsics == null ? null : CameraIntrinsicsDto.FromContract(Intrinsics.ToContract()),
+                UndistortBeforeCalibration = UndistortBeforeCalibration,
                 ResidualThresholdPx = ResidualThresholdPx,
                 MmPerPixelMin = MmPerPixelMin,
                 MmPerPixelMax = MmPerPixelMax,
@@ -3086,6 +3337,10 @@ namespace Plugin.Calibration
             if (!IsFinite(file.MmPerPixelMin) || file.MmPerPixelMin < 0
                 || !IsFinite(file.MmPerPixelMax) || file.MmPerPixelMax < 0)
                 return $"导入失败：当量护栏非法（{file.MmPerPixelMin}~{file.MmPerPixelMax}）";
+            if (file.Intrinsics != null && !file.Intrinsics.IsUsable(out var intrinsicError))
+                return $"导入失败：内参数据不可用（{intrinsicError}）";
+            if (file.UndistortBeforeCalibration && file.Intrinsics == null)
+                return "导入失败：文件声明「取点前先去畸变」，但内参缺失——请重新导出一份带内参的标定，或关掉该开关";
 
             CancelPick();
 
@@ -3100,6 +3355,12 @@ namespace Plugin.Calibration
             ResidualThresholdPx = file.ResidualThresholdPx;
             MmPerPixelMin = file.MmPerPixelMin;
             MmPerPixelMax = file.MmPerPixelMax;
+            // 内参与开关必须在 stamp 之前写：它们的 setter 会触发 RefreshStatus，
+            // 写在 stamp 之后会把文件里的标定时间刷成"刚刚"。
+            Intrinsics = file.Intrinsics == null
+                ? null
+                : CameraIntrinsicsDto.FromContract(file.Intrinsics.ToContract());
+            UndistortBeforeCalibration = file.UndistortBeforeCalibration;
             CalibrationStampUtc = file.CalibrationStampUtc;
 
             // 尺寸：文件记录了就采信文件；**文件没记录（≤0）不许把本机已知尺寸清成 0**——
@@ -3247,6 +3508,30 @@ namespace Plugin.Calibration
                 action();
             else
                 dispatcher.Invoke(action);
+        }
+
+        /// <summary>
+        /// 异步切回 UI 线程（端口事件用）：流程线程触发 `SourceImage`/`SourceImagePath` 变化时，
+        /// 不能直接改 `CanvasMarkers`（UI 绑定集合）或调 HALCON 窗口——这里用 `BeginInvoke`
+        /// 把刷新排到 UI 队列，流程线程不等。
+        /// </summary>
+        private static void PostToUIAsync(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            try
+            {
+                dispatcher.BeginInvoke(action);
+            }
+            catch
+            {
+                // 关闭中：丢弃这次 UI 刷新（插件随后 Dispose，状态已无意义）
+            }
         }
     }
 }

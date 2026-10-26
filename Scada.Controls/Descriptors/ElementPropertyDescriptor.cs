@@ -28,6 +28,13 @@ namespace VisionMaster.Scada.Controls
         /// <summary>开关（值为 "True"/"False"）</summary>
         Bool,
 
+        /// <summary>
+        /// 图表数据项（柱状图 / 饼图）：值是一整条 JSON，手填不现实——属性面板给
+        /// "摘要 + 配置数据项…"一行，打开带**变量选择器**的列表编辑器。
+        /// 与 <c>ReportColumnList</c> 分开：那个绑的是账本列名，这个绑的是工程变量。
+        /// </summary>
+        ChartSeries,
+
         /// <summary>颜色（值为 "#AARRGGBB"，编辑器给取色器）</summary>
         Color,
 
@@ -97,6 +104,15 @@ namespace VisionMaster.Scada.Controls
         /// 面板给画面选择器：候选来自当前文档的可导航页，不手打；SubPage 用。
         /// </summary>
         Page,
+
+        /// <summary>
+        /// 报表列定义（值是 <see cref="VisionMaster.Scada.ScadaReportCodec"/> 的规范 JSON 串）。
+        ///
+        /// 与 <see cref="ColumnList"/> 同一形态但语义不同：数据表格的列绑的是<b>变量名</b>（实时取值），
+        /// 报表的列绑的是<b>CSV 表头列名</b>（历史账本），还多一个"聚合方式"。
+        /// 两者共用一套弹窗会把"变量"和"账本列"混进同一个下拉，所以单独一个 Kind。
+        /// </summary>
+        ReportColumnList,
     }
 
     /// <summary>

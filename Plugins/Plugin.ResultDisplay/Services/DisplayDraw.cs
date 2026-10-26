@@ -143,6 +143,9 @@ namespace Plugin.ResultDisplay.Services
                 case HImage:
                     RejectImage(label, ctx);
                     return;
+                case IReadOnlyList<MeasureAnnotation> marks:
+                    AppendAnnotations(label, marks, ctx);
+                    return;
                 case GeometryParam g:
                     DrawGeometry(label, g, ctx);
                     return;
@@ -180,6 +183,83 @@ namespace Plugin.ResultDisplay.Services
                     DrawScalar(label, def, v, ctx);
                     return;
             }
+        }
+
+        /// <summary>
+        /// 把 A 类插件输出的 <see cref="MeasureAnnotation"/> 列表翻译成 BakePlan。
+        ///
+        /// 位置口径与 <c>HalconBase.RenderAnnotations</c> 逐项对齐：Line 文本在两点中点、Angle 在顶点、
+        /// Text 在 (row,col)、Polyline 顶点号在 (r-14,c+6)、Point 十字 ±6 且文本在 (r-14,c+6)。
+        /// 这样"主界面覆盖层看到的"与"烧进图里的"是同一套位置，不会出现"预览有、SCADA 偏一截"。
+        ///
+        /// 这里只消费托管列表，不碰 HALCON 对象、不开窗口；真正的像素搬运仍在
+        /// <see cref="AnnotationBaker"/> 里做一次（合成器的既有烘焙）。
+        /// </summary>
+        private static void AppendAnnotations(string label, IReadOnlyList<MeasureAnnotation> marks, Ctx ctx)
+        {
+            if (marks.Count == 0)
+            {
+                ctx.Info(label, "(空)");
+                return;
+            }
+
+            foreach (var a in marks)
+            {
+                if (a?.Points == null)
+                    continue;
+
+                var p = a.Points;
+                var color = string.IsNullOrWhiteSpace(a.Color) ? "green" : a.Color;
+
+                switch (a.Type)
+                {
+                    case MeasureType.Line when p.Length >= 4:
+                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[2], p[3] }, color, 2);
+                        if (!string.IsNullOrEmpty(a.Text))
+                            ctx.AddTextAt(a.Text, (p[0] + p[2]) / 2.0, (p[1] + p[3]) / 2.0, color);
+                        break;
+
+                    case MeasureType.Angle when p.Length >= 6:
+                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[2], p[3] }, color, 2);
+                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[4], p[5] }, color, 2);
+                        if (!string.IsNullOrEmpty(a.Text))
+                            ctx.AddTextAt(a.Text, p[0], p[1], color);
+                        break;
+
+                    case MeasureType.Text when p.Length >= 2:
+                        if (!string.IsNullOrEmpty(a.Text))
+                            ctx.AddTextAt(a.Text, p[0], p[1], color);
+                        break;
+
+                    case MeasureType.Polyline when p.Length >= 4:
+                        for (int i = 0; i + 3 < p.Length; i += 2)
+                            ctx.AddShape(BakeShapeKind.Line, new[] { p[i], p[i + 1], p[i + 2], p[i + 3] }, color, 2);
+
+                        if (a.ShowVertices)
+                        {
+                            for (int i = 0; i + 1 < p.Length; i += 2)
+                            {
+                                double r = p[i], c = p[i + 1];
+                                ctx.AddShape(BakeShapeKind.Cross, new[] { r, c, 10.0 }, color, 2);
+                                if (!string.IsNullOrEmpty(a.Text))
+                                    ctx.AddTextAt(a.Text + (i / 2 + 1), r - 14, c + 6, color);
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(a.Text))
+                        {
+                            ctx.AddTextAt(a.Text, p[0], p[1], color);
+                        }
+                        break;
+
+                    case MeasureType.Point when p.Length >= 2:
+                        ctx.AddShape(BakeShapeKind.Cross, new[] { p[0], p[1], 12.0 }, color, 2);
+                        if (!string.IsNullOrEmpty(a.Text))
+                            ctx.AddTextAt(a.Text, p[0] - 14, p[1] + 6, color);
+                        break;
+                }
+            }
+
+            ctx.Info(label, $"标注 {marks.Count} 条");
         }
 
         /// <summary>

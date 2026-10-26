@@ -1,8 +1,8 @@
 using Core.Interfaces;
 using AvalonDock.Layout;
 using System.Collections.ObjectModel;
+using System.Linq;
 using HslCommunication.Profinet.Siemens;
-using NLog;
 using Prism.Common;
 using Prism.Dialogs;
 using System.ComponentModel;
@@ -22,6 +22,7 @@ using VisionMaster.Communications;
 using VisionMaster.EventModel;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
+using VisionMaster.Scada;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
 using VisionMaster.Views;
@@ -51,6 +52,9 @@ namespace VisionMaster
         public string Subtitle { get; init; } = string.Empty;
         public string Glyph { get; init; } = "\uf0c9";
         public Action? Invoke { get; init; }
+
+        /// <summary>这一行要求的权限 Key；null = 不限制（视图操作）。</summary>
+        public string? Permission { get; init; }
     }
 
     public class ShellViewModel : BindableBase
@@ -74,6 +78,15 @@ namespace VisionMaster
         /// 两者在 App 里注册的是<b>同一个单例</b>，所以这里读到的一定是权限判定用的那一份。
         /// </summary>
         private readonly ScadaAccessPolicy _accessPolicy;
+        private readonly ScadaPermissionGate _permissionGate;
+        private readonly ScadaAuditWriter _audit;
+
+        /// <summary>
+        /// 调试模式（开发期免权限 / 上线后仅管理员）。注入具体类型而不是接口：
+        /// 只有一个实现，且这里要订阅它的 <see cref="DebugModeService.Changed"/> 来刷新状态栏徽标。
+        /// </summary>
+        private readonly DebugModeService _debugMode;
+
         private readonly IRuntimeManager _runtimeManager;
 
         /// <summary>
@@ -112,6 +125,100 @@ namespace VisionMaster
         public SolutionService solutionService { get; }
 
         #region 系统状态
+        // 底栏只常驻 CPU + 内存两项（设计基线 docs/UI设计基线/app-shell-chrome/），
+        // 线程 / 句柄 / GC 堆进「系统资源」浮窗。浮窗要画进度条、判阈值，所以数值本身
+        // 必须单独暴露；*Str 保留给 ShellCopy 与旧绑定，不在这里二次解析文本。
+        /// <summary>进程 CPU 占用率（0~100）</summary>
+        public double CpuUsagePercent
+        {
+            get { return field; }
+            private set
+            {
+                if (SetProperty(ref field, value))
+                    RaisePropertyChanged(nameof(IsCpuUsageHigh));
+            }
+        }
+
+        /// <summary>进程物理内存 Working Set（MB）。底栏与浮窗都按这一口径显示</summary>
+        public double MemoryUsageMB
+        {
+            get { return field; }
+            private set
+            {
+                if (SetProperty(ref field, value))
+                    RaisePropertyChanged(nameof(IsMemoryUsageHigh));
+            }
+        }
+
+        /// <summary>托管堆大小（MB，GC.GetTotalMemory）</summary>
+        public double GcHeapMB
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>当前进程活动线程数</summary>
+        public int ThreadCount
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>进程句柄数</summary>
+        public int HandleCount
+        {
+            get { return field; }
+            private set
+            {
+                if (SetProperty(ref field, value))
+                    RaisePropertyChanged(nameof(IsHandleCountHigh));
+            }
+        }
+
+        /// <summary>CPU 超阈值（浮窗脚注承诺的变橙条件）</summary>
+        public bool IsCpuUsageHigh => CpuUsagePercent >= 80;
+
+        /// <summary>内存超阈值（1 GB）</summary>
+        public bool IsMemoryUsageHigh => MemoryUsageMB >= 1024;
+
+        /// <summary>句柄数超阈值（10000）</summary>
+        public bool IsHandleCountHigh => HandleCount >= 10000;
+
+        /// <summary>LOH 大小（MB）。图像帧都分配在 LOH，视觉软件最该看的堆</summary>
+        public double LohSizeMB
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>进程运行时长（浮窗「运行时长」）</summary>
+        public string UptimeText
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>方案所在盘剩余空间（GB 文本）；没有方案时取程序目录所在盘</summary>
+        public string DiskFreeText
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>磁盘剩余不足总容量 5%（浮窗里变橙）</summary>
+        public bool IsDiskFreeLow
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
+        /// <summary>磁盘剩余 ToolTip：盘符 + 剩余 / 总量</summary>
+        public string DiskFreeTip
+        {
+            get { return field; }
+            private set { SetProperty(ref field, value); }
+        }
+
         public string HandleCountStr
         {
             get { return field; }
@@ -157,6 +264,34 @@ namespace VisionMaster
         /// 视图拿到的是一份可写引用，但状态栏只读它——权限的写入口（登录/登出）刻意留在弹窗里。
         /// </summary>
         public ScadaAccessPolicy AccessPolicy => _accessPolicy;
+
+        /// <summary>
+        /// 状态栏用户胶囊的文字：已登录「角色 · 用户名」，未登录「未登录」。
+        ///
+        /// 设计基线（app-shell-chrome）的写法是「操作员 · 张三」——角色在前、名字在后；
+        /// 角色名走 <see cref="ScadaRoleExtensions.DisplayName"/>，与属性面板 / 审计文件同一个词。
+        /// </summary>
+        public string UserDisplayText => _accessPolicy.IsLoggedIn
+            ? $"{_accessPolicy.CurrentRole.DisplayName()} · {_accessPolicy.CurrentUserName}"
+            : "未登录";
+
+        /// <summary>
+        /// 用户胶囊里的头像字：已登录取用户名首字（拉丁字母转大写），未登录「?」。
+        /// </summary>
+        public string UserAvatarText
+        {
+            get
+            {
+                if (!_accessPolicy.IsLoggedIn)
+                    return "?";
+
+                var name = _accessPolicy.CurrentUserName;
+                if (string.IsNullOrWhiteSpace(name))
+                    return "?";
+
+                return char.ToUpperInvariant(name.Trim()[0]).ToString();
+            }
+        }
         #endregion
         #region 运行状态（按钮互锁 + 状态栏显示的唯一事实来源）
         /// <summary>
@@ -244,6 +379,18 @@ namespace VisionMaster
 
         public DelegateCommand<string> SwitchCanvasCommand {  get; }
 
+        /// <summary>
+        /// 打开调试面板。<b>不在 CanExecute 里挡</b>：点下去由 <see cref="OpenDebugPanel"/> 判权限并给出原因。
+        /// 灰掉菜单只会让人"点了没反应"，而这里最需要的正是那句"需要用户管理权限"。
+        /// </summary>
+        public DelegateCommand OpenDebugPanelCommand { get; }
+
+        /// <summary>项目资产管理（演示版）：独立弹窗，入口在「系统」菜单。</summary>
+        public DelegateCommand OpenProjectAssetsCommand { get; }
+
+        /// <summary>调试模式是否开启（状态栏徽标；读的是落盘值，不按时间失效）。</summary>
+        public bool IsDebugModeEnabled => _debugMode.IsEnabled;
+
         public DelegateCommand<string> TogglePanelCommand { get; }
 
         /// <summary>命令面板（Ctrl+K）：打开 / 关闭 / 执行当前项。</summary>
@@ -251,6 +398,32 @@ namespace VisionMaster
         public DelegateCommand CloseCommandPaletteCommand { get; }
         public DelegateCommand ExecuteCommandPaletteItemCommand { get; }
         public DelegateCommand ToggleConsoleCommand { get; }
+
+        /// <summary>右侧检查器收起后的胶囊（当前模式本应显示、但用户收起的面板）。</summary>
+        public ObservableCollection<InspectorCapsuleItem> InspectorCapsules { get; } = new();
+
+        public bool HasInspectorCapsules => InspectorCapsules.Count > 0;
+
+        /// <summary>点胶囊：把面板钉回右侧 300 列。</summary>
+        public DelegateCommand<InspectorCapsuleItem> ShowInspectorCapsuleCommand { get; }
+
+        private ConsoleDrawerViewModel? _consoleDrawer;
+
+        /// <summary>
+        /// 底部控制台抽屉条（收起态 32px）的 VM：计数 / 最后一条摘要 / 展开箭头。
+        ///
+        /// 懒解析而不是构造函数注入：它依赖 <see cref="LogViewModel"/> / <see cref="MonitorViewModel"/>
+        /// 的单例实例，构造它们要等容器就绪；第一次被 Shell.xaml 的绑定取值时再解析最稳。
+        /// 解析后把 <see cref="LayoutHelper.CurrentConsoleState"/> 同步进去——启动时布局可能已经是收起态。
+        /// </summary>
+        public ConsoleDrawerViewModel ConsoleDrawer => _consoleDrawer ??= CreateConsoleDrawer();
+
+        private ConsoleDrawerViewModel CreateConsoleDrawer()
+        {
+            var drawer = ContainerLocator.Container.Resolve<ConsoleDrawerViewModel>();
+            drawer.ApplyState(LayoutHelper.CurrentConsoleState);
+            return drawer;
+        }
 
         private readonly List<CommandPaletteItem> _allPaletteItems = new();
         private CommandPaletteItem? _selectedCommandPaletteItem;
@@ -377,7 +550,8 @@ namespace VisionMaster
             _dockWatchers.Clear();
 
             // 监听清单：前 5 个驱动活动栏高亮；最后一个是"当前是否在组态界面设计"的判据来源。
-            foreach (var contentId in new[] { "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView", "Panel_ScadaEditorView" })
+            // Panel_ScadaPropertyView 也挂上：它收起时右侧要出现胶囊。
+            foreach (var contentId in new[] { "Panel_ProcessView", "Panel_ToolView", "Panel_ScadaToolboxView", "Panel_ScadaLayerView", "Panel_ScadaPropertyView", "Panel_ScadaEditorView" })
             {
                 // LayoutContent 基类同时兼容停靠面板与文档选项卡（工具箱为文档类型）
                 if (LayoutHelper.FindPanel(contentId) is not LayoutContent panel) continue;
@@ -388,6 +562,10 @@ namespace VisionMaster
                     // 文档类型无 IsVisible 属性，用 IsSelected（标签选中）替代
                     if (e.PropertyName is nameof(LayoutAnchorable.IsVisible) or nameof(LayoutContent.IsActive) or nameof(LayoutDocument.IsSelected))
                         RefreshActivityBar();
+
+                    // 右侧面板收起/钉回 → 胶囊轨道跟着变（用户点图钉、点胶囊都走这里）。
+                    if (e.PropertyName == nameof(LayoutAnchorable.IsVisible))
+                        UpdateInspectorCapsules();
 
                     // R56 第三处触发点：中央文档区切标签后重收敛。
                     // 只在组态模式生效：其它模式下重新 Show 面板会抢右侧标签（Free 尤其明显），
@@ -413,6 +591,7 @@ namespace VisionMaster
             if (CurrentMode == mode)
             {
                 ApplyShellMode(mode);
+                UpdateInspectorCapsules();
                 return;
             }
 
@@ -421,6 +600,11 @@ namespace VisionMaster
             try
             {
                 ApplyShellMode(mode);
+
+                // A 方案：切回调试/自由时把底部控制台收回 32（模式默认）；运行展开、组态隐藏
+                // 已由 ApplyShellMode 处理。用户在同一模式里手动展开不会被这里覆盖。
+                if (mode is ShellMode.Debug or ShellMode.Free)
+                    LayoutHelper.CollapseConsole();
             }
             catch (Exception ex)
             {
@@ -429,17 +613,19 @@ namespace VisionMaster
                 CurrentMode = previous;
                 try { ApplyShellMode(previous); } catch { /* 回滚失败只记日志，不覆盖原始异常 */ }
             }
+
+            UpdateInspectorCapsules();
         }
 
         private bool _applyingShellMode;
 
-        private void ApplyShellMode(ShellMode mode)
+        private void ApplyShellMode(ShellMode mode, bool respectUserHidden = false)
         {
             if (_applyingShellMode) return;
             _applyingShellMode = true;
             try
             {
-                LayoutHelper.ApplyShellMode(mode);
+                LayoutHelper.ApplyShellMode(mode, respectUserHidden);
                 IsScadaDesignMode = mode == ShellMode.Config;
                 RefreshActivityBar();
             }
@@ -458,14 +644,84 @@ namespace VisionMaster
 
             // 调试 / 运行 / 组态由模式直接决定；自由模式始终保留全部面板，
             // 不跟随“组态文档选中”再收起算子工具箱（否则“全部面板”名不副实）。
+            // 启动/布局加载/切文档这一路尊重用户已经收成胶囊的面板；显式切模式才按模式默认恢复。
             if (CurrentMode != ShellMode.Free)
             {
-                ApplyShellMode(CurrentMode);
+                ApplyShellMode(CurrentMode, respectUserHidden: true);
+                UpdateInspectorCapsules();
                 return;
             }
 
             IsScadaDesignMode = false;
-            ApplyShellMode(ShellMode.Free);
+            ApplyShellMode(ShellMode.Free, respectUserHidden: true);
+            UpdateInspectorCapsules();
+        }
+
+        /// <summary>
+        /// 右侧检查器胶囊：只列"当前模式本应显示、但用户收起"的面板。
+        /// 调试=工具箱；组态=属性/图层/图元；自由=四个全列；运行=无（右栏整体隐藏）。
+        /// </summary>
+        public void UpdateInspectorCapsules()
+        {
+            var expected = CurrentMode switch
+            {
+                ShellMode.Debug => new[] { ("Panel_ToolView", "工具箱", "\uF1B3") },
+                ShellMode.Config => new[]
+                {
+                    ("Panel_ScadaPropertyView", "属性", "\uF0C9"),
+                    ("Panel_ScadaLayerView", "图层", "\uF0CE"),
+                    ("Panel_ScadaToolboxView", "图元工具箱", "\uF1B3"),
+                },
+                ShellMode.Free => new[]
+                {
+                    ("Panel_ScadaPropertyView", "属性", "\uF0C9"),
+                    ("Panel_ScadaLayerView", "图层", "\uF0CE"),
+                    ("Panel_ToolView", "工具箱", "\uF1B3"),
+                    ("Panel_ScadaToolboxView", "图元工具箱", "\uF1B3"),
+                },
+                _ => Array.Empty<(string, string, string)>(),
+            };
+
+            var expectedIds = expected.Select(e => e.Item1).ToHashSet(StringComparer.Ordinal);
+            for (var i = InspectorCapsules.Count - 1; i >= 0; i--)
+            {
+                var item = InspectorCapsules[i];
+                if (!expectedIds.Contains(item.ContentId) || LayoutHelper.IsPanelVisible(item.ContentId))
+                    InspectorCapsules.RemoveAt(i);
+            }
+
+            foreach (var (id, title, icon) in expected)
+            {
+                if (LayoutHelper.IsPanelVisible(id)) continue;
+                if (InspectorCapsules.Any(c => c.ContentId == id)) continue;
+                InspectorCapsules.Add(new InspectorCapsuleItem(id, title, icon, $"点击钉回右侧：{title}"));
+            }
+
+            RaisePropertyChanged(nameof(HasInspectorCapsules));
+        }
+
+        /// <summary>点胶囊：面板钉回右侧 300 列，胶囊随之消失。</summary>
+        private void ShowInspectorCapsule(InspectorCapsuleItem? item)
+        {
+            if (item == null) return;
+
+            // 用 ILogService 而不是 NLog：本仓的 Logs\yyyy-MM-dd.log 由 LogService 写，
+            // NLog 没有配置文件（logger.Warn 静默丢弃），排障时会误判成"点击没触发"。
+            var log = TryResolveLogService();
+            var panel = LayoutHelper.FindPanel(item.ContentId) as LayoutAnchorable;
+
+            // AvalonDock 的自动隐藏是 pane 级：点一枚胶囊会把同组所有标签一起收回。
+            // 先记下同组面板，收回后把非目标面板再隐藏，保持“点哪枚只回来哪个”的胶囊语义。
+            var siblings = LayoutHelper.GetAutoHiddenGroupSiblingIds(item.ContentId);
+            log?.Warn($"[胶囊] 点击 {item.Title} {item.ContentId}，同组=[{string.Join(",", siblings)}] 前 visible={LayoutHelper.IsPanelVisible(item.ContentId)} hidden={panel?.IsHidden} autoHidden={panel?.IsAutoHidden}");
+            LayoutHelper.ShowPanel(item.ContentId);
+            foreach (var siblingId in siblings)
+            {
+                try { LayoutHelper.HidePanel(siblingId); }
+                catch (Exception ex) { log?.Warn($"[胶囊] 收回同组面板 {siblingId} 失败：{ex.Message}"); }
+            }
+            log?.Warn($"[胶囊] 点击后 visible={LayoutHelper.IsPanelVisible(item.ContentId)} hidden={panel?.IsHidden} autoHidden={panel?.IsAutoHidden}");
+            UpdateInspectorCapsules();
         }
 
         /// <summary>
@@ -476,6 +732,12 @@ namespace VisionMaster
             AttachDockWatchers();
             ApplyPanelMode();
         }
+
+        /// <summary>
+        /// 底部控制台状态变化（用户收起/展开、切模式导致的隐藏/展开）→ 抽屉条跟着变。
+        /// 状态只有一个事实源（<see cref="LayoutHelper.CurrentConsoleState"/>），这里只做转发。
+        /// </summary>
+        private void OnConsoleStateChanged(ConsolePaneState state) => ConsoleDrawer.ApplyState(state);
 
         private void RefreshActivityBar()
         {
@@ -497,6 +759,10 @@ namespace VisionMaster
             AdvancedCommunicationManager communicationManager,
             NetworkVariableBridge variableBridge,
             ScadaAccessPolicy accessPolicy,
+            ScadaPermissionGate permissionGate,
+            ScadaAuditWriter audit,
+            DebugModeService debugMode,
+            SolutionSessionCoordinator sessionCoordinator,
             FlowEngineService flowEngineService,
             Services.CommunicationSolutionBinder communicationBinder
         )
@@ -506,16 +772,22 @@ namespace VisionMaster
             SetShellModeCommand = new DelegateCommand<string>(SetShellMode);
             ExecutionCommand = new DelegateCommand<ExecutionAction?>(OnExecutionAction, CanExecuteExecution);
             ToggleBreakpointOnCurrentStepCommand = new DelegateCommand(ToggleBreakpointOnCurrentStep);
-            SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction);
+            SystemCommand = new DelegateCommand<SystemAction?>(OnSystemAction, CanExecuteSystemAction);
             SwitchCanvasCommand = new DelegateCommand<string>(SwitchCanvas);
             TogglePanelCommand = new DelegateCommand<string>(TogglePanel);
             OpenCommandPaletteCommand = new DelegateCommand(OpenCommandPalette);
             CloseCommandPaletteCommand = new DelegateCommand(CloseCommandPalette);
             ExecuteCommandPaletteItemCommand = new DelegateCommand(ExecuteSelectedPaletteItem);
             ToggleConsoleCommand = new DelegateCommand(LayoutHelper.ToggleConsole);
+            ShowInspectorCapsuleCommand = new DelegateCommand<InspectorCapsuleItem>(ShowInspectorCapsule);
+            OpenProjectAssetsCommand = new DelegateCommand(() => dialogService.ShowDialog("ProjectAssetsView"));
+            OpenDebugPanelCommand = new DelegateCommand(OpenDebugPanel);
             // 布局加载/重载后：重挂监听 + 按模式收敛面板组（不能只挂 AttachDockWatchers，
             // 否则磁盘 Layout.xml 恢复出来的旧可见性会盖掉本次改造）
             LayoutHelper.LayoutLoaded += OnLayoutLoaded;
+            // 底部控制台状态（收起 / 展开 / 组态隐藏）由 LayoutHelper 广播，抽屉条据此显隐；
+            // 没有这条订阅就会出现"面板已压到 1px、抽屉条却没出来"的分叉。
+            LayoutHelper.ConsoleStateChanged += OnConsoleStateChanged;
             this.solutionService = solutionService;
             this.Workspace = workspaceManager;
             this.Recipe = ContainerLocator.Container.Resolve<RecipeViewModel>();
@@ -540,7 +812,30 @@ namespace VisionMaster
             // 从头到尾开着的那一个——超时那一刻弹窗多半关着（见 ScadaLoginViewModel 注释①）。
             // Shell 是应用级单例，订阅一次即终身有效，无需解订阅。
             this._accessPolicy = accessPolicy;
+            this._permissionGate = permissionGate;
+            this._audit = audit;
+            this._debugMode = debugMode;
+            // 调试模式开关可能从面板里改：状态栏徽标要跟着亮/灭（Shell 是应用级单例，无需退订）。
+            _debugMode.Changed += () => RaisePropertyChanged(nameof(IsDebugModeEnabled));
             _accessPolicy.AutoLoggedOut += OnAutoLoggedOut;
+            _accessPolicy.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName is nameof(ScadaAccessPolicy.IsLoggedIn)
+                    or nameof(ScadaAccessPolicy.CurrentGroupId)
+                    or nameof(ScadaAccessPolicy.Permissions))
+                    RaisePermissionCommands();
+
+                // 状态栏用户胶囊：登录 / 登出 / 换组都要重算「角色 · 用户名」与头像字。
+                // 单例只在 RaiseLoginStateChanged 里统一发这三条通知，这里跟着转发一次即可。
+                if (e.PropertyName is nameof(ScadaAccessPolicy.LoginStateText)
+                    or nameof(ScadaAccessPolicy.CurrentUserName)
+                    or nameof(ScadaAccessPolicy.CurrentRole))
+                {
+                    RaisePropertyChanged(nameof(UserDisplayText));
+                    RaisePropertyChanged(nameof(UserAvatarText));
+                }
+            };
+            sessionCoordinator.SessionBoundaryChanged += RaisePermissionCommands;
 
             // 运行条文案在"没有流程在跑"时回落到当前流程，所以选中项一变也要重算
             // （有流程在跑时显示的是"在跑的那几条"，与选中无关）
@@ -582,13 +877,14 @@ namespace VisionMaster
         {
             _allPaletteItems.Clear();
 
-            void Add(string title, string subtitle, string glyph, Action action)
+            void Add(string title, string subtitle, string glyph, Action action, string? permission = null)
                 => _allPaletteItems.Add(new CommandPaletteItem
                 {
                     Title = title,
                     Subtitle = subtitle,
                     Glyph = glyph,
                     Invoke = action,
+                    Permission = permission,
                 });
 
             Add("调试", "切换工作模式", "\uf1c0", () => SetShellMode("Debug"));
@@ -605,8 +901,10 @@ namespace VisionMaster
             Add("检查器", "视图 · 属性 / 图层", "\uf1de", () => LayoutHelper.ShowPanel("Panel_ScadaPropertyView"));
             Add("控制台", "视图 · 展开 / 收起底部面板", "\uf120", LayoutHelper.ToggleConsole);
 
-            Add("全局变量", "命令", "\uf121", () => OnSystemAction(SystemAction.GlobalVariables));
-            Add("硬件管理", "命令", "\uf2db", () => OnSystemAction(SystemAction.HardwareSettings));
+            Add("全局变量", "命令", "\uf121", () => OnSystemAction(SystemAction.GlobalVariables),
+                ScadaPermissionKeys.EditStructure);
+            Add("硬件管理", "命令", "\uf2db", () => OnSystemAction(SystemAction.HardwareSettings),
+                ScadaPermissionKeys.HardwareConfig);
 
             if (Workspace.CurrentSolution?.Flows != null)
             {
@@ -623,9 +921,11 @@ namespace VisionMaster
         private void FilterCommandPalette()
         {
             var query = CommandPaletteQuery?.Trim() ?? string.Empty;
+            var permitted = _allPaletteItems.Where(item =>
+                item.Permission == null || _permissionGate.Can(item.Permission, out _)).ToList();
             var matches = string.IsNullOrEmpty(query)
-                ? _allPaletteItems
-                : _allPaletteItems.Where(item =>
+                ? permitted
+                : permitted.Where(item =>
                     item.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
                     || item.Subtitle.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
 
@@ -673,8 +973,43 @@ namespace VisionMaster
         /// 只认它会让"边跑边换方案"从这两个入口溜进来（会话被 ClearAll 丢掉 = 静默拆台）。
         /// </summary>
         private bool CanExecuteSolution(SolutionAction? action)
-            => action == SolutionAction.Save
-               || (RunState == MainRunState.NotStarted && !AnyFlowRunning());
+        {
+            if (action == null) return false;
+
+            var key = ScadaPermissionGate.PermissionFor(action.Value);
+            var noSolutionException = Workspace?.CurrentSolution == null
+                                      && !_accessPolicy.IsLoggedIn
+                                      && action is SolutionAction.Create
+                                          or SolutionAction.Open
+                                          or SolutionAction.BrowseList;
+            if (!noSolutionException && !_permissionGate.Can(key, out _))
+                return false;
+
+            return action == SolutionAction.Save
+                   || (RunState == MainRunState.NotStarted && !AnyFlowRunning());
+        }
+
+        private bool CanExecuteSystemAction(SystemAction? action)
+            => action != null
+               && _permissionGate.Can(ScadaPermissionGate.PermissionFor(action.Value), out _);
+
+        private void RaisePermissionCommands()
+        {
+            SolutionCommand.RaiseCanExecuteChanged();
+            ExecutionCommand.RaiseCanExecuteChanged();
+            SystemCommand.RaiseCanExecuteChanged();
+            RaisePropertyChanged(nameof(CanManageUsers));
+        }
+
+        /// <summary>状态栏右键「用户管理」的可见性（只判权限；未落盘时页面自己显示只读横幅）。</summary>
+        public bool CanManageUsers => _permissionGate.Can(ScadaPermissionKeys.UserAdministration, out _);
+
+        private void Deny(string what, string? reason)
+        {
+            var message = ScadaPermissionDenial.Message(what, reason);
+            ScadaPermissionDenial.Audit(_audit, _accessPolicy.CurrentUserName, what, message);
+            Notifier.ShowWarning(message);
+        }
 
         /// <summary>
         /// 是否**有任意流程**处在运行或暂停（会话级镜像；涵盖界面运行 / 单流程运行 / HTTP 触发）。
@@ -753,6 +1088,20 @@ namespace VisionMaster
         /// <param name="action"></param>
         private async Task ExecuteProjectAction(SolutionAction? action)
         {
+            if (action == null) return;
+
+            var key = ScadaPermissionGate.PermissionFor(action.Value);
+            var noSolutionException = Workspace?.CurrentSolution == null
+                                      && !_accessPolicy.IsLoggedIn
+                                      && action is SolutionAction.Create
+                                          or SolutionAction.Open
+                                          or SolutionAction.BrowseList;
+            if (!noSolutionException && !_permissionGate.Can(key, out var denyReason))
+            {
+                Deny(ScadaPermissionGate.Describe(action.Value), denyReason);
+                return;
+            }
+
             // 防御纵深：菜单/工具栏正常已被 CanExecute 置灰，这里兜住快捷键等旁路调用
             if (!CanExecuteSolution(action))
             {
@@ -1070,6 +1419,19 @@ namespace VisionMaster
                 Notifier.ShowWarning("方案已保存，但部分资产未复制：" + string.Join("；", assetFailures));
 
             var folder = solutionFolder ?? SolutionPaths.GetSolutionRoot(filePath) ?? filePath;
+
+            // 账号本属于方案：保存成功后把当前内存三份数据写进 <方案根>\Users\。
+            // 失败只提示、不回滚 .vms（方案本身已经保存成功；账号本下次保存会重试）。
+            try
+            {
+                var coordinator = ContainerLocator.Container.Resolve<SolutionSessionCoordinator>();
+                coordinator.NotifySolutionSaved(solution, filePath);
+            }
+            catch (Exception ex)
+            {
+                Notifier.ShowWarning("方案已保存，但账号本写入失败：" + ex.Message);
+            }
+
             Notifier.ShowSuccess($"方案 [{solution.SolutionName}] 已保存到 {folder}");
         }
 
@@ -1126,6 +1488,10 @@ namespace VisionMaster
         /// </summary>
         private bool CanExecuteExecution(ExecutionAction? action)
         {
+            if (action == null) return false;
+            if (!_permissionGate.Can(ScadaPermissionGate.PermissionFor(action.Value), out _))
+                return false;
+
             switch (action)
             {
                 case ExecutionAction.Compile:
@@ -1189,6 +1555,13 @@ namespace VisionMaster
 
         private void OnExecutionAction(ExecutionAction? action)
         {
+            if (action == null) return;
+            if (!_permissionGate.Can(ScadaPermissionGate.PermissionFor(action.Value), out var denyReason))
+            {
+                Deny(ScadaPermissionGate.Describe(action.Value), denyReason);
+                return;
+            }
+
             switch (action)
             {
                 case ExecutionAction.Compile:
@@ -1217,6 +1590,13 @@ namespace VisionMaster
 
         private void OnSystemAction(SystemAction? action)
         {
+            if (action == null) return;
+            if (!_permissionGate.Can(ScadaPermissionGate.PermissionFor(action.Value), out var denyReason))
+            {
+                Deny(ScadaPermissionGate.Describe(action.Value), denyReason);
+                return;
+            }
+
             switch (action)
             {
                 case SystemAction.GlobalVariables:
@@ -1226,6 +1606,9 @@ namespace VisionMaster
                     // 登录、登出、改密、用户管理四个入口都收在这一个弹窗里：
                     // 它们共用同一份会话状态，拆成四个菜单项只会让"我现在是谁"这件事更难看明白。
                     dialogService.ShowDialog("ScadaLoginView");
+                    break;
+                case SystemAction.UserManagement:
+                    dialogService.ShowDialog("UserManagementView");
                     break;
                 case SystemAction.CameraSettings:
                     ShowCameraSettings();
@@ -1280,6 +1663,23 @@ namespace VisionMaster
                     dialogService.ShowDialog("HelpView");
                     break;
             }
+        }
+
+        /// <summary>
+        /// 打开调试面板。判据只有一条（<see cref="DebugModeService.CanUse"/>）：
+        /// <b>未上线任何人可开；上线后必须持有「用户管理」权限</b>。
+        /// 拒绝时走 <see cref="Deny"/>：说一句人话 + 落一条 Denied 台账——
+        /// 调试入口被谁试过、什么时候试的，事后要查得到。
+        /// </summary>
+        private void OpenDebugPanel()
+        {
+            if (!_debugMode.CanUse(out var reason))
+            {
+                Deny("调试面板", reason);
+                return;
+            }
+
+            dialogService.ShowDialog("DebugPanelView");
         }
 
         /// <summary>
@@ -1389,8 +1789,23 @@ namespace VisionMaster
                         {
                             var metrics = SystemMonitor.Instance.GetAllMetrics();
 
+                            // 数值与文字一次赋值：浮窗的进度条 / 阈值读数值，
+                            // 底栏与 ShellCopy 读 *Str（同一轮采样，不会出现两个数）。
+                            CpuUsagePercent = metrics.CpuUsagePercent;
+                            MemoryUsageMB = metrics.WorkingSetMB;
+                            GcHeapMB = metrics.ManagedMemoryMB;
+                            ThreadCount = metrics.ThreadCount;
+                            HandleCount = metrics.HandleCount;
+                            LohSizeMB = metrics.LohSizeMB;
+                            UptimeText = FormatUptime(metrics.RunTime);
+
+                            var disk = ReadDiskFree(Workspace.CurrentSolution?.SolutionFilePath);
+                            DiskFreeText = disk.Text;
+                            IsDiskFreeLow = disk.Low;
+                            DiskFreeTip = disk.Tip;
+
                             CpuUsageStr = $"CPU: {metrics.CpuUsagePercent:F1}%";
-                            MemoryUsageStr = $"MEM: {metrics.PrivateMemoryMB:F0} MB";
+                            MemoryUsageStr = $"MEM: {metrics.WorkingSetMB:F0} MB";
                             ThreadCountStr = $"THD: {metrics.ThreadCount}";
                             HandleCountStr = $"HDL: {metrics.HandleCount}";
                             CurrentTimeText = DateTime.Now.ToString(" HH:mm:ss");
@@ -1409,6 +1824,45 @@ namespace VisionMaster
                 },
                 _cts.Token
             );
+        }
+
+        /// <summary>运行时长：≥1 天显示「N 天 HH:mm」，否则 HH:mm:ss</summary>
+        private static string FormatUptime(TimeSpan uptime)
+            => uptime.TotalDays >= 1
+                ? $"{(int)uptime.TotalDays} 天 {uptime.Hours:D2}:{uptime.Minutes:D2}"
+                : $"{uptime.Hours:D2}:{uptime.Minutes:D2}:{uptime.Seconds:D2}";
+
+        /// <summary>
+        /// 方案所在盘的剩余空间。视觉站最常见的「跑一夜挂掉」就是盘满（图像 / 日志都写这里），
+        /// 所以浮窗里要能一眼看到；没有方案时退回程序目录所在盘。
+        /// </summary>
+        private static (string Text, bool Low, string Tip) ReadDiskFree(string? solutionFilePath)
+        {
+            try
+            {
+                var root = string.IsNullOrWhiteSpace(solutionFilePath)
+                    ? AppContext.BaseDirectory
+                    : Path.GetDirectoryName(solutionFilePath);
+                if (string.IsNullOrWhiteSpace(root))
+                    root = AppContext.BaseDirectory;
+
+                var driveRoot = Path.GetPathRoot(root);
+                if (string.IsNullOrWhiteSpace(driveRoot))
+                    return ("—", false, root);
+
+                var drive = new DriveInfo(driveRoot);
+                if (!drive.IsReady)
+                    return ("—", false, root);
+
+                double freeGb = drive.AvailableFreeSpace / (1024.0 * 1024.0 * 1024.0);
+                double totalGb = drive.TotalSize / (1024.0 * 1024.0 * 1024.0);
+                bool low = totalGb > 0 && freeGb / totalGb < 0.05;
+                return ($"{freeGb:F1} GB", low, $"{driveRoot} 剩余 {freeGb:F1} GB / 共 {totalGb:F0} GB");
+            }
+            catch
+            {
+                return ("—", false, "读取磁盘剩余空间失败");
+            }
         }
 
         #region Methods

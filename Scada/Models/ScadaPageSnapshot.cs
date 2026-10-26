@@ -201,16 +201,20 @@ namespace VisionMaster.Scada.Snapshots
         /// </summary>
         public string? RequiredRole { get; init; }
 
+        /// <summary>B3 权限 Key（显式配置优先；旧 RequiredRole 仅作历史兜底）。</summary>
+        public string? RequiredPermission { get; init; }
+
         /// <summary>
         /// 此刻这个图元<b>能不能被下发命令</b>（M2 caps）。
         ///
         /// <b>默认 <c>false</c></b>：快照构建器（<see cref="ScadaPageSnapshotBuilder"/>）刻意<b>不</b>读权限策略——
-        /// 它只搬模型事实，而"谁能点"取决于当前在线会话集合与 <c>ScadaWeb.ClickPolicy</c>，
-        /// 那些都不在模型里。默认 false 的含义是"未评估"，宁可让界面先置灰，也不许
+        /// 它只搬模型事实，而"谁能点"取决于<b>这个会话的权限 Key 快照</b>与
+        /// <see cref="RequiredPermission"/>（`ScadaWebAccessPolicy.Can`），那些都不在模型里。
+        /// 默认 false 的含义是"未评估"，宁可让界面先置灰，也不许
         /// 因为"没人填"而默认放行（一次静默的权限放大，比多一次点击失败严重得多）。
         ///
-        /// 由宿主集成时按 <c>ScadaWebAccessPolicy.CanOperate</c> 逐图元填充；
-        /// 判定口径（角色、最高角色策略、只读总闸）只在策略里有一份实现。
+        /// 由宿主集成时按 <c>ScadaWebAccessPolicy.Can</c> 逐图元填充；
+        /// 判定口径（总闸、认证、显式只读、权限 Key、可选租约）只在策略里有一份实现。
         /// </summary>
         public bool CanOperate { get; init; }
 

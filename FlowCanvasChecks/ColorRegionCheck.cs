@@ -271,6 +271,25 @@ namespace FlowCanvasChecks
                 lines == 4 && marks.Count == 6,
                 $"线={lines} 总={marks.Count}");
 
+            var portMarks = PortValue(ok, "Annotations") as List<MeasureAnnotation>;
+            Check("【投射】Annotations 端口给出同一批标注（4 线 + 主色标签 + 结论行）",
+                portMarks != null && portMarks.Count == 6,
+                $"端口={(portMarks == null ? "(null)" : portMarks.Count.ToString())} 期望=6");
+
+            // 窗口=0 只关预览，不关 Annotations —— SCADA 合成不能依赖"主界面有没有显示"
+            var zero = CreatePlugin(pluginType, new Dictionary<string, object>
+            {
+                ["RoiShape"] = RoiShapeNames.Rectangle,
+                ["RoiParams"] = new[] { 189.0, 440.0, 0.0, 6.0, 5.0 },
+                ["ExpectedColors"] = "灰",
+                ["DisplayViewIndex"] = 0,
+            });
+            RunWithImage(zero, cable2);
+            var zeroMarks = PortValue(zero, "Annotations") as List<MeasureAnnotation>;
+            Check("【投射】窗口=0 时 Annotations 仍产出（关预览不能连标注一起关掉）",
+                zeroMarks != null && zeroMarks.Count == 6,
+                $"端口={(zeroMarks == null ? "(null)" : zeroMarks.Count.ToString())} 期望=6");
+
             var verdictMark = marks.FirstOrDefault(m => m.Text == okOutcome.Verdict);
             var labelMark = marks.FirstOrDefault(m => m.Text != null && m.Text.StartsWith("灰 "));
             Check("【投射·合格】结论与主色标签都是绿字",

@@ -553,6 +553,46 @@ namespace VisionMaster.Scada.Controls
                 control.PageResolver = resolver;
         }
 
+        /// <summary>
+        /// 本页图元清单解析器，注入给每个图元控件（Hmi.PipeRun 用：按 Id 找两端 + 拿其余图元当避让障碍）。
+        ///
+        /// 不给解析器时（断言/单独预览）管道连线显示"端点丢失"，不抛——
+        /// 与图片/文本列表/画面解析器同一条"没接线就退化成占位"的纪律。
+        /// 清单由画布现取（<see cref="Page"/> 的顶层图元），控件不缓存。
+        /// </summary>
+        public static readonly DependencyProperty PageElementsResolverProperty = DependencyProperty.Register(
+            nameof(PageElementsResolver), typeof(Func<IReadOnlyList<ScadaElement>>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnPageElementsResolverChanged));
+
+        /// <summary>本页图元清单解析器</summary>
+        public Func<IReadOnlyList<ScadaElement>>? PageElementsResolver
+        {
+            get => (Func<IReadOnlyList<ScadaElement>>?)GetValue(PageElementsResolverProperty);
+            set => SetValue(PageElementsResolverProperty, value);
+        }
+
+        private static void OnPageElementsResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<IReadOnlyList<ScadaElement>>?)e.NewValue ?? canvas.DefaultPageElementsResolver;
+
+            foreach (var control in canvas.EnumerateControls())
+                control.PageElementsResolver = resolver;
+        }
+
+        /// <summary>
+        /// 没有外部解析器时的默认实现：直接读本画布的 <see cref="Page"/>。
+        ///
+        /// 为什么给默认值而不是要求宿主必接：管道连线的两个端点和避让障碍都在"本页"里，
+        /// 画布自己就有这份数据；让宿主再写一遍等于把"这页有哪些图元"抄两份。
+        /// 外部解析器只在"画布只显示别人给的集合"（基座/弹窗）时才需要覆盖。
+        /// </summary>
+        private Func<IReadOnlyList<ScadaElement>> DefaultPageElementsResolver
+            => _defaultPageElementsResolver ??= () =>
+                Page?.Elements as IReadOnlyList<ScadaElement> ?? Array.Empty<ScadaElement>();
+
+        private Func<IReadOnlyList<ScadaElement>>? _defaultPageElementsResolver;
+
         /// <summary>画面名解析器（名字 → 画面），SubPage 的 FollowVariable 模式用。</summary>
         public static readonly DependencyProperty PageNameResolverProperty = DependencyProperty.Register(
             nameof(PageNameResolver), typeof(Func<string, ScadaPage?>), typeof(ScadaCanvas),
@@ -1585,6 +1625,7 @@ namespace VisionMaster.Scada.Controls
                 control.StateListResolver = StateListResolver;
                 control.PageResolver = PageResolver;
                 control.PageNameResolver = PageNameResolver;
+                control.PageElementsResolver = PageElementsResolver ?? DefaultPageElementsResolver;
 
                 if (!AllowSubPages && control is SubPageElement subPage)
                     subPage.NestedTooDeep = true;

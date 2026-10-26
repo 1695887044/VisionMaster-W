@@ -193,6 +193,18 @@ namespace VisionMaster.ViewModels
             }
         }
 
+        /// <summary>
+        /// 「只显示选中算子的数据线」作用域：为 true 时这条线被隐藏。
+        /// 判据由主 VM 统一算（见 <c>FlowCanvasViewModel.RefreshDataLinkScope</c>），
+        /// 这里只存结果——视图侧靠它 Collapsed，自绘层靠它跳过绘制。
+        /// 非法线永远不隐藏（红虚线是要用户去修的错误提示）。
+        /// </summary>
+        public bool IsScopeHidden
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        }
+
         /// <summary>Bindings 是普通 List（每轮重建整体换内容），聚合完成后由主 VM 调用统一补通知</summary>
         public void NotifyBindingsChanged()
         {

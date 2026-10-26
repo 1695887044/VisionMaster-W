@@ -110,12 +110,11 @@ namespace ScadaWebChemicalDemo
                 BindAddress = "127.0.0.1",
                 AllowAnonymousView = true,
                 AllowCommands = true,
-                ClickPolicy = allOperators
-                    ? ScadaWebClickPolicy.AllOperators
-                    : ScadaWebClickPolicy.HighestRoleOnly,
                 RequireConfirmForDangerous = true,
+                // --all = 不用租约（两个账号都能同时点）；默认要持租约。
+                // B3 之后"谁能点"由账号的权限 Key 决定，不再有"最高档"策略可切。
                 OperationLeaseEnabled = true,
-                AllOperatorsRequiresLease = false,
+                AllOperatorsRequiresLease = !allOperators,
                 MaxSessions = 64,
                 CommandRatePerSecond = 20,
                 ElementRatePerSecond = 40
@@ -209,11 +208,11 @@ namespace ScadaWebChemicalDemo
             Console.WriteLine("================ 化工装置 SCADA Web 演示 ================");
             Console.WriteLine($"地址      http://127.0.0.1:{host.Port}/");
             Console.WriteLine($"账号      admin / admin123（管理员，可操作）");
-            Console.WriteLine($"          op    / op123   （操作员，默认只读）");
+            Console.WriteLine($"          op    / op123   （产线操作员：看画面 + 运行控制）");
             Console.WriteLine($"画面      {string.Join(" / ", document.Pages.Select(p => p.Name))}");
             Console.WriteLine($"变量      {plant.Variables.Count} 个（刷新 {tickMs}ms{(still ? "，已停用" : string.Empty)}）");
             Console.WriteLine($"报警      {document.Alarms.Count} 条定义，当前 {alarmEngine.ActiveAlarms.Count} 条激活");
-            Console.WriteLine($"策略      {(allOperators ? "AllOperators" : "HighestRoleOnly")} · 危险动作需确认 · 操作租约开");
+            Console.WriteLine($"策略      {(allOperators ? "租约关（都可点）" : "必须持租约才能点")} · 危险动作需确认 · 判权按权限 Key");
             Console.WriteLine($"切页      {(autoPageMs > 0 ? $"宿主轮播 {autoPageMs}ms（镜像跟随）" : "仅手动（--auto-page N 可开轮播）")}");
             Console.WriteLine("Ctrl+C 停止。");
             Console.WriteLine("========================================================");

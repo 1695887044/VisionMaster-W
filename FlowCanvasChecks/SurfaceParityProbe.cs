@@ -305,19 +305,26 @@ namespace FlowCanvasChecks
                     : new Vector(-(content.X - 20) * zoom, -(content.Y - 20) * zoom);
             }
 
-            surface.Measure(new Size(width, height));
-            surface.Arrange(new Rect(0, 0, width, height));
-            surface.UpdateLayout();
+            // 底色 + 点阵由宿主 Border 提供（自绘层自己不再画背景，见 FlowCanvasSurface.OnRender）
+            var host = new System.Windows.Controls.Border
+            {
+                Background = FlowCanvasSurface.CanvasBackdropBrush,
+                Child = surface,
+            };
+
+            host.Measure(new Size(width, height));
+            host.Arrange(new Rect(0, 0, width, height));
+            host.UpdateLayout();
 
             var bmp = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             var renderWatch = System.Diagnostics.Stopwatch.StartNew();
-            bmp.Render(surface);
+            bmp.Render(host);
             long renderMs = renderWatch.ElapsedMilliseconds;
 
             // 第二遍（预热后）：首帧含 JIT、字形表与画笔初始化，量"稳态"必须看第二遍
             var bmp2 = new RenderTargetBitmap(width, height, 96, 96, PixelFormats.Pbgra32);
             var warmWatch = System.Diagnostics.Stopwatch.StartNew();
-            bmp2.Render(surface);
+            bmp2.Render(host);
             long warmMs = warmWatch.ElapsedMilliseconds;
 
             var encoder = new PngBitmapEncoder();

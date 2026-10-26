@@ -21,6 +21,8 @@
             <ResourceDictionary.MergedDictionaries>
                 <!--  本视图自带口粮（R22）：脱离 App 单独渲染时也能取到令牌  -->
                 <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+                <!--  行内下拉的 DialogComboCompact 在同一册里（断言宿主单独加载本视图时也要解析得到）  -->
+                <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Input.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <Style x:Key="CellBox" TargetType="TextBox">
@@ -80,10 +82,11 @@
                         Style="{StaticResource CellBox}"
                         Text="{Binding WidthText, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="列宽（像素）；填 0 = 占满剩余宽度" />
-                    <ComboBox
+                    <ComboBox Style="{StaticResource DialogComboCompact}"
                         Grid.Column="3"
                         Height="26"
                         Margin="0,0,6,0"
+                        VerticalContentAlignment="Center"
                         FontSize="11.5"
                         SelectedValue="{Binding Align, Mode=TwoWay}"
                         SelectedValuePath="Tag">

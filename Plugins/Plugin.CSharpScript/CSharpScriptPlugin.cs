@@ -1,4 +1,5 @@
 using Core.Events;
+using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
@@ -103,8 +104,15 @@ Context.SetOutput(""Result"", ""ok"");
             }
         }
 
-        private ObservableCollection<ScriptSharedVarDef> _sharedVars = new ObservableCollection<ScriptSharedVarDef>();
         /// <summary>
+        /// 脚本最近一次 <c>Context.ShowAnnotated / ShowRich</c> 传入的标注列表（托管对象，**不烘焙、不开窗**）。
+        /// 接「结果显示」的任意结果项即可烧成最终图，供「图像赋值」写到 SCADA。
+        /// 固定端口，名字保留：脚本输出变量表里不要再叫 <c>Marks</c>（同名会被跳过）。
+        /// </summary>
+        public OutputPort<List<MeasureAnnotation>> Marks { get; } =
+            new("Marks", "脚本标注列表（接「结果显示」烧成图）");
+
+        private ObservableCollection<ScriptSharedVarDef> _sharedVars = new ObservableCollection<ScriptSharedVarDef>();        /// <summary>
         /// 共享变量声明（全局 / 系统）：按 <c>VariableId</c> 寻址，不生成端口、不参与连线；
         /// 脚本里用 <c>Context.GetGlobal("别名")</c> 读取。系统变量恒只读。
         /// </summary>
@@ -896,6 +904,8 @@ Context.SetOutput(""Result"", ""ok"");
 
         public override void RunAlgorithm(IExecutionContext context)
         {
+            Marks.Value = null!;
+
             // —— 编译（命中指纹缓存则零成本）——
             var script = CSharpScriptEngine.Compile(ScriptText, out string compileError);
 
@@ -962,14 +972,20 @@ Context.SetOutput(""Result"", ""ok"");
                     // 带标注的显示走同一个预览事件，只是多挂一层标注；
                     // 标注为空时退化成普通显示，避免给画面挂一个空的渲染层
                     if (img != null && img.IsInitialized())
+                    {
+                        Marks.Value = marks?.ToList() ?? new List<MeasureAnnotation>();
                         this.PublishPreview(img, view, marks);
+                    }
                 },
                 showRich: (img, view, title, marks, info) =>
                 {
                     // 带标题 + 键值信息的推送：画布的图片列表按这些信息显示这张图
                     // （标题 / 键值行 / 来源），脚本作者不必再把结果只写进日志
                     if (img != null && img.IsInitialized())
+                    {
+                        Marks.Value = marks?.ToList() ?? new List<MeasureAnnotation>();
                         this.PublishPreview(img, view, title, info, marks);
+                    }
                 },
                 shared: new ScriptSharedAccessor(SharedVars, context?.SharedVariables),
                 cancellationToken: context?.CancellationToken ?? CancellationToken.None)

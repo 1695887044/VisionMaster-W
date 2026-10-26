@@ -129,4 +129,5 @@
     <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.DockingButtonStarBackgroundBrushKey}" Color="#40FFFFFF" />
     <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.PreviewBoxBorderBrushKey}" Color="#0067C0" />
     <SolidColorBrush x:Key="{x:Static keys:ResourceKeys.PreviewBoxBackgroundBrushKey}" Color="#200067C0" />
+
 </ResourceDictionary>

@@ -117,6 +117,10 @@ namespace VisionMaster.Services
                     throw;
                 }
 
+                // .vms 已原子落盘 ⇒ 身份从此来自磁盘。放在 catch 之外的成功路径上，
+                // 写失败时不该把「已落盘」这个事实提前记上（否则审计标签会写一个磁盘上没有的 id）。
+                targetSolution.IsIdentityPersisted = true;
+
                 return Result<bool>.Ok(true);
             }
             catch (Exception ex)
@@ -139,6 +143,11 @@ namespace VisionMaster.Services
 
                 var json = await File.ReadAllTextAsync(filePath);
 
+                // 老文件的 SolutionId 是缺失的，但属性初始化器会补一个新 Guid，
+                // 反序列化后无法再从对象上区分「磁盘里写了这个 id」与「刚生成的」。
+                // 所以判据只能落在原始 JSON 文本上：有非空的 "SolutionId" 键才算落盘过。
+                var identityPersisted = HasPersistedSolutionId(json);
+
                 // 反序列化是纯 CPU 活：3542 步 / 3.9 MB 的方案在 UI 线程上要 1~2 秒，打开时就是白卡。
                 // 只把**解析**挪到后台线程；后面的迁移钩子仍在原上下文（它们会经 DI 拿插件表，
                 // 不保证线程安全）。这里刻意不加 ConfigureAwait(false)——续体必须回 UI 线程。
@@ -155,8 +164,12 @@ namespace VisionMaster.Services
                 // 但旧字段仍要读出来——它是折算的输入，也是回退旧版本时的兼容面。
                 if (solution.SolutionId == Guid.Empty)
                     solution.SolutionId = Guid.NewGuid();
+                solution.IsIdentityPersisted = identityPersisted;
                 solution.IoBuses ??= new List<IoBusDescriptor>();
                 solution.IoDevices ??= new List<IoDeviceDescriptor>();
+                solution.TemplateAssets ??= new List<VisionMaster.Models.Assets.TemplateAsset>();
+                solution.ModelAssets ??= new List<VisionMaster.Models.Assets.ModelAsset>();
+                solution.ImageAssets ??= new List<VisionMaster.Models.Assets.ImageAsset>();
                 foreach (var device in solution.IoDevices)
                 {
                     if (device == null) continue;
@@ -223,6 +236,33 @@ namespace VisionMaster.Services
             {
                 return Result<SolutionModel>.NG($"加载方案失败: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 原始 JSON 里是否带非空的 <c>"SolutionId"</c>。不做完整解析：LoadAsync 已经要解析一遍，
+        /// 这里只是取一个「字段存在性」的事实，用字符串扫描足够且不会因解析设置不同而变。
+        /// 判空 Guid 是为了兼容「显式写了 SolutionId 但值是 00000000-…」的历史文件。
+        /// </summary>
+        private static bool HasPersistedSolutionId(string json)
+        {
+            const string key = "\"SolutionId\"";
+            var i = json.IndexOf(key, StringComparison.Ordinal);
+            if (i < 0) return false;
+
+            var colon = json.IndexOf(':', i + key.Length);
+            if (colon < 0) return false;
+
+            var start = colon + 1;
+            while (start < json.Length && char.IsWhiteSpace(json[start])) start++;
+            if (start >= json.Length) return false;
+
+            // 值可能是 "guid" 或 null
+            if (json[start] != '"') return false;
+            var end = json.IndexOf('"', start + 1);
+            if (end < 0) return false;
+
+            var text = json.Substring(start + 1, end - start - 1);
+            return Guid.TryParse(text, out var id) && id != Guid.Empty;
         }
 
         /// <summary>

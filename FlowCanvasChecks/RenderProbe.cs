@@ -159,6 +159,19 @@ namespace FlowCanvasChecks
                 canvas.ShowMinimap = true;   // 默认关闭 → 先打开才量得到 180×118
 
                 var view = new FlowCanvasView();
+
+                // 自绘画布从 2026-10-25 起默认开启（FlowCanvasView 构造函数把
+                // ChkSurfacePreview 勾上，Nodify 编辑器被收起）。本探针量的是**编辑器模板**
+                // 里的卡片/组头/小地图部件，自绘层接管后那些部件一个都不在可视树里
+                // （表现是 card=NaNxNaN、minimap=0x0、"模板部件没找到"）。
+                // 所以测量前显式切回可编辑画布——这是探针的前置条件，不是产品行为变更。
+                view.UseSelfDrawnCanvas = false;
+
+                // 上面这一勾一取消会顺手把「显示小地图」关掉（自绘模式不支持小地图，
+                // 切到自绘时主动取消勾选并 TwoWay 回写 VM.ShowMinimap=false）。
+                // 本段要量的正是打开态的小地图尺寸，所以切回普通画布后重新打开一次。
+                canvas.ShowMinimap = true;
+
                 var host = new Border
                 {
                     Width = 900,

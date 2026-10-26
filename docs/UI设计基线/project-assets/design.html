@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="color-scheme" content="light" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>项目资产管理 · 设计稿 v0.4</title>
+<style>
+:root {
+  --bg: #070d16;
+  --bg-2: #0b1220;
+  --surface: #101821;
+  --surface-2: #151c23;
+  --surface-3: #1b2530;
+  --stroke: #263447;
+  --stroke-soft: #1e2a38;
+  --text: #f8fafc;
+  --text-2: #e2e8f0;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
+  --cyan: #22d3ee;
+  --cyan-soft: rgba(34, 211, 238, .12);
+  --green: #22c55e;
+  --green-soft: rgba(34, 197, 94, .12);
+  --amber: #f59e0b;
+  --amber-soft: rgba(245, 158, 11, .12);
+  --red: #ef4444;
+  --red-soft: rgba(239, 68, 68, .12);
+  --purple: #a855f7;
+  --purple-soft: rgba(168, 85, 247, .12);
+  --radius: 12px;
+  --radius-s: 8px;
+  --shadow: 0 18px 60px rgba(0, 0, 0, .34);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+.app { height: 100vh; display: grid; grid-template-columns: 76px 1fr; }
+.rail {
+  background: #080e17;
+  border-right: 1px solid #141e2a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0 14px;
+}
+.logo {
+  width: 42px; height: 42px; border-radius: 12px;
+  background: linear-gradient(145deg, #22d3ee 0%, #0ea5e9 55%, #6366f1 100%);
+  display: grid; place-items: center; color: #041016;
+  font-weight: 900; font-size: 15px; letter-spacing: -.5px;
+  box-shadow: 0 8px 26px rgba(34, 211, 238, .24);
+}
+.rail-nav { display: flex; flex-direction: column; gap: 7px; margin-top: 30px; }
+.rail-btn {
+  width: 46px; height: 46px; border: 0; border-radius: 12px;
+  background: transparent; color: #64748b; display: grid; place-items: center;
+  position: relative; transition: .16s ease;
+}
+.rail-btn:hover { background: #111b26; color: #cbd5e1; }
+.rail-btn.active { background: var(--cyan-soft); color: var(--cyan); }
+.rail-btn.active::before {
+  content: ""; position: absolute; left: -15px; top: 13px; bottom: 13px;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--cyan);
+}
+.rail-btn svg { width: 19px; height: 19px; }
+.rail-spacer { flex: 1; }
+.rail-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #1e293b; border: 1px solid #334155;
+  display: grid; place-items: center; color: #cbd5e1; font-size: 12px; font-weight: 700;
+}
+.content { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.topbar {
+  height: 62px; flex: 0 0 62px; border-bottom: 1px solid #141e2a;
+  display: flex; align-items: center; gap: 18px; padding: 0 28px;
+  background: rgba(7, 13, 22, .72);
+}
+.crumb { color: var(--muted-2); font-size: 12px; display: flex; align-items: center; gap: 8px; }
+.crumb b { color: var(--text-2); font-weight: 600; }
+.crumb i { font-style: normal; color: #334155; }
+.search {
+  margin-left: auto; width: 310px; height: 36px; border-radius: 9px;
+  border: 1px solid var(--stroke-soft); background: #0c141e;
+  display: flex; align-items: center; gap: 9px; padding: 0 11px;
+  color: var(--muted-2);
+}
+.search svg { width: 15px; height: 15px; }
+.search span { font-size: 12px; }
+.search kbd {
+  margin-left: auto; font-family: inherit; font-size: 10px; color: #64748b;
+  border: 1px solid #263447; border-radius: 5px; padding: 2px 5px; background: #0a111a;
+}
+.top-status { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(34, 197, 94, .1); }
+.top-user { display: flex; align-items: center; gap: 9px; padding-left: 16px; border-left: 1px solid #1e2a38; }
+.top-user .name { font-size: 12px; color: var(--text-2); }
+.top-user .role { font-size: 10px; color: var(--muted-2); }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; background: #1d2a3a;
+  border: 1px solid #3b4b5f; display: grid; place-items: center;
+  color: #dbeafe; font-size: 11px; font-weight: 700;
+}
+main { padding: 20px 28px 0; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.title-row { display: flex; align-items: flex-end; gap: 18px; flex: 0 0 auto; }
+.eyebrow { color: var(--cyan); font-size: 10px; font-weight: 700; letter-spacing: .18em; margin-bottom: 6px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.1; letter-spacing: -.4px; font-weight: 750; }
+.subtitle { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+.title-actions { margin-left: auto; display: flex; gap: 10px; padding-bottom: 2px; }
+.btn {
+  height: 38px; padding: 0 15px; border-radius: 9px; border: 1px solid var(--stroke);
+  background: #111a24; color: var(--text-2); display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600; transition: .16s ease;
+}
+.btn:hover { border-color: #3b4b5f; background: #162230; }
+.btn.primary { background: linear-gradient(180deg, #22d3ee, #0ea5e9); border-color: #22d3ee; color: #041016; box-shadow: 0 8px 20px rgba(14, 165, 233, .18); }
+.btn.primary:hover { filter: brightness(1.04); }
+.btn.ghost { background: transparent; }
+.btn svg { width: 15px; height: 15px; }
+.tabs {
+  margin-top: 18px; display: flex; align-items: center; gap: 4px; border-bottom: 1px solid #1d2837;
+  flex: 0 0 44px;
+}
+.tab {
+  height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
+}
+.tab .count {
+  min-width: 20px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #182331; color: #94a3b8; font-size: 10px; display: grid; place-items: center;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--cyan); }
+.tab.active .count { background: var(--cyan-soft); color: var(--cyan); }
+.tab:hover { color: var(--text-2); }
+.workspace {
+  flex: 1; min-height: 0; display: grid;
+  grid-template-columns: 254px minmax(0, 1fr) 478px;
+  gap: 16px; padding: 16px 0 12px;
+}
+.panel {
+  background: linear-gradient(180deg, rgba(21, 28, 35, .92), rgba(15, 23, 32, .96));
+  border: 1px solid var(--stroke-soft); border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .1);
+  min-height: 0;
+}
+.filters { padding: 15px 14px 10px; display: flex; flex-direction: column; gap: 9px; overflow-y: auto; scrollbar-width: none; }
+.filters::-webkit-scrollbar { width: 0; }
+.filter-search { height: 34px; border-radius: 8px; border: 1px solid #243244; background: #0c141e; display: flex; align-items: center; gap: 8px; padding: 0 10px; color: #64748b; }
+.filter-search svg { width: 14px; height: 14px; }
+.filter-search input { border: 0; outline: 0; background: transparent; color: var(--text); width: 100%; font-size: 12px; }
+.filter-search input::placeholder { color: #56657a; }
+.filter-group { display: flex; flex-direction: column; gap: 9px; }
+.filter-title { display: flex; align-items: center; justify-content: space-between; color: #8fa0b5; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.filter-title button { border: 0; background: transparent; color: #526176; font-size: 10px; padding: 0; }
+.filter-item { display: flex; align-items: center; gap: 9px; height: 26px; color: var(--text-2); font-size: 12px; border-radius: 6px; padding: 0 6px; cursor: pointer; }
+.filter-item:hover { background: #111b26; }
+.check {
+  width: 14px; height: 14px; border-radius: 4px; border: 1px solid #3a4a5e; background: #0b121c;
+  display: grid; place-items: center; flex: 0 0 14px;
+}
+.check.on { background: var(--cyan); border-color: var(--cyan); }
+.check.on::after { content: ""; width: 7px; height: 4px; border-left: 2px solid #041016; border-bottom: 2px solid #041016; transform: rotate(-45deg) translate(1px, -1px); }
+.filter-item .n { margin-left: auto; color: #526176; font-size: 10.5px; }
+.filter-item .typedot { width: 8px; height: 8px; border-radius: 50%; }
+.filter-item .typedot.cal { background: var(--cyan); }
+.filter-item .typedot.tpl { background: var(--purple); }
+.filter-item .typedot.model { background: var(--amber); }
+.filter-item .typedot.recipe { background: var(--green); }
+.filter-item .typedot.image { background: #f472b6; }
+.filter-item .statusdot { width: 7px; height: 7px; border-radius: 50%; }
+.filter-item .statusdot.ok { background: var(--green); }
+.filter-item .statusdot.check { background: var(--amber); }
+.filter-item .statusdot.lock { background: #94a3b8; }
+.filter-item .statusdot.arch { background: #64748b; }
+.filter-item .camera { color: #64748b; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 23px; padding: 0 8px; border-radius: 6px; border: 1px solid #253447; background: #0f1822; color: #8193a8; font-size: 10.5px; display: inline-flex; align-items: center; }
+.chip.active { border-color: rgba(34, 211, 238, .5); background: var(--cyan-soft); color: var(--cyan); }
+.health {
+  margin-top: auto; border-top: 1px solid #1e2a38; padding-top: 13px;
+  display: flex; align-items: center; gap: 13px;
+}
+.donut {
+  width: 62px; height: 62px; border-radius: 50%;
+  background: conic-gradient(var(--green) 0 67%, var(--amber) 67% 84%, #334155 84% 100%);
+  display: grid; place-items: center; position: relative; flex: 0 0 62px;
+}
+.donut::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: #101821; }
+.donut b { position: relative; z-index: 1; font-size: 15px; font-weight: 750; }
+.health-info { display: flex; flex-direction: column; gap: 4px; }
+.health-info .h { font-size: 11px; font-weight: 700; color: var(--text-2); }
+.health-info .s { font-size: 10px; color: #64748b; line-height: 1.5; }
+.health-info .legend { display: flex; gap: 8px; font-size: 9.5px; color: #8193a8; }
+.legend i { width: 5px; height: 5px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+.list-panel { display: flex; flex-direction: column; overflow: hidden; }
+.list-toolbar { height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1d2837; }
+.list-title { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.list-title span { margin-left: 7px; color: #526176; font-size: 10.5px; font-weight: 500; }
+.toolbar-spacer { flex: 1; }
+.small-btn { height: 29px; padding: 0 9px; border-radius: 6px; border: 1px solid #253447; background: #0f1822; color: #8ea1b6; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; }
+.small-btn:hover { border-color: #40536a; color: var(--text-2); }
+.small-btn svg { width: 13px; height: 13px; }
+.asset-table { flex: 1; min-height: 0; overflow: auto; }
+.table-head, .asset-row { display: grid; grid-template-columns: minmax(200px, 1.45fr) 138px 118px 56px 112px 98px 88px; align-items: center; gap: 9px; padding: 0 15px; }
+.table-head { height: 34px; color: #5f7188; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid #1a2532; position: sticky; top: 0; background: #111a24; z-index: 2; }
+.asset-row { height: 66px; border-bottom: 1px solid #192330; color: var(--text-2); position: relative; cursor: pointer; }
+.asset-row:hover { background: rgba(34, 211, 238, .035); }
+.asset-row.selected { background: linear-gradient(90deg, rgba(34, 211, 238, .10), rgba(34, 211, 238, .025)); }
+.asset-row.selected::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--cyan); }
+.asset-main { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.asset-icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 34px; }
+.asset-icon svg { width: 17px; height: 17px; }
+.asset-icon.cal { background: var(--cyan-soft); color: var(--cyan); }
+.asset-icon.tpl { background: var(--purple-soft); color: var(--purple); }
+.asset-icon.model { background: var(--amber-soft); color: var(--amber); }
+.asset-icon.recipe { background: var(--green-soft); color: var(--green); }
+.asset-icon.image { background: rgba(244, 114, 182, .11); color: #f472b6; }
+.asset-name { min-width: 0; }
+.asset-name b { display: block; font-size: 12.5px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asset-name span { display: block; margin-top: 4px; font-size: 10px; color: #5f7188; font-family: Consolas, "SFMono-Regular", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.type-pill, .status-pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 10.5px; white-space: nowrap; }
+.type-pill { background: #172230; color: #a8b8ca; border: 1px solid #263447; }
+.status-pill.ok { background: var(--green-soft); color: #4ade80; }
+.status-pill.check { background: var(--amber-soft); color: #fbbf24; }
+.status-pill.lock { background: #263447; color: #a8b8ca; }
+.status-pill.arch { background: #1e293b; color: #94a3b8; }
+.lock-badge { display: inline-flex; align-items: center; height: 19px; padding: 0 5px; border-radius: 5px; background: #243244; color: #b6c4d5; font-size: 9.5px; margin-left: 4px; }
+.scope { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: #94a3b8; min-width: 0; }
+.scope b { color: #cbd5e1; font-weight: 600; font-size: 11px; }
+.scope i { font-style: normal; color: #64748b; font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acceptance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.acceptance .ok { color: #4ade80; }
+.acceptance .sep { color: #334155; }
+.acceptance small { color: #7b8da2; font-size: 9.5px; }
+.form-field input[readonly] { color: #8193a8; background: #0a1119; }
+.field-note { color: #5f7188; font-size: 9.5px; line-height: 1.4; }
+.choice-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.choice { min-width: 0; padding: 9px 8px; }
+.choice b { font-size: 10.5px; }
+.form-section-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: #8fa0b5; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-top: 1px; }
+.form-section-title span { color: var(--cyan); font-family: Consolas, monospace; letter-spacing: 0; }
+.form-section-title::after { content: ""; height: 1px; flex: 1; background: #1e2a38; }
+.version { font-family: Consolas, "SFMono-Regular", monospace; font-size: 11px; color: #b6c4d5; }
+.camera-cell { font-size: 10.5px; color: #8193a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.refs { font-size: 11px; color: #8193a8; }
+.refs b { color: var(--text-2); font-weight: 600; }
+.updated { font-size: 10px; color: #5f7188; line-height: 1.45; }
+.updated b { display: block; color: #93a4b8; font-weight: 500; }
+.list-footer { height: 42px; border-top: 1px solid #1d2837; display: flex; align-items: center; padding: 0 15px; color: #607187; font-size: 10.5px; gap: 12px; }
+.list-footer .spacer { flex: 1; }
+.page-btn { width: 23px; height: 23px; border-radius: 5px; border: 1px solid #253447; background: #0f1822; color: #7e8fa3; display: grid; place-items: center; font-size: 10px; }
+.page-btn.active { border-color: var(--cyan); background: var(--cyan-soft); color: var(--cyan); }
+.detail { display: flex; flex-direction: column; overflow: hidden; }
+.detail-head { padding: 16px 17px 14px; border-bottom: 1px solid #1d2837; display: flex; gap: 12px; align-items: flex-start; }
+.detail-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--cyan-soft); color: var(--cyan); display: grid; place-items: center; flex: 0 0 44px; }
+.detail-icon svg { width: 23px; height: 23px; }
+.detail-title { min-width: 0; flex: 1; }
+.detail-title h2 { margin: 0; font-size: 18px; font-weight: 750; letter-spacing: -.2px; }
+.detail-title .sub { margin-top: 4px; font-size: 10.5px; color: #64748b; font-family: Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.mini-badge { height: 19px; padding: 0 6px; border-radius: 5px; background: #1b2634; border: 1px solid #2a3a4e; color: #9db0c3; font-size: 9.5px; display: inline-flex; align-items: center; }
+.mini-badge.ver { color: var(--cyan); border-color: rgba(34, 211, 238, .25); background: var(--cyan-soft); }
+.detail-actions { display: flex; gap: 4px; }
+.icon-btn { width: 27px; height: 27px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: #7b8da2; display: grid; place-items: center; }
+.icon-btn:hover { background: #172230; border-color: #263447; color: var(--text-2); }
+.icon-btn svg { width: 14px; height: 14px; }
+.detail-scroll { flex: 1; min-height: 0; overflow: auto; padding: 9px 17px 8px; display: flex; flex-direction: column; gap: 5px; scrollbar-width: thin; scrollbar-color: #2a3a4e transparent; }
+.detail-scroll::-webkit-scrollbar { width: 5px; }
+.detail-scroll::-webkit-scrollbar-thumb { background: #2a3a4e; border-radius: 3px; }
+.card-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.card-label .l { color: #8fa0b5; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.card-label .r { color: #526176; font-size: 10px; }
+.preview-card { border: 1px solid #243244; background: #0a121b; border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
+.preview-top { height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid #1b2837; color: #65778c; font-size: 10px; }
+.preview-top .live { color: var(--cyan); display: flex; align-items: center; gap: 5px; }
+.preview-top .live i { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.12); }
+.calib-visual { height: 126px; position: relative; overflow: hidden; background: radial-gradient(circle at 50% 45%, #122331 0, #0a121b 66%); }
+.calib-visual::before {
+  content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(45, 212, 191, .11) 1px, transparent 1px), linear-gradient(90deg, rgba(45, 212, 191, .11) 1px, transparent 1px);
+  background-size: 22px 22px; mask-image: linear-gradient(to bottom, rgba(0,0,0,.7), #000);
+}
+.axis-x, .axis-y { position: absolute; background: rgba(148, 163, 184, .35); }
+.axis-x { left: 28px; right: 28px; bottom: 25px; height: 1px; }
+.axis-y { bottom: 25px; top: 18px; left: 28px; width: 1px; }
+.axis-x::after { content: "C →"; position: absolute; right: -4px; top: -15px; color: #64748b; font-size: 9px; }
+.axis-y::after { content: "R ↓"; position: absolute; left: -14px; top: -2px; color: #64748b; font-size: 9px; }
+.point { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 4px rgba(34,211,238,.14); }
+.point.a { left: 25%; top: 48%; }
+.point.b { left: 55.5%; top: 48%; }
+.point-line { position: absolute; left: 28%; right: 42.5%; top: 51.7%; height: 1px; border-top: 1px dashed rgba(34, 211, 238, .6); }
+.point-label { position: absolute; color: #9fb3c8; font-size: 9px; font-family: Consolas, monospace; background: rgba(10,18,27,.72); padding: 2px 4px; border-radius: 3px; }
+.point-label.a { left: 13%; top: 57%; }
+.point-label.b { left: 44%; top: 57%; }
+.visual-note { position: absolute; left: 10px; bottom: 9px; color: #5f7188; font-size: 9px; }
+.visual-value { position: absolute; right: 10px; bottom: 9px; color: var(--cyan); font-size: 10px; font-weight: 700; font-family: Consolas, monospace; }
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; padding: 8px 12px; border: 1px solid #243244; border-radius: 9px; background: #0e1721; flex: 0 0 auto; }
+.meta-cell .k { color: #5f7188; font-size: 9.5px; margin-bottom: 4px; }
+.meta-cell .v { color: #c9d5e2; font-size: 11.5px; font-weight: 550; font-family: Consolas, "Microsoft YaHei UI", sans-serif; }
+.meta-cell .v.cyan { color: var(--cyan); }
+.ref-list { display: flex; flex-direction: column; gap: 7px; }
+.ref-item { display: flex; align-items: center; gap: 9px; padding: 4px 8px; background: #0e1721; border: 1px solid #1e2b3a; border-radius: 7px; }
+.ref-icon { width: 22px; height: 22px; border-radius: 6px; background: var(--cyan-soft); color: var(--cyan); display: grid; place-items: center; flex: 0 0 22px; }
+.ref-icon svg { width: 12px; height: 12px; }
+.ref-text { flex: 1; min-width: 0; }
+.ref-text b { display: block; color: #c8d5e3; font-size: 10.5px; font-weight: 600; }
+.ref-text span { display: block; margin-top: 2px; color: #5f7188; font-size: 9.5px; }
+.ref-type { color: #6f8298; font-size: 9px; border: 1px solid #263447; border-radius: 4px; padding: 3px 5px; }
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-item { display: flex; gap: 9px; position: relative; padding-bottom: 11px; }
+.tl-item:last-child { padding-bottom: 0; }
+.tl-item::before { content: ""; position: absolute; left: 4px; top: 10px; bottom: 0; width: 1px; background: #223043; }
+.tl-item:last-child::before { display: none; }
+.tl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cyan); margin-top: 2px; flex: 0 0 9px; box-shadow: 0 0 0 3px rgba(34,211,238,.1); }
+.tl-dot.old { background: #334155; box-shadow: none; }
+.tl-body b { display: block; color: #c4d2e1; font-size: 10.5px; font-weight: 600; }
+.tl-body span { display: block; margin-top: 3px; color: #5f7188; font-size: 9.5px; line-height: 1.45; }
+.detail-actions-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px 17px 12px; border-top: 1px solid #1d2837; background: #101821; flex: 0 0 auto; }
+.action-btn { height: 32px; border-radius: 7px; border: 1px solid #2a3a4e; background: #111b26; color: #a4b5c8; font-size: 10.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.action-btn:hover { border-color: #40536a; color: var(--text-2); }
+.action-btn.primary { background: var(--cyan-soft); color: var(--cyan); border-color: rgba(34,211,238,.35); }
+.action-btn.danger { color: #f87171; border-color: rgba(239,68,68,.28); background: var(--red-soft); }
+.action-btn svg { width: 13px; height: 13px; }
+.statusbar { height: 31px; flex: 0 0 31px; border-top: 1px solid #141e2a; display: flex; align-items: center; gap: 14px; padding: 0 28px; color: #526176; font-size: 10px; }
+.statusbar .sep { color: #1f2c3b; }
+.statusbar b { color: #7d90a5; font-weight: 500; }
+.statusbar .right { margin-left: auto; display: flex; gap: 16px; }
+.statusbar .green { color: var(--green); }
+/* modal */
+.modal-mask { position: fixed; inset: 0; background: rgba(2, 6, 12, .72); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 50; }
+.modal-mask.show { display: flex; }
+.modal {
+  width: 760px; background: linear-gradient(180deg, #151f2b, #0e1721); border: 1px solid #2a3a4e;
+  border-radius: 16px; box-shadow: 0 30px 100px rgba(0,0,0,.6); overflow: hidden;
+  transform: translateY(8px); animation: pop .18s ease forwards;
+}
+@keyframes pop { to { transform: translateY(0); } }
+.modal-head { padding: 20px 22px 16px; border-bottom: 1px solid #243244; display: flex; gap: 13px; align-items: flex-start; }
+.modal-head .mi { width: 38px; height: 38px; border-radius: 10px; background: var(--cyan-soft); color: var(--cyan); display: grid; place-items: center; flex: 0 0 38px; }
+.modal-head .mi svg { width: 20px; height: 20px; }
+.modal-head h3 { margin: 0; font-size: 18px; font-weight: 750; }
+.modal-head p { margin: 6px 0 0; color: #7b8da2; font-size: 11px; line-height: 1.5; }
+.modal-close { margin-left: auto; width: 28px; height: 28px; border: 0; background: transparent; color: #64748b; font-size: 20px; line-height: 1; }
+.modal-body { padding: 18px 22px 20px; display: flex; flex-direction: column; gap: 16px; }
+.steps { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 10px; }
+.step { display: flex; align-items: center; gap: 6px; }
+.step i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #3a4a5e; display: grid; place-items: center; font-style: normal; font-size: 9px; color: #8fa0b5; }
+.step.active { color: var(--cyan); }
+.step.active i { border-color: var(--cyan); background: var(--cyan-soft); color: var(--cyan); }
+.step-line { flex: 1; height: 1px; background: #263447; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 16px; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-field.full { grid-column: 1 / -1; }
+.form-field label { color: #8fa0b5; font-size: 10.5px; }
+.form-field input, .form-field select {
+  height: 36px; border-radius: 8px; border: 1px solid #2a3a4e; background: #0b131c;
+  color: #dbe7f4; padding: 0 10px; outline: 0; font-size: 12px;
+}
+.form-field input:focus, .form-field select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.08); }
+.choice-row { display: flex; gap: 8px; }
+.choice { flex: 1; height: 58px; border-radius: 9px; border: 1px solid #2a3a4e; background: #0d1620; padding: 9px 10px; text-align: left; color: #8294a9; }
+.choice b { display: block; font-size: 11px; color: #c7d4e2; margin-bottom: 4px; }
+.choice span { font-size: 9.5px; color: #5f7188; }
+.choice.active { border-color: var(--cyan); background: var(--cyan-soft); }
+.choice.active b { color: var(--cyan); }
+.hint { color: #5f7188; font-size: 10px; line-height: 1.5; }
+.modal-foot { padding: 14px 22px; border-top: 1px solid #243244; display: flex; align-items: center; justify-content: flex-end; gap: 9px; background: #0b131c; }
+.modal-foot .left { margin-right: auto; color: #5f7188; font-size: 10px; display: flex; gap: 7px; align-items: center; }
+
+/* 1366 / 1280 重排：1920 是设计基准，不把桌面稿等比缩成小屏 */
+@media (max-width: 1500px) {
+  main { padding: 16px 20px 0; }
+  .workspace { grid-template-columns: 210px minmax(0, 1fr) 380px; gap: 12px; }
+  .search { width: 250px; }
+  .table-head, .asset-row { grid-template-columns: minmax(160px, 1fr) 110px 88px 36px 82px 68px 60px; gap: 6px; padding: 0 10px; }
+  .table-head { font-size: 9px; }
+  .asset-row { height: 62px; }
+  .detail-head { padding: 14px 14px 12px; }
+  .detail-scroll { padding: 8px 14px; }
+  .meta-grid { gap: 6px 10px; padding: 8px 10px; }
+  .ref-text b { font-size: 10px; }
+  .ref-text span { font-size: 9px; }
+  .detail-actions-bottom { padding: 9px 14px 11px; }
+}
+
+@media (max-width: 1280px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 360px; }
+  .filters { display: none; }
+  h1 { font-size: 24px; }
+  .search { width: 220px; }
+  .detail-head { padding: 12px 12px 10px; }
+}
+
+/* ============================================================
+   v0.3 · Shell 内页浅色主题
+   依据：UI\Controls\Themes\Colors.xaml 与 app-shell-chrome v2
+   ============================================================ */
+:root {
+  --bg: #F3F6FA;
+  --bg-2: #FFFFFF;
+  --surface: #FFFFFF;
+  --surface-2: #F8FAFC;
+  --surface-3: #F1F5F9;
+  --stroke: #D1D5DB;
+  --stroke-soft: #E2E8F0;
+  --text: #202020;
+  --text-2: #303133;
+  --muted: #606266;
+  --muted-2: #909399;
+  --cyan: #005FB8;
+  --cyan-soft: rgba(0, 95, 184, .10);
+  --green: #16A34A;
+  --green-soft: rgba(22, 163, 74, .12);
+  --amber: #B45309;
+  --amber-soft: rgba(180, 83, 9, .12);
+  --red: #DC2626;
+  --red-soft: rgba(220, 38, 38, .12);
+  --purple: #7C3AED;
+  --purple-soft: rgba(124, 58, 237, .12);
+  --radius: 8px;
+  --radius-s: 6px;
+  --shadow: 0 8px 24px rgba(15, 23, 42, .08);
+}
+html, body { background: #F3F6FA; color: #202020; }
+.app { grid-template-columns: 1fr; background: #F3F6FA; }
+.rail, .topbar, .statusbar { display: none !important; }
+.content { background: #F3F6FA; }
+main { padding: 24px 28px 18px; background: #F3F6FA; }
+.eyebrow { color: #005FB8; }
+h1 { color: #202020; font-size: 26px; }
+.subtitle { color: #606266; }
+.btn { background: #FFFFFF; border-color: #D1D5DB; color: #303133; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.btn:hover { background: #F1F5F9; border-color: #94A3B8; }
+.btn.primary { background: #005FB8; border-color: #005FB8; color: #FFFFFF; box-shadow: 0 2px 6px rgba(0, 95, 184, .18); }
+.btn.primary:hover { background: #0053A0; filter: none; }
+.tabs { border-bottom-color: #E2E8F0; }
+.tab { color: #606266; }
+.tab:hover { color: #202020; }
+.tab.active { color: #005FB8; border-bottom-color: #005FB8; }
+.tab .count { background: #F1F5F9; color: #606266; }
+.tab.active .count { background: #E8F1FB; color: #005FB8; }
+.workspace { grid-template-columns: 240px minmax(0, 1fr) 440px; gap: 14px; padding: 14px 0 8px; }
+.panel { background: #FFFFFF; border-color: #E2E8F0; box-shadow: 0 2px 8px rgba(15, 23, 42, .05); }
+.filters { background: #FFFFFF; }
+.filter-search { background: #FFFFFF; border-color: #D1D5DB; color: #909399; }
+.filter-search input { color: #202020; }
+.filter-search input::placeholder { color: #909399; }
+.filter-title { color: #606266; }
+.filter-title button { color: #909399; }
+.filter-item { color: #303133; }
+.filter-item:hover { background: #E3EEF9; }
+.check { border-color: #CBD5E1; background: #FFFFFF; }
+.check.on { background: #005FB8; border-color: #005FB8; }
+.check.on::after { border-color: #FFFFFF; }
+.filter-item .n { color: #909399; }
+.filter-item .camera { color: #606266; }
+.chip { border-color: #D1D5DB; background: #FFFFFF; color: #606266; }
+.chip.active { border-color: #005FB8; background: #E8F1FB; color: #005FB8; }
+.health { border-top-color: #E2E8F0; }
+.donut { background: conic-gradient(#16A34A 0 67%, #D97706 67% 84%, #CBD5E1 84% 100%); }
+.donut::after { background: #FFFFFF; }
+.donut b { color: #202020; }
+.health-info .h { color: #303133; }
+.health-info .s { color: #606266; }
+.health-info .legend { color: #606266; }
+.list-toolbar { border-bottom-color: #E2E8F0; background: #FFFFFF; }
+.list-title { color: #202020; }
+.list-title span { color: #909399; }
+.small-btn { border-color: #D1D5DB; background: #FFFFFF; color: #606266; }
+.small-btn:hover { border-color: #94A3B8; background: #F1F5F9; color: #202020; }
+.table-head { color: #606266; border-bottom-color: #E2E8F0; background: #F7FAFC; }
+.asset-row { border-bottom-color: #EEF2F7; color: #303133; }
+.asset-row:hover { background: #E3EEF9; }
+.asset-row.selected { background: #ECF5FF; }
+.asset-row.selected::before { background: #005FB8; }
+.asset-name b { color: #202020; }
+.asset-name span { color: #909399; }
+.type-pill { background: #F5F7FA; color: #475569; border-color: #E2E8F0; }
+.status-pill.ok { background: #DCFCE7; color: #15803D; }
+.status-pill.check { background: #FEF3C7; color: #B45309; }
+.status-pill.lock, .lock-badge { background: #E2E8F0; color: #475569; }
+.status-pill.arch { background: #F1F5F9; color: #64748B; }
+.version { color: #475569; }
+.camera-cell { color: #606266; }
+.refs { color: #606266; }
+.refs b { color: #303133; }
+.updated { color: #909399; }
+.updated b { color: #606266; }
+.scope { color: #606266; }
+.scope b { color: #303133; }
+.scope i { color: #909399; }
+.list-footer { border-top-color: #E2E8F0; color: #909399; background: #FFFFFF; }
+.page-btn { border-color: #D1D5DB; background: #FFFFFF; color: #606266; }
+.page-btn.active { border-color: #005FB8; background: #E8F1FB; color: #005FB8; }
+.detail { background: #FFFFFF; }
+.detail-head { border-bottom-color: #E2E8F0; }
+.detail-icon { background: #E8F1FB; color: #005FB8; }
+.detail-title .sub { color: #909399; }
+.mini-badge { background: #F1F5F9; border-color: #E2E8F0; color: #475569; }
+.mini-badge.ver { color: #005FB8; border-color: #BFDBFE; background: #E8F1FB; }
+.icon-btn { color: #606266; }
+.icon-btn:hover { background: #F1F5F9; border-color: #D1D5DB; color: #202020; }
+.preview-card { border-color: #E2E8F0; background: #F8FAFC; }
+.preview-top { border-bottom-color: #E2E8F0; color: #606266; }
+.preview-top .live { color: #005FB8; }
+.preview-top .live i { background: #005FB8; box-shadow: 0 0 0 3px rgba(0, 95, 184, .12); }
+.calib-visual { background: radial-gradient(circle at 50% 45%, #F8FBFF 0, #EEF4FB 66%); }
+.calib-visual::before { background-image: linear-gradient(rgba(0, 95, 184, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 95, 184, .08) 1px, transparent 1px); }
+.axis-x, .axis-y { background: #94A3B8; }
+.axis-x::after, .axis-y::after { color: #606266; }
+.point { background: #005FB8; box-shadow: 0 0 0 4px rgba(0, 95, 184, .14); }
+.point-line { border-top-color: rgba(0, 95, 184, .55); }
+.point-label { color: #303133; background: rgba(255, 255, 255, .88); }
+.visual-note { color: #66708A; }
+.visual-value { color: #005FB8; }
+.meta-grid { border-color: #E2E8F0; background: #F8FAFC; }
+.meta-cell .k { color: #66708A; }
+.meta-cell .v { color: #303133; }
+.meta-cell .v.cyan { color: #005FB8; }
+.ref-item { background: #FFFFFF; border-color: #E2E8F0; }
+.ref-icon { background: #E8F1FB; color: #005FB8; }
+.ref-text b { color: #303133; }
+.ref-text span { color: #66708A; }
+.ref-type { color: #606266; border-color: #D1D5DB; }
+.tl-item::before { background: #E2E8F0; }
+.tl-dot { background: #005FB8; box-shadow: 0 0 0 3px rgba(0, 95, 184, .10); }
+.tl-dot.old { background: #CBD5E1; }
+.tl-body b { color: #303133; }
+.tl-body span { color: #66708A; }
+.detail-actions-bottom { border-top-color: #E2E8F0; background: #FFFFFF; }
+.action-btn { border-color: #D1D5DB; background: #FFFFFF; color: #475569; }
+.action-btn:hover { border-color: #94A3B8; background: #F1F5F9; color: #202020; }
+.action-btn.primary { background: #E8F1FB; color: #005FB8; border-color: #BFDBFE; }
+.action-btn.danger { color: #B91C1C; border-color: #FECACA; background: #FEF2F2; }
+.detail-scroll { scrollbar-color: #CBD5E1 transparent; }
+.detail-scroll::-webkit-scrollbar-thumb { background: #CBD5E1; }
+.modal-mask { background: rgba(15, 23, 42, .35); backdrop-filter: none; }
+.modal { background: #FFFFFF; border-color: #D1D5DB; box-shadow: 0 24px 60px rgba(15, 23, 42, .18); }
+.modal-head { border-bottom-color: #E2E8F0; }
+.modal-head .mi { background: #E8F1FB; color: #005FB8; }
+.modal-head h3 { color: #202020; }
+.modal-head p { color: #606266; }
+.modal-close { color: #909399; }
+.modal-body { background: #FFFFFF; }
+.form-section-title { color: #606266; }
+.form-section-title::after { background: #E2E8F0; }
+.form-section-title span { color: #005FB8; }
+.form-field label { color: #606266; }
+.form-field input, .form-field select { background: #FFFFFF; color: #202020; border-color: #D1D5DB; }
+.form-field input:focus, .form-field select:focus { border-color: #005FB8; box-shadow: 0 0 0 3px rgba(0, 95, 184, .10); }
+.form-field input[readonly] { color: #66708A; background: #F8FAFC; }
+.choice { background: #FFFFFF; border-color: #D1D5DB; color: #606266; }
+.choice b { color: #303133; }
+.choice span { color: #66708A; }
+.choice.active { border-color: #005FB8; background: #E8F1FB; }
+.choice.active b { color: #005FB8; }
+.hint { color: #66708A; }
+.modal-foot { border-top-color: #E2E8F0; background: #F7FAFC; }
+.modal-foot .left { color: #66708A; }
+
+/* 详情页签 */
+.detail-tabs { display: flex; align-items: center; gap: 2px; padding: 0 12px; border-bottom: 1px solid #E2E8F0; background: #FFFFFF; flex: 0 0 40px; }
+.detail-tab { height: 40px; padding: 0 10px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: #606266; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; }
+.detail-tab:hover { color: #202020; }
+.detail-tab.active { color: #005FB8; border-bottom-color: #005FB8; }
+.detail-tab .n { min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #F1F5F9; color: #606266; font-size: 9px; display: grid; place-items: center; }
+.detail-tab.active .n { background: #E8F1FB; color: #005FB8; }
+.detail-body { flex: 1; min-height: 0; overflow: hidden; }
+.detail-pane { display: none; height: 100%; overflow-y: auto; padding: 12px 17px 10px; flex-direction: column; gap: 9px; scrollbar-width: thin; scrollbar-color: #CBD5E1 transparent; }
+.detail-pane.active { display: flex; }
+.detail-pane::-webkit-scrollbar { width: 5px; }
+.detail-pane::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+.assoc-card, .tech-section, .version-card { border: 1px solid #E2E8F0; background: #FFFFFF; border-radius: 8px; padding: 10px; }
+.assoc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.assoc-item { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 7px 8px; min-width: 0; }
+.assoc-item span { display: block; color: #66708A; font-size: 9px; }
+.assoc-item b { display: block; margin-top: 3px; color: #303133; font-size: 10.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assoc-item i { display: block; margin-top: 2px; color: #909399; font-size: 9px; font-style: normal; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tech-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
+.tech-item span { display: block; color: #66708A; font-size: 9px; }
+.tech-item b { display: block; margin-top: 3px; color: #303133; font-size: 10.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.impact-strip { display: flex; gap: 6px; flex-wrap: wrap; }
+.impact-chip { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border-radius: 5px; border: 1px solid #E2E8F0; background: #F8FAFC; color: #606266; font-size: 10px; }
+.impact-chip b { color: #005FB8; font-size: 11px; }
+.ref-item { align-items: flex-start; }
+.ref-text span { line-height: 1.45; }
+.ref-type { align-self: flex-start; }
+.ref-note { padding: 7px 9px; border-radius: 6px; background: #E8F1FB; border: 1px solid #BFDBFE; color: #475569; font-size: 10px; line-height: 1.5; }
+.version-head { display: flex; align-items: center; gap: 7px; }
+.version-head b { font-size: 12px; color: #202020; }
+.version-head time { margin-left: auto; color: #909399; font-size: 9.5px; }
+.version-pill { height: 18px; padding: 0 5px; border-radius: 4px; background: #DCFCE7; color: #15803D; font-size: 9px; display: inline-flex; align-items: center; }
+.version-meta { margin-top: 5px; color: #66708A; font-size: 9.5px; line-height: 1.5; }
+.version-diff { margin-top: 7px; padding: 7px 8px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 5px; color: #475569; font-size: 9.5px; line-height: 1.5; }
+.version-actions { display: flex; gap: 6px; margin-top: 7px; }
+.version-actions .small-btn { height: 24px; font-size: 9.5px; }
+.file-preview { height: 126px; border: 1px solid #E2E8F0; border-radius: 8px; background: radial-gradient(circle at 50% 38%, #F8FBFF 0, #EEF4FB 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: #66708A; }
+.file-preview svg { width: 34px; height: 34px; color: #005FB8; }
+.file-preview b { color: #303133; font-size: 12px; font-weight: 600; }
+.file-preview span { font-size: 9.5px; color: #909399; }
+.status-pill.unbound { background: #F1F5F9; color: #64748B; }
+.demo-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 4px; background: #E8F1FB; border: 1px solid #BFDBFE; color: #005FB8; font-size: 9.5px; margin-left: 8px; }
+
+/* 断点必须放在浅色主题之后，否则会被上面的 .workspace 覆盖 */
+@media (max-width: 1500px) {
+  main { padding: 16px 20px 0; }
+  .workspace { grid-template-columns: 220px minmax(0, 1fr) 400px; gap: 12px; }
+  .asset-row { height: 62px; }
+  .detail-head { padding: 14px 14px 12px; }
+  .detail-pane { padding: 10px 14px 8px; }
+  .detail-actions-bottom { padding: 9px 14px 11px; }
+}
+@media (max-width: 1280px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 360px; }
+  .filters { display: none; }
+  .search { width: 220px; }
+  h1 { font-size: 24px; }
+}
+@media (max-width: 980px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 360px); gap: 8px; }
+  .filters { display: none; }
+  .detail { display: flex; }
+  .title-actions .btn.ghost { display: none; }
+  .table-head, .asset-row { grid-template-columns: minmax(150px, 1fr) 110px 88px 80px; gap: 6px; padding: 0 8px; }
+  .table-head span:nth-child(3), .table-head span:nth-child(4), .table-head span:nth-child(7),
+  .asset-row > :nth-child(3), .asset-row > :nth-child(4), .asset-row > :nth-child(7) { display: none; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6h4a5 5 0 0 1 5 5v4.5"/><path d="M10 18h5.5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="5.5" rx="7" ry="3"/><path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/><path d="M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M7 15l3-4 3 2 4-6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L14.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 16v3h14v-3"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/><path d="M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2"/></symbol>
+  <symbol id="i-template" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/><circle cx="15" cy="15" r="2.5"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></symbol>
+  <symbol id="i-recipe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3h6M10 3v6l-5 8a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-8V3"/><path d="M7 15h10"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 18 5-5 4 3 3-3 4 4"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.2 9a7 7 0 0 1 11.5-2L20 9M4 15l2.3 2a7 7 0 0 0 11.5-2"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 10 4 4 4-4"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 7h11M8 12h8M8 17h5"/><path d="m4 8 2-2 2 2M4 16l2 2 2-2"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17.2v.2"/></symbol>
+</svg>
+
+<div class="app">
+  <div class="content">
+    <main>
+      <div class="title-row">
+        <div>
+          <div class="eyebrow">PROJECT ASSETS</div>
+          <h1>项目资产管理</h1>
+          <p class="subtitle">统一管理标定 / 模板 / 模型 / 配方 / 图像资产；生产流程按 Id 引用，不重复计算。<span class="demo-badge">演示数据 · 基于当前方案参数</span></p>
+        </div>
+        <div class="title-actions">
+          <button class="btn ghost"><svg><use href="#i-upload"/></svg>导入资产</button>
+          <button class="btn primary" onclick="openModal()"><svg><use href="#i-plus"/></svg>新建标定资产</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab" data-type="all" onclick="switchAssetType('all')">资产总览 <span class="count">27</span></button>
+        <button class="tab active" data-type="calibration" onclick="switchAssetType('calibration')">标定资产 <span class="count">6</span></button>
+        <button class="tab" data-type="template" onclick="switchAssetType('template')">模板资产 <span class="count">4</span></button>
+        <button class="tab" data-type="model" onclick="switchAssetType('model')">模型资产 <span class="count">5</span></button>
+        <button class="tab" data-type="recipe" onclick="switchAssetType('recipe')">配方资产 <span class="count">2</span></button>
+        <button class="tab" data-type="image" onclick="switchAssetType('image')">图像资产 <span class="count">10</span></button>
+      </div>
+
+      <div class="workspace">
+        <section class="panel filters">
+          <div class="filter-search"><svg><use href="#i-search"/></svg><input placeholder="筛选当前资产…" /></div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>资产类型</span><button>全部</button></div>
+            <div class="filter-item" data-type="calibration"><i class="check on"></i><i class="typedot cal"></i>标定资产<span class="n">6</span></div>
+            <div class="filter-item" data-type="template"><i class="check"></i><i class="typedot tpl"></i>模板资产<span class="n">4</span></div>
+            <div class="filter-item" data-type="model"><i class="check"></i><i class="typedot model"></i>模型资产<span class="n">5</span></div>
+            <div class="filter-item" data-type="recipe"><i class="check"></i><i class="typedot recipe"></i>配方资产<span class="n">2</span></div>
+            <div class="filter-item" data-type="image"><i class="check"></i><i class="typedot image"></i>图像资产<span class="n">10</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>生命周期</span><button>清除</button></div>
+            <div class="filter-item"><i class="statusdot ok"></i>有效<span class="n" id="countValid">4</span></div>
+            <div class="filter-item"><i class="statusdot check"></i>待复核<span class="n" id="countPending">1</span></div>
+            <div class="filter-item"><i class="statusdot arch"></i>已归档<span class="n" id="countArchived">1</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>保护</span><button>全部</button></div>
+            <div class="filter-item"><i class="statusdot lock"></i>已冻结<span class="n" id="countLocked">1</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>相机</span><button>全部</button></div>
+            <div class="filter-item"><i class="check on"></i><span class="camera">全部相机</span></div>
+            <div class="filter-item"><i class="check"></i><span class="camera">NET-STATION-02</span></div>
+            <div class="filter-item"><i class="check"></i><span class="camera">SIM-LINE-01</span></div>
+            <div class="filter-item"><i class="check"></i><span class="camera">HK-STATION-03</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>标签</span><button>管理</button></div>
+            <div class="chip-row">
+              <span class="chip active">产线</span>
+              <span class="chip">换型</span>
+              <span class="chip">已发布</span>
+              <span class="chip">待复核</span>
+            </div>
+          </div>
+
+          <div class="health">
+            <div class="donut" id="healthDonut"><b id="healthPercent">67%</b></div>
+            <div class="health-info">
+              <div class="h">当前页签健康度</div>
+              <div class="s" id="healthText">4 有效 / 6 · 1 待复核<br/>1 归档 · 1 已冻结</div>
+              <div class="legend"><span><i style="background:var(--green)"></i>有效</span><span><i style="background:var(--amber)"></i>待复核</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="list-toolbar">
+            <div class="list-title" id="listTitle">标定资产 <span id="listCount">6 项</span></div>
+            <div class="toolbar-spacer"></div>
+            <button class="small-btn"><svg><use href="#i-sort"/></svg>最近更新<svg style="width:11px"><use href="#i-chevron"/></svg></button>
+            <button class="small-btn"><svg><use href="#i-filter"/></svg>筛选</button>
+            <button class="small-btn"><svg><use href="#i-more"/></svg></button>
+          </div>
+
+          <div class="asset-table">
+            <div class="table-head">
+              <span>资产</span><span>工位 · 相机</span><span>类型</span><span>版本</span><span>状态</span><span>引用</span><span>最近更新</span>
+            </div>
+
+            <div class="asset-row selected" onclick="selectRow(this,'LineCalib','像素当量','ST3 · 精密测量','2aa0b611-342b-7f1b-ba74-11cbd48ddf26','v2','有效','读1 · 写1 · 调试1')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>LineCalib</b><span>2aa0b611…ddf26</span></div>
+              </div>
+              <span class="scope"><b>ST3 · 精密测量</b><i>NET-STATION-02</i></span>
+              <span class="type-pill">像素当量</span>
+              <span class="version">v2</span>
+              <span><span class="status-pill ok">有效</span></span>
+              <span class="refs"><b>读1 · 写1</b><br>调试 1</span>
+              <span class="updated"><b>今天 09:41</b>Calib 写入</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'BoardAlign','九点标定','ST2 · 视觉定位','9f3c72aa-1d44-4ce0-9b5a-2e2a8bbd0b61','v4','有效','读2 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>BoardAlign</b><span>9f3c72aa…0b61</span></div>
+              </div>
+              <span class="scope"><b>ST2 · 视觉定位</b><i>SIM-LINE-01</i></span>
+              <span class="type-pill">九点标定</span>
+              <span class="version">v4</span>
+              <span><span class="status-pill ok">有效</span></span>
+              <span class="refs"><b>读2</b><br>写 0</span>
+              <span class="updated"><b>10-24 16:20</b>导入复核</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'CaliperScale','像素当量','ST3 · 精密测量','47b6810e-82ef-4d2a-a6db-31f41e6f9c02','v1','待复核','读1 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>CaliperScale</b><span>47b6810e…9c02</span></div>
+              </div>
+              <span class="scope"><b>ST3 · 精密测量</b><i>NET-STATION-02</i></span>
+              <span class="type-pill">像素当量</span>
+              <span class="version">v1</span>
+              <span><span class="status-pill check">待复核</span></span>
+              <span class="refs"><b>读1</b><br>写 0</span>
+              <span class="updated"><b>10-23 14:02</b>残差偏高</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'BeadPlanarCalib','网格 · 含内参','ST5 · 装配压装','6d09bb1c-4e11-4d7d-9d25-6f58a5e94aa7','v3','有效','读2 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>BeadPlanarCalib</b><span>6d09bb1c…4aa7</span></div>
+              </div>
+              <span class="scope"><b>ST5 · 装配压装</b><i>SIM-LINE-01</i></span>
+              <span class="type-pill">网格 · 含内参</span>
+              <span class="version">v3</span>
+              <span><span class="status-pill ok">有效</span><span class="lock-badge">冻结</span></span>
+              <span class="refs"><b>读2</b><br>写 0</span>
+              <span class="updated"><b>10-21 09:10</b>现场冻结</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'CameraIntrinsics','内参标定','ST2 / ST3 共享','a19e0d77-5c51-4a97-89ff-0af8f82ce315','v2','有效','读3 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>CameraIntrinsics</b><span>a19e0d77…e315</span></div>
+              </div>
+              <span class="scope"><b>ST2 / ST3 共享</b><i>HK-STATION-03</i></span>
+              <span class="type-pill">内参标定</span>
+              <span class="version">v2</span>
+              <span><span class="status-pill ok">有效</span></span>
+              <span class="refs"><b>读3</b><br>写 0</span>
+              <span class="updated"><b>10-20 18:35</b>标定板导入</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'RobotHandEye','手眼标定','ST5 · 装配压装','0c84be31-8f3f-4f7a-aeb4-97e5de4e7f10','v1','已归档','—')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>RobotHandEye</b><span>0c84be31…7f10</span></div>
+              </div>
+              <span class="scope"><b>ST5 · 装配压装</b><i>HK-STATION-03</i></span>
+              <span class="type-pill">手眼标定</span>
+              <span class="version">v1</span>
+              <span><span class="status-pill arch">已归档</span></span>
+              <span class="refs">—</span>
+              <span class="updated"><b>10-18 11:08</b>换型归档</span>
+            </div>
+          </div>
+
+          <div class="list-footer" id="listFooter">
+            <span>显示 6 / 6 项（方案共 27 项）</span>
+            <span class="spacer"></span>
+            <span>列表按最近更新排序</span>
+          </div>
+        </section>
+
+        <aside class="panel detail">
+          <div class="detail-head">
+            <div class="detail-icon" id="detailIcon"><svg><use href="#i-cal"/></svg></div>
+            <div class="detail-title">
+              <h2 id="detailName">LineCalib</h2>
+              <div class="sub" id="detailId">2aa0b611-342b-7f1b-ba74-11cbd48ddf26</div>
+              <div class="badge-row">
+                <span class="mini-badge ver" id="detailVersion">v2</span>
+                <span class="mini-badge" id="detailType">像素当量</span>
+                <span class="status-pill ok" id="detailStatus">有效</span>
+                <span class="mini-badge" id="detailLock">未冻结</span>
+              </div>
+              <div class="acceptance" id="detailAcceptance">
+                <small>作用域</small><small class="ok" id="detailScope">ST3 · 精密测量</small>
+                <span class="sep">/</span>
+                <small id="detailAcceptanceText">验收合格</small><span class="sep">·</span>
+                <small id="detailReviewText">复核 李工 · 有效至 2026-11-25</small>
+              </div>
+            </div>
+            <div class="detail-actions">
+              <button class="icon-btn" title="复制资产 Id"><svg><use href="#i-copy"/></svg></button>
+              <button class="icon-btn" title="更多"><svg><use href="#i-more"/></svg></button>
+            </div>
+          </div>
+
+          <div class="detail-tabs" role="tablist" aria-label="资产详情">
+            <button class="detail-tab active" data-tab="overview" onclick="setDetailTab('overview')">概览</button>
+            <button class="detail-tab" data-tab="tech" onclick="setDetailTab('tech')">技术参数</button>
+            <button class="detail-tab" data-tab="refs" onclick="setDetailTab('refs')">引用 <span class="n">3</span></button>
+            <button class="detail-tab" data-tab="versions" onclick="setDetailTab('versions')">版本 <span class="n">2</span></button>
+          </div>
+
+          <div class="detail-body">
+            <section class="detail-pane active" data-pane="overview">
+              <div class="preview-card">
+                <div class="preview-top"><span>标定图预览 · 只读</span><span class="live"><i></i><span id="previewSub">静态图 1-宽度40px.png</span></span></div>
+                <div class="calib-visual">
+                  <span class="axis-x"></span><span class="axis-y"></span>
+                  <span class="point a"></span><span class="point b"></span>
+                  <span class="point-line"></span>
+                  <span class="point-label a">A (R240, C100) px</span>
+                  <span class="point-label b">B (R240, C300) px</span>
+                  <span class="visual-note" id="previewNote">图像坐标：原点左上 · Row 向下 · 640×480 px</span>
+                  <span class="visual-value" id="previewValue">基线 200.00 px ↔ 10.000 mm</span>
+                </div>
+              </div>
+
+              <div class="meta-grid">
+                <div class="meta-cell"><div class="k">标定方式</div><div class="v" id="metaMode">像素当量 / PixelScale</div></div>
+                <div class="meta-cell"><div class="k">工位 / 作用域</div><div class="v" id="metaScope">ST3 · 精密测量</div></div>
+                <div class="meta-cell"><div class="k">相机 / 分辨率</div><div class="v" id="metaCamera">NET-STATION-02 · 640 × 480 px</div></div>
+                <div class="meta-cell"><div class="k">像素当量</div><div class="v cyan" id="metaMpp">0.0500 mm/px</div></div>
+                <div class="meta-cell"><div class="k">标定基准</div><div class="v" id="metaBase">CB-200-10 · 10.000 mm</div></div>
+                <div class="meta-cell"><div class="k">物距 WD</div><div class="v" id="metaWd">300 ± 2 mm</div></div>
+                <div class="meta-cell"><div class="k">残差</div><div class="v" id="metaResidual">不适用（2 点 / 1 参数）</div></div>
+                <div class="meta-cell"><div class="k">不确定度 U (k=2)</div><div class="v cyan" id="metaU">±0.0008 mm/px</div></div>
+              </div>
+
+              <div class="assoc-card">
+                <div class="card-label"><span class="l">关联对象</span><span class="r">静态 · 方案内</span></div>
+                <div class="assoc-grid">
+                  <div class="assoc-item"><span>工位</span><b id="assocStation">ST3 · 精密测量</b><i id="assocStationSub">ST3_Measure</i></div>
+                  <div class="assoc-item"><span>相机</span><b id="assocCamera">NET-STATION-02</b><i id="assocCameraSub">SN 2408-0172</i></div>
+                  <div class="assoc-item"><span>配方</span><b id="assocRecipe">Recipe_A · v3</b><i id="assocRecipeSub">换型写入</i></div>
+                  <div class="assoc-item"><span>SCADA</span><b id="assocScada">工位3-精密测量</b><i id="assocScadaSub">3 个绑定</i></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="detail-pane" data-pane="tech">
+              <div class="tech-section">
+                <div class="card-label"><span class="l">相机与采集</span><span class="r">CameraConfigs · .vms</span></div>
+                <div class="tech-grid">
+                  <div class="tech-item"><span>相机型号</span><b id="techCameraModel">NET-STATION-02</b></div>
+                  <div class="tech-item"><span>序列号</span><b id="techSerial">SN 2408-0172</b></div>
+                  <div class="tech-item"><span>驱动</span><b id="techDriver">Camera.Network</b></div>
+                  <div class="tech-item"><span>分辨率</span><b id="techResolution">640 × 480 px</b></div>
+                  <div class="tech-item"><span>像素格式</span><b id="techPixelFormat">Mono8</b></div>
+                  <div class="tech-item"><span>曝光</span><b id="techExposure">8000 μs</b></div>
+                  <div class="tech-item"><span>增益</span><b id="techGain">0 dB</b></div>
+                  <div class="tech-item"><span>触发</span><b id="techTrigger">软触发</b></div>
+                </div>
+              </div>
+              <div class="tech-section">
+                <div class="card-label"><span class="l">标定结果</span><span class="r">CalibrationTransform · PixelScale</span></div>
+                <div class="tech-grid">
+                  <div class="tech-item"><span>已知长度</span><b id="techKnown">10.000 mm</b></div>
+                  <div class="tech-item"><span>基线</span><b id="techBaseline">200.00 px</b></div>
+                  <div class="tech-item"><span>像素当量</span><b id="techMpp">0.0500 mm/px</b></div>
+                  <div class="tech-item"><span>残差</span><b id="techResidual">不适用（2 点 / 1 参数）</b></div>
+                  <div class="tech-item"><span>不确定度</span><b id="techU">±0.0008 mm/px (k=2)</b></div>
+                  <div class="tech-item"><span>标定板</span><b id="techBoard">CB-200-10 · 2026-017</b></div>
+                  <div class="tech-item"><span>标定时间</span><b id="techTime">2026-10-26 09:41</b></div>
+                  <div class="tech-item"><span>写入流程</span><b id="techWriter">Calib</b></div>
+                </div>
+              </div>
+              <div class="tech-section">
+                <div class="card-label"><span class="l">文件契约</span><span class="r">可审计</span></div>
+                <div class="tech-grid">
+                  <div class="tech-item"><span>资产文件</span><b id="techFile">LineCalib.calib.json</b></div>
+                  <div class="tech-item"><span>SHA-256</span><b id="techHash">8f2c…a91d</b></div>
+                  <div class="tech-item"><span>HALCON</span><b id="techHalcon">22.11</b></div>
+                  <div class="tech-item"><span>输入契约</span><b id="techInput">640×480 / Mono8</b></div>
+                </div>
+              </div>
+              <div class="ref-note">技术参数来自方案内的 CameraConfigs 与 CalibrationTransform；运行态（在线、帧率、温度）不写入 .vms，未接入本页。</div>
+            </section>
+
+            <section class="detail-pane" data-pane="refs">
+              <div class="impact-strip">
+                <span class="impact-chip">生产读取 <b>1</b></span>
+                <span class="impact-chip">标定写入 <b>1</b></span>
+                <span class="impact-chip">调试入口 <b>1</b></span>
+                <span class="impact-chip">断链 <b>0</b></span>
+              </div>
+              <div class="ref-list">
+                <div class="ref-item">
+                  <span class="ref-icon"><svg><use href="#i-flow"/></svg></span>
+                  <span class="ref-text"><b>ST3_Measure · 第 12 步 · 加载方案标定资产</b><span>生产读取 · 流程 v7 · 主序列 · 按 Id 固定 v2<br>上次 09:41:23 · 状态 正常</span></span>
+                  <span class="ref-type">读</span>
+                </div>
+                <div class="ref-item">
+                  <span class="ref-icon"><svg><use href="#i-flow"/></svg></span>
+                  <span class="ref-text"><b>Recipe · 换型分支 · 执行标定并写入</b><span>标定写入 · 流程 v3 · 条件 换型 · 按资产 Id<br>上次 10-25 23:06 · 失败即停线</span></span>
+                  <span class="ref-type">写</span>
+                </div>
+                <div class="ref-item">
+                  <span class="ref-icon"><svg><use href="#i-grid"/></svg></span>
+                  <span class="ref-text"><b>设备诊断 · 执行标定按钮</b><span>调试入口 · SCADA 页面 设备诊断<br>工程师权限 · 不参与生产节拍</span></span>
+                  <span class="ref-type">调试</span>
+                </div>
+              </div>
+              <div class="ref-note">冻结或删除前必须处理 <b>1 个写引用</b>；生产读取会在冻结后回落到上一有效版本。引用索引当前尚未落地，界面为设计口径。</div>
+            </section>
+
+            <section class="detail-pane" data-pane="versions">
+              <div class="version-card">
+                <div class="version-head"><b>v2</b><span class="version-pill">当前</span><time>2026-10-26 09:41</time></div>
+                <div class="version-meta">操作者 王工 · 复核 李工 · SHA-256 8f2c…a91d</div>
+                <div class="version-diff">当量 0.0500 mm/px · 基线 200.00 px · 阈值 0.50 px</div>
+                <div class="version-actions"><button class="small-btn">查看差异</button><button class="small-btn">导出</button></div>
+              </div>
+              <div class="version-card">
+                <div class="version-head"><b>v1</b><span class="version-pill" style="background:#F1F5F9;color:#64748B">基线</span><time>2026-10-25 23:06</time></div>
+                <div class="version-meta">导入方案 · 复核 李工 · SHA-256 1b7d…c042</div>
+                <div class="version-diff">预置标定基线 · 10.000 mm · 200.00 px</div>
+                <div class="version-actions"><button class="small-btn">查看差异</button><button class="small-btn">回滚</button></div>
+              </div>
+              <div class="ref-note">版本只在 Transform 或验收字段变化时递增；改名、改说明不升版。回滚前会校验引用版本与复核权限。</div>
+            </section>
+          </div>
+          <div class="detail-actions-bottom">
+            <button class="action-btn primary" id="actionDefault"><svg><use href="#i-check"/></svg><span>设为 ST3 默认</span></button>
+            <button class="action-btn" id="actionFreeze"><svg><use href="#i-lock"/></svg><span>冻结版本</span></button>
+            <button class="action-btn" id="actionExport"><svg><use href="#i-download"/></svg><span>导出资产包</span></button>
+            <button class="action-btn" id="actionCopy"><svg><use href="#i-copy"/></svg><span>复制 Id</span></button>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<div class="modal-mask" id="createModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="mi"><svg><use href="#i-cal"/></svg></div>
+      <div>
+        <h3>新建标定资产</h3>
+        <p>创建一份可被生产流程按 Id 引用的标定资产。计算只在 Calib / 换型流程执行，生产节拍只读资产。</p>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-section-title"><span>01</span>相机与工位</div>
+        <div class="form-field">
+          <label>工位 / 作用域</label>
+          <select><option>ST3 · 精密测量</option><option>ST2 · 视觉定位</option><option>ST5 · 装配压装</option><option>整线共享</option></select>
+        </div>
+        <div class="form-field">
+          <label>相机</label>
+          <select><option>NET-STATION-02 · 网络相机</option><option>SIM-LINE-01 · 产线仿真相机</option><option>HK-STATION-03 · 海康相机</option></select>
+        </div>
+        <div class="form-field full">
+          <label>相机序列号 / 标定基准</label>
+          <input value="NET-STATION-02 · SN 2408-0172" readonly />
+        </div>
+
+        <div class="form-section-title"><span>02</span>标定依据</div>
+        <div class="form-field full">
+          <label>标定方式</label>
+          <div class="choice-row">
+            <button class="choice active"><b>像素当量</b><span>A/B 点 + 已知长度</span></button>
+            <button class="choice"><b>九点标定</b><span>N×N 点 → 仿射矩阵</span></button>
+            <button class="choice"><b>透视标定</b><span>大视场平面校正</span></button>
+            <button class="choice"><b>网格标定</b><span>畸变 / 内参联合</span></button>
+            <button class="choice"><b>手眼标定</b><span>机器人 · 多姿态</span></button>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>标定图</label>
+          <input value="Image\1-宽度40px.png" />
+        </div>
+        <div class="form-field">
+          <label>标定板 / 已知长度</label>
+          <input value="CB-200-10 · 10.000 mm" />
+        </div>
+        <div class="form-field">
+          <label>物距 WD (mm)</label>
+          <input value="300 ± 2" />
+        </div>
+        <div class="form-field">
+          <label>环境温度 (℃)</label>
+          <input value="23.4" />
+        </div>
+
+        <div class="form-section-title"><span>03</span>资产信息</div>
+        <div class="form-field">
+          <label>资产名称</label>
+          <input value="LineCalib_ST3" />
+        </div>
+        <div class="form-field">
+          <label>资产 Id（自动生成，只读）</label>
+          <input value="2aa0b611-…-ddf26" readonly />
+        </div>
+        <div class="form-field full">
+          <label>说明</label>
+          <input value="ST3 精密测量 · 640×480 · 0.0500 mm/px" />
+        </div>
+      </div>
+      <div class="hint">创建后状态为「草稿」，在「Calib」流程计算并由复核人确认后才转为「有效」；生产流程只按 Id 读取有效版本，不因新建/改名而重算。</div>
+    </div>
+    <div class="modal-foot">
+      <div class="left"><svg style="width:13px;height:13px"><use href="#i-alert"/></svg>生产读取与标定写入分离 · 变更需复核</div>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="closeModal()"><svg><use href="#i-check"/></svg>创建草稿并开始标定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openModal() { document.getElementById('createModal').classList.add('show'); }
+  function closeModal() { document.getElementById('createModal').classList.remove('show'); }
+  document.getElementById('createModal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+  var assetData = {
+    LineCalib: {
+      type: '像素当量', scope: 'ST3 · 精密测量', id: '2aa0b611-342b-7f1b-ba74-11cbd48ddf26', version: 'v2', status: '有效', lock: '未冻结',
+      mode: '像素当量 / PixelScale', camera: 'NET-STATION-02', resolution: '640 × 480 px', mpp: '0.0500 mm/px',
+      known: '10.000 mm', board: 'CB-200-10 · 2026-017', wd: '300 ± 2 mm',
+      residual: '不适用（2 点 / 1 参数）', u: '±0.0008 mm/px', baseline: '200.00 px',
+      previewSub: '静态图 1-宽度40px.png', previewNote: '图像坐标：原点左上 · Row 向下 · 640×480 px',
+      previewValue: '基线 200.00 px ↔ 10.000 mm', points: true,
+      flow: 'ST3_Measure', recipe: 'Recipe_A · v3', recipeSub: '换型写入', scada: '工位3-精密测量', scadaSub: '3 个绑定',
+      time: '2026-10-26 09:41', writer: 'Calib', hash: '8f2c…a91d'
+    },
+    BoardAlign: {
+      type: '九点标定', scope: 'ST2 · 视觉定位', id: '9f3c72aa-1d44-4ce0-9b5a-2e2a8bbd0b61', version: 'v4', status: '有效', lock: '未冻结',
+      mode: '九点标定 / NinePoint', camera: 'SIM-LINE-01', resolution: '1280 × 960 px', mpp: '0.0350 mm/px',
+      known: '九点棋盘 9×7', board: 'CB-9P-2026-006', wd: '420 ± 3 mm',
+      residual: 'RMS 0.18 px · Max 0.31 px', u: '±0.0012 mm/px', baseline: '—',
+      previewSub: '九点标定图 · 1280×960', previewNote: '九点标定 · 原点左上 · Row 向下',
+      previewValue: 'RMS 0.18 px · Max 0.31 px', points: false,
+      flow: 'ST2_Position', recipe: '—', recipeSub: '只读', scada: '工位2-视觉定位', scadaSub: '2 个绑定',
+      time: '2026-10-24 16:20', writer: '—', hash: '1d4a…7c02'
+    },
+    CaliperScale: {
+      type: '像素当量', scope: 'ST3 · 精密测量', id: '47b6810e-82ef-4d2a-a6db-31f41e6f9c02', version: 'v1', status: '待复核', lock: '未冻结',
+      mode: '像素当量 / PixelScale', camera: 'NET-STATION-02', resolution: '640 × 480 px', mpp: '0.0500 mm/px',
+      known: '10.000 mm', board: 'CB-200-10 · 2026-019', wd: '300 ± 2 mm',
+      residual: '不适用（2 点 / 1 参数）', u: '±0.0011 mm/px', baseline: '199.8 px',
+      previewSub: '待复核样本 · 640×480', previewNote: '图像坐标：原点左上 · Row 向下 · 640×480 px',
+      previewValue: '待复核 · 基线 199.8 px', points: false,
+      flow: 'ST3_Measure', recipe: 'Recipe_A · v3', recipeSub: '换型写入', scada: '工位3-精密测量', scadaSub: '3 个绑定',
+      time: '2026-10-23 14:02', writer: '—', hash: '—'
+    },
+    BeadPlanarCalib: {
+      type: '网格 · 含内参', scope: 'ST5 · 装配压装', id: '6d09bb1c-4e11-4d7d-9d25-6f58a5e94aa7', version: 'v3', status: '有效', lock: '已冻结',
+      mode: '网格标定 / Mesh', camera: 'SIM-LINE-01', resolution: '1280 × 960 px', mpp: '0.0400 mm/px',
+      known: '网格 12×9', board: 'GB-12-2025-004', wd: '350 ± 2 mm',
+      residual: 'RMS 0.22 px · Max 0.48 px', u: '±0.0015 mm/px', baseline: '—',
+      previewSub: '网格标定图 · 1280×960', previewNote: '网格标定 · 已冻结 v3',
+      previewValue: 'RMS 0.22 px · 冻结', points: false,
+      flow: 'ST5_Assembly', recipe: 'Recipe_B · v2', recipeSub: '冻结版本', scada: '工位5-装配压装', scadaSub: '4 个绑定',
+      time: '2026-10-21 09:10', writer: '—', hash: '6e12…4aa7'
+    },
+    CameraIntrinsics: {
+      type: '内参标定', scope: 'ST2 / ST3 共享', id: 'a19e0d77-5c51-4a97-89ff-0af8f82ce315', version: 'v2', status: '有效', lock: '未冻结',
+      mode: '相机内参 / Intrinsics', camera: 'HK-STATION-03', resolution: '2448 × 2048 px', mpp: '—',
+      known: '焦距 / 畸变', board: '标定板 2026-003', wd: '—',
+      residual: 'RMS 0.09 px', u: '±0.02 px', baseline: '—',
+      previewSub: '内参标定图 · 2448×2048', previewNote: '相机内参 · 未参与像素当量',
+      previewValue: 'f 16.02 mm · k1 −0.082', points: false,
+      flow: 'ST2 / ST3', recipe: '—', recipeSub: '共享', scada: '设备诊断', scadaSub: '1 个绑定',
+      time: '2026-10-20 18:35', writer: '—', hash: 'a19e…e315'
+    },
+    RobotHandEye: {
+      type: '手眼标定', scope: 'ST5 · 装配压装', id: '0c84be31-8f3f-4f7a-aeb4-97e5de4e7f10', version: 'v1', status: '已归档', lock: '只读',
+      mode: '手眼标定 / HandEye', camera: 'HK-STATION-03', resolution: '2448 × 2048 px', mpp: '—',
+      known: '多姿态 12 组', board: '—', wd: '—',
+      residual: '旋转 0.08° / 平移 0.12 mm', u: '—', baseline: '—',
+      previewSub: '手眼标定记录 · 已归档', previewNote: '手眼标定 · 归档只读',
+      previewValue: '旋转 0.08° / 平移 0.12 mm', points: false,
+      flow: 'ST5_Assembly', recipe: '—', recipeSub: '归档', scada: '设备诊断', scadaSub: '只读',
+      time: '2026-10-18 11:08', writer: '—', hash: '0c84…7f10'
+    }
+  };
+
+  var extraAssets = {
+    template: [
+      {
+        name: 'BeadA', shortId: 'a1b2c3d4…4a50', icon: 'i-template', iconClass: 'tpl', type: '胶路参考模板', version: 'v1', status: '有效', lock: '未冻结',
+        scope: 'ST5 · 装配压装', camera: 'SIM-LINE-01', refs: '读1 · 写0', updated: '10-25 22:10', updatedSub: '胶路检测引用',
+        previewTitle: 'adhesive_bead_01.png', previewSub: '1280 × 1024 · 583,615 B',
+        overview: [['模板类型','胶路参考模板'],['参考图','adhesive_bead_01.png'],['无胶参考图','adhesive_bead_ref.png'],['目标宽度','15.0 px'],['宽度容差','8.0 px'],['位置容差','30.0 px'],['极性','Dark'],['单位','Pixel']],
+        assoc: [['工位','ST5 · 装配压装','ST5_Assembly'],['相机','SIM-LINE-01','SN SIM-0004'],['配方','BeadA','胶路检测'],['SCADA','工位5-装配压装','4 个绑定']],
+        techGroups: [
+          {title:'模板匹配参数',right:'胶路检测 · .vms',fields:[['模板库','BeadA'],['目标宽度','15.0 px'],['宽度容差','8.0 px'],['位置容差','30.0 px'],['极性','Dark'],['单位','Pixel'],['像素当量','0.05 mm/px'],['最小缺陷长度','10 px']]},
+          {title:'引用图像',right:'Image 目录',fields:[['参考图','adhesive_bead_01.png'],['无胶参考图','adhesive_bead_ref.png'],['分辨率','1280 × 1024'],['SHA-256','69320402…'],['格式','PNG'],['大小','583,615 B']]}
+        ],
+        refsData: [{kind:'读',title:'ST5_Assembly · 胶路检测',sub:'流程 v0 · 模板库 BeadA · 上次 10-25 22:10'}],
+        versions: [{v:'v1',tag:'当前',time:'2026-10-25 22:10',meta:'导入模板库 · 操作者 王工',diff:'目标宽度 15.0 · 宽度容差 8.0 · 位置容差 30.0'}]
+      },
+      {
+        name: 'Board01', shortId: 'b2c3d4e5…5b61', icon: 'i-template', iconClass: 'tpl', type: '几何定位模板', version: 'v1', status: '有效', lock: '未冻结',
+        scope: 'ST2 · 视觉定位', camera: 'SIM-LINE-01', refs: '读1 · 写0', updated: '10-24 16:20', updatedSub: '几何定位',
+        previewTitle: 'board_01.png', previewSub: '1280 × 960 · 619,775 B',
+        overview: [['模板类型','几何定位'],['源图','board_01.png'],['ROI','380,560,0,90,90'],['查找形状','Circle'],['Sigma','1'],['低阈值 / 高阈值','20 / 40'],['最小轮廓长度','30'],['拟合算法','Tukey']],
+        assoc: [['工位','ST2 · 视觉定位','ST2_Position'],['相机','SIM-LINE-01','SN SIM-0004'],['流程','ST2_Position','第 5 步 找圆定位'],['SCADA','工位2-视觉定位','2 个绑定']],
+        techGroups: [
+          {title:'几何查找',right:'ST2_Position · .vms',fields:[['查找形状','Circle'],['Sigma','1'],['低阈值','20'],['高阈值','40'],['最小轮廓长度','30'],['拟合算法','Tukey'],['失败即停','false'],['显示视图','1']]},
+          {title:'ROI 与图像',right:'Image 目录',fields:[['ROI 名称','圆检测区'],['ROI 参数','380,560,0,90,90'],['源图','board_01.png'],['分辨率','1280 × 960'],['SHA-256','FF2F5B7C…'],['格式','PNG']]}
+        ],
+        refsData: [{kind:'读',title:'ST2_Position · 第 5 步 找圆定位',sub:'流程 v0 · 几何查找 · 上次 10-24 16:20'}],
+        versions: [{v:'v1',tag:'当前',time:'2026-10-24 16:20',meta:'方案导入 · 操作者 王工',diff:'ROI 90×90 · Circle · Sigma 1 · 阈值 20/40'}]
+      },
+      {
+        name: 'OCR_Lot', shortId: 'c3d4e5f6…6c72', icon: 'i-template', iconClass: 'tpl', type: 'OCR 字符模板', version: 'v0', status: '待学习', lock: '未冻结',
+        scope: 'ST1 / ST6', camera: 'SIM-LINE-01', refs: '读2 · 写0', updated: '10-25 21:40', updatedSub: '待绑定模型',
+        previewTitle: 'lot_number_01.png', previewSub: '640 × 480 · 126,691 B',
+        overview: [['模板类型','OCR 字符模板'],['源图','lot_number_01.png'],['ROI','272,320,0,170,40'],['文字极性','Dark'],['字符高度','8 … 300'],['字符宽度','4 … 300'],['固定阈值','128'],['模型','未绑定']],
+        assoc: [['工位','ST1 / ST6','OCR 识别'],['相机','SIM-LINE-01','SN SIM-0004'],['流程','ST1_LoadCode / ST6_Trace','OCR 文本识别'],['SCADA','工位1-上料读码','2 个绑定']],
+        techGroups: [
+          {title:'OCR 参数',right:'OCR 文本识别 · .vms',fields:[['ROI','272,320,0,170,40'],['TextIsDark','true'],['MinCharHeight','8'],['MaxCharHeight','300'],['MinCharWidth','4'],['MaxCharWidth','300'],['FixedThreshold','128'],['MinArea / MaxArea','20 / 5000']]},
+          {title:'模型状态',right:'待学习',fields:[['ModelPath','—'],['字符集','未配置'],['训练样本','未配置'],['引用步骤','ST1_LoadCode / ST6_Trace']]}
+        ],
+        refsData: [{kind:'读',title:'ST1_LoadCode · OCR 识别批号',sub:'流程 v0 · ModelPath 空 · 待学习'},{kind:'读',title:'ST6_Trace · OCR 批号复核',sub:'流程 v0 · ModelPath 空 · 待学习'}],
+        versions: []
+      },
+      {
+        name: 'TemplateLib', shortId: 'd4e5f607…7d83', icon: 'i-template', iconClass: 'tpl', type: '模板匹配库', version: 'v0', status: '待学习', lock: '未冻结',
+        scope: 'AI_Extension', camera: '—', refs: '读0 · 写0', updated: '10-25 21:40', updatedSub: '空模板库',
+        previewTitle: 'TemplateLibraryJson', previewSub: '空模板库 · 0 个模板',
+        overview: [['模板库类型','NCC / Shape'],['模板数量','0'],['默认模板','—'],['最小得分','0.5'],['最大匹配数','1'],['最大重叠','0.3'],['贪心度','0.8'],['搜索区域','未启用']],
+        assoc: [['流程','AI_Extension','模板匹配'],['相机','—','—'],['工位','—','—'],['SCADA','—','—']],
+        techGroups: [
+          {title:'模板匹配参数',right:'TemplateLibraryJson · .vms',fields:[['TemplateLibraryJson','[]'],['DefaultTemplateName','—'],['MinScore','0.5'],['MaxMatches','1'],['MaxOverlap','0.3'],['Greediness','0.8'],['UseSearchRegion','false'],['OutputAlignedImage','true']]}
+        ],
+        refsData: [{kind:'调试',title:'AI_Extension · 模板匹配（模板待学习）',sub:'流程 v0 · 空模板库 · 未参与生产'}],
+        versions: []
+      }
+    ],
+    model: [
+      {
+        name: 'YOLO_Detect', shortId: 'e5f60718…8e94', icon: 'i-cube', iconClass: 'model', type: 'YOLO ONNX', version: '—', status: '未绑定', lock: '未冻结',
+        scope: 'AI_Extension', camera: '—', refs: '读0 · 写0', updated: '10-25 21:40', updatedSub: 'ModelPath 空',
+        previewTitle: '未绑定模型', previewSub: 'ONNX · InputSize 0',
+        overview: [['模型类型','YOLO 目标检测'],['模型文件','未绑定'],['InputSize','0（自动）'],['置信度','0.25'],['NmsIoU','0.45'],['最大检测数','100'],['CropMargin','0'],['框架','ONNX']],
+        assoc: [['流程','AI_Extension','YOLO 目标检测'],['相机','—','—'],['工位','—','—'],['SCADA','—','—']],
+        techGroups: [{title:'推理参数',right:'AI_Extension · .vms',fields:[['ModelPath','—'],['InputSize','0'],['ConfidenceThreshold','0.25'],['NmsIoU','0.45'],['MaxDetections','100'],['CropMargin','0'],['DisplayViewIndex','1'],['状态','未绑定']]}],
+        refsData: [{kind:'调试',title:'AI_Extension · YOLO 目标检测',sub:'流程 v0 · 未绑定模型 · 不参与生产'}],
+        versions: []
+      },
+      {
+        name: 'DL_Anomaly', shortId: 'f6071829…9fa5', icon: 'i-cube', iconClass: 'model', type: '深度学习异常检测', version: '—', status: '未绑定', lock: '未冻结',
+        scope: 'AI_Extension', camera: '—', refs: '读0 · 写0', updated: '10-25 21:40', updatedSub: 'ModelPath 空',
+        previewTitle: '未绑定模型', previewSub: 'HALCON DL · InputSize 0',
+        overview: [['模型类型','异常检测'],['模型文件','未绑定'],['InputSize','0（自动）'],['框架','HALCON DL'],['显示视图','1'],['训练数据','未配置'],['阈值','未配置'],['状态','未绑定']],
+        assoc: [['流程','AI_Extension','深度学习异常检测'],['相机','—','—'],['工位','—','—'],['SCADA','—','—']],
+        techGroups: [{title:'推理参数',right:'AI_Extension · .vms',fields:[['ModelPath','—'],['InputSize','0'],['DisplayViewIndex','1'],['框架','HALCON DL'],['状态','未绑定']]}],
+        refsData: [{kind:'调试',title:'AI_Extension · 深度学习异常检测',sub:'流程 v0 · 未绑定模型 · 不参与生产'}],
+        versions: []
+      },
+      {
+        name: 'DL_Classify', shortId: '0718293a…a0b6', icon: 'i-cube', iconClass: 'model', type: '深度学习分类', version: '—', status: '未绑定', lock: '未冻结',
+        scope: 'AI_Extension', camera: '—', refs: '读0 · 写0', updated: '10-25 21:40', updatedSub: 'ModelPath 空',
+        previewTitle: '未绑定模型', previewSub: 'HALCON DL · TopK 3',
+        overview: [['模型类型','分类'],['模型文件','未绑定'],['InputSize','0（自动）'],['TopK','3'],['框架','HALCON DL'],['类别映射','未配置'],['训练数据','未配置'],['状态','未绑定']],
+        assoc: [['流程','AI_Extension','深度学习分类'],['相机','—','—'],['工位','—','—'],['SCADA','—','—']],
+        techGroups: [{title:'推理参数',right:'AI_Extension · .vms',fields:[['ModelPath','—'],['InputSize','0'],['TopK','3'],['框架','HALCON DL'],['状态','未绑定']]}],
+        refsData: [{kind:'调试',title:'AI_Extension · 深度学习分类',sub:'流程 v0 · 未绑定模型 · 不参与生产'}],
+        versions: []
+      },
+      {
+        name: 'DL_Segment', shortId: '18293a4b…b1c7', icon: 'i-cube', iconClass: 'model', type: '深度学习分割', version: '—', status: '未绑定', lock: '未冻结',
+        scope: 'AI_Extension', camera: '—', refs: '读0 · 写0', updated: '10-25 21:40', updatedSub: 'ModelPath 空',
+        previewTitle: '未绑定模型', previewSub: 'HALCON DL · ClassIndex 1',
+        overview: [['模型类型','语义分割'],['模型文件','未绑定'],['InputSize','0（自动）'],['ClassIndex','1'],['框架','HALCON DL'],['类别映射','未配置'],['训练数据','未配置'],['状态','未绑定']],
+        assoc: [['流程','AI_Extension','深度学习分割'],['相机','—','—'],['工位','—','—'],['SCADA','—','—']],
+        techGroups: [{title:'推理参数',right:'AI_Extension · .vms',fields:[['ModelPath','—'],['InputSize','0'],['ClassIndex','1'],['框架','HALCON DL'],['状态','未绑定']]}],
+        refsData: [{kind:'调试',title:'AI_Extension · 深度学习分割',sub:'流程 v0 · 未绑定模型 · 不参与生产'}],
+        versions: []
+      },
+      {
+        name: 'OCR_Model', shortId: '293a4b5c…c2d8', icon: 'i-cube', iconClass: 'model', type: 'OCR 文本识别', version: '—', status: '未绑定', lock: '未冻结',
+        scope: 'ST1 / ST6', camera: 'SIM-LINE-01', refs: '读2 · 写0', updated: '10-25 21:40', updatedSub: 'ModelPath 空',
+        previewTitle: '未绑定模型', previewSub: 'OCR · ROI 272,320,0,170,40',
+        overview: [['模型类型','OCR 文本识别'],['模型文件','未绑定'],['ROI','272,320,0,170,40'],['TextIsDark','true'],['MinCharHeight','8'],['MaxCharHeight','300'],['字符集','未配置'],['状态','未绑定']],
+        assoc: [['流程','ST1_LoadCode / ST6_Trace','OCR 文本识别'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST1 / ST6','—'],['SCADA','工位1-上料读码','2 个绑定']],
+        techGroups: [{title:'识别参数',right:'OCR 文本识别 · .vms',fields:[['ModelPath','—'],['RoiParams','272,320,0,170,40'],['TextIsDark','true'],['MinCharHeight','8'],['MaxCharHeight','300'],['MinCharWidth','4'],['MaxCharWidth','300'],['FixedThreshold','128'],['MinArea / MaxArea','20 / 5000']]}],
+        refsData: [{kind:'读',title:'ST1_LoadCode · OCR 识别批号',sub:'流程 v0 · ModelPath 空 · 待学习'},{kind:'读',title:'ST6_Trace · OCR 批号复核',sub:'流程 v0 · ModelPath 空 · 待学习'}],
+        versions: []
+      }
+    ],
+    recipe: [
+      {
+        name: 'BeadA', shortId: '3a4b5c6d…d3e9', icon: 'i-recipe', iconClass: 'recipe', type: '胶路配方', version: 'v1', status: '有效', lock: '未冻结',
+        scope: 'ST5 · 装配压装', camera: 'SIM-LINE-01', refs: '读1 · 写0', updated: '10-25 22:10', updatedSub: '胶路检测',
+        previewTitle: 'RecipeLibraryJson · BeadA', previewSub: '胶路检测配方 · Pixel',
+        overview: [['配方类型','胶路配方'],['配方名','BeadA'],['目标宽度','15.0 px'],['宽度容差','8.0 px'],['位置容差','30.0 px'],['极性','Dark'],['单位','Pixel'],['像素当量','0.05 mm/px']],
+        assoc: [['流程','ST5_Assembly','胶路检测'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST5 · 装配压装','—'],['SCADA','工位5-装配压装','4 个绑定']],
+        techGroups: [{title:'胶路配方参数',right:'RecipeLibraryJson · .vms',fields:[['Recipe','BeadA'],['TargetWidth','15.0'],['WidthTolerance','8.0'],['PositionTolerance','30.0'],['Polarity','Dark'],['UnitOutput','Pixel'],['PixelSizeMm','0.05'],['MinErrorLength','10'],['MinScore','0.4']]}],
+        refsData: [{kind:'读',title:'ST5_Assembly · 胶路检测',sub:'流程 v0 · DefaultRecipeName BeadA · 上次 10-25 22:10'}],
+        versions: [{v:'v1',tag:'当前',time:'2026-10-25 22:10',meta:'导入 RecipeLibraryJson · 操作者 王工',diff:'BeadA · 15.0 px · 容差 8.0 / 30.0'}]
+      },
+      {
+        name: 'Recipe_A', shortId: '4b5c6d7e…e4f0', icon: 'i-recipe', iconClass: 'recipe', type: '产品配方', version: 'v1', status: '有效', lock: '未冻结',
+        scope: '整线', camera: '—', refs: '读0 · 写1', updated: '10-25 23:06', updatedSub: 'Recipe 流程写入',
+        previewTitle: 'Recipe_A · 流程变量', previewSub: 'ProductType A · Batch B20261025',
+        overview: [['配方类型','产品配方'],['RecipeName','Recipe_A'],['ProductType','A'],['BatchNo','B20261025'],['来源','Recipe 流程'],['持久化','流程变量'],['Recipes 表','未启用'],['状态','有效']],
+        assoc: [['流程','Recipe','配方生效'],['工位','整线','—'],['相机','—','—'],['SCADA','配方与设置','1 个绑定']],
+        techGroups: [{title:'流程变量',right:'Recipe 流程 · .vms',fields:[['RecipeName','Recipe_A'],['ProductType','A'],['BatchNo','B20261025'],['OKCount','0'],['NGCount','0'],['YieldRate','100'],['OEE','0'],['持久化','流程变量（未启用 Recipes 表）']]}],
+        refsData: [{kind:'写',title:'Recipe · 配方生效',sub:'流程 v0 · 写入 ProductType / BatchNo · 上次 10-25 23:06'}],
+        versions: [{v:'v1',tag:'当前',time:'2026-10-25 23:06',meta:'Recipe 流程初次写入 · 操作者 王工',diff:'ProductType A · BatchNo B20261025'}]
+      }
+    ],
+    image: [
+      {name:'1-宽度40px.png',shortId:'F64135E5…',icon:'i-image',iconClass:'image',type:'标定 / 测量图',version:'v1',status:'有效',lock:'未冻结',scope:'ST3 · 精密测量',camera:'NET-STATION-02',refs:'读2 · 写0',updated:'10-25 23:06',updatedSub:'标定 / 测量',previewTitle:'1-宽度40px.png',previewSub:'640 × 480 · 3,439 B',overview:[['文件名','1-宽度40px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','3,439 B'],['SHA-256','F64135E5…'],['用途','标定 / 宽度测量'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','Calib / ST3_Measure','标定 / 测量'],['相机','NET-STATION-02','SN 2408-0172'],['工位','ST3 · 精密测量','—'],['SCADA','工位3-精密测量','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','1-宽度40px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','3,439 B'],['SHA-256','F64135E5…'],['路径','Image\\1-宽度40px.png']]}],refsData:[{kind:'读',title:'Calib · 采集标定图',sub:'流程 v0 · 标定输入'},{kind:'读',title:'ST3_Measure · 采集宽度图',sub:'流程 v0 · 测量输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 23:06',meta:'方案打包 · 操作者 王工',diff:'640×480 · F64135E5…'}]},
+      {name:'2-两点距240px.png',shortId:'F84FD15C…',icon:'i-image',iconClass:'image',type:'测量图',version:'v1',status:'有效',lock:'未冻结',scope:'ST3 · 精密测量',camera:'NET-STATION-02',refs:'读1 · 写0',updated:'10-25 23:06',updatedSub:'两点距',previewTitle:'2-两点距240px.png',previewSub:'640 × 480 · 4,879 B',overview:[['文件名','2-两点距240px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','4,879 B'],['SHA-256','F84FD15C…'],['用途','两点距测量'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST3_Measure','两点距测量'],['相机','NET-STATION-02','SN 2408-0172'],['工位','ST3 · 精密测量','—'],['SCADA','工位3-精密测量','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','2-两点距240px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','4,879 B'],['SHA-256','F84FD15C…'],['路径','Image\\2-两点距240px.png']]}],refsData:[{kind:'读',title:'ST3_Measure · 采集两点距图',sub:'流程 v0 · 测量输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 23:06',meta:'方案打包 · 操作者 王工',diff:'640×480 · F84FD15C…'}]},
+      {name:'3-点到线距200px.png',shortId:'436E1753…',icon:'i-image',iconClass:'image',type:'测量图',version:'v1',status:'有效',lock:'未冻结',scope:'ST3 · 精密测量',camera:'NET-STATION-02',refs:'读1 · 写0',updated:'10-25 23:06',updatedSub:'点到线距',previewTitle:'3-点到线距200px.png',previewSub:'640 × 480 · 3,338 B',overview:[['文件名','3-点到线距200px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','3,338 B'],['SHA-256','436E1753…'],['用途','点到线距测量'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST3_Measure','点到线距'],['相机','NET-STATION-02','SN 2408-0172'],['工位','ST3 · 精密测量','—'],['SCADA','工位3-精密测量','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','3-点到线距200px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','3,338 B'],['SHA-256','436E1753…'],['路径','Image\\3-点到线距200px.png']]}],refsData:[{kind:'读',title:'ST3_Measure · 采集点线距图',sub:'流程 v0 · 测量输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 23:06',meta:'方案打包 · 操作者 王工',diff:'640×480 · 436E1753…'}]},
+      {name:'4-圆直径200px.png',shortId:'47F70CED…',icon:'i-image',iconClass:'image',type:'测量图',version:'v1',status:'有效',lock:'未冻结',scope:'ST3 · 精密测量',camera:'NET-STATION-02',refs:'读1 · 写0',updated:'10-25 23:06',updatedSub:'圆直径',previewTitle:'4-圆直径200px.png',previewSub:'640 × 480 · 2,253 B',overview:[['文件名','4-圆直径200px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','2,253 B'],['SHA-256','47F70CED…'],['用途','圆直径测量'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST3_Measure','圆直径'],['相机','NET-STATION-02','SN 2408-0172'],['工位','ST3 · 精密测量','—'],['SCADA','工位3-精密测量','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','4-圆直径200px.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','2,253 B'],['SHA-256','47F70CED…'],['路径','Image\\4-圆直径200px.png']]}],refsData:[{kind:'读',title:'ST3_Measure · 采集圆图',sub:'流程 v0 · 测量输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 23:06',meta:'方案打包 · 操作者 王工',diff:'640×480 · 47F70CED…'}]},
+      {name:'5-角度90.png',shortId:'05BB86AE…',icon:'i-image',iconClass:'image',type:'测量图',version:'v1',status:'有效',lock:'未冻结',scope:'ST3 · 精密测量',camera:'NET-STATION-02',refs:'读1 · 写0',updated:'10-25 23:06',updatedSub:'角度',previewTitle:'5-角度90.png',previewSub:'640 × 480 · 2,605 B',overview:[['文件名','5-角度90.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','2,605 B'],['SHA-256','05BB86AE…'],['用途','角度测量'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST3_Measure','角度'],['相机','NET-STATION-02','SN 2408-0172'],['工位','ST3 · 精密测量','—'],['SCADA','工位3-精密测量','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','5-角度90.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','2,605 B'],['SHA-256','05BB86AE…'],['路径','Image\\5-角度90.png']]}],refsData:[{kind:'读',title:'ST3_Measure · 采集角度图',sub:'流程 v0 · 测量输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 23:06',meta:'方案打包 · 操作者 王工',diff:'640×480 · 05BB86AE…'}]},
+      {name:'board_01.png',shortId:'FF2F5B7C…',icon:'i-image',iconClass:'image',type:'定位图',version:'v1',status:'有效',lock:'未冻结',scope:'ST2 / ST4',camera:'SIM-LINE-01',refs:'读2 · 写0',updated:'10-24 16:20',updatedSub:'定位 / 表面',previewTitle:'board_01.png',previewSub:'1280 × 960 · 619,775 B',overview:[['文件名','board_01.png'],['分辨率','1280 × 960'],['格式','PNG'],['大小','619,775 B'],['SHA-256','FF2F5B7C…'],['用途','定位 / 表面检测'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST2_Position / ST4_Surface','定位 / 表面'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST2 / ST4','—'],['SCADA','工位2-视觉定位','2 个绑定']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','board_01.png'],['分辨率','1280 × 960'],['格式','PNG'],['大小','619,775 B'],['SHA-256','FF2F5B7C…'],['路径','Image\\board_01.png']]}],refsData:[{kind:'读',title:'ST2_Position · 采集定位图',sub:'流程 v0 · 定位输入'},{kind:'读',title:'ST4_Surface · 采集表面图',sub:'流程 v0 · 表面检测输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-24 16:20',meta:'方案打包 · 操作者 王工',diff:'1280×960 · FF2F5B7C…'}]},
+      {name:'qr_workpiece_01.png',shortId:'540BA921…',icon:'i-image',iconClass:'image',type:'码图',version:'v1',status:'有效',lock:'未冻结',scope:'ST1 · 上料读码',camera:'SIM-LINE-01',refs:'读1 · 写0',updated:'10-24 16:20',updatedSub:'二维码',previewTitle:'qr_workpiece_01.png',previewSub:'640 × 480 · 140,620 B',overview:[['文件名','qr_workpiece_01.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','140,620 B'],['SHA-256','540BA921…'],['用途','二维码识别'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST1_LoadCode','采集二维码图'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST1 · 上料读码','—'],['SCADA','工位1-上料读码','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','qr_workpiece_01.png'],['分辨率','640 × 480'],['格式','PNG'],['大小','140,620 B'],['SHA-256','540BA921…'],['路径','Image\\qr_workpiece_01.png']]}],refsData:[{kind:'读',title:'ST1_LoadCode · 采集二维码图',sub:'流程 v0 · 读码输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-24 16:20',meta:'方案打包 · 操作者 王工',diff:'640×480 · 540BA921…'}]},
+      {name:'adhesive_bead_01.png',shortId:'69320402…',icon:'i-image',iconClass:'image',type:'胶路图',version:'v1',status:'有效',lock:'未冻结',scope:'ST5 · 装配压装',camera:'SIM-LINE-01',refs:'读1 · 写0',updated:'10-25 22:10',updatedSub:'胶路检测',previewTitle:'adhesive_bead_01.png',previewSub:'1280 × 1024 · 583,615 B',overview:[['文件名','adhesive_bead_01.png'],['分辨率','1280 × 1024'],['格式','PNG'],['大小','583,615 B'],['SHA-256','69320402…'],['用途','胶路参考 / 检测'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST5_Assembly','胶路检测'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST5 · 装配压装','—'],['SCADA','工位5-装配压装','4 个绑定']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','adhesive_bead_01.png'],['分辨率','1280 × 1024'],['格式','PNG'],['大小','583,615 B'],['SHA-256','69320402…'],['路径','Image\\adhesive_bead_01.png']]}],refsData:[{kind:'读',title:'ST5_Assembly · 胶路检测',sub:'流程 v0 · 参考图'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 22:10',meta:'方案打包 · 操作者 王工',diff:'1280×1024 · 69320402…'}]},
+      {name:'adhesive_bead_ref.png',shortId:'B2769DB2…',icon:'i-image',iconClass:'image',type:'胶路参考图',version:'v1',status:'有效',lock:'未冻结',scope:'ST5 · 装配压装',camera:'SIM-LINE-01',refs:'读1 · 写0',updated:'10-25 22:10',updatedSub:'无胶参考',previewTitle:'adhesive_bead_ref.png',previewSub:'1280 × 1024 · 623,139 B',overview:[['文件名','adhesive_bead_ref.png'],['分辨率','1280 × 1024'],['格式','PNG'],['大小','623,139 B'],['SHA-256','B2769DB2…'],['用途','无胶参考'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST5_Assembly','胶路检测'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST5 · 装配压装','—'],['SCADA','工位5-装配压装','4 个绑定']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','adhesive_bead_ref.png'],['分辨率','1280 × 1024'],['格式','PNG'],['大小','623,139 B'],['SHA-256','B2769DB2…'],['路径','Image\\adhesive_bead_ref.png']]}],refsData:[{kind:'读',title:'ST5_Assembly · 胶路检测',sub:'流程 v0 · 无胶参考图'}],versions:[{v:'v1',tag:'当前',time:'2026-10-25 22:10',meta:'方案打包 · 操作者 王工',diff:'1280×1024 · B2769DB2…'}]},
+      {name:'synthetic_color_8bit.png',shortId:'0812B81D…',icon:'i-image',iconClass:'image',type:'颜色图',version:'v1',status:'有效',lock:'未冻结',scope:'ST4 · 表面检测',camera:'SIM-LINE-01',refs:'读1 · 写0',updated:'10-24 16:20',updatedSub:'颜色检测',previewTitle:'synthetic_color_8bit.png',previewSub:'1200 × 800 · 1,381,991 B',overview:[['文件名','synthetic_color_8bit.png'],['分辨率','1200 × 800'],['格式','PNG'],['大小','1,381,991 B'],['SHA-256','0812B81D…'],['用途','颜色检测'],['来源','方案 Image 目录'],['状态','有效']],assoc:[['流程','ST4_Surface','颜色检测'],['相机','SIM-LINE-01','SN SIM-0004'],['工位','ST4 · 表面检测','—'],['SCADA','工位4-表面检测','—']],techGroups:[{title:'文件信息',right:'Image 目录',fields:[['文件名','synthetic_color_8bit.png'],['分辨率','1200 × 800'],['格式','PNG'],['大小','1,381,991 B'],['SHA-256','0812B81D…'],['路径','Image\\synthetic_color_8bit.png']]}],refsData:[{kind:'读',title:'ST4_Surface · 采集颜色图',sub:'流程 v0 · 颜色检测输入'}],versions:[{v:'v1',tag:'当前',time:'2026-10-24 16:20',meta:'方案打包 · 操作者 王工',diff:'1200×800 · 0812B81D…'}]}
+    ]
+  };
+  var cameraSerial = {
+    'NET-STATION-02': 'SN 2408-0172',
+    'SIM-LINE-01': 'SIM-0004',
+    'HK-STATION-03': 'HK-03-0091'
+  };
+  var cameraDriver = {
+    'NET-STATION-02': 'Camera.Network',
+    'SIM-LINE-01': 'Camera.Simulated',
+    'HK-STATION-03': 'Camera.Hik'
+  };
+  var calibrationList = [
+    {name:'LineCalib',shortId:'2aa0b611…ddf26',icon:'i-cal',iconClass:'cal',refs:'读1 · 写1',updated:'今天 09:41',updatedSub:'Calib 写入'},
+    {name:'BoardAlign',shortId:'9f3c72aa…0b61',icon:'i-cal',iconClass:'cal',refs:'读2 · 写0',updated:'10-24 16:20',updatedSub:'导入复核'},
+    {name:'CaliperScale',shortId:'47b6810e…9c02',icon:'i-cal',iconClass:'cal',refs:'读1 · 写0',updated:'10-23 14:02',updatedSub:'残差偏高'},
+    {name:'BeadPlanarCalib',shortId:'6d09bb1c…4aa7',icon:'i-cal',iconClass:'cal',refs:'读2 · 写0',updated:'10-21 09:10',updatedSub:'现场冻结'},
+    {name:'CameraIntrinsics',shortId:'a19e0d77…e315',icon:'i-cal',iconClass:'cal',refs:'读3 · 写0',updated:'10-20 18:35',updatedSub:'标定板导入'},
+    {name:'RobotHandEye',shortId:'0c84be31…7f10',icon:'i-cal',iconClass:'cal',refs:'—',updated:'10-18 11:08',updatedSub:'换型归档'}
+  ];
+  var assetCollections = { calibration: calibrationList, template: extraAssets.template, model: extraAssets.model, recipe: extraAssets.recipe, image: extraAssets.image };
+  var calibrationListHTML = '';
+  var calibrationTabsHTML = '';
+  var calibrationBodyHTML = '';
+
+  function setDetailTab(tab) {
+    document.querySelectorAll('.detail-tab').forEach(function (n) { n.classList.toggle('active', n.dataset.tab === tab); });
+    document.querySelectorAll('.detail-pane').forEach(function (n) { n.classList.toggle('active', n.dataset.pane === tab); });
+  }
+
+  function selectRow(el, name) {
+    document.querySelectorAll('.asset-row').forEach(function (row) { row.classList.remove('selected'); });
+    el.classList.add('selected');
+    var d = assetData[name] || assetData.LineCalib;
+    var serial = cameraSerial[d.camera] || '—';
+    var driver = cameraDriver[d.camera] || '—';
+    var pixel = d.camera.indexOf('HK-') === 0 ? 'BayerRG8' : 'Mono8';
+    document.getElementById('detailName').textContent = name;
+    document.getElementById('detailId').textContent = d.id;
+    document.getElementById('detailType').textContent = d.type;
+    document.getElementById('detailScope').textContent = d.scope;
+    document.getElementById('detailVersion').textContent = d.version;
+    var st = document.getElementById('detailStatus');
+    st.textContent = d.status;
+    st.className = 'status-pill ' + (d.status === '有效' ? 'ok' : d.status === '待复核' ? 'check' : 'arch');
+    document.getElementById('detailLock').textContent = d.lock;
+    document.getElementById('metaMode').textContent = d.mode;
+    document.getElementById('metaScope').textContent = d.scope;
+    document.getElementById('metaCamera').textContent = d.camera + ' · ' + d.resolution;
+    document.getElementById('metaMpp').textContent = d.mpp;
+    document.getElementById('metaBase').textContent = d.board + ' · ' + d.known;
+    document.getElementById('metaWd').textContent = d.wd;
+    document.getElementById('metaResidual').textContent = d.residual;
+    document.getElementById('metaU').textContent = d.u;
+    document.getElementById('previewSub').textContent = d.previewSub;
+    document.getElementById('previewNote').textContent = d.previewNote;
+    document.getElementById('previewValue').textContent = d.previewValue;
+    document.getElementById('assocStation').textContent = d.scope;
+    document.getElementById('assocStationSub').textContent = d.flow;
+    document.getElementById('assocCamera').textContent = d.camera;
+    document.getElementById('assocCameraSub').textContent = serial;
+    document.getElementById('assocRecipe').textContent = d.recipe;
+    document.getElementById('assocRecipeSub').textContent = d.recipeSub;
+    document.getElementById('assocScada').textContent = d.scada;
+    document.getElementById('assocScadaSub').textContent = d.scadaSub;
+    document.getElementById('techCameraModel').textContent = d.camera;
+    document.getElementById('techSerial').textContent = serial;
+    document.getElementById('techDriver').textContent = driver;
+    document.getElementById('techResolution').textContent = d.resolution;
+    document.getElementById('techPixelFormat').textContent = pixel;
+    document.getElementById('techExposure').textContent = '8000 μs';
+    document.getElementById('techGain').textContent = '0 dB';
+    document.getElementById('techTrigger').textContent = '软触发';
+    document.getElementById('techKnown').textContent = d.known;
+    document.getElementById('techBaseline').textContent = d.baseline;
+    document.getElementById('techMpp').textContent = d.mpp;
+    document.getElementById('techResidual').textContent = d.residual;
+    document.getElementById('techU').textContent = d.u;
+    document.getElementById('techBoard').textContent = d.board;
+    document.getElementById('techTime').textContent = d.time;
+    document.getElementById('techWriter').textContent = d.writer;
+    document.getElementById('techFile').textContent = name + '.calib.json';
+    document.getElementById('techHash').textContent = d.hash;
+    document.getElementById('techHalcon').textContent = '22.11';
+    document.getElementById('techInput').textContent = d.resolution.replace(' px', '') + ' / ' + pixel;
+    document.querySelectorAll('.point, .point-line, .point-label.a, .point-label.b').forEach(function (n) {
+      n.style.display = d.points ? '' : 'none';
+    });
+    setDetailTab('overview');
+  }
+
+  function statusClass(status) {
+    if (status === '有效') return 'ok';
+    if (status === '待复核' || status === '待学习') return 'check';
+    if (status === '未绑定') return 'unbound';
+    return 'arch';
+  }
+
+  function getItems(type) {
+    var cal = calibrationList.map(function (x) {
+      return Object.assign({}, x, assetData[x.name], { typeKey: 'calibration' });
+    });
+    if (type === 'calibration') return cal;
+    if (type === 'all') {
+      var all = cal.slice();
+      ['template', 'model', 'recipe', 'image'].forEach(function (k) {
+        assetCollections[k].forEach(function (x) { all.push(Object.assign({}, x, { typeKey: k })); });
+      });
+      return all;
+    }
+    return assetCollections[type].map(function (x) { return Object.assign({}, x, { typeKey: type }); });
+  }
+
+  function statusBadge(d) {
+    var html = '<span class="status-pill ' + statusClass(d.status) + '">' + d.status + '</span>';
+    if (d.lock === '已冻结') html += '<span class="lock-badge">冻结</span>';
+    return html;
+  }
+
+  function rowHtml(d, type, index) {
+    return '<div class="asset-row" onclick="selectAsset(\'' + type + '\',' + index + ',this)">' +
+      '<div class="asset-main"><div class="asset-icon ' + d.iconClass + '"><svg><use href="#' + d.icon + '"/></svg></div>' +
+      '<div class="asset-name"><b>' + d.name + '</b><span>' + d.shortId + '</span></div></div>' +
+      '<span class="scope"><b>' + d.scope + '</b><i>' + d.camera + '</i></span>' +
+      '<span class="type-pill">' + d.type + '</span>' +
+      '<span class="version">' + d.version + '</span>' +
+      '<span>' + statusBadge(d) + '</span>' +
+      '<span class="refs"><b>' + d.refs + '</b></span>' +
+      '<span class="updated"><b>' + d.updated + '</b>' + d.updatedSub + '</span>' +
+      '</div>';
+  }
+
+  function renderList(type) {
+    var items = getItems(type);
+    var titles = { all: '全部资产', calibration: '标定资产', template: '模板资产', model: '模型资产', recipe: '配方资产', image: '图像资产' };
+    document.querySelector('.asset-table').innerHTML = items.map(function (d, i) { return rowHtml(d, type, i); }).join('');
+    document.getElementById('listTitle').innerHTML = titles[type] + ' <span id="listCount">' + items.length + ' 项</span>';
+    document.getElementById('listFooter').innerHTML = '<span>显示 ' + items.length + ' / ' + items.length + ' 项（方案共 27 项）</span><span class="spacer"></span><span>列表按最近更新排序</span>';
+  }
+
+  function filePreviewHtml(d) {
+    return '<div class="file-preview"><svg><use href="#' + d.icon + '"/></svg><b>' + d.previewTitle + '</b><span>' + d.previewSub + '</span></div>';
+  }
+
+  function metaGridHtml(items) {
+    return '<div class="meta-grid">' + items.map(function (x) {
+      return '<div class="meta-cell"><div class="k">' + x[0] + '</div><div class="v">' + x[1] + '</div></div>';
+    }).join('') + '</div>';
+  }
+
+  function assocHtml(items) {
+    return '<div class="assoc-card"><div class="card-label"><span class="l">关联对象</span><span class="r">静态 · 方案内</span></div><div class="assoc-grid">' +
+      items.map(function (x) {
+        return '<div class="assoc-item"><span>' + x[0] + '</span><b>' + x[1] + '</b><i>' + x[2] + '</i></div>';
+      }).join('') + '</div></div>';
+  }
+
+  function techGroupsHtml(groups) {
+    return groups.map(function (g) {
+      return '<div class="tech-section"><div class="card-label"><span class="l">' + g.title + '</span><span class="r">' + g.right + '</span></div><div class="tech-grid">' +
+        g.fields.map(function (x) { return '<div class="tech-item"><span>' + x[0] + '</span><b>' + x[1] + '</b></div>'; }).join('') +
+        '</div></div>';
+    }).join('');
+  }
+
+  function refsHtml(d) {
+    var items = d.refsData || [];
+    var list = items.map(function (r) {
+      var icon = r.kind === '调试' ? 'i-grid' : 'i-flow';
+      return '<div class="ref-item"><span class="ref-icon"><svg><use href="#' + icon + '"/></svg></span><span class="ref-text"><b>' + r.title + '</b><span>' + r.sub + '</span></span><span class="ref-type">' + r.kind + '</span></div>';
+    }).join('');
+    return '<div class="impact-strip"><span class="impact-chip">引用 <b>' + items.length + '</b></span><span class="impact-chip">读 <b>' + items.filter(function (r) { return r.kind === '读'; }).length + '</b></span><span class="impact-chip">写 <b>' + items.filter(function (r) { return r.kind === '写'; }).length + '</b></span><span class="impact-chip">调试 <b>' + items.filter(function (r) { return r.kind === '调试'; }).length + '</b></span></div>' +
+      (list ? '<div class="ref-list">' + list + '</div>' : '<div class="ref-note">当前没有引用；该资产尚未被流程、画面或配方使用。</div>') +
+      '<div class="ref-note">引用索引当前尚未落地，界面为设计口径；冻结/删除前需要先处理写引用。</div>';
+  }
+
+  function versionsHtml(d) {
+    var items = d.versions || [];
+    if (!items.length) return '<div class="ref-note">尚未保存版本；当前状态为“' + d.status + '”。</div>';
+    return items.map(function (v) {
+      return '<div class="version-card"><div class="version-head"><b>' + v.v + '</b><span class="version-pill">' + v.tag + '</span><time>' + v.time + '</time></div><div class="version-meta">' + v.meta + '</div><div class="version-diff">' + v.diff + '</div><div class="version-actions"><button class="small-btn">查看差异</button><button class="small-btn">导出</button></div></div>';
+    }).join('');
+  }
+
+  function setActionLabels(isCalibration) {
+    document.querySelector('#actionDefault span').textContent = isCalibration ? '设为 ST3 默认' : '设为默认';
+    document.querySelector('#actionFreeze span').textContent = '冻结版本';
+    document.querySelector('#actionExport span').textContent = '导出资产包';
+    document.querySelector('#actionCopy span').textContent = '复制 Id';
+  }
+
+  function restoreCalibrationDetail() {
+    document.querySelector('.detail-tabs').innerHTML = calibrationTabsHTML;
+    document.querySelector('.detail-body').innerHTML = calibrationBodyHTML;
+    document.getElementById('detailAcceptance').style.display = 'flex';
+    document.getElementById('detailAcceptanceText').textContent = '验收合格';
+    document.getElementById('detailReviewText').textContent = '复核 李工 · 有效至 2026-11-25';
+    document.getElementById('detailIcon').innerHTML = '<svg><use href="#i-cal"/></svg>';
+    setActionLabels(true);
+  }
+
+  function renderGenericDetail(d, typeKey) {
+    document.getElementById('detailName').textContent = d.name;
+    document.getElementById('detailId').textContent = d.id || d.shortId;
+    document.getElementById('detailType').textContent = d.type;
+    document.getElementById('detailScope').textContent = d.scope;
+    document.getElementById('detailVersion').textContent = d.version;
+    var st = document.getElementById('detailStatus');
+    st.textContent = d.status;
+    st.className = 'status-pill ' + statusClass(d.status);
+    document.getElementById('detailLock').textContent = d.lock;
+    document.getElementById('detailAcceptance').style.display = 'flex';
+    document.getElementById('detailAcceptanceText').textContent = '来源';
+    document.getElementById('detailReviewText').textContent = (d.assoc && d.assoc[0]) ? d.assoc[0][2] : '静态资产';
+    document.getElementById('detailIcon').innerHTML = '<svg><use href="#' + d.icon + '"/></svg>';
+    setActionLabels(false);
+    var refsCount = (d.refsData || []).length;
+    var versionsCount = (d.versions || []).length;
+    document.querySelector('.detail-tabs').innerHTML =
+      '<button class="detail-tab active" data-tab="overview" onclick="setDetailTab(\'overview\')">概览</button>' +
+      '<button class="detail-tab" data-tab="tech" onclick="setDetailTab(\'tech\')">技术参数</button>' +
+      '<button class="detail-tab" data-tab="refs" onclick="setDetailTab(\'refs\')">引用 <span class="n">' + refsCount + '</span></button>' +
+      '<button class="detail-tab" data-tab="versions" onclick="setDetailTab(\'versions\')">版本 <span class="n">' + versionsCount + '</span></button>';
+    document.querySelector('.detail-body').innerHTML =
+      '<section class="detail-pane active" data-pane="overview">' + filePreviewHtml(d) + metaGridHtml(d.overview || []) + assocHtml(d.assoc || []) + '</section>' +
+      '<section class="detail-pane" data-pane="tech">' + techGroupsHtml(d.techGroups || []) + '</section>' +
+      '<section class="detail-pane" data-pane="refs">' + refsHtml(d) + '</section>' +
+      '<section class="detail-pane" data-pane="versions">' + versionsHtml(d) + '</section>';
+    setDetailTab('overview');
+  }
+
+  function selectAsset(type, index, el) {
+    var items = getItems(type);
+    var d = items[index];
+    if (!d) return;
+    var actualType = type === 'all' ? d.typeKey : type;
+    document.querySelectorAll('.asset-row').forEach(function (row) { row.classList.remove('selected'); });
+    el.classList.add('selected');
+    if (actualType === 'calibration') {
+      restoreCalibrationDetail();
+      selectRow(el, d.name);
+    } else {
+      renderGenericDetail(d, actualType);
+    }
+  }
+
+  function updateHealth(type) {
+    var items = getItems(type);
+    var total = items.length;
+    var valid = items.filter(function (d) { return d.status === '有效'; }).length;
+    var pending = items.filter(function (d) { return d.status === '待复核' || d.status === '待学习'; }).length;
+    var archived = items.filter(function (d) { return d.status === '已归档'; }).length;
+    var unbound = items.filter(function (d) { return d.status === '未绑定'; }).length;
+    var locked = items.filter(function (d) { return d.lock === '已冻结'; }).length;
+    var pct = total ? Math.round(valid * 100 / total) : 0;
+    var pendingPct = total ? Math.round(pending * 100 / total) : 0;
+    document.getElementById('healthPercent').textContent = pct + '%';
+    document.getElementById('healthText').innerHTML = valid + ' 有效 / ' + total + ' · ' + pending + ' 待处理<br/>' + archived + ' 归档 · ' + unbound + ' 未绑定 · ' + locked + ' 冻结';
+    document.getElementById('healthDonut').style.background = 'conic-gradient(#16A34A 0 ' + pct + '%, #D97706 ' + pct + '% ' + (pct + pendingPct) + '%, #CBD5E1 ' + (pct + pendingPct) + '% 100%)';
+    document.getElementById('countValid').textContent = valid;
+    document.getElementById('countPending').textContent = pending;
+    document.getElementById('countArchived').textContent = archived;
+    document.getElementById('countLocked').textContent = locked;
+  }
+
+  function switchAssetType(type) {
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('active', t.dataset.type === type); });
+    renderList(type);
+    var first = document.querySelector('.asset-row');
+    if (first) selectAsset(type, 0, first);
+    updateHealth(type);
+    document.querySelectorAll('.filter-item[data-type]').forEach(function (item) {
+      item.querySelector('.check').classList.toggle('on', type === 'all' || item.dataset.type === type);
+    });
+  }
+
+  calibrationListHTML = document.querySelector('.asset-table').innerHTML;
+  calibrationTabsHTML = document.querySelector('.detail-tabs').innerHTML;
+  calibrationBodyHTML = document.querySelector('.detail-body').innerHTML;
+  document.querySelectorAll('.filter-item[data-type]').forEach(function (item) {
+    item.addEventListener('click', function () { switchAssetType(item.dataset.type); });
+  });
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('modal') === '1') openModal();
+  if (params.get('type')) switchAssetType(params.get('type'));
+  if (params.get('tab')) setDetailTab(params.get('tab'));
+</script>
+</body>
+</html>

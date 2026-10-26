@@ -165,6 +165,21 @@
     <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
     <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
   </Style>
+  <!--
+      紧凑下拉：给"表格行内"用（每行 26~40px 的小控件）。
+
+      为什么必须基于 DialogCombo 派生、而不是再写一份模板
+      =========
+      DialogCombo 高 38、内边距 12,0,34,0；直接塞进 26px 的行里会被裁字
+      （2026-10-25 报表列编辑器事故：本地 Height=26 + 继承的上下内边距 16 = 内容区 10px）。
+      这里只改内边距与字号，模板/配色/下拉项样式全部继承——一处定义，全仓行内下拉共用。
+      **不改 Height**：各行高度由调用方本地 Height 决定（本地值优先于样式 setter），
+      这样既不会把 28px 的行撑到 38px，也不会漏掉垂直居中。
+  -->
+  <Style x:Key="DialogComboCompact" BasedOn="{StaticResource DialogCombo}" TargetType="ComboBox">
+    <Setter Property="Padding" Value="8,0,26,0" />
+    <Setter Property="FontSize" Value="11.5" />
+  </Style>
   <Style x:Key="DialogGridInput" TargetType="TextBox">
     <Setter Property="Height" Value="30" />
     <Setter Property="Padding" Value="11,0" />

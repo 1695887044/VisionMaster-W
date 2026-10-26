@@ -540,17 +540,36 @@ namespace FlowCanvasChecks
         {
             // ---- 合格：采样线 + 每根 1 个标签 + 1 行结论；结论绿字；补出来的那根橙字 ----
             var frames = new List<ImageDisplayEvent<HImage>>();
-            var okOutcome = RunOn(CreatePlugin(pluginType, new Dictionary<string, object>
+            var okPlugin = CreatePlugin(pluginType, new Dictionary<string, object>
             {
                 ["RoiParams"] = Roi,
                 ["RecipeText"] = RecipeTwo,
                 ["DisplayViewIndex"] = 1,
-            }), cable2, frames: frames);
+            });
+            var okOutcome = RunOn(okPlugin, cable2, frames: frames);
 
             Check("【投射】只投一帧、投到 1 号视图窗口（不重复投射）",
                 okOutcome.Success && frames.Count == 1 && frames[0].ViewIndex == 1,
                 $"帧数={frames.Count} 窗口={(frames.Count > 0 ? frames[0].ViewIndex : 0)}");
             if (frames.Count != 1) return;
+
+            var portMarks = PortValue(okPlugin, "Annotations") as List<MeasureAnnotation>;
+            Check("【投射】Annotations 端口给出同一批标注（1 线 + 每根 1 标签 + 1 结论）",
+                portMarks != null && portMarks.Count == Cable2Golden.Length + 2,
+                $"端口={(portMarks == null ? "(null)" : portMarks.Count.ToString())} 期望={Cable2Golden.Length + 2}");
+
+            // 窗口=0 只关预览，不关 Annotations —— SCADA 合成不能依赖"主界面有没有显示"
+            var zeroPlugin = CreatePlugin(pluginType, new Dictionary<string, object>
+            {
+                ["RoiParams"] = Roi,
+                ["RecipeText"] = RecipeTwo,
+                ["DisplayViewIndex"] = 0,
+            });
+            RunOn(zeroPlugin, cable2);
+            var zeroMarks = PortValue(zeroPlugin, "Annotations") as List<MeasureAnnotation>;
+            Check("【投射】窗口=0 时 Annotations 仍产出（关预览不能连标注一起关掉）",
+                zeroMarks != null && zeroMarks.Count == Cable2Golden.Length + 2,
+                $"端口={(zeroMarks == null ? "(null)" : zeroMarks.Count.ToString())} 期望={Cable2Golden.Length + 2}");
 
             var marks = frames[0].Annotations ?? new List<MeasureAnnotation>();
             int lines = marks.Count(m => m.Type == MeasureType.Line);

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading;
 using Core.Events;
+using Core.Halcon.Models;
 using Core.Interfaces;
 using HalconDotNet;
 using VisionMaster;
@@ -27,9 +28,42 @@ namespace FlowCanvasChecks
     {
         private const string FlowName = "几何工具演示";
 
+        /// <summary>
+        /// 合成椭圆：HALCON 的 Phi 是 (-sinφ, cosφ)，本仓 GeometryParam.Phi 是 (sinφ, cosφ)。
+        /// 生成 30° 的 HALCON 椭圆，插件必须输出 150°（同一长轴、相反符号）；不转换会输出 30°。
+        /// 不依赖演示方案/外部样图，演示方案缺失时也照跑。
+        /// </summary>
+        private static void RunEllipseSignCheck()
+        {
+            HOperatorSet.GenImageConst(out HObject ellipseProto, "byte", 640, 480);
+            HOperatorSet.GenImageProto(ellipseProto, out HObject ellipseGray, 0);
+            HOperatorSet.GenEllipse(out HObject ellipseRegion, 240, 320, 30 * Math.PI / 180.0, 120, 60);
+            HOperatorSet.PaintRegion(ellipseRegion, ellipseGray, out HObject ellipsePainted, 255, "fill");
+            using var ellipseImg = new HImage(ellipsePainted);
+            ellipseProto.Dispose();
+            ellipseGray.Dispose();
+            ellipseRegion.Dispose();
+            ellipsePainted.Dispose();
+
+            var fE = new Plugin.GeometryFinder.GeometryFinderPlugin();
+            fE.SrcImage.Value = ellipseImg;
+            fE.Kind.Value = Plugin.GeometryFinder.GeometryFindKind.Ellipse;
+            fE.RunAlgorithm(null);
+            var ellipseGeo = fE.Geometry.Value as GeometryParam;
+            Check("直接调用：椭圆 Phi 已从 HALCON 的 (-sinφ,cosφ) 转成本仓 (sinφ,cosφ)（30° → 150°）",
+                ellipseGeo != null
+                && Math.Abs(ellipseGeo.Phi - 150) < 1.0
+                && Math.Abs(ellipseGeo.Radius - 120) < 2
+                && Math.Abs(ellipseGeo.Radius2 - 60) < 2,
+                ellipseGeo == null ? "(null)" : ellipseGeo.ToString());
+        }
+
         public static void Run()
         {
             Section("[GEODEMO] 演示方案：加载 → 编译 → 执行（几何查找 + 几何计算）");
+
+            // 合成椭圆不依赖演示方案/外部样图：演示方案缺失时也要跑，防止 HALCON 椭圆 Phi 符号回归。
+            RunEllipseSignCheck();
 
             var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
             // A2（2026-10-22，R38）：缺失不再硬红 + return，改成可反证的跳过（清单见 MissingSolutionSamples）
@@ -144,11 +178,21 @@ namespace FlowCanvasChecks
                 && Math.Abs(lineH.Phi) < 1.0 && Math.Abs(lineV.Phi - 90) < 1.0,
                 $"横线={lineH} 竖线={lineV}");
 
+            var finderMarks = fH.Annotations.Value as List<MeasureAnnotation>;
+            Check("GeometryFinder.Annotations 端口给出标注（至少一条 Line）",
+                finderMarks != null && finderMarks.Any(m => m.Type == MeasureType.Line),
+                finderMarks == null ? "(null)" : $"count={finderMarks.Count}");
+
             var rel = new Plugin.GeometryRelation.GeometryRelationPlugin();
             rel.Op.Value = Plugin.GeometryRelation.GeometryOp.Angle;
             rel.A.Value = lineH;
             rel.B.Value = lineV;
+            rel.SrcImage.Value = angleImg;
             rel.RunAlgorithm(null);
+            var relMarks = rel.Annotations.Value as List<MeasureAnnotation>;
+            Check("GeometryRelation.Annotations 端口给出标注（输入两线 + 结果文字）",
+                relMarks != null && relMarks.Count >= 3,
+                relMarks == null ? "(null)" : $"count={relMarks.Count}");
             var angle = Convert.ToDouble(rel.Value.Value);
             Check($"直接调用：两线夹角 = 90°（实测 {angle:0.##}°）", Math.Abs(angle - 90) < 1.0, $"{angle:0.####}");
 

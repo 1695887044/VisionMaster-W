@@ -407,7 +407,7 @@
                         <RadioButton
                             Margin="4"
                             Style="{StaticResource ModeCardStyle}"
-                            Content="像素当量"
+                            Content="{Binding PixelScaleLabel}"
                             Tag="&#xf545;"
                             AutomationProperties.HelpText="已知长度 → mm/px"
                             IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.PixelScale}}"
@@ -415,7 +415,7 @@
                         <RadioButton
                             Margin="4"
                             Style="{StaticResource ModeCardStyle}"
-                            Content="九点标定"
+                            Content="{Binding NinePointLabel}"
                             Tag="&#xf0ce;"
                             AutomationProperties.HelpText="N×N 仿射"
                             IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.NinePoint}}"
@@ -423,7 +423,7 @@
                         <RadioButton
                             Margin="4"
                             Style="{StaticResource ModeCardStyle}"
-                            Content="透视标定"
+                            Content="{Binding PerspectiveLabel}"
                             Tag="&#xf1b2;"
                             AutomationProperties.HelpText="3×3 投影"
                             IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.Perspective}}"
@@ -431,7 +431,7 @@
                         <RadioButton
                             Margin="4"
                             Style="{StaticResource ModeCardStyle}"
-                            Content="网格标定"
+                            Content="{Binding MeshLabel}"
                             Tag="&#xf84c;"
                             AutomationProperties.HelpText="分段仿射"
                             IsChecked="{Binding Mode, Converter={ui:EnumConverter}, ConverterParameter={x:Static local:CalibrationMode.Mesh}}"
@@ -995,6 +995,72 @@
                                     Style="{StaticResource SectionHintStyle}"
                                     Text="多台设备共享同一份标定" />
                             </WrapPanel>
+
+                            <Border
+                                Margin="0,10,0,0"
+                                Padding="10"
+                                Style="{StaticResource DialogCardBorder}">
+                                <StackPanel>
+                                    <CheckBox
+                                        Style="{StaticResource DialogCheckBox}"
+                                        Content="引用方案标定资产（不重算，直接输出已保存的标定）"
+                                        IsChecked="{Binding UseSavedCalibration}"
+                                        ToolTip="勾选后本步骤按「资产 Id / 名字」从方案标定目录加载，不再读图/重算。生产流程应使用此模式；标定计算放在独立的标定流程里，换型或换相机时执行一次"
+                                        ToolTipService.ShowDuration="20000" />
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource InlineLabelStyle}"
+                                            Text="资产名" />
+                                        <TextBox
+                                            Grid.Column="1"
+                                            Margin="8,0,10,0"
+                                            Style="{StaticResource DialogInput}"
+                                            Text="{Binding SavedCalibrationName, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="方案标定目录里的显示名（Id 找不到时按名字兜底）"
+                                            ToolTipService.ShowDuration="20000" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource InlineLabelStyle}"
+                                            Text="资产 Id" />
+                                        <TextBox
+                                            Grid.Column="3"
+                                            Margin="8,0,0,0"
+                                            Style="{StaticResource DialogInput}"
+                                            Text="{Binding SavedCalibrationId, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="稳定 GUID；优先于资产名。可从方案 .vms 的 Calibrations 段复制"
+                                            ToolTipService.ShowDuration="20000" />
+                                    </Grid>
+                                    <WrapPanel Margin="0,8,0,0" VerticalAlignment="Center">
+                                        <CheckBox
+                                            Style="{StaticResource DialogCheckBox}"
+                                            Content="计算成功后写入方案标定资产"
+                                            IsChecked="{Binding SaveToCatalog}"
+                                            ToolTip="写进解决方案的 Calibrations 集合，保存 .vms 后随方案走；下游用「引用方案标定资产」按名字/Id 取"
+                                            ToolTipService.ShowDuration="20000" />
+                                        <TextBlock
+                                            Margin="12,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Style="{StaticResource InlineLabelStyle}"
+                                            Text="写入名" />
+                                        <TextBox
+                                            Width="160"
+                                            Margin="8,0,0,0"
+                                            Style="{StaticResource DialogInput}"
+                                            Text="{Binding CatalogAssetName, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="留空 = 步骤名；写入 Id 由步骤名确定性生成，重复运行不会产生重复资产"
+                                            ToolTipService.ShowDuration="20000" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
 
                             <Grid Margin="0,9,0,0">
                                 <Grid.ColumnDefinitions>

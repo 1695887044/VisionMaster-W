@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SCADA · 数值域(IOField) 与 滑块(Slider) · 抽查评审 v1</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#fff; --line:#e3e8f0; --text:#1f2937; --text2:#5b667a; --text3:#8a94a6;
+    --brand:#2563eb; --brand2:#38bdf8; --danger:#e03a2b; --warn:#d97706;
+    --radius:10px; --mono:"Cascadia Mono","Consolas",monospace;
+    --canvas:#151c23; --stroke:#2a3745; --fg:#e6eef7; --accent:#38bdf8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.65 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  code{font-family:var(--mono);font-size:12.5px;background:#eef2f8;border-radius:4px;padding:1px 5px}
+  .wrap{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;height:100vh;background:#0f172a;color:#cbd5e1;padding:22px 16px;overflow:auto}
+  nav .brand{font-size:15px;font-weight:700;color:#fff}
+  nav .ver{margin:6px 0 18px;font-size:11.5px;color:#7c8aa3}
+  nav a{display:block;color:#c2cddd;padding:7px 10px;border-radius:7px;font-size:13px;margin-bottom:2px;text-decoration:none}
+  nav a:hover{background:#1b2b45;color:#fff}
+  nav .grp{margin:16px 0 6px;font-size:11px;color:#64748b;letter-spacing:.08em}
+  main{padding:28px 34px 80px;max-width:1180px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--text2);margin:0 0 22px}
+  h2{font-size:19px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:20px 0 8px}
+  .muted{color:var(--text3);font-size:12.5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:12px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto}.grid2{grid-template-columns:1fr}}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-size:12.5px}
+  .p1{color:#b91c1c;font-weight:600}.p2{color:#b45309;font-weight:600}.p3{color:#475569}
+  .note{border-left:3px solid var(--brand2);background:#f2f8ff;padding:10px 12px;border-radius:0 8px 8px 0;font-size:13px;margin:12px 0}
+  .warnnote{border-left-color:var(--warn);background:#fffaf1}
+  .stage{background:var(--canvas);border-radius:var(--radius);padding:20px;display:flex;flex-wrap:wrap;gap:22px;align-items:center}
+  .cell{display:flex;flex-direction:column;gap:6px}
+  .cell .cap{color:#8a94a6;font-size:11px;text-align:center}
+
+  /* ---------- IOField 现状 ---------- */
+  .io{width:190px;height:34px;display:flex;align-items:center;padding:0 6px;color:var(--fg);font-size:13px;
+      border-bottom:1px solid var(--stroke);position:relative}
+  .io .lbl{margin-right:6px;color:#c7d3e2}
+  .io .val{margin-left:auto;font-family:var(--mono)}
+  .io.editable{border:1px solid var(--stroke);border-radius:6px;background:#1b242e;cursor:text}
+  .io.editable .pencil{position:absolute;right:4px;width:16px;height:16px;border-radius:4px;background:#232f3c;
+      color:var(--accent);font-size:10px;display:flex;align-items:center;justify-content:center;opacity:0}
+  .io.editable:hover .pencil{opacity:1}
+  .io.editing{border:1px solid var(--accent);border-radius:6px;background:#232f3c;box-shadow:0 0 0 3px rgba(56,189,248,.28)}
+  .io.error{border-color:var(--danger)}
+  .io.error .val{color:var(--danger)}
+  /* ---------- IOField 改版 ---------- */
+  .io2{width:210px;height:34px;display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;
+       padding:0 8px;color:var(--fg);font-size:13px;border:1px solid #2a3745;border-radius:6px;background:#1b242e}
+  .io2 .val{font-family:var(--mono);text-align:right}
+  .io2 .unit{color:#8a94a6;font-size:11.5px;min-width:26px;text-align:left}
+  .io2.affordance::after{content:"✎";color:var(--accent);font-size:11px;opacity:.75}
+  .io2.disabled{background:#161e27;border-color:#232f3c;color:#6b7787}
+  .io2.disabled .unit{color:#556274}
+  .io2.changed{animation:flash 1.2s ease-out}
+  @keyframes flash{0%{background:#1d3b52}100%{background:#1b242e}}
+  .io2.over .val{color:#ffb4a8;font-weight:700}
+  .io2.over::before{content:"▲";color:#ff8d7a;font-size:9px;margin-right:2px}
+
+  /* ---------- Slider 现状 ---------- */
+  .sl{width:240px;color:var(--fg);font-size:12px}
+  .sl .num{text-align:right;font-family:var(--mono);color:#c7d3e2;margin-bottom:2px}
+  .sl .track{position:relative;height:8px;margin:0 10px;background:#2a3745;border:1px solid #3b4a5d;border-radius:4px}
+  .sl .fill{position:absolute;left:0;top:0;bottom:0;width:62%;background:#2d7dd2;border-radius:4px}
+  .sl .thumb{position:absolute;left:62%;top:50%;width:10px;height:18px;margin-left:-5px;margin-top:-9px;
+      background:#e6eef7;border:1px solid #151c23;border-radius:10px}
+  /* ---------- Slider 改版 ---------- */
+  .sl2{width:260px;color:var(--fg);font-size:12px}
+  .sl2 .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+  .sl2 .head .bubble{background:#232f3c;border:1px solid #3b4a5d;border-radius:6px;padding:1px 7px;font-family:var(--mono)}
+  .sl2 .head .range{color:#7c8aa3;font-size:10.5px}
+  .sl2 .track{position:relative;height:8px;margin:0 12px;background:#2a3745;border:1px solid #3b4a5d;border-radius:4px}
+  .sl2 .fill{position:absolute;left:0;top:0;bottom:0;width:62%;background:linear-gradient(90deg,#2563eb,#38bdf8);border-radius:4px}
+  .sl2 .thumb{position:absolute;left:62%;top:50%;width:20px;height:20px;margin-left:-10px;margin-top:-10px;
+      background:#e6eef7;border:2px solid #151c23;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+  .sl2.disabled{opacity:1}
+  .sl2.disabled .track{background:#1e2833;border-color:#232f3c}
+  .sl2.disabled .fill{background:#334155}
+  .sl2.disabled .thumb{background:#64748b;box-shadow:none}
+  .sl2.disabled .head .bubble{color:#6b7787;border-color:#232f3c;background:#18212b}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">SCADA · 设计基线</div>
+    <div class="ver">数值域 / 滑块 抽查评审　v1 · 2026-10-25 · 待确认</div>
+    <a href="#s0">0 · 抽查结论</a>
+    <div class="grp">数值域 Hmi.IOField</div>
+    <a href="#s1">1 · 现状还原</a>
+    <a href="#s2">2 · 发现（9 条）</a>
+    <a href="#s3">3 · 改版对照</a>
+    <div class="grp">滑块 Hmi.Slider</div>
+    <a href="#s4">4 · 现状还原</a>
+    <a href="#s5">5 · 发现（8 条）</a>
+    <a href="#s6">6 · 改版对照</a>
+    <div class="grp">收尾</div>
+    <a href="#s7">7 · 共性根因</a>
+    <a href="#s8">8 · 待裁定</a>
+  </nav>
+
+  <main>
+    <h1>抽查评审：数值域（IOField）与 滑块（Slider）</h1>
+    <p class="sub">
+      两个都是"操作员要动手"的控件，也都在触摸屏上用得最多。下面「现状」按各自模板逐项复刻，
+      「改版」是同尺寸建议；末尾给出两条共性根因——它们解释了为什么同类问题会反复出现。
+    </p>
+
+    <h2 id="s0">0 · 抽查结论</h2>
+    <div class="grid2">
+      <div class="card">
+        <b>Hmi.IOField（数值域）</b>
+        <p class="muted">四态（只读/可写/编辑/失败）做得比大多数商业组态细：编辑框与显示块同格叠放、字不跳，
+          铅笔只做提示不抢命中。缺的是<b>触摸场景</b>与<b>可访问性</b>：无禁用态、可写性靠 hover 才看得见、
+          越限只变颜色、单位跟着数字跑。</p>
+      </div>
+      <div class="card">
+        <b>Hmi.Slider（滑块）</b>
+        <p class="muted">模板干净、令牌齐全，但拇指尺寸与命中区由代码算、<b>没有下限约束</b>；
+          没有禁用态、没有拖动反馈、没有量程标注。触摸屏上"手指盖住拇指"是常态。</p>
+      </div>
+    </div>
+
+    <!-- ================= IOField ================= -->
+    <h2 id="s1">1 · 数值域：现状还原</h2>
+    <div class="stage">
+      <div class="cell"><div class="io"><span class="lbl">一号罐液位</span><span class="val">62.4 %</span></div><div class="cap">只读</div></div>
+      <div class="cell"><div class="io editable"><span class="lbl">目标温度</span><span class="val">85.0 ℃</span><span class="pencil">✎</span></div><div class="cap">可写（悬停才出铅笔）</div></div>
+      <div class="cell"><div class="io editing"><span class="lbl">目标温度</span><span class="val">85.0</span></div><div class="cap">编辑中</div></div>
+      <div class="cell"><div class="io error"><span class="lbl">目标温度</span><span class="val">abc</span></div><div class="cap">校验失败（只变红）</div></div>
+    </div>
+    <p class="muted">把鼠标移到第二个域上才会出现铅笔；触摸屏没有 hover，所以<b>看不出它能改</b>。</p>
+
+    <h2 id="s2">2 · 数值域：发现</h2>
+    <table>
+      <tr><th style="width:52px">级别</th><th style="width:28%">问题</th><th>为什么是问题 / Web 惯例</th></tr>
+      <tr><td class="p1">P1</td><td><b>触摸屏上看不出可写</b>：铅笔只在 <code>IsMouseOver</code> 时出现</td>
+          <td>触摸屏没有 hover 状态，手指按下就已经进编辑了——"能不能改"这条信息在触摸设备上完全丢失。Web 移动端做法：可编辑控件常显编辑图标或用输入框外形</td></tr>
+      <tr><td class="p1">P1</td><td><b>没有禁用态视觉</b>：<code>IsEditable=false</code> 只改光标与边框</td>
+          <td>只读与"无权限/无写通道"长得一样。操作员点了没反应会反复点。Web 用 <code>disabled</code> 的灰底 + <code>not-allowed</code></td></tr>
+      <tr><td class="p1">P1</td><td><b>越限/失败只靠颜色</b></td>
+          <td>红/绿对色觉差异用户不可辨（约 8% 男性）。Web 惯例：颜色 + 图标/加粗/文字（三重编码）</td></tr>
+      <tr><td class="p2">P2</td><td><b>单位跟着数字跑</b>：<code>ValueText</code> 是"值+单位"拼串</td>
+          <td>右对齐时 <code>62.4 %</code> 与 <code>7.2 %</code> 的小数点不对齐，一列域上下扫读很费劲。Web/表格惯例：数值列右对齐、单位独立列固定宽</td></tr>
+      <tr><td class="p2">P2</td><td><b>值变化没有瞬时反馈</b></td>
+          <td>一屏十几个域同时刷新，操作员看不出哪个刚跳。Web 常用 150ms 背景闪一下（工业 HMI 同样惯例）</td></tr>
+      <tr><td class="p2">P2</td><td><b>进编辑是否全选现有值未表达</b></td>
+          <td>点进去在 <code>85.0</code> 后面追加会得到 <code>85.012</code>。Web 惯例：focus 时 <code>select()</code>，并给出"输入后回车确认"的提示</td></tr>
+      <tr><td class="p2">P2</td><td><b>长标签被截断后看不到全名</b>：<code>ToolTip</code> 被 <code>EditError</code> 占用</td>
+          <td>标签 <code>TextTrimming=CharacterEllipsis</code>，但唯一的 ToolTip 位置给了错误信息——没错时悬停无提示</td></tr>
+      <tr><td class="p3">P3</td><td><b>键盘可达性未验证</b>：样式里 <code>Focusable=False</code></td>
+          <td>可编辑时能否 Tab 进入、Enter/Esc 是否提交取消，模板里看不到；Web 里输入控件必须键盘可达</td></tr>
+      <tr><td class="p3">P3</td><td>编辑环与外框间距 <code>Margin=-4</code> 固定</td>
+          <td>控件被放大时环相对变小；Web 用 <code>outline-offset</code> 跟字号/尺寸走</td></tr>
+    </table>
+
+    <h2 id="s3">3 · 数值域：改版对照</h2>
+    <div class="grid2">
+      <div><h3 style="margin-top:0">现状</h3>
+        <div class="stage">
+          <div class="cell"><div class="io editable"><span class="lbl">目标温度</span><span class="val">85.0 ℃</span><span class="pencil">✎</span></div><div class="cap">可写</div></div>
+        </div>
+      </div>
+      <div><h3 style="margin-top:0">改版</h3>
+        <div class="stage">
+          <div class="cell"><div class="io2 affordance"><span>目标温度</span><span class="val">85.0</span><span class="unit">℃</span></div><div class="cap">常显可写提示 + 单位独立列</div></div>
+          <div class="cell"><div class="io2 disabled"><span>目标温度</span><span class="val">85.0</span><span class="unit">℃</span></div><div class="cap">禁用（无写通道/无权限）</div></div>
+          <div class="cell"><div class="io2 over"><span>一号罐液位</span><span class="val">91.2</span><span class="unit">%</span></div><div class="cap">越限：▲ + 加粗 + 变色</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= Slider ================= -->
+    <h2 id="s4">4 · 滑块：现状还原</h2>
+    <div class="stage">
+      <div class="cell">
+        <div class="sl">
+          <div class="num">62.0</div>
+          <div class="track"><div class="fill"></div><div class="thumb"></div></div>
+        </div>
+        <div class="cap">正常（拇指 10×18）</div>
+      </div>
+      <div class="cell">
+        <div class="sl" style="opacity:1">
+          <div class="num">62.0</div>
+          <div class="track"><div class="fill"></div><div class="thumb"></div></div>
+        </div>
+        <div class="cap">禁用：与正常一模一样</div>
+      </div>
+    </div>
+
+    <h2 id="s5">5 · 滑块：发现</h2>
+    <table>
+      <tr><th style="width:52px">级别</th><th style="width:28%">问题</th><th>为什么是问题 / Web 惯例</th></tr>
+      <tr><td class="p1">P1</td><td><b>拇指尺寸与命中区无下限</b>（尺寸由 <code>UpdateVisuals</code> 按走向算）</td>
+          <td>控件被拉小时拇指只有几像素，触摸屏根本抓不住。Web 的 range thumb 固定 20px、命中区可外扩到 44px</td></tr>
+      <tr><td class="p1">P1</td><td><b>没有禁用态</b>（模板无 <code>IsEnabled</code> 触发器）</td>
+          <td>禁用时看起来仍可拖，拖了没反应。Web：<code>disabled</code> 轨道/填充/拇指全套降饱和</td></tr>
+      <tr><td class="p1">P1</td><td><b>写失败无任何反馈</b></td>
+          <td>与数值域不同，滑块没有错误通道：设备拒写时值回弹、界面无解释。Web 至少给一条 inline 错误或边框闪红</td></tr>
+      <tr><td class="p2">P2</td><td><b>拖动时无数值跟随</b>：数值固定在右上角</td>
+          <td>视线在拇指、数字在远处；手指还会盖住拇指。Web/工业惯例：数值气泡跟着拇指走</td></tr>
+      <tr><td class="p2">P2</td><td><b>无量程标注</b></td>
+          <td>看不出 0~100 还是 0~250。Web 在两端标 min/max 小字</td></tr>
+      <tr><td class="p2">P2</td><td><b>无"正在拖动"反馈</b></td>
+          <td>拇指没有放大/阴影；触摸屏上手指按下后完全看不出状态变化</td></tr>
+      <tr><td class="p3">P3</td><td><b>键盘步进不可见</b></td>
+          <td><code>IsTabStop=True</code> 但没有步长提示（方向键 ±Step、Home/End 到端点）；Web 对应 aria-valuenow</td></tr>
+      <tr><td class="p3">P3</td><td>轨道/填充同色系，边界弱</td>
+          <td>填充与轨道对比不足时读不出比例；建议填充用渐变或提高对比</td></tr>
+    </table>
+
+    <h2 id="s6">6 · 滑块：改版对照</h2>
+    <div class="grid2">
+      <div><h3 style="margin-top:0">现状</h3>
+        <div class="stage">
+          <div class="cell"><div class="sl"><div class="num">62.0</div><div class="track"><div class="fill"></div><div class="thumb"></div></div></div><div class="cap">正常</div></div>
+        </div>
+      </div>
+      <div><h3 style="margin-top:0">改版</h3>
+        <div class="stage">
+          <div class="cell"><div class="sl2">
+            <div class="head"><span class="range">0</span><span class="bubble">62.0</span><span class="range">100</span></div>
+            <div class="track"><div class="fill"></div><div class="thumb"></div></div>
+          </div><div class="cap">量程标注 + 数值气泡 + 20px 拇指</div></div>
+          <div class="cell"><div class="sl2 disabled">
+            <div class="head"><span class="range">0</span><span class="bubble">62.0</span><span class="range">100</span></div>
+            <div class="track"><div class="fill"></div><div class="thumb"></div></div>
+          </div><div class="cap">禁用态</div></div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s7">7 · 两条共性根因</h2>
+    <div class="card">
+      <p><b>① 这些控件是按"鼠标 + 桌面"设计的，现场却是触摸屏。</b>
+         hover 才是可写提示、拇指按像素算、命中区没下限——三条都只在"有精确指针"时成立。
+         建议把"触摸优先"写成判据：可写性常显、命中区 ≥ 44px、拖动/按下必须有可见反馈。</p>
+      <p><b>② 状态只画"能看见"的，不画"看不见"的。</b>
+         两个控件都没有禁用态；越限只靠颜色；写失败没有出口。
+         Web 的做法是把状态拆成"视觉 + 语义 + 提示"三件套（颜色 + 图标/加粗 + ToolTip/文案），
+         任何一件缺失，现场就会用"多点几次"来补偿。</p>
+    </div>
+
+    <h2 id="s8">8 · 待裁定（5 条）</h2>
+    <div class="card">
+      <p><b>Q1</b> 数值域可写提示：常显铅笔（本稿）还是改成"始终是输入框外形"？</p>
+      <p><b>Q2</b> 值变化高亮：闪背景（本稿）还是不闪（怕干扰巡检）？</p>
+      <p><b>Q3</b> 滑块数值：跟手气泡（本稿）还是保持右上角？</p>
+      <p><b>Q4</b> 滑块命中区是否统一按 44px 做（视觉拇指 20px，命中区外扩）？</p>
+      <p><b>Q5</b> 这两个控件的改版是否与按钮改版同批做（同一套"四态 + 禁用 + 触摸"纪律）？</p>
+      <p class="muted" style="margin-bottom:0">确认后冻结 v1 再改模板；改动需升 v2 并同步令牌映射（R128）。</p>
+    </div>
+
+    <p class="muted" style="margin-top:28px">
+      说明：本页是 <b>CSS 按 <code>IOFieldElement.xaml</code> / <code>SliderElement.xaml</code> 逐项复刻</b>，
+      不是 WPF 截图；像素级验收要在实现后同屏截图（R132）。
+    </p>
+  </main>
+</div>
+</body>
+</html>

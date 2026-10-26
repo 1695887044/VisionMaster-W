@@ -15,13 +15,15 @@ namespace VisionMaster.Services
     ///   方案A.vms                  ← 配置（沿用既有 JSON 格式，字段不变）
     ///   Image\                     ← 方案图片（.vms 里只存相对路径）
     ///   Alarms\                    ← 报警历史快照与 CSV 流水
+    ///   History\                   ← 生产历史 CSV 账本
     ///   Logs\                      ← 这份方案运行期间的日志（与全局日志双写）
+    ///   Users\                     ← 方案级账号本（ScadaUsers/ScadaGroups/ScadaPermissions.json）
     /// </code>
     ///
     /// 为什么把规则收在一个静态类里
     /// ---------
-    /// “方案根目录”有四个消费者：保存（建目录）、打开（按 .vms 所在目录解析资产）、
-    /// 日志（写 &lt;根&gt;\Logs）、报警历史（写 &lt;根&gt;\Alarms）。四处各写一遍
+    /// “方案根目录”有五个消费者：保存（建目录）、打开（按 .vms 所在目录解析资产）、
+    /// 日志（写 &lt;根&gt;\Logs）、报警历史（写 &lt;根&gt;\Alarms）、账号本（写 &lt;根&gt;\Users）。五处各写一遍
     /// <c>Path.GetDirectoryName</c> 与目录名常量，改一处漏三处的症状是“资产找不到”，
     /// 而那时已经过去几个版本。这里只留一份命名与解析规则。
     ///
@@ -38,6 +40,9 @@ namespace VisionMaster.Services
         /// <summary>方案图片子目录名</summary>
         public const string ImageFolderName = "Image";
 
+        /// <summary>方案内容资产子目录名（模板 / 模型）。</summary>
+        public const string AssetsFolderName = "Assets";
+
         /// <summary>报警历史子目录名</summary>
         public const string AlarmsFolderName = "Alarms";
 
@@ -50,6 +55,16 @@ namespace VisionMaster.Services
         /// <summary>方案级日志子目录名</summary>
         public const string LogsFolderName = "Logs";
 
+        /// <summary>
+        /// 方案级账号本子目录名。里面有三个文件（B3）：
+        /// <c>ScadaUsers.json</c>（账号：Name/Salt/Hash/Iterations/GroupId，<b>没有 Role</b>）、
+        /// <c>ScadaGroups.json</c>（组 + Permissions）、<c>ScadaPermissions.json</c>（权限目录，≤32）。
+        /// 放子目录而不是根文件：另存为只复制目录，手工在资源管理器里整目录复制方案时账号会跟着走。
+        /// 刻意<b>不</b>进 SolutionAssetFolders.AssetFolderNames —— 账号必须由存储层按「当前内存态」写，
+        /// 盲目复制旧文件会让「另存为后新旧方案共用一份哈希」这种分叉悄悄发生（见 SF18/SF19 保持 4 项）。
+        /// </summary>
+        public const string UsersFolderName = "Users";
+
         /// <summary>方案名不可用时的兜底名</summary>
         public const string FallbackName = "未命名方案";
 
@@ -57,9 +72,11 @@ namespace VisionMaster.Services
         public static readonly string[] StructureFolderNames =
         {
             ImageFolderName,
+            AssetsFolderName,
             AlarmsFolderName,
             HistoryFolderName,
-            LogsFolderName
+            LogsFolderName,
+            UsersFolderName
         };
 
         /// <summary>

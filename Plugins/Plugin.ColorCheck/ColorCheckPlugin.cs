@@ -219,6 +219,14 @@ namespace Plugin.ColorCheck
         /// <summary>每根线中心的图像行号（逗号分隔），结果投射时用来贴标签</summary>
         public OutputPort<string> Rows { get; } = new OutputPort<string>("Rows", "每根线中心的图像行号（逗号分隔）");
 
+        /// <summary>
+        /// 本轮投射用的标注列表（托管对象，**不烘焙、不开窗**）。
+        /// 接「结果显示」的任意结果项，由它把标注烧进最终展示图；SCADA 只认像素，
+        /// 所以覆盖层上的彩色采样线/标签必须走这条路才能上画面。
+        /// </summary>
+        public OutputPort<List<MeasureAnnotation>> Annotations { get; } =
+            new("Annotations", "标注列表（接「结果显示」烧成图，供图像赋值/SCADA 使用）");
+
         // ==================================================================
         //  配置视图用的状态
         // ==================================================================
@@ -543,6 +551,8 @@ namespace Plugin.ColorCheck
 
         public override void RunAlgorithm(IExecutionContext context)
         {
+            Annotations.Value = null!;
+
             var image = Image.GetTypedValue();
             if (image == null || !image.IsInitialized())
             {
@@ -610,7 +620,6 @@ namespace Plugin.ColorCheck
         /// </summary>
         private void ProjectResult(HImage image, SequenceResult result, Judgement judgement)
         {
-            if (DisplayViewIndex <= 0) return;
             if (result.ColsOfProfile.Length == 0 || result.RowsOfProfile.Length == 0) return;
 
             try
@@ -645,11 +654,14 @@ namespace Plugin.ColorCheck
 
                 marks.Add(ColorMarks.Text(textRow, result.ColsOfProfile[0] + 10, judgement.Verdict, verdictColor));
 
-                this.PublishPreview(image, DisplayViewIndex, marks);
+                Annotations.Value = marks;
+
+                if (DisplayViewIndex > 0)
+                    this.PublishPreview(image, DisplayViewIndex, marks);
             }
             catch
             {
-                // 投递失败只是画面上没有标注，不影响判定结果
+                // 标注构建失败只是画面上没有标注，不影响判定结果；Annotations 保持开轮清空值
             }
         }
 

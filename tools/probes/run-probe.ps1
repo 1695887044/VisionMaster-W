@@ -79,12 +79,12 @@ if (-not (Test-Path -LiteralPath $projectPath)) {
 }
 
 if ($BuildOnly) {
-    & dotnet build $projectPath -c $Configuration --nologo
+    & dotnet build $projectPath -c $Configuration --nologo -m:1 -nodeReuse:false
     exit $LASTEXITCODE
 }
 
 if ($probe.runMode -eq 'exe') {
-    & dotnet build $projectPath -c $Configuration --nologo
+    & dotnet build $projectPath -c $Configuration --nologo -m:1 -nodeReuse:false
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     $exePath = Join-Path (Join-Path $here $probe.dir) ("bin\{0}\{1}\{2}" -f $Configuration, $probe.framework, $probe.exe)
     if (-not (Test-Path -LiteralPath $exePath)) {
@@ -94,5 +94,7 @@ if ($probe.runMode -eq 'exe') {
     exit $LASTEXITCODE
 }
 
-& dotnet run --project $projectPath -c $Configuration --nologo @ProbeArgs
+& dotnet build $projectPath -c $Configuration --nologo -m:1 -nodeReuse:false
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+& dotnet run --project $projectPath -c $Configuration --no-build @ProbeArgs
 exit $LASTEXITCODE

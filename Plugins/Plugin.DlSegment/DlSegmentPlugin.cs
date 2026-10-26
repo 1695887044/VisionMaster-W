@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using Core.Events;
 using Core.Halcon.Models;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 using Microsoft.ML.OnnxRuntime;
 using UI.Attributes;
@@ -43,6 +44,11 @@ namespace Plugin.DlSegment
         [DefaultValue("")]
         [BrowsePath(FileFilter = "ONNX 模型|*.onnx|所有文件|*.*")]
         public partial string ModelPath { get; set; }
+
+        /// <summary>方案模型资产 Id（优先于 ModelPath；运行期由宿主解析成绝对路径）。</summary>
+        [StepConfig]
+        [DefaultValue("")]
+        public partial string ModelAssetId { get; set; }
 
         partial void OnModelPathChanged(string value) => RefreshModelState();
 
@@ -132,6 +138,9 @@ namespace Plugin.DlSegment
 
         private SegmentSession? _session;
         private string? _sessionModelPath;
+
+        /// <summary>运行期从 AssetId 解析出的绝对路径；配置预览为空时回退 ModelPath。</summary>
+        private string? _assetModelPath;
         private string _sessionError = string.Empty;
 
         /// <summary>模型状态（供视图绑定：未选 / 就绪 / 失败）。</summary>
@@ -287,6 +296,14 @@ namespace Plugin.DlSegment
                 return;
             }
 
+            if (!ProjectAssetPathResolver.TryResolve(context, ModelAssetId, ModelPath, "model", out var configuredPath, out var assetError))
+            {
+                Fail(assetError);
+                return;
+            }
+
+            _assetModelPath = string.IsNullOrWhiteSpace(ModelAssetId) ? null : configuredPath;
+
             if (!TrySegment(image, out SegResultData? result, out string error) || result is null)
             {
                 Fail(error);
@@ -369,18 +386,19 @@ namespace Plugin.DlSegment
         /// </summary>
         private void EnsureSession()
         {
-            if (string.IsNullOrWhiteSpace(ModelPath))
+            var configuredPath = _assetModelPath ?? ModelPath;
+            if (string.IsNullOrWhiteSpace(configuredPath))
             {
                 ReleaseSession();
                 _sessionError = string.Empty;
                 return;
             }
 
-            string? resolved = ResolvePath(ModelPath);
+            string? resolved = ResolvePath(configuredPath);
             if (resolved is null)
             {
                 ReleaseSession();
-                _sessionError = $"模型文件不存在：{ModelPath}。请重新选择，或把模型放到该路径";
+                _sessionError = $"模型文件不存在：{configuredPath}。请重新选择，或把模型放到该路径";
                 return;
             }
 

@@ -1,0 +1,683 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.UserManagementView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    xmlns:views="clr-namespace:VisionMaster.Views.DialogViews"
+    Width="1100"
+    Height="820"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="Width" Value="1100" />
+            <Setter Property="Height" Value="820" />
+            <Setter Property="MinWidth" Value="980" />
+            <Setter Property="MinHeight" Value="700" />
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="CanResize" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <!--  就地合并：断言宿主没有 App 级字典，GridView 让路样式与令牌必须本视图可解析（R22）  -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <!--  页签：共享样式定高 38，本页按 v4 基线取 44；选中态沿用 2px 主色下划线  -->
+            <Style
+                x:Key="PageTabItem"
+                BasedOn="{StaticResource DialogTabItem}"
+                TargetType="TabItem">
+                <Setter Property="MinHeight" Value="44" />
+            </Style>
+
+            <!--  表头：共享样式是透明底，本页按基线加浅灰底（模板里是 TemplateBinding Background）  -->
+            <Style
+                x:Key="PageHeaderStyle"
+                BasedOn="{StaticResource GridListHeaderStyle}"
+                TargetType="GridViewColumnHeader">
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            </Style>
+
+            <!--  表格行：40px 定高 + 底部发丝线 + 浅蓝选中（与账号清单同一套）  -->
+            <Style x:Key="PageRowStyle" TargetType="ListViewItem">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Height" Value="40" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border
+                                x:Name="RowBorder"
+                                Padding="4,0"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,0,0,1">
+                                <GridViewRowPresenter
+                                    Columns="{TemplateBinding GridView.ColumnCollection}"
+                                    Content="{TemplateBinding Content}"
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    SnapsToDevicePixels="True"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  单元格正文：12 号次要色；活值列由 CellTemplate 自己加 ToolTip 与省略号  -->
+            <Style x:Key="PageCellTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="PageCellStrongStyle" BasedOn="{StaticResource PageCellTextStyle}" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+
+            <Style x:Key="PageCellMonoStyle" BasedOn="{StaticResource PageCellTextStyle}" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Consolas, Cascadia Mono, Microsoft YaHei UI" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            </Style>
+
+            <!--  结果 chip：五桶各一色，颜色只在模板触发器里挑，不在单元格里写死  -->
+            <Style x:Key="OutcomeChipStyle" TargetType="Border">
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="Padding" Value="8,2" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="TextElement.Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding OutcomeKind}" Value="ok">
+                        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding OutcomeKind}" Value="bad">
+                        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding OutcomeKind}" Value="muted">
+                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                        <Setter Property="TextElement.Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource DialogBackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="52" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="52" />
+            </Grid.RowDefinitions>
+
+            <!--  ================= 标题栏 =================  -->
+            <Grid
+                Grid.Row="0"
+                Margin="20,0"
+                ui:WindowDragBehavior.IsWindowDraggable="True">
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Border
+                        Width="30"
+                        Height="30"
+                        Background="{StaticResource DialogAccentBrush}"
+                        CornerRadius="9">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="Bold"
+                            Foreground="White"
+                            Text="用" />
+                    </Border>
+                    <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="19"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="用户管理" />
+                        <TextBlock
+                            Margin="0,1,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="账号与用户组 / 在线会话 / 审计记录 · 账号本属于当前方案" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Button
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}">
+                    <Viewbox Width="12" Height="12">
+                        <Path
+                            Data="M2,2 L10,10 M10,2 L2,10"
+                            Stroke="{StaticResource DialogTextTertiaryBrush}"
+                            StrokeEndLineCap="Round"
+                            StrokeStartLineCap="Round"
+                            StrokeThickness="1.4" />
+                    </Viewbox>
+                    <Button.ToolTip>
+                        <ToolTip Content="关闭" Style="{StaticResource DialogToolTipStyle}" />
+                    </Button.ToolTip>
+                </Button>
+            </Grid>
+
+            <!--  ================= 状态横幅（正常态不占位） =================  -->
+            <Border
+                Grid.Row="1"
+                Margin="20,0,20,10"
+                Padding="10,6"
+                Background="{StaticResource DialogAccentSoftBrush}"
+                BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Visibility="{Binding HasBanner, Converter={ui:BooleanToVisibilityConverter}}">
+                <TextBlock
+                    FontSize="12"
+                    Foreground="{StaticResource DialogAccentTextBrush}"
+                    Text="{Binding BannerText}"
+                    TextWrapping="Wrap" />
+            </Border>
+
+            <!--  ================= 页签 =================  -->
+            <TabControl
+                Grid.Row="2"
+                Margin="20,0,20,0"
+                SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}"
+                Style="{StaticResource DialogTabControl}">
+
+                <!--  账号与用户组  -->
+                <TabItem Header="账号与用户组" Style="{StaticResource PageTabItem}">
+                    <views:ScadaUserManagerView
+                        Margin="0,16,0,16"
+                        DataContext="{Binding Account}" />
+                </TabItem>
+
+                <!--  在线会话  -->
+                <TabItem Style="{StaticResource PageTabItem}">
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center" Text="在线会话" />
+                            <Border
+                                MinWidth="18"
+                                Height="18"
+                                Margin="7,0,0,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource DialogAccentLightBrush}"
+                                CornerRadius="9">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                    Text="{Binding Sessions.Count}" />
+                            </Border>
+                        </StackPanel>
+                    </TabItem.Header>
+
+                    <Border
+                        Margin="0,16,0,16"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogCardBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="56" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="16,0">
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <TextBlock
+                                        FontSize="15"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="在线会话" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding SessionCountText}" />
+                                </StackPanel>
+                                <StackPanel
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Orientation="Horizontal">
+                                    <Button
+                                        Height="34"
+                                        Margin="0,0,8,0"
+                                        Padding="12,0"
+                                        Command="{Binding RefreshCommand}"
+                                        Content="刷新"
+                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                        Style="{StaticResource DialogSecondaryButton}" />
+                                    <Button
+                                        Height="34"
+                                        Padding="14,0"
+                                        Command="{Binding KickAllCommand}"
+                                        Content="{Binding KickAllText}"
+                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                        Style="{StaticResource DialogDangerOutlineButton}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <ListView
+                                Grid.Row="1"
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource PageRowStyle}"
+                                ItemsSource="{Binding Sessions}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                Style="{StaticResource GridListViewStyle}">
+                                <ListView.View>
+                                    <GridView ColumnHeaderContainerStyle="{StaticResource PageHeaderStyle}">
+                                        <GridViewColumn Width="106" Header="会话">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellMonoStyle}"
+                                                        Text="{Binding SessionShort}"
+                                                        ToolTip="{Binding SessionRef}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="116" Header="用户">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource PageCellStrongStyle}" Text="{Binding UserName}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="159" Header="用户组">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding GroupName}"
+                                                        ToolTip="{Binding GroupName}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="127" Header="来源 IP">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource PageCellTextStyle}" Text="{Binding RemoteIp}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="159" Header="建立时间">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource PageCellTextStyle}" Text="{Binding ConnectedText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="159" Header="最近活动">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource PageCellTextStyle}" Text="{Binding LastSeenText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="95" Header="只读">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border
+                                                        HorizontalAlignment="Left"
+                                                        Padding="8,2"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border">
+                                                                <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                                                <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsReadOnly}" Value="True">
+                                                                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                                        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock FontSize="11" Text="{Binding ReadOnlyText}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsReadOnly}" Value="True">
+                                                                            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="120" Header="操作">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Button
+                                                        Command="{Binding DataContext.KickCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding SessionRef}"
+                                                        Content="撤销"
+                                                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                                        Style="{StaticResource DialogLinkButtonDanger}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+
+                            <!--  Web 不可用空态：盖在表格上，不占列宽  -->
+                            <StackPanel
+                                Grid.Row="1"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding IsWebUnavailable, Converter={ui:BooleanToVisibilityConverter}}">
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="未安装或未启用 SCADA Web 客户端" />
+                                <TextBlock
+                                    Margin="0,4,0,0"
+                                    HorizontalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="账号与审计记录不受影响。" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </TabItem>
+
+                <!--  审计记录  -->
+                <TabItem Header="审计记录" Style="{StaticResource PageTabItem}">
+                    <Border
+                        Margin="0,16,0,16"
+                        Background="{StaticResource DialogSurfaceBrush}"
+                        BorderBrush="{StaticResource DialogCardBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="36" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="16,14,16,10">
+                                <StackPanel>
+                                    <TextBlock
+                                        FontSize="15"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="审计记录" />
+                                    <TextBlock
+                                        Margin="0,3,0,0"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="只读；默认只显示当前方案标签的行。CSV 仍是 7 列，外部脚本不受影响。" />
+                                </StackPanel>
+                                <Button
+                                    Height="34"
+                                    Padding="12,0"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top"
+                                    Command="{Binding RefreshCommand}"
+                                    Content="刷新"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    Style="{StaticResource DialogSecondaryButton}" />
+                            </Grid>
+
+                            <!--  筛选行：日期范围 / 操作者 / 结果 / 显示未归属 / 查询  -->
+                            <StackPanel
+                                Grid.Row="1"
+                                Margin="16,0,16,12"
+                                Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="日期范围" />
+                                <TextBox
+                                    Width="116"
+                                    Height="32"
+                                    VerticalContentAlignment="Center"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding FromDateText, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="格式：yyyy-MM-dd" />
+                                <TextBlock
+                                    Margin="6,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="至" />
+                                <TextBox
+                                    Width="116"
+                                    Height="32"
+                                    VerticalContentAlignment="Center"
+                                    Style="{StaticResource DialogInput}"
+                                    Text="{Binding ToDateText, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="格式：yyyy-MM-dd" />
+
+                                <TextBlock
+                                    Margin="14,0,8,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="操作者" />
+                                <ComboBox
+                                    Width="104"
+                                    Height="32"
+                                    ItemsSource="{Binding ActorOptions}"
+                                    SelectedItem="{Binding ActorFilter, Mode=TwoWay}"
+                                    Style="{StaticResource DialogCombo}" />
+
+                                <TextBlock
+                                    Margin="14,0,8,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="结果" />
+                                <ComboBox
+                                    Width="96"
+                                    Height="32"
+                                    ItemsSource="{Binding OutcomeOptions}"
+                                    SelectedItem="{Binding OutcomeFilter, Mode=TwoWay}"
+                                    Style="{StaticResource DialogCombo}" />
+
+                                <CheckBox
+                                    Margin="14,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Content="显示未归属（历史记录）"
+                                    IsChecked="{Binding ShowUnassigned, Mode=TwoWay}"
+                                    Style="{StaticResource DialogCheckBox}" />
+
+                                <Button
+                                    Height="32"
+                                    Margin="14,0,0,0"
+                                    Padding="16,0"
+                                    Command="{Binding QueryAuditCommand}"
+                                    Content="查询"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    Style="{StaticResource DialogPrimaryButton}" />
+                            </StackPanel>
+
+                            <ListView
+                                Grid.Row="2"
+                                BorderThickness="0"
+                                ItemContainerStyle="{StaticResource PageRowStyle}"
+                                ItemsSource="{Binding AuditRows}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                Style="{StaticResource GridListViewStyle}">
+                                <ListView.View>
+                                    <GridView ColumnHeaderContainerStyle="{StaticResource PageHeaderStyle}">
+                                        <GridViewColumn Width="114" Header="时间">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource PageCellTextStyle}" Text="{Binding TimeText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="104" Header="操作者">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Style="{StaticResource PageCellStrongStyle}" Text="{Binding ActorText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="156" Header="对象">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding Subject}"
+                                                        ToolTip="{Binding Subject}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="94" Header="事件">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding EventText}"
+                                                        ToolTip="{Binding EventText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="177" Header="动作">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding ActionText}"
+                                                        ToolTip="{Binding ActionText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="83" Header="结果">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource OutcomeChipStyle}">
+                                                        <TextBlock FontSize="11" Text="{Binding OutcomeText}" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="313" Header="说明">
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock
+                                                        Style="{StaticResource PageCellTextStyle}"
+                                                        Text="{Binding DetailText}"
+                                                        ToolTip="{Binding DetailText}" />
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+
+                            <TextBlock
+                                Grid.Row="2"
+                                Margin="16"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Foreground="{StaticResource DialogTextMutedBrush}"
+                                Text="没有符合条件的审计记录。"
+                                Visibility="{Binding HasAuditRows, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+
+                            <Border
+                                Grid.Row="3"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,1,0,0">
+                                <Grid Margin="16,0">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding AuditMetaText}" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="审计只读，不提供修改与删除" />
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </TabItem>
+            </TabControl>
+
+            <!--  ================= 底栏 =================  -->
+            <Border
+                Grid.Row="3"
+                Background="{StaticResource DialogSurfaceBrush}"
+                BorderBrush="{StaticResource DialogBorderBrush}"
+                BorderThickness="0,1,0,0">
+                <Grid Margin="20,0">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="{Binding FooterText}"
+                        TextTrimming="CharacterEllipsis" />
+                    <Button
+                        Height="34"
+                        Padding="16,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Command="{Binding CloseCommand}"
+                        Content="关闭"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogSecondaryButton}" />
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

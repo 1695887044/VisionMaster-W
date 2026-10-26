@@ -173,7 +173,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <b>它只是一道界面门</b>。真正的把关在账号存储里（删/改最后一个管理员会被拒），
         /// 界面隐藏挡不住直接调接口——这是 S12 一开始就定下的口径。
         /// </summary>
-        public bool CanManageUsers => _accessPolicy.CurrentRole.Satisfies(ScadaRole.Administrator);
+        public bool CanManageUsers =>
+            _accessPolicy.Can(ScadaPermissionKeys.UserAdministration, out _)
+            && _userStore.CanWriteAccounts;
+
+        public bool CanChangePassword => _userStore.CanWriteAccounts;
 
         #endregion
 
@@ -258,13 +262,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private void OnLogin()
         {
-            if (!_userStore.TryValidate(UserName, Password, out var role, out var error))
+            if (!_userStore.TryValidate(UserName, Password, out var user, out var error))
             {
                 LoginMessage = error;
                 return;
             }
 
-            _accessPolicy.Login(UserName, role);
+            _accessPolicy.Login(user!);
 
             // 明文用完即弃：上面这一行之后，身份已经以"角色"的形式存在于会话里了。
             Password = string.Empty;
@@ -334,7 +338,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>打开「用户管理」弹窗。注册名与 <c>App.xaml.cs</c> 里的注册串一致</summary>
-        private void OnOpenUserManager() => _dialogService.ShowDialog("ScadaUserManagerView");
+        private void OnOpenUserManager() => _dialogService.ShowDialog("UserManagementView");
 
         private void OnSubmit()
         {
@@ -399,6 +403,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(RolePermissionText));
             RaisePropertyChanged(nameof(IdleTimeoutText));
             RaisePropertyChanged(nameof(CanManageUsers));
+            RaisePropertyChanged(nameof(CanChangePassword));
         }
     }
 }

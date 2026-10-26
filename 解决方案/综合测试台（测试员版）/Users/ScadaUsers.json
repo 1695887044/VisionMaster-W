@@ -1,0 +1,9 @@
+[
+  {
+    "Name": "admin",
+    "Salt": "zvCNT/gbG0VUUOqJJNWWdg==",
+    "Hash": "W29VaIulahcPa5v34iVj5NVyx3sdbO1mFqozQDfH8Uk=",
+    "Iterations": 100000,
+    "GroupId": "tpl-admin"
+  }
+]

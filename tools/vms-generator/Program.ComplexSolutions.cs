@@ -156,7 +156,7 @@ internal static partial class Program
             IfStep("ast:if", "触发判断", "Ok", G("ast:var:go"), "Ok", "System.Boolean",
                 L("ast:cmp", "Result", "触发=1"), thenSteps, elseSteps),
             MotionStop("ast:stop", "X停止", "X", "Decelerate", false),
-            CsvRecord("ast:csv", "装配记录"),
+            CcgCsvRecord("ast:csv", "装配记录", DefaultCsvColumns()),
         };
 
         return Flow("Assemble", "装配工位：触发→夹紧→回原点→写PLC→计数", 0, 96, 0, steps);
@@ -190,7 +190,7 @@ internal static partial class Program
             IfStep("sst:if", "结果分拣", "Ok", G("sst:var:ok"), "Ok", "System.Boolean",
                 L("sst:result", "Result", "读当前结果"), thenSteps, elseSteps),
             MotionStop("sst:stop", "X停止", "X", "Decelerate", false),
-            CsvRecord("sst:csv", "分拣记录"),
+            CcgCsvRecord("sst:csv", "分拣记录", DefaultCsvColumns()),
         };
 
         return Flow("Sorting", "分拣工位：按 CurrentResult 分良品/NG", 0, 96, 0, steps);
@@ -225,7 +225,7 @@ internal static partial class Program
 
         var steps = new JArray
         {
-            ImgFile("vsm:acq", "采集板卡图", @"D:\C#\VM\Image\board\board-01.png", 1),
+            ImgFile("vsm:acq", "采集板卡图", IMG_BOARD_01, 1),
             PreProcess("vsm:pre", "图像预处理", new JArray
             {
                 Op("gauss", ("Size", "5")),
@@ -236,9 +236,9 @@ internal static partial class Program
             GeometryFind("vsm:find", "找圆", "Circle", "vsm:roi", "ROI圆区域", 1, 20, 40, 30, false, 0, "vsm:pre", "图像预处理"),
             PoseFollow("vsm:pose", "跟随ROI", "vsm:roi", "ROI圆区域", "vsm:find", "找圆", 0),
             BlobDetect("vsm:blob", "表面缺陷检测", "vsm:pose", "跟随ROI", 0.05, 2, "vsm:pre", "图像预处理"),
-            ImgFile("vsm:ocrAcq", "采集批号图", @"D:\C#\VM\Image\images\ocr\lot_number_01.png", 0),
+            ImgFile("vsm:ocrAcq", "采集批号图", IMG_LOT, 0),
             Ocr("vsm:ocr", "OCR识别", new double[] { 272, 320, 0, 170, 40 }, 1, "vsm:ocrAcq", "采集批号图", true),
-            ImgFile("vsm:qrAcq", "采集二维码图", @"D:\C#\VM\Image\images\datacode\qrcode\qr_workpiece_01.png", 0),
+            ImgFile("vsm:qrAcq", "采集二维码图", IMG_QR, 0),
             Action("vsm:code", "二维码读取", "图像处理", P_CODE, "二维码读取", "\uf029", new JObject
             {
                 ["Symbology"] = "QR Code",
@@ -260,7 +260,7 @@ internal static partial class Program
                 ("r3", "码数", "vsm:code", "二维码读取", "Count"),
                 ("r4", "结果", "vsm:and2", "视觉综合", "Result"),
             }, 1, "vsm:acq", "采集板卡图"),
-            CsvRecord("vsm:csv", "分拣记录"),
+            CcgCsvRecord("vsm:csv", "分拣记录", DefaultCsvColumns()),
             Delay("vsm:delay", "分拣节拍", 300),
         };
 
@@ -312,8 +312,8 @@ internal static partial class Program
                 L("gw:cmpMeter", "Result", "仪表<=80"), alarmThen, alarmElse),
             CommWrite("gw:result", "写PLC结果", "PLC_Result", new JValue(true), true),
             CommWrite("gw:heartbeat", "写S7心跳", "S7_Heartbeat", new JValue(true), true),
-            CsvRecord("gw:csv", "网关记录"),
-            Excel("gw:excel", "网关报表", "CSV记录"),
+            CcgCsvRecord("gw:csv", "网关记录", DefaultCsvColumns()),
+            CcgExcel("gw:excel", "网关报表", "CSV记录"),
             Upload("gw:upload", "上报MES(默认不触发)"),
             Delay("gw:delay", "轮询节拍", 500),
         };

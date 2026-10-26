@@ -112,9 +112,7 @@ namespace VisionMaster.ScadaWeb
             {
                 var canOperate = ScadaWebAccessPolicy.Evaluate(
                     session,
-                    requiredRole: null,
                     _settings,
-                    sessions,
                     out _,
                     out var reason);
 
@@ -123,8 +121,8 @@ namespace VisionMaster.ScadaWeb
                     // ★ 只给 SessionRef；SessionId 绝不出现（理由见类注释）。
                     SessionRef = session.SessionRef,
                     User = session.UserName,
-                    Role = session.Role.ToString(),
-                    RoleDisplay = session.Role.DisplayName(),
+                    GroupId = session.GroupId,
+                    GroupName = session.GroupName,
                     Ip = session.RemoteIp,
                     ConnectedAtUtc = session.ConnectedAtUtc,
                     LastSeenUtc = session.LastSeenUtc,
@@ -141,10 +139,10 @@ namespace VisionMaster.ScadaWeb
     /// <summary>
     /// 在线列表的一行（<c>presence</c> 消息的 <c>users[]</c> 元素）。
     ///
-    /// <b>字段口径</b>：<see cref="Role"/> 是 <see cref="ScadaRole"/> 的<b>成员名</b>（协议值），
-    /// <see cref="RoleDisplay"/> 是中文显示名（界面用）。两者都给，是因为客户端既要按值判颜色，
-    /// 又要直接上屏——只给一个的话，前端就得自己维护一份"Engineer = 工程师"的映射表，
-    /// 那份表迟早与领域层的 <see cref="ScadaRoleExtensions.DisplayName"/> 分叉。
+    /// <b>字段口径</b>：<see cref="GroupName"/> 是用户组显示名（"产线操作员"），
+    /// <see cref="GroupId"/> 是稳定 Id。两者都给：前者直接上屏，后者给客户端做分组着色/过滤——
+    /// 只给显示名的话，改个组名就会让前端配色失效。
+    /// <b>没有角色字段</b>：B3 起身份只有「用户组 + 权限 Key」，见 <see cref="ScadaWebAccessPolicy"/>。
     /// </summary>
     public sealed class ScadaWebPresenceEntry
     {
@@ -154,11 +152,11 @@ namespace VisionMaster.ScadaWeb
         /// <summary>登录用户名；<c>null</c> = 匿名只读观众</summary>
         public string? User { get; init; }
 
-        /// <summary>角色成员名（<c>Operator</c> / <c>Engineer</c> / <c>Administrator</c>）</summary>
-        public string Role { get; init; } = string.Empty;
+        /// <summary>用户组 Id（稳定标识；匿名/未分组为空串）</summary>
+        public string GroupId { get; init; } = string.Empty;
 
-        /// <summary>角色显示名（"操作员" / "工程师" / "管理员"）</summary>
-        public string RoleDisplay { get; init; } = string.Empty;
+        /// <summary>用户组显示名（"产线操作员"；匿名/未分组为空串）</summary>
+        public string GroupName { get; init; } = string.Empty;
 
         /// <summary>远端 IP</summary>
         public string Ip { get; init; } = string.Empty;
@@ -172,7 +170,7 @@ namespace VisionMaster.ScadaWeb
         /// <summary>这条会话是否只读（匿名观众 / 签票时命令总闸关着）</summary>
         public bool ReadOnly { get; init; }
 
-        /// <summary>此刻这条会话有没有操作资格（策略层，不含具体图元的 <c>RequiredRole</c>）</summary>
+        /// <summary>此刻这条会话有没有操作资格（策略层，不含具体图元的权限 Key）</summary>
         public bool CanOperate { get; init; }
 
         /// <summary>不可操作的原因；可操作时为 <c>null</c></summary>

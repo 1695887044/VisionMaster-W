@@ -100,6 +100,16 @@ namespace Plugin.ResultDisplay
 
         partial void OnDisplayViewIndexChanging(ref int value) => value = Math.Clamp(value, 0, 9);
 
+        /// <summary>
+        /// 显示窗口号 = 0 时是否仍然烘焙 <see cref="AnnotatedImage"/>。默认 true（兼容存图/上报）。
+        ///
+        /// 为什么要这个开关：烘焙是每轮一次全幅 <c>DumpWindowImage</c>，而"只显示不存图"的工位
+        /// 完全不需要它。关掉后 <c>DisplayViewIndex=0</c> 的节点连底图都不读、直接返回，
+        /// 省掉一整轮像素搬运；<c>DisplayViewIndex&gt;0</c> 时仍必须烘焙（显示要用），本开关不生效。
+        /// </summary>
+        [StepConfig]
+        public bool BakeWhenNotDisplayed { get; set; } = true;
+
         private ObservableCollection<DisplayItemDef> _items = new ObservableCollection<DisplayItemDef>();
         /// <summary>
         /// 结果项表：一行 = 一个动态输入端口 = 图上一段标注。
@@ -439,6 +449,11 @@ namespace Plugin.ResultDisplay
             AnnotatedImage.Value = null!;
 
             int viewIndex = DisplayViewIndex;
+
+            // 不显示、也不需要给下游存图 → 连底图都不读，直接收工（省一次全幅 dump）。
+            // 显示时（viewIndex>0）必须烘焙，本开关不参与判断。
+            if (!BakeWhenNotDisplayed && viewIndex <= 0)
+                return;
 
             // ── ① 底图：拿不到就不发布（Success 保持 true —— 显示算子绝不停线）──
             var src = SrcImage.ActualValue;

@@ -591,10 +591,11 @@ namespace UIThemeSmokeTest
                 int logConsoleFailures = RunLogConsoleChecks();
                 int firstBatchFailures = RunFirstBatchViewChecks();
                 int loginFailures = RunLoginChecks();
+                int userManagerFailures = RunUserManagerViewChecks();
                 int pluginEntryFailures = RunPluginEntryIsolationChecks();
                 return paneLayoutFailures + shellLayoutFailures + panelModeFailures + shellModeFailures + gridFailures + colorTokenFailures
                      + flowCanvasFailures + logConsoleFailures + firstBatchFailures + loginFailures
-                     + pluginEntryFailures == 0 ? 0 : 1;
+                     + userManagerFailures + pluginEntryFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -1644,13 +1645,13 @@ namespace UIThemeSmokeTest
                             && (string)e.Attribute("Grid.Row") == "0"),
                     processViewDoc == null ? "找不到 ProcessView.xaml" : "FlowListView 已嵌入");
 
-                Check("右侧检查器只有一列（属性/图层/工具箱/图元工具箱同 pane，宽 320）",
+                Check("右侧检查器只有一列（属性/图层/工具箱/图元工具箱同 pane，宽 300）",
                     property != null && layer != null && tool != null && scadaToolbox != null
                         && property.Parent != null
                         && ReferenceEquals(property.Parent, layer.Parent)
                         && ReferenceEquals(property.Parent, tool.Parent)
                         && ReferenceEquals(property.Parent, scadaToolbox.Parent)
-                        && (string)property.Parent.Attribute("DockWidth") == "320",
+                        && (string)property.Parent.Attribute("DockWidth") == "300",
                     $"父={KindOf(property?.Parent)}，宽={(string)property?.Parent?.Attribute("DockWidth") ?? "(缺)"}");
 
                 // ---- 活动栏闸（2026-10-15 三度改版后的现状：整条下线）----
@@ -1687,6 +1688,40 @@ namespace UIThemeSmokeTest
                 Check("活动栏已整条下线：文件里没有任何面板开关（组态三面板改由模式自动收敛）",
                     panelToggles.Count == 0,
                     panelToggles.Count == 0 ? "（无）" : string.Join("，", panelToggles.Select(e => (string)e.Attribute("CommandParameter"))));
+
+                // ---- 底部控制台抽屉条（2026-10-26：收起态由 Shell 根 Grid 单独一行承载）----
+                // 为什么必须挂在 Shell 层而不是放进面板内容：AvalonDock 4.74 的 LayoutAnchorablePane
+                // 没有 ShowHeader，面板在停靠树里就一定画自己的页签条，抽屉头会被它挤没；
+                // 也不能覆盖在停靠区上——停靠区横跨三列，覆盖会盖住流程导航/工具箱的底部。
+                var drawerBar = all.FirstOrDefault(e => e.Name.LocalName == "ConsoleDrawerBar");
+                Check("底部控制台抽屉条挂在 Shell 根 Grid（行 3，DataContext 绑 ConsoleDrawer）",
+                    drawerBar != null
+                    && (string)drawerBar.Attribute("Grid.Row") == "3"
+                    && ((string)drawerBar.Attribute("DataContext") ?? string.Empty).Contains("ConsoleDrawer", StringComparison.Ordinal),
+                    drawerBar == null
+                        ? "找不到 ConsoleDrawerBar"
+                        : $"Grid.Row={(string)drawerBar.Attribute("Grid.Row")}，DataContext={(string)drawerBar.Attribute("DataContext")}");
+
+                var consoleTab = all.FirstOrDefault(e => (string)e.Attribute("ContentId") == "Panel_LogView");
+                Check("底部日志页签已改名「控制台」（与状态栏按钮、视图菜单同名）",
+                    consoleTab != null && (string)consoleTab.Attribute("Title") == "控制台",
+                    consoleTab == null ? "找不到 Panel_LogView" : $"Title={(string)consoleTab.Attribute("Title")}");
+
+                var deviceStateLeft = all.Where(e => (string)e.Attribute("ContentId") == "Panel_DeviceStateView"
+                        || (string)e.Attribute("CommandParameter") == "Panel_DeviceStateView"
+                        || (string)e.Attribute("Header") == "设备状态")
+                    .ToList();
+                Check("设备状态空壳页签与菜单项已删（设备在线归驾驶舱 KPI 卡）",
+                    deviceStateLeft.Count == 0,
+                    deviceStateLeft.Count == 0 ? "（无）" : string.Join("，", deviceStateLeft.Select(e => e.Name.LocalName)));
+
+                var deadMenuItems = all.Where(e => e.Name.LocalName == "MenuItem"
+                        && (string)e.Attribute("CommandParameter") is string deadId
+                        && (deadId == "Panel_DataView" || deadId == "Panel_ModuleOutView"))
+                    .ToList();
+                Check("视图菜单没有指向已不存在面板的死入口（数据栏 / 模块输出）",
+                    deadMenuItems.Count == 0,
+                    deadMenuItems.Count == 0 ? "（无）" : string.Join("，", deadMenuItems.Select(e => (string)e.Attribute("CommandParameter"))));
 
                 Check("两个全局命令（全局变量/硬件管理）落在停靠区之前的顶栏",
                     dockIndex >= 0
@@ -1986,6 +2021,78 @@ namespace UIThemeSmokeTest
                     && scadaPanels.All(id => !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id)),
                     Snapshot());
 
+                // ---- ②b 用户手动隐藏最后一个可见面板：pane 必须变空、工具箱进 Hidden 区、能点回来 ----
+                // 现场：用户把工具箱的图钉按下去，期望右栏收起。控件实际宽度在断言宿主里量不到
+                // （ShellCopy 窗口不 Show，pane 控件没实例化），但布局模型能钉住三件事：
+                // pane 变空、pane 不可见、工具箱进 Hidden（右侧竖条可点回来）；宽度=0 由
+                // tools\probes\_ScadaUiProbe --right-pane-hide 在真窗口里量（320 → 0）。
+                var toolPanel = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ToolView")
+                    as AvalonDock.Layout.LayoutAnchorable;
+                var toolPane = FindAncestorPane(dock, "Panel_ToolView");
+
+                if (toolPanel == null || toolPane == null)
+                {
+                    Check("隐藏最后一个可见面板：pane 变空、工具箱进 Hidden 区，再显示能恢复", false,
+                        $"找不到工具箱/pane（tool={toolPanel != null} pane={toolPane != null}）");
+                }
+                else
+                {
+                    toolPanel.IsVisible = false;
+                    dock.UpdateLayout();
+                    bool emptyPane = toolPane.ChildrenCount == 0 && !toolPane.IsVisible;
+                    bool parked = toolPanel.IsHidden;
+                    int emptyChildren = toolPane.ChildrenCount;
+
+                    toolPanel.IsVisible = true;
+                    dock.UpdateLayout();
+                    bool restored = toolPane.IsVisible && toolPane.ChildrenCount > 0;
+
+                    Check("隐藏最后一个可见面板：pane 变空、工具箱进 Hidden 区，再显示能恢复",
+                        emptyPane && parked && restored,
+                        $"空 pane={emptyPane}（子项 {emptyChildren}）、进 Hidden={parked}、恢复={restored}");
+
+                    // ---- ②c 点胶囊钉回：ShowPanel 必须回右侧 LayoutAnchorablePane，不能变中央文档 ----
+                    toolPanel.IsVisible = false;
+                    dock.UpdateLayout();
+                    VisionMaster.Services.LayoutHelper.ShowPanel(dock, "Panel_ToolView");
+                    dock.UpdateLayout();
+                    var showParent = toolPanel.Parent;
+                    Check("点胶囊钉回：工具箱回右侧 LayoutAnchorablePane（不是中央文档）",
+                        showParent is AvalonDock.Layout.LayoutAnchorablePane,
+                        $"父={showParent?.GetType().Name ?? "null"}，可见={toolPanel.IsVisible}");
+
+                    // ---- ②d 图钉自动隐藏（IsAutoHidden）→ ShowPanel 必须收回原 pane ----
+                    // 现场：用户按图钉后 Parent=LayoutAnchorGroup（不是 Hidden 区），
+                    // 旧 ShowAnchorable 只认 IsHidden，这条路径直接 return，点胶囊静默无反应。
+                    toolPanel.IsVisible = true;
+                    dock.UpdateLayout();
+                    toolPanel.ToggleAutoHide();
+                    dock.UpdateLayout();
+                    bool wentAutoHidden = toolPanel.IsAutoHidden
+                                          && toolPanel.Parent is AvalonDock.Layout.LayoutAnchorGroup;
+                    VisionMaster.Services.LayoutHelper.ShowPanel(dock, "Panel_ToolView");
+                    dock.UpdateLayout();
+                    bool dockedBack = !toolPanel.IsAutoHidden
+                                      && toolPanel.Parent is AvalonDock.Layout.LayoutAnchorablePane;
+                    Check("图钉自动隐藏后点胶囊：ToggleAutoHide 收回原 pane（不再落到 Show() 的 InvalidOperationException）",
+                        wentAutoHidden && dockedBack,
+                        $"进入自动隐藏={wentAutoHidden}（auto={toolPanel.IsAutoHidden} parent={toolPanel.Parent?.GetType().Name ?? "null"}）、钉回={dockedBack}");
+
+                    // ---- ②e 启动/布局加载尊重用户的图钉收起；显式切模式仍恢复 ----
+                    toolPanel.ToggleAutoHide();
+                    dock.UpdateLayout();
+                    bool autoAgain = toolPanel.IsAutoHidden;
+                    VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false, respectUserHidden: true);
+                    dock.UpdateLayout();
+                    bool keptHidden = toolPanel.IsAutoHidden;
+                    VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false, respectUserHidden: false);
+                    dock.UpdateLayout();
+                    bool restoredByMode = !toolPanel.IsAutoHidden && toolPanel.IsVisible;
+                    Check("启动/布局加载尊重图钉收起（respectUserHidden），显式切模式仍恢复工具箱",
+                        autoAgain && keptHidden && restoredByMode,
+                        $"再次自动隐藏={autoAgain}、加载后仍收起={keptHidden}、显式切模式恢复={restoredByMode}");
+                }
+
                 // ---- ③ 来回切两次后仍与基线一致（防"隐藏了就再也显示不回来"的累积错） ----
                 VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, true);
                 VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
@@ -2018,22 +2125,29 @@ namespace UIThemeSmokeTest
                 var propScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaPropertyView");
                 var layerScada = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ScadaLayerView");
                 bool leftHiddenInScada = !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
-                bool logCollapsed = logPaneScada != null && logPaneScada.DockHeight.IsAbsolute && logPaneScada.DockHeight.Value < 2;
-                string logCollapsedHeight = logPaneScada?.DockHeight.ToString() ?? "null";
+                // 2026-10-26 改：组态模式不再把日志压成 1px（AvalonDock 页签条有约 20px 最小高度，
+                // 1px 只会溢出成一条重复页签），而是把整块面板摘出停靠树，高度整份还给画布。
+                bool logCollapsed = logPaneScada == null;
+                string logCollapsedHeight = logPaneScada?.DockHeight.ToString() ?? "已摘出";
                 bool samePane = propScada?.Parent != null && ReferenceEquals(propScada.Parent, layerScada?.Parent);
                 bool propSelected = (propScada as AvalonDock.Layout.LayoutAnchorable)?.IsSelected == true;
 
                 VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                // A 方案（2026-10-26）：退出组态不再恢复 200，而是按调试默认收起 32；
+                // SetShellMode 会补 CollapseConsole，这里直接模拟同一步。
+                VisionMaster.Services.LayoutHelper.CollapseConsole(dock);
                 var logPaneNormal = FindAncestorPane(dock, "Panel_LogView");
                 bool leftRestored = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ProcessView");
-                bool logRestored = logPaneNormal != null && logPaneNormal.DockHeight.IsAbsolute
-                                   && System.Math.Abs(logPaneNormal.DockHeight.Value - 200) < 0.1;
-                string logRestoredHeight = logPaneNormal?.DockHeight.ToString() ?? "null";
+                bool logRestored = logPaneNormal == null
+                                   && VisionMaster.Services.LayoutHelper.CurrentConsoleState
+                                       == VisionMaster.Services.ConsolePaneState.Collapsed;
+                string logRestoredHeight = logPaneNormal?.DockHeight.ToString() ?? "已收起(32)";
 
                 Check("组态模式收起左栏（程序/流程栏），退出后恢复", leftHiddenInScada && leftRestored,
                     $"组态收起={leftHiddenInScada}，退出恢复={leftRestored}");
-                Check("组态模式把底部日志收成 1px 条（高度还给画布），退出后恢复 200", logCollapsed && logRestored,
-                    $"组态高度={logCollapsedHeight}，退出高度={logRestoredHeight}");
+                Check("组态模式把底部控制台整块摘出停靠树（高度还给画布），退出后按调试默认收起 32",
+                    logCollapsed && logRestored,
+                    $"组态={logCollapsedHeight}，退出={logRestoredHeight}({VisionMaster.Services.LayoutHelper.CurrentConsoleState})");
                 Check("属性/图层在同一个 pane（标签页），组态模式默认选中属性", samePane && propSelected,
                     $"同 pane={samePane}，属性选中={propSelected}");
 
@@ -2087,6 +2201,38 @@ namespace UIThemeSmokeTest
                         $"宽度={processPane.DockWidth}（期望 340） 最小={processPane.DockMinWidth}（期望 320）");
                 }
 
+                // ---- ⑨b 右侧检查器列宽兜底：旧布局 320（v2 的 ≥1500 值）→ 300 ----
+                var inspectorPane = FindAncestorPane(dock, "Panel_ToolView");
+                if (inspectorPane == null)
+                {
+                    Check("右侧检查器列宽兜底（旧布局 320 → 300）", false, "没找到工具箱所在的 LayoutAnchorablePane");
+                }
+                else
+                {
+                    inspectorPane.DockWidth = new System.Windows.GridLength(320);
+                    VisionMaster.Services.LayoutHelper.EnsureInspectorColumnWidth(dock);
+                    Check("右侧检查器列宽兜底：旧布局 320 → 300（≤1500 视口规则）",
+                        inspectorPane.DockWidth.IsAbsolute
+                        && System.Math.Abs(inspectorPane.DockWidth.Value - 300) < 0.1,
+                        $"宽度={inspectorPane.DockWidth}（期望 300）");
+
+                    // 304 = 自动隐藏组收回时留下的列宽（真机 Layout.xml 实测）；
+                    // 260 = AnchorToHomePane 旧兜底新建的列宽。两者都必须归一化到 300。
+                    inspectorPane.DockWidth = new System.Windows.GridLength(304);
+                    VisionMaster.Services.LayoutHelper.EnsureInspectorColumnWidth(dock);
+                    Check("右侧检查器列宽兜底：304（自动隐藏组回落）→ 300",
+                        inspectorPane.DockWidth.IsAbsolute
+                        && System.Math.Abs(inspectorPane.DockWidth.Value - 300) < 0.1,
+                        $"宽度={inspectorPane.DockWidth}（期望 300）");
+
+                    inspectorPane.DockWidth = new System.Windows.GridLength(260);
+                    VisionMaster.Services.LayoutHelper.EnsureInspectorColumnWidth(dock);
+                    Check("右侧检查器列宽兜底：260（兜底新建）→ 300",
+                        inspectorPane.DockWidth.IsAbsolute
+                        && System.Math.Abs(inspectorPane.DockWidth.Value - 300) < 0.1,
+                        $"宽度={inspectorPane.DockWidth}（期望 300）");
+                }
+
                 // ---- ⑩ 出厂快照尺寸基线（"恢复默认布局"的数据源） ----
                 // 序列化出来的就是启动时 CaptureDefaultLayoutSnapshot 写进 DefaultLayout.xml 的内容。
                 // 反证：把 ShellCopy 的流程栏列改成 230，或把右侧检查器列改成 260 → 这条红。
@@ -2097,9 +2243,9 @@ namespace UIThemeSmokeTest
                     defaultXml = writer.ToString();
                 }
 
-                Check("出厂快照尺寸基线：流程导航 340、右侧检查器 320（否则\"恢复默认布局\"会恢复出错误尺寸）",
-                    defaultXml.Contains("DockWidth=\"340\"") && defaultXml.Contains("DockWidth=\"320\""),
-                    $"宽度340={defaultXml.Contains("DockWidth=\"340\"")} 宽度320={defaultXml.Contains("DockWidth=\"320\"")}");
+                Check("出厂快照尺寸基线：流程导航 340、右侧检查器 300（否则\"恢复默认布局\"会恢复出错误尺寸）",
+                    defaultXml.Contains("DockWidth=\"340\"") && defaultXml.Contains("DockWidth=\"300\""),
+                    $"宽度340={defaultXml.Contains("DockWidth=\"340\"")} 宽度300={defaultXml.Contains("DockWidth=\"300\"")}");
 
                 // ---- ⑥⑦⑧ AvalonDock 4.74.1 的 Show() 只判上界不判下界（2026-10-16 真机闪退） ----
                 // 现场：LayoutAnchorable.Show() 把 Hide 时记下的"回哪一列、第几个位置"原样喂给
@@ -2213,6 +2359,57 @@ namespace UIThemeSmokeTest
                     Check("两轮脏记忆修复后，两种模式的收敛仍各自回到基线（修复没留下坏状态）",
                         scadaOk && normalOk,
                         $"切组态={scadaOk}，切非组态={normalOk}，{Snapshot()}");
+
+                    // ---- ⑨ 记忆指向 LayoutDocumentPane：ShowPanel 必须拒绝，不能把 anchorable 塞进中央文档 ----
+                    // 真机 Layout.xml 里工具箱的 PreviousContainerId 正是中央文档 pane（旧“拖成文档”现场）。
+                    // 库的 Show() 会真的把 anchorable 插进文档 pane（实测不抛异常），所以判废必须加容器类型。
+                    var documentPane = AvalonDock.Layout.Extensions.Descendents(dock.Layout)
+                        .OfType<AvalonDock.Layout.LayoutDocumentPane>()
+                        .FirstOrDefault();
+                    if (documentPane == null)
+                    {
+                        Check("记忆指向文档 pane 时 ShowPanel 不把 anchorable 塞进中央文档", false, "没找到 LayoutDocumentPane");
+                    }
+                    else
+                    {
+                        dirtyPanel.IsVisible = false;
+                        prevContainerProp.SetValue(dirtyPanel, documentPane);
+                        prevIndexProp.SetValue(dirtyPanel, 0);
+                        VisionMaster.Services.LayoutHelper.ShowPanel(dock, dirtyId);
+                        bool inDocumentPane = dirtyPanel.Parent is AvalonDock.Layout.LayoutDocumentPane;
+                        bool visible9 = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, dirtyId);
+                        Check("记忆指向文档 pane 时 ShowPanel 不把 anchorable 塞进中央文档（落回 anchorable pane）",
+                            visible9 && !inDocumentPane && dirtyPanel.Parent is AvalonDock.Layout.LayoutAnchorablePane,
+                            $"可见={visible9}，父={dirtyPanel.Parent?.GetType().Name ?? "null"}");
+                        VisionMaster.Services.LayoutHelper.ApplyScadaPanelMode(dock, false);
+                    }
+
+                    // ---- ⑩ 自动隐藏组是 pane 级：点一枚胶囊只让目标面板回来 ----
+                    VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Free);
+                    var toolPanel10 = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ToolView")
+                        as AvalonDock.Layout.LayoutAnchorable;
+                    if (toolPanel10 == null || !toolPanel10.IsVisible)
+                    {
+                        Check("自动隐藏组按面板收回：点工具箱只回来工具箱", false, "工具箱不可见");
+                    }
+                    else
+                    {
+                        toolPanel10.ToggleAutoHide();
+                        dock.UpdateLayout();
+                        var grouped = VisionMaster.Services.LayoutHelper
+                            .GetAutoHiddenGroupSiblingIds(dock, "Panel_ToolView")
+                            .ToList();
+                        VisionMaster.Services.LayoutHelper.ShowPanel(dock, "Panel_ToolView");
+                        foreach (var siblingId in grouped)
+                            VisionMaster.Services.LayoutHelper.HidePanel(dock, siblingId);
+                        dock.UpdateLayout();
+                        bool toolVisible = VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, "Panel_ToolView");
+                        bool othersHidden = grouped.All(id => !VisionMaster.Services.LayoutHelper.IsPanelVisible(dock, id));
+                        Check("自动隐藏组按面板收回：点工具箱只回来工具箱，同组其它面板重新收起",
+                            grouped.Count >= 1 && toolVisible && othersHidden,
+                            $"同组=[{string.Join(",", grouped)}]，工具箱={toolVisible}，其它隐藏={othersHidden}");
+                    }
+                    VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
                 }
             }
             catch (Exception ex)
@@ -2299,9 +2496,9 @@ namespace UIThemeSmokeTest
                     && (layerInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected != true,
                     $"属性选中={(propInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected}，图层选中={(layerInConfig as AvalonDock.Layout.LayoutAnchorable)?.IsSelected}");
                 var logPane = FindAncestorPane(dock, "Panel_LogView");
-                Check("组态模式：底部日志收成 1px（无流程日志占位）",
-                    logPane != null && logPane.DockHeight.IsAbsolute && logPane.DockHeight.Value < 2,
-                    logPane?.DockHeight.ToString() ?? "null");
+                Check("组态模式：底部控制台整块摘出停靠树（无流程日志占位）",
+                    logPane == null && VisionMaster.Services.LayoutHelper.CurrentConsoleState == VisionMaster.Services.ConsolePaneState.Hidden,
+                    logPane == null ? $"状态={VisionMaster.Services.LayoutHelper.CurrentConsoleState}" : logPane.DockHeight.ToString());
 
                 VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Run);
                 Check("运行模式：文档仅运行驾驶舱，左右栏隐藏",
@@ -2348,6 +2545,24 @@ namespace UIThemeSmokeTest
                     coversAll,
                     coversAll ? "四个文档 + 流程栏/工具箱齐全" : "缺少面板或序列化失败");
 
+                // ---- ⑪ 旧布局缺面板策略属性：LoadFromString 必须补回 ----
+                // XmlLayoutSerializer 会新建 LayoutAnchorable，XML 里没写的属性回落库默认
+                // （CanDockAsTabbedDocument=true / AutoHideWidth=0 / CanFloat=true）。
+                // 真机 Layout.xml 里工具箱这两项都没有；不补回 = 又能把工具箱拖成中央文档。
+                var policyXml = (coverageXml ?? string.Empty)
+                    .Replace(" CanDockAsTabbedDocument=\"False\"", "")
+                    .Replace(" AutoHideWidth=\"300\"", "")
+                    .Replace(" CanFloat=\"False\"", "");
+                bool policyLoaded = VisionMaster.Services.LayoutHelper.LoadFromString(dock, policyXml);
+                var policyTool = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ToolView")
+                    as AvalonDock.Layout.LayoutAnchorable;
+                Check("旧布局缺 CanDockAsTabbedDocument/AutoHideWidth/CanFloat：恢复后按当前策略补回",
+                    policyLoaded && policyTool != null
+                    && !policyTool.CanDockAsTabbedDocument
+                    && System.Math.Abs(policyTool.AutoHideWidth - 300) < 0.1
+                    && !policyTool.CanFloat,
+                    $"加载={policyLoaded}，面板={policyTool != null}，CanDock={policyTool?.CanDockAsTabbedDocument}，AutoHideWidth={policyTool?.AutoHideWidth}，CanFloat={policyTool?.CanFloat}");
+
                 // ---- 保存布局不许把日志 1px 写进文件（P0 回归闸） ----
                 VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Config);
                 var savedXml = VisionMaster.Services.LayoutHelper.SaveToString(dock);
@@ -2370,23 +2585,39 @@ namespace UIThemeSmokeTest
                         $"保存后图像标签选中={imageDoc.IsSelected}");
                 }
 
-                // ---- 控制台 32 / 240 两档（状态栏按钮与命令面板共用同一条命令） ----
+                // ---- 控制台收起 / 展开（2026-10-26：收起 = 整块面板摘出停靠树 + 抽屉条，展开 = 原位置插回）----
+                // 为什么不是把 DockHeight 压到 1px：AvalonDock 的页签条有约 20px 最小高度，
+                // 1px 只会让它画到面板外（真机实测抽屉条上方多一条重复页签）。收起 = 面板不在树里。
                 VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
+                // A 方案后调试模式不再自动展开控制台；先显式展开，保证下面的"收起→展开"从 Expanded 起步。
+                VisionMaster.Services.LayoutHelper.ExpandConsole(dock);
+                var heightBeforeCollapse = FindAncestorPane(dock, "Panel_LogView")?.DockHeight.ToString() ?? "null";
                 VisionMaster.Services.LayoutHelper.ToggleConsole(dock);
                 var consolePaneCollapsed = FindAncestorPane(dock, "Panel_LogView");
-                var collapsedHeight = consolePaneCollapsed?.DockHeight.ToString() ?? "null";
-                var collapsedValue = consolePaneCollapsed != null && consolePaneCollapsed.DockHeight.IsAbsolute
-                    ? consolePaneCollapsed.DockHeight.Value
-                    : double.NaN;
+                var collapsedState = VisionMaster.Services.LayoutHelper.CurrentConsoleState;
                 VisionMaster.Services.LayoutHelper.ToggleConsole(dock);
                 var consolePaneExpanded = FindAncestorPane(dock, "Panel_LogView");
                 var expandedHeight = consolePaneExpanded?.DockHeight.ToString() ?? "null";
                 var expandedValue = consolePaneExpanded != null && consolePaneExpanded.DockHeight.IsAbsolute
                     ? consolePaneExpanded.DockHeight.Value
                     : double.NaN;
-                Check("控制台 32 / 240 两档可切换（状态栏与命令面板共用）",
-                    Math.Abs(collapsedValue - 32) < 0.1 && Math.Abs(expandedValue - 240) < 0.1,
-                    $"收起={collapsedHeight}，展开={expandedHeight}");
+                var expandedState = VisionMaster.Services.LayoutHelper.CurrentConsoleState;
+                Check("控制台收起/展开：收起后整块面板不在停靠树，展开按原位置插回并还原高度",
+                    consolePaneCollapsed == null
+                    && collapsedState == VisionMaster.Services.ConsolePaneState.Collapsed
+                    && consolePaneExpanded != null
+                    && expandedValue > 60
+                    && expandedState == VisionMaster.Services.ConsolePaneState.Expanded,
+                    $"收起={(consolePaneCollapsed == null ? "已摘出" : "仍在树里")}({collapsedState})，展开={expandedHeight}({expandedState})，收起前={heightBeforeCollapse}");
+
+                // 组态模式必须落到 Hidden（抽屉条也不显示），否则底部会留一条 32px 的抽屉条
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Config);
+                var configState = VisionMaster.Services.LayoutHelper.CurrentConsoleState;
+                var configPane = FindAncestorPane(dock, "Panel_LogView");
+                Check("组态模式：控制台状态 Hidden（面板摘出停靠树、抽屉条不显示）",
+                    configState == VisionMaster.Services.ConsolePaneState.Hidden && configPane == null,
+                    $"状态={configState}，面板={(configPane == null ? "已摘出" : "仍在树里")}");
+                VisionMaster.Services.LayoutHelper.ApplyShellMode(dock, VisionMaster.ShellMode.Debug);
 
                 // ---- 布局文件缺核心文档的兜底：模拟历史 Layout.xml 只存了图像/画布 ----
                 // 真实事故：Layout.xml 缺少 Panel_ScadaEditorView，组态模式只剩空文档窗格，
@@ -3148,7 +3379,7 @@ namespace UIThemeSmokeTest
 
                 Check("出厂账号就位：首次运行给出内置管理员（否则全新机器谁也登不进去）",
                     store.Users.Any(u => u.Name == VisionMaster.Services.ScadaUserStore.DefaultAdminName
-                                         && u.Role == VisionMaster.Scada.ScadaRole.Administrator),
+                                         && u.GroupId == VisionMaster.Scada.ScadaGroupDefaults.AdminTemplateId),
                     "账号数=" + store.Users.Count);
 
                 Check("出厂密码检测：未改密时为真（登录窗据此亮「立即修改」提示条）",
@@ -3159,10 +3390,11 @@ namespace UIThemeSmokeTest
                 bool okAdmin = store.TryValidate(
                     VisionMaster.Services.ScadaUserStore.DefaultAdminName,
                     VisionMaster.Services.ScadaUserStore.DefaultAdminPassword,
-                    out var adminRole, out var adminError);
-                Check("正确账号密码通过校验并给出管理员角色",
-                    okAdmin && adminRole == VisionMaster.Scada.ScadaRole.Administrator && adminError == null,
-                    $"ok={okAdmin} role={adminRole} error={adminError ?? "null"}");
+                    out var adminUser, out var adminError);
+                Check("正确账号密码通过校验并给出管理员用户组",
+                    okAdmin && adminUser?.GroupId == VisionMaster.Scada.ScadaGroupDefaults.AdminTemplateId
+                    && adminError == null,
+                    $"ok={okAdmin} group={adminUser?.GroupId} error={adminError ?? "null"}");
 
                 // 错密码：文案不区分"用户不存在"与"密码错误"（避免账号枚举）
                 bool okWrong = store.TryValidate(VisionMaster.Services.ScadaUserStore.DefaultAdminName, "wrong-pass",
@@ -3194,9 +3426,9 @@ namespace UIThemeSmokeTest
                     $"改密={okChange} 旧密码还能用={oldStillWorks} 新密码能用={newWorks} 提示仍亮={hintAfter} 错误={changeError ?? "null"}");
 
                 // 最后一个管理员不能被降权（否则"以后没人能再管理账号"）
-                bool okDemote = store.TrySetRole(
+                bool okDemote = store.TryChangeGroup(
                     VisionMaster.Services.ScadaUserStore.DefaultAdminName,
-                    VisionMaster.Scada.ScadaRole.Operator, out var demoteError);
+                    VisionMaster.Scada.ScadaGroupDefaults.OperatorTemplateId, out var demoteError);
                 Check("最后一个管理员不能被降权（守的是数据不变式，不是界面）",
                     !okDemote && demoteError != null, $"ok={okDemote} error={demoteError ?? "null"}");
 
@@ -3242,9 +3474,74 @@ namespace UIThemeSmokeTest
             return failures;
         }
 
-        /// <summary>数视图里过滤后还剩几条（枚举视图只会走过滤后的项）</summary>
-        private static int CountView(System.ComponentModel.ICollectionView view)
+        /// <summary>
+        /// 「用户管理 · 账号与用户组」页签冒烟（2026-10-25）。
+        ///
+        /// <para>为什么要有它：这张页签是 <c>UserManagementView</c> 的第一个页签，也是全仓最后
+        /// 一批还写着 40 处十六进制色的弹窗之一。令牌化之后要有人钉住两件事——
+        /// ① 颜色不许再写回字面量；② <c>{StaticResource}</c> 真的解析得到。</para>
+        ///
+        /// <para>② 只能靠<b>真实例化</b>证明：断言宿主没有 Application，视图若没就地 merge
+        /// <c>Colors.xaml</c>，BAML 加载期就抛 <c>XamlParseException</c>（找不到资源）。
+        /// 静态扫描看不出这一条——这也正是 R22「引用了库样式的视图必须就地合并」的原因。</para>
+        /// </summary>
+        private static int RunUserManagerViewChecks()
         {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            const string viewPath = @"d:\C#\VM\VisionMaster\Views\DialogViews\ScadaUserManagerView.xaml";
+            string raw = File.Exists(viewPath) ? File.ReadAllText(viewPath) : string.Empty;
+            string code = Regex.Replace(raw, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
+
+            int hex = Regex.Matches(code, "#[0-9A-Fa-f]{6,8}").Count;
+            Check("用户管理页签零硬编码色（原 40 处已全部换成 Scada* 令牌）",
+                raw.Length > 0 && hex == 0,
+                raw.Length == 0 ? "找不到 ScadaUserManagerView.xaml" : $"hex={hex}");
+
+            bool merged = code.Contains("Themes/Colors.xaml", StringComparison.Ordinal);
+            Check("用户管理页签就地合并 Colors.xaml（断言宿主无 Application，靠它解析令牌）",
+                merged, merged ? "已合并" : "缺 Colors.xaml 合并（无 Application 时会 XamlParseException）");
+
+            // 真实例化：XAML 解析 + 模板套用 + 每个 StaticResource 解析都在这条里过一遍。
+            try
+            {
+                var view = new VisionMaster.Views.DialogViews.ScadaUserManagerView();
+                var host = new Border { Width = 760, Height = 560, Child = view };
+                host.Measure(new Size(760, 560));
+                host.Arrange(new Rect(0, 0, 760, 560));
+                host.UpdateLayout();
+
+                Check("用户管理页签可实例化并完成布局（XAML 解析 + 模板 + 令牌解析）",
+                    view.ActualWidth > 0 && view.ActualHeight > 0,
+                    $"{view.ActualWidth:0}x{view.ActualHeight:0}");
+
+                var list = FindDescendant<ListView>(view);
+                var combo = Descendants<ComboBox>(view)
+                    .FirstOrDefault(c => string.Equals(c.DisplayMemberPath, "Text", StringComparison.Ordinal));
+
+                Check("用户管理页签关键控件在位（账号表挂 GridListViewStyle + 用户组下拉绑 GroupOptions）",
+                    list != null && list.Style != null && combo != null,
+                    $"list={list != null} style={(list?.Style != null)} combo={combo != null}");
+            }
+            catch (Exception ex)
+            {
+                Check("用户管理页签可实例化并完成布局（XAML 解析 + 模板 + 令牌解析）", false,
+                    ex.GetType().Name + ": " + ex.Message);
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 用户管理页签（账号与用户组）冒烟：全部通过 ==="
+                : $"### 用户管理页签冒烟：{failures} 项失败");
+            return failures;
+        }
+
+        /// <summary>数视图里过滤后还剩几条（枚举视图只会走过滤后的项）</summary>
+        private static int CountView(System.ComponentModel.ICollectionView view)        {
             int n = 0;
             foreach (var _ in view) n++;
             return n;
@@ -3269,9 +3566,7 @@ namespace UIThemeSmokeTest
         {
             foreach (var found in Descendants<T>(root)) return found;
             return null;
-        }
-
-        /// <summary>可视树里所有 T 类型元素（先根序）</summary>
+        }        /// <summary>可视树里所有 T 类型元素（先根序）</summary>
         private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
         {
             int count = VisualTreeHelper.GetChildrenCount(root);

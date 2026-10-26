@@ -1,4 +1,5 @@
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using Core.Interfaces.Database;
 using Core.Interfaces.Io;
 using System;
@@ -131,6 +132,29 @@ namespace VisionMaster.Services
         /// </summary>
         public ISharedVariableAccess SharedVariables
             => _variableStore ??= new GlobalVariableWriter(Workspace);
+
+        private ICalibrationCatalog? _calibrationCatalog;
+
+        /// <summary>
+        /// 方案级标定资产目录：从当前工作区的方案懒建（与 GlobalVariables 同一模式）。
+        /// 没有工作区时返回空目录；有工作区时始终是同一个包装实例，插件写入即落在方案上，
+        /// 保存 .vms 时随 <see cref="SolutionModel.Calibrations"/> 一起落盘。
+        /// </summary>
+        public ICalibrationCatalog Calibrations
+            => _calibrationCatalog ??= Workspace?.CurrentSolution is { } solution
+                ? new SolutionCalibrationCatalog(solution)
+                : NullCalibrationCatalog.Instance;
+
+        private IProjectAssetResolver? _projectAssets;
+
+        /// <summary>
+        /// 方案内容资产目录：插件按 AssetId 解析模板/模型/图像文件路径。
+        /// 与 Calibrations 同一懒建模式；没有工作区时回落实空实现。
+        /// </summary>
+        public IProjectAssetResolver Assets
+            => _projectAssets ??= Workspace?.CurrentSolution is { } solution
+                ? new SolutionProjectAssetResolver(solution)
+                : NullProjectAssetResolver.Instance;
 
         /// <summary>
         /// 运行期能力面清单（唯一事实源）。新增任何"由宿主注入、缺省回落空实现"的能力属性时，

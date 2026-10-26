@@ -31,6 +31,19 @@ namespace VisionMaster.Scada
     public interface IScadaActionDispatcher
     {
         /// <summary>
+        /// 语音播报出口（「语音播报」动作）。默认 null = 未接入，该动作按"未接入"如实跳过。
+        ///
+        /// 为什么做成<b>可写属性 + 默认实现</b>：播报器跟着运行态会话起停（见
+        /// <c>ScadaMonitoringHost</c>），而分发器是应用级单例；会话启动时挂上、停止时摘掉。
+        /// 给默认实现是为了让既有的替身分发器（断言工程里的假实现）不必为这条新能力改签名。
+        /// </summary>
+        IScadaAnnouncer? Announcer
+        {
+            get => null;
+            set { }
+        }
+
+        /// <summary>
         /// 执行一条钩子里的全部动作（按 <see cref="ScadaEventHook.Actions"/> 的集合次序）。
         /// 钩子为 null 或动作表为空时什么都不做——"没配动作"由空集合表达，不是错误。
         /// </summary>

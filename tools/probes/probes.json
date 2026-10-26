@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-24",
+  "updated": "2026-10-26",
   "note": "探针登记表：dir/project 均相对本文件所在目录。运行中的任务必须通过 run-probe.ps1 或本表解析路径，禁止按记忆拼旧路径。",
   "probes": [
     {
@@ -74,6 +74,13 @@
       "description": "报警配置弹窗出图探针（九态 --states=filled,stale,filter,nomatch,error,receipt,new,empty,running）；出图落 artifacts/render/<yyyyMMdd>/scada-alarm-config/；重复像素哈希即判红"
     },
     {
+      "name": "UserManagementUiProbe",
+      "dir": "_UserManagementUiProbe",
+      "project": "_UserManagementUiProbe.csproj",
+      "runMode": "dotnet",
+      "description": "用户管理页 v4 出图探针（账号/会话/审计/权限目录/行内新建/组编辑/32满额七屏）；出图落 artifacts/render/<yyyyMMdd>/user-management-v4/；尺寸或像素指纹异常即判红"
+    },
+    {
       "name": "ChartProbe5",
       "dir": "_ChartProbe5",
       "project": "_ChartProbe5.csproj",
@@ -109,6 +116,13 @@
       "project": "CameraSimProbe.csproj",
       "runMode": "dotnet",
       "description": "产线仿真 P1 出口验证：起 LineSim --serve，用真驱动 SimCameraDevice 走 打开/采流/软触发即渲染/取帧/像素与身份/曝光生效/仿真器侧计数（输出 RESULT: ALL_OK）"
+    },
+    {
+      "name": "ProjectAssetsUiProbe",
+      "dir": "_ProjectAssetsUiProbe",
+      "project": "_ProjectAssetsUiProbe.csproj",
+      "runMode": "dotnet",
+      "description": "项目资产管理页离线出图与断言：真实五类数量、徽标 22px/居中、模板/模型/图像导入/重复/AssetId 解析/序列化；不启动主窗口，出图落 artifacts/render/<yyyyMMdd>/project-assets-ui/"
     }
   ]
 }

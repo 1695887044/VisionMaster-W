@@ -196,21 +196,21 @@ namespace VisionMaster.Services
         public const int DefaultRetentionDays = AppConfigModel.DefaultAuditRetentionDays;
 
         /// <summary>文件名模板。用<b>本地</b>日期：现场是按本地时间查"昨天下午谁动过"的</summary>
-        private const string FileNameFormat = "Audit-{0:yyyy-MM-dd}.csv";
+        internal const string FileNameFormat = "Audit-{0:yyyy-MM-dd}.csv";
 
         /// <summary>文件名前缀/后缀。清理时靠它俩 + 日期格式三重确认"这是本类建的文件"</summary>
-        private const string FileNamePrefix = "Audit-";
+        internal const string FileNamePrefix = "Audit-";
 
-        private const string FileNameSuffix = ".csv";
+        internal const string FileNameSuffix = ".csv";
 
         /// <summary>文件名里那一段日期的格式（与 <see cref="FileNameFormat"/> 必须一致）</summary>
-        private const string FileNameDateFormat = "yyyy-MM-dd";
+        internal const string FileNameDateFormat = "yyyy-MM-dd";
 
         /// <summary>行内时间戳格式。带毫秒的理由见类注释</summary>
-        private const string TimeFormat = "yyyy-MM-dd HH:mm:ss.fff";
+        internal const string TimeFormat = "yyyy-MM-dd HH:mm:ss.fff";
 
         /// <summary>CSV 表头。列序 = 现场追责时的提问顺序：谁 → 对谁 → 怎么触发的 → 干了什么 → 成没成 → 为什么</summary>
-        private static readonly string[] Header =
+        internal static readonly string[] Header =
         {
             "时间", "操作者", "对象", "事件", "动作", "结果", "说明",
         };
@@ -234,6 +234,9 @@ namespace VisionMaster.Services
         /// 于是"改完立刻生效"是结构上保证的，不必重启软件，也不靠谁记得把新值推过来。
         /// </summary>
         private readonly Func<int>? _retentionProvider;
+
+        /// <summary>方案标签提供者；null / 空串 = 不加任何前缀（保持旧文件逐字节不变）。</summary>
+        private readonly Func<string?>? _solutionTagProvider;
 
         /// <summary>
         /// 写文件的互斥闸。两个 <see cref="Append(ScadaAuditEntry)"/> 重载共用这一把：
@@ -266,7 +269,8 @@ namespace VisionMaster.Services
         public ScadaAuditWriter(string directory,
                                 Action<ScadaDiagnosticLevel, string>? onDiagnostic = null,
                                 int retentionDays = DefaultRetentionDays,
-                                Func<int>? retentionProvider = null)
+                                Func<int>? retentionProvider = null,
+                                Func<string?>? solutionTagProvider = null)
         {
             _directory = string.IsNullOrWhiteSpace(directory)
                 ? throw new ArgumentException("审计目录不能为空", nameof(directory))
@@ -274,6 +278,7 @@ namespace VisionMaster.Services
             _onDiagnostic = onDiagnostic;
             _retentionDays = retentionDays;
             _retentionProvider = retentionProvider;
+            _solutionTagProvider = solutionTagProvider;
         }
 
         /// <summary>
@@ -517,7 +522,7 @@ namespace VisionMaster.Services
         /// 从文件名里读回日期。<b>解析不出来就当它不是本类建的文件</b>（返回 false，不删）——
         /// 宁可漏清一个，也不能误删一个。
         /// </summary>
-        private static bool TryReadFileDate(string fileName, out DateTime day)
+        internal static bool TryReadFileDate(string fileName, out DateTime day)
         {
             day = default;
 
@@ -546,8 +551,13 @@ namespace VisionMaster.Services
         /// 把一条记录拍成 CSV 的一行。时间戳由<b>落笔这一刻</b>给出（见 <see cref="ScadaAuditEntry"/>
         /// 的类注释），其余列全部来自记录快照。
         /// </summary>
-        private static string BuildRow(ScadaAuditEntry entry, DateTime nowLocal)
+        private string BuildRow(ScadaAuditEntry entry, DateTime nowLocal)
         {
+            var detail = entry.Detail;
+            var tag = _solutionTagProvider?.Invoke();
+            if (!string.IsNullOrWhiteSpace(tag))
+                detail = string.IsNullOrEmpty(detail) ? tag : tag + " " + detail;
+
             string[] fields =
             {
                 FormatTime(nowLocal),
@@ -556,7 +566,7 @@ namespace VisionMaster.Services
                 Escape(entry.EventText),
                 Escape(entry.ActionText),
                 entry.Outcome.DisplayName(),
-                Escape(entry.Detail),
+                Escape(detail),
             };
 
             return string.Join(",", fields);

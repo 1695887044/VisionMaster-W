@@ -139,6 +139,13 @@ namespace Plugin.HandEye
             set { if (value) PoseKind = HandEyePoseKind.EyeToHand; }
         }
 
+        /// <summary>装法按钮文案：走契约 [Display(Name)] 单一来源（R40/R84），改显示名界面自动跟。</summary>
+        [JsonIgnore] public string EyeInHandLabel => PoseKindLabel(HandEyePoseKind.EyeInHand);
+        [JsonIgnore] public string EyeToHandLabel => PoseKindLabel(HandEyePoseKind.EyeToHand);
+
+        private static string PoseKindLabel(HandEyePoseKind kind)
+            => StepConfigOption.ForEnum(typeof(HandEyePoseKind), kind.ToString()).Display;
+
         /// <summary>
         /// 成对数据表：每行一组「机器人位姿 ↔ 相机位姿」（12 个分量，位置 mm / 角度度 / ZYX 欧拉）。
         /// **数据的家在这里**，不是磁盘上的 csv：
@@ -312,6 +319,12 @@ namespace Plugin.HandEye
         private string _previewPairsText = "—";
         private string[] _previewMatrixCells = NewBlankCells();
 
+        // 完整精度结果：持久化直接存这 16 个数，不再从 3 位小数的显示串反解。
+        private Mat4? _previewMatrix;
+        private double _previewRotationRmsDeg = double.NaN;
+        private double _previewTranslationRmsMm = double.NaN;
+        private int _previewUsedPairs;
+
         /// <summary>
         /// 「加一行」「删一行」「求解」三个动作都放插件里，不放视图：
         /// 视图只写布局与绑定（R141），按钮背后的语义与流程里的执行必须同一份代码。
@@ -409,7 +422,27 @@ namespace Plugin.HandEye
         public void SolveForPreview()
         {
             var sw = Stopwatch.StartNew();
-            bool solved = TrySolve(out Mat4 x, out HandEyeMath.Quality q, out double rotDeg, out string? error);
+
+            // 数学层已按"返回 false + 中文原因"设计；这里再兜一层，
+            // 防的是未来新加的路径又把 NaN 送进 Math.Sign 这类会抛的 .NET API。
+            bool solved;
+            Mat4 x;
+            HandEyeMath.Quality q;
+            double rotDeg;
+            string? error;
+            try
+            {
+                solved = TrySolve(out x, out q, out rotDeg, out error);
+            }
+            catch (Exception ex)
+            {
+                solved = false;
+                x = null!;
+                q = default;
+                rotDeg = 0;
+                error = $"手眼求解异常：{ex.GetType().Name}: {ex.Message}（请检查成对数据是否含 NaN/Inf）";
+            }
+
             sw.Stop();
 
             _previewMeta = $"数据源 成对数据表 · 求解耗时 {sw.ElapsedMilliseconds} ms";
@@ -422,16 +455,24 @@ namespace Plugin.HandEye
                 _previewTranslationText = "—";
                 _previewPairsText = "—";
                 _previewMatrixCells = NewBlankCells();
+                _previewMatrix = null;
+                _previewRotationRmsDeg = double.NaN;
+                _previewTranslationRmsMm = double.NaN;
+                _previewUsedPairs = 0;
                 RaisePreviewChanged();
                 return;
             }
 
             _previewState = PreviewStateKind.Ok;
             _previewError = string.Empty;
-            _previewRotationText = $"{rotDeg:0.###}°";
-            _previewTranslationText = $"{q.TranslationRms:0.###} mm";
-            _previewPairsText = q.UsedPairs.ToString();
+            _previewRotationText = rotDeg.ToString("0.###", CultureInfo.InvariantCulture) + "°";
+            _previewTranslationText = q.TranslationRms.ToString("0.###", CultureInfo.InvariantCulture) + " mm";
+            _previewPairsText = q.UsedPairs.ToString(CultureInfo.InvariantCulture);
             _previewMatrixCells = FormatCells(x);
+            _previewMatrix = x;
+            _previewRotationRmsDeg = rotDeg;
+            _previewTranslationRmsMm = q.TranslationRms;
+            _previewUsedPairs = q.UsedPairs;
 
             RaisePreviewChanged();
         }
@@ -469,6 +510,10 @@ namespace Plugin.HandEye
             _previewTranslationText = "—";
             _previewPairsText = "—";
             _previewMatrixCells = NewBlankCells();
+            _previewMatrix = null;
+            _previewRotationRmsDeg = double.NaN;
+            _previewTranslationRmsMm = double.NaN;
+            _previewUsedPairs = 0;
         }
 
         private void RaisePreviewChanged()
@@ -595,7 +640,8 @@ namespace Plugin.HandEye
         {
             double[] v = m.ToArray();
             var cells = new string[16];
-            for (int i = 0; i < 16; i++) cells[i] = v[i].ToString("0.000");
+            for (int i = 0; i < 16; i++)
+                cells[i] = v[i].ToString("0.000", CultureInfo.InvariantCulture);
             return cells;
         }
 
@@ -651,36 +697,26 @@ namespace Plugin.HandEye
         /// <summary>把当前结论序列化（只在 OnConfirm 调用；调用前必须确认是 Ok 态）</summary>
         private string SerializeSavedResult()
         {
-            double[] matrix = new double[16];
-            for (int i = 0; i < 16; i++)
+            // 直接存解出来的 4×4（完整 double），不再从 3 位小数的显示串反解：
+            // 显示串每"打开→确定"再舍入一次，旋转矩阵会逐渐失去正交性。
+            double[] matrix = _previewMatrix?.ToArray() ?? new double[16];
+            if (_previewMatrix == null)
             {
-                matrix[i] = double.TryParse(_previewMatrixCells[i], NumberStyles.Float, CultureInfo.InvariantCulture, out double v)
-                    ? v
-                    : double.NaN;
+                for (int i = 0; i < matrix.Length; i++) matrix[i] = double.NaN;
             }
 
             var payload = new SavedResultPayload
             {
                 Fingerprint = ComputeFingerprint(),
                 Pose = PoseKind,
-                RotationRmsDeg = ParseOrNaN(_previewRotationText, "°"),
-                TranslationRmsMm = ParseOrNaN(_previewTranslationText, " mm"),
-                UsedPairs = int.TryParse(_previewPairsText, out int used) ? used : 0,
+                RotationRmsDeg = _previewRotationRmsDeg,
+                TranslationRmsMm = _previewTranslationRmsMm,
+                UsedPairs = _previewUsedPairs,
                 Matrix = matrix,
                 SavedAtLocal = DateTime.Now.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture)
             };
 
             return JsonConvert.SerializeObject(payload);
-        }
-
-        /// <summary>从 "0.021°" / "0.147 mm" 这类展示串里取回数值（取不回就存 NaN，读回时按无效处理）</summary>
-        private static double ParseOrNaN(string text, string suffix)
-        {
-            if (string.IsNullOrEmpty(text)) return double.NaN;
-            string s = text.EndsWith(suffix, StringComparison.Ordinal)
-                ? text[..^suffix.Length]
-                : text;
-            return double.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out double v) ? v : double.NaN;
         }
 
         /// <summary>解析 <see cref="SavedResult"/>；空串、脏 JSON、缺字段、矩阵不是 16 个都返回 null（当没有存过）</summary>
@@ -737,13 +773,27 @@ namespace Plugin.HandEye
             }
 
             _previewState = PreviewStateKind.Ok;
-            _previewRotationText = double.IsFinite(saved.RotationRmsDeg) ? $"{saved.RotationRmsDeg:0.###}°" : "—";
-            _previewTranslationText = double.IsFinite(saved.TranslationRmsMm) ? $"{saved.TranslationRmsMm:0.###} mm" : "—";
+            _previewRotationText = double.IsFinite(saved.RotationRmsDeg)
+                ? saved.RotationRmsDeg.ToString("0.###", CultureInfo.InvariantCulture) + "°"
+                : "—";
+            _previewTranslationText = double.IsFinite(saved.TranslationRmsMm)
+                ? saved.TranslationRmsMm.ToString("0.###", CultureInfo.InvariantCulture) + " mm"
+                : "—";
             _previewPairsText = saved.UsedPairs > 0 ? saved.UsedPairs.ToString(CultureInfo.InvariantCulture) : "—";
+            _previewRotationRmsDeg = saved.RotationRmsDeg;
+            _previewTranslationRmsMm = saved.TranslationRmsMm;
+            _previewUsedPairs = saved.UsedPairs;
 
             var cells = new string[16];
             for (int i = 0; i < 16; i++) cells[i] = saved.Matrix![i].ToString("0.000", CultureInfo.InvariantCulture);
             _previewMatrixCells = cells;
+
+            // 把方案里的 16 元还原成活矩阵：重开方案后直接点「确定」也不会把精度降回 3 位小数。
+            var restored = new Mat4();
+            for (int r = 0; r < 4; r++)
+                for (int c = 0; c < 4; c++)
+                    restored[r, c] = saved.Matrix![r * 4 + c];
+            _previewMatrix = restored;
 
             _previewMeta = $"{DescribeSaved(saved)} · 数据未变，未重算";
             RaisePreviewChanged();
@@ -979,6 +1029,19 @@ namespace Plugin.HandEye
                 {
                     error = $"成对数据第 {i + 1} 行还没填（12 个值全为 0）：填完或删掉这一行再求解";
                     return false;
+                }
+
+                // 12 个分量逐个判有限性：NaN/Inf 可能来自 CSV、Excel 粘贴或手改，
+                // 放进求解器会在旋转 π 分支抛 ArithmeticException，或在平移方程里
+                // 落成误导性的"堆叠矩阵奇异"——必须在构建样本时点名是哪一行。
+                double[] values = rows[i].ToRow();
+                for (int k = 0; k < values.Length; k++)
+                {
+                    if (!double.IsFinite(values[k]))
+                    {
+                        error = $"成对数据第 {i + 1} 行含非法数值（第 {k + 1} 列为 NaN/Inf）——请检查该行的填写";
+                        return false;
+                    }
                 }
 
                 samples.Add(rows[i].ToMathSample());

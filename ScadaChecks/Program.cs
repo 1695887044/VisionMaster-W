@@ -93,6 +93,10 @@ namespace ScadaChecks
             Console.WriteLine("========== SCADA 断言（S0 变量身份/改名级联 + S1 画面领域层） ==========");
             if (stress) Console.WriteLine("（已启用 --stress：叠加万级压力测试）");
 
+            // 调试模式断言只碰内存与临时目录，不依赖后面的任何夹具；
+            // 放在最前面是为了不被后面"写 bin 下 AppConfig.json"那类环境问题连带打断。
+            DebugModeChecks();
+
             VariableIdentity();
             IdentitySurvivesRename();
             PersistenceRoundTrip();
@@ -111,6 +115,7 @@ namespace ScadaChecks
             ContainerElementChecks();
             BasePageChecks();
             ScadaEditorToolbarChecks();
+            HistoryThreadChecks.Run();
             ElementControlChecks();
             AxisPanelChecks();
             TankKpiChecks.Run();
@@ -128,12 +133,20 @@ namespace ScadaChecks
             BatchBVisualChecks.Run();
             BatchCVisualChecks.Run();
             BatchDChecks.Run();
-            UserStoreConcurrencyChecks.Run();
-            // 并发段有自己的计数与汇总（顶层 public 类），必须把它的结果并回主汇总：
-            // 否则 UC16~UC18 的红条只出现在日志里，最终 Finish 仍报 0 失败。
-            var ucResult = UserStoreConcurrencyChecks.LastResult;
-            _pass += ucResult.Pass;
-            _fail += ucResult.Fail;
+            ReportChecks.Run();
+            ProcessSymbolChecks.Run();
+            PipeRunChecks.Run();
+            ScheduleChecks.Run();
+            AnnouncerChecks.Run();
+            ElementStyleKeyChecks.Run();
+            DialogLayoutChecks.Run();
+            TouchPolishChecks.Run();
+            ReportImportChecks.Run();
+            ChartChecks.Run();
+            AlarmScrollChecks.Run();
+            P1FixChecks.Run();
+            StateTokenChecks.Run();
+            // B3：旧角色制 [US]/[UC] 段已由 SolutionUserChecks 的 [SL]/[SL-g]/[SL-b] 取代。
             ScadaAlarmHistoryChecks();
             ScadaMonitoringChecks();
             ChoiceControlChecks.Run();
@@ -166,7 +179,6 @@ namespace ScadaChecks
             AlarmHistoryChecks();
             AlarmBannerChecks();
             AlarmHistoryPanelChecks();
-            UserStoreChecks();
             AuditWriterChecks();
             M2AuditRegressionChecks.Run();
             _pass += M2AuditRegressionChecks.Pass;
@@ -175,8 +187,10 @@ namespace ScadaChecks
             SystemSettingsPanelChecks();
             SystemSettingsExtendedChecks();
             SolutionListAuditChecks();
+            AppSettingsLoadIdempotencyChecks();
             PackagingChecks();
             SolutionFolderChecks();
+            SolutionUserChecks();
             VariableEventDialogChecks();
             AlarmConfigDialogChecks();
             if (stress) StressRoundTrip();
@@ -2458,8 +2472,9 @@ namespace ScadaChecks
                 "Hmi.DataGrid", "Hmi.RunMeter", "Hmi.QRCode", "Hmi.Barcode", "Hmi.MultiTrend",
                 "Hmi.RecipePanel", "Hmi.StateView", "Hmi.SubPage",
                 "Hmi.BitTable", "Hmi.IoMonitor", "Hmi.VariableMonitor",
+                "Hmi.Report", "Hmi.Symbol", "Hmi.PipeRun", "Hmi.BarChart", "Hmi.PieChart",
             };
-            Check("45 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势、配方只读面板、状态图元、嵌入画面、多边形/贝塞尔/动态画线/GIF、位表与两个监视预设）",
+            Check("50 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势、配方只读面板、状态图元、嵌入画面、多边形/贝塞尔/动态画线/GIF、位表与两个监视预设、报表、工艺符号、管道连线）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -2548,7 +2563,8 @@ namespace ScadaChecks
                 ["Hmi.Button"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "Text:文字=按钮;Fill:填充色=#FF2D7DD2;Stroke:边框色=#FF1F5C9E;StrokeThickness:边框粗细=1;" +
-                    "CornerRadius:圆角=3;Foreground:文字颜色=#FFFFFFFF;FontSize:字号=12;FontWeight:字重=Normal",
+                    "CornerRadius:圆角=3;Foreground:文字颜色=#FFFFFFFF;Danger:危险动作=False;" +
+                    "FontSize:字号=12;FontWeight:字重=Normal",
                 ["Hmi.Indicator"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "IsOn:点亮=False;OnColor:点亮色=#FF34C759;OffColor:熄灭色=#FF3A3A3A;Shape:形状=Circle;" +
@@ -2636,7 +2652,9 @@ namespace ScadaChecks
                     "Stroke:管壁色=#FF5A5A5A;StrokeThickness:管壁粗细=1",
                 ["Hmi.AlarmBanner"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
-                    "MaxRows:最多显示=5;EmptyText:无报警提示=系统正常;" +
+                    "MaxRows:最多显示=5;ScrollMode:形态=Ticker;ScrollSpeed:跑马灯速度（像素/秒）=60;" +
+                    "AutoScroll:自动滚动=True;SecondsPerRow:每行停留（秒）=2.5;" +
+                    "EmptyText:无报警提示=系统正常;" +
                     "NormalColor:正常色=#FF34C759;InfoColor:提示色=#FF3B82F6;" +
                     "WarningColor:警告色=#FFFFB020;CriticalColor:严重色=#FFE03A2B;" +
                     "Fill:底色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=8;" +
@@ -2691,6 +2709,32 @@ namespace ScadaChecks
                     "OnColor:置位色=#FF34C759;OffColor:复位色=#FF2A3441;ValueForeground:值文字色=#FFFFFFFF;" +
                     "Fill:填充色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=6;" +
                     "Text:标题=变量监视;Foreground:标题颜色=#FFE6EEF7;FontSize:字号=12",
+
+                // 报表与工艺符号（中控对标批次）。
+                ["Hmi.Report"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "Mode:报表模式=Detail;From:起点=-1d;To:终点=now;Grouping:分组=None;" +
+                    "ShiftStarts:班次起点=08:00,20:00;Keyword:关键字=;ReportColumns:列=;" +
+                    "AutoQuery:自动查询=True;MaxRows:最多行数=5000;PageSize:每页行数=200;" +
+                    "AllowExport:允许导出=True;AllowPrint:允许打印=True;ShowToolbar:显示工具条=True;" +
+                    "PageOrientation:纸张方向=Portrait;Zebra:斑马纹=True;" +
+                    "Fill:填充色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=8;" +
+                    "Text:标题=生产报表;Foreground:文字颜色=#FFE6EEF7;FontSize:字号=12",
+                ["Hmi.Symbol"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "SymbolKind:符号=Tower;State:状态=None;AccentColor:运行色=#FF34C759;" +
+                    "StoppedColor:停止色=#FF7A7A7A;FaultColor:故障色=#FFE03A2B;BlinkOnFault:故障闪烁=False;" +
+                    "DetailCount:细部数量=0;TagPlacement:位号位置=Below;ShowValue:显示数值=False;" +
+                    "Value:数值=0;ValueFormat:数值格式=0.#;Unit:单位=;Interactive:允许点击=False;" +
+                    "Stroke:轮廓色=#FF9AA5B1;StrokeThickness:边框粗细=1;" +
+                    "Foreground:文字颜色=#FFE6EEF7;FontSize:字号=11",
+                ["Hmi.PipeRun"] =
+                    "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
+                    "FromId:起点图元=;FromPort:起点接口=Right;ToId:终点图元=;ToPort:终点接口=Left;" +
+                    "RouteMode:走线=Orthogonal;Detour:避让设备=True;ShowLabel:显示标签=True;" +
+                    "LabelAt:标签位置=0.5;LabelOffset:标签偏移=-14;" +
+                    "Stroke:管色=#FF38BDF8;StrokeThickness:管宽=2;" +
+                    "Text:管线号=;Foreground:文字颜色=#FFE6EEF7;FontSize:字号=11",
             };
 
             foreach (var (typeKey, expected) in expectedSnapshots)
@@ -3280,11 +3324,20 @@ namespace ScadaChecks
             Section("[T] 编辑器顶栏：标签、基座下拉、新建分裂按钮");
 
             Exception? failure = null;
+            ScadaEditorVM? editor = null;
 
             var thread = new Thread(() =>
             {
-                try { RunScadaEditorToolbarChecks(); }
+                try { RunScadaEditorToolbarChecks(vm => editor = vm); }
                 catch (Exception ex) { failure = ex; }
+                finally
+                {
+                    // **异常路径也要摘订阅**：本检查的 VM 订阅的是静态 ScadaEditHistory.Changed，
+                    // 而这条 STA 线程 Join 完就没了。留着它，后面任何线程压栈都会回调到一个
+                    // 死线程的 VM 上（2026-10-26 实测：证据 PNG 被并发进程锁住 → SavePng 抛 →
+                    // 走不到方法末尾那句 Deactivate → 后续 RunSoundAlarmChecks 压栈直接崩进程）。
+                    editor?.Deactivate();
+                }
             });
             thread.SetApartmentState(ApartmentState.STA);
             thread.IsBackground = true;
@@ -3295,7 +3348,11 @@ namespace ScadaChecks
                 Check("顶栏渲染全程未抛异常（视图引用的资源都能解析）", false, failure.ToString());
         }
 
-        private static void RunScadaEditorToolbarChecks()
+        /// <param name="onEditorCreated">
+        /// 编辑器 VM 一建好就交出去：本方法后半段有写文件、反射调画布这些会抛的步骤，
+        /// 靠末尾那一句 Deactivate 兜不住异常路径（见调用方的 finally）。
+        /// </param>
+        private static void RunScadaEditorToolbarChecks(Action<ScadaEditorVM> onEditorCreated)
         {
             var workspace = new WorkspaceContext();
 
@@ -3308,6 +3365,7 @@ namespace ScadaChecks
             workspace.SwitchSolution(solution);
 
             var vm = new ScadaEditorVM(workspace, new FakeRuntimeHost());
+            onEditorCreated(vm);
             vm.Activate();
             vm.SelectedPage = page; // 停在引用页上：基座下拉这时是可选的（基座页上会置灰）
 
@@ -3448,6 +3506,7 @@ namespace ScadaChecks
             // 而本探针跑在自己的 STA 线程上。不摘的话，后面任何一段改模型都会回调到这里，
             // 顺着 WPF 绑定摸到一条已经没人泵的 Dispatcher —— 后面几段会集体抛
             // "调用线程无法访问此对象"（2026-10-18 实测，一次连红三段）。
+            // 调用方的 finally 还会再摘一次（异常路径同样要摘；Deactivate 幂等）。
             vm.Deactivate();
         }
 
@@ -5391,9 +5450,10 @@ namespace ScadaChecks
                 operationHits.Contains("Hmi.Button") && operationHits.Contains("Hmi.BitButton"),
                 $"命中 {Shown(toolbox)}：{string.Join("、", operationHits)}");
 
-            // 说明文字里独有的词（"罐体"现在也是 Hmi.Tank 的显示名，不能再用来证明"搜的是说明"）
-            toolbox.SearchText = "风机";
-            Check("搜索命中说明文字（用户记得的是\"风机\"而不是\"椭圆\"）", Shown(toolbox) == 1, $"命中 {Shown(toolbox)}");
+            // 说明文字里独有的词（"罐体"现在也是 Hmi.Tank 的显示名、"风机"进了工艺符号的说明，
+            // 都不能再用来证明"搜的是说明"）
+            toolbox.SearchText = "软管";
+            Check("搜索命中说明文字（用户记得的是\"软管\"而不是\"贝塞尔曲线\"）", Shown(toolbox) == 1, $"命中 {Shown(toolbox)}");
 
             toolbox.SearchText = "绝对没有这个东西";
             Check("无命中时列表为空（不硬塞一个默认项骗眼睛）", Shown(toolbox) == 0, $"命中 {Shown(toolbox)}");
@@ -5451,7 +5511,12 @@ namespace ScadaChecks
             var pagePicker = new FakePagePicker();
             var flowPicker = new FakeFlowPicker();
             var axisRegistry = new MotionAxisRegistry(() => solution.MotionCards);
-            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker, new FakeAxisPicker(), axisRegistry);
+            // 权限目录夹具：内置 15 条 + 一条自定义，专门验证"面板候选来自用户管理"而不是写死三档角色。
+            var permissionCatalog = new FakePermissionCatalog(
+                ScadaPermissionKeys.BuiltIn
+                    .Concat(new[] { new ScadaPermissionInfo("Custom_Quality", "质量放行", false) })
+                    .ToArray());
+            var panel = new ScadaPropertyVM(editor, notifier, picker, pagePicker, flowPicker, new FakeAxisPicker(), axisRegistry, permissionCatalog: permissionCatalog);
 
             static int Total(ScadaPropertyVM vm) => vm.Groups.Sum(g => g.Rows.Count);
 
@@ -5745,10 +5810,13 @@ namespace ScadaChecks
                 eventRow.Actions!.Count == 1 && eventRow.Actions[0].Text == "甲",
                 $"{eventRow.Actions.Count} 条 / 剩「{eventRow.Actions[0].Text}」");
 
-            Check("类型下拉与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话；流程五项按 启动→暂停→恢复→停止→执行一次 相邻排列",
-                eventRow.ActionTypeChoices.Count == Enum.GetValues<ScadaActionType>().Length
+            Check("类型下拉与枚举显示名同源：下拉里选的「写变量」和运行日志里的「写变量」是同一句话；流程五项按 启动→暂停→恢复→停止→执行一次 相邻排列；轴控九条不在候选里",
+                eventRow.ActionTypeChoices.Count
+                    == Enum.GetValues<ScadaActionType>().Count(t => !ScadaActionTaxonomy.IsMotion(t))
                 && eventRow.ActionTypeChoices.Select(o => o.Type).Distinct().Count() == eventRow.ActionTypeChoices.Count
                 && eventRow.ActionTypeChoices.All(o => o.DisplayName == o.Type.DisplayName())
+                // 2026-10-25 纠偏：轴控九条不再进事件动作表（按钮事件没有轴面板那套闸门）
+                && eventRow.ActionTypeChoices.All(o => !ScadaActionTaxonomy.IsMotion(o.Type))
                 && eventRow.ActionTypeChoices.Select(o => o.Type).SequenceEqual(new[]
                 {
                     ScadaActionType.Log, ScadaActionType.WriteVariable,
@@ -5758,17 +5826,13 @@ namespace ScadaChecks
                     ScadaActionType.NavigateBack, ScadaActionType.OpenPopup, ScadaActionType.ClosePopup,
                     ScadaActionType.StartFlow, ScadaActionType.PauseFlow, ScadaActionType.ResumeFlow,
                     ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce,
-                    ScadaActionType.MotionEnable, ScadaActionType.MotionDisable,
-                    ScadaActionType.MotionMoveAbsolute, ScadaActionType.MotionMoveRelative,
-                    ScadaActionType.MotionHome, ScadaActionType.MotionStop,
-                    ScadaActionType.MotionClearAlarm, ScadaActionType.MotionJogStart,
-                    ScadaActionType.MotionJogStop,
                     ScadaActionType.ApplyRecipe,
                     ScadaActionType.PlaySound,
+                    ScadaActionType.SpeakText,
                 }),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
 
-            Check("十八条动作现在都已接通（含 2026-10-18 追加的九条运动命令、2026-10-21 追加的暂停/恢复与返回上一页），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
+            Check("全部动作现在都已接通（含 2026-10-18 追加的九条运动命令、2026-10-21 追加的暂停/恢复与返回上一页、2026-10-25 追加的语音播报），PendingReason 只剩「本版本不认识」这一档；面板那行橙色提示与运行日志仍逐字同源",
                 Enum.GetValues<ScadaActionType>().All(t => new ScadaAction { Type = t }.PendingReason == null)
                 && new ScadaAction { Type = (ScadaActionType)99 }.PendingReason == "本版本不认识该动作",
                 new ScadaAction { Type = ScadaActionType.Navigate }.PendingReason ?? "null");
@@ -5912,13 +5976,13 @@ namespace ScadaChecks
                 && panel.Groups.Single(g => g.Name == "状态").Rows.Count == 3,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
 
-            // ---------------- ①B 权限行（S12）：每个图元都有的通用关系行 ----------------
+            // ---------------- ①B 权限行（B3）：每个图元都有的通用关系行 ----------------
             //
-            // 它是上面那条"行数 = 描述符声明数"之外的第二种行源：RequiredRole 是图元上的强类型字段，
+            // 它是上面那条"行数 = 描述符声明数"之外的第二种行源：RequiredPermission 是图元上的强类型字段，
             // 不在属性袋里、描述符也声明不了（理由见该属性注释），所以单独把它的
             // 候选 / 写回 / 坏值 / 拒绝四件事钉在这里。
             //
-            // 图元必须真落在画面上：写回走 ScadaPage.TrySetRequiredRole，它按"在不在本画面"过滤
+            // 图元必须真落在画面上：写回走 ScadaPage.TrySetRequiredPermission，它按"在不在本画面"过滤
             // （与 TryMoveElementZ / TrySetElementLocked 同一口径），拿一个游离的 ScadaElement
             // 是验不出写回的。
             var stopPage = editor.SelectedPage!;
@@ -5926,73 +5990,111 @@ namespace ScadaChecks
             stopBtn.Name = "急停";
             editor.SelectedElement = stopBtn;
 
-            var roleRow = Row("RequiredRole");
-            Check("每个图元都长出权限行：Choice 型、候选固定四档、且不给 ƒx（权限不该被变量驱动）",
-                roleRow.Kind == ElementPropertyKind.Choice
-                && !roleRow.IsBindable
-                && string.Join("/", roleRow.Choices) == "不限制/操作员/工程师/管理员",
-                $"{roleRow.Kind} / ƒx={roleRow.IsBindable} / {string.Join("/", roleRow.Choices)}");
+            var permissionRow = Row("RequiredPermission");
+            Check("每个图元都长出所需权限行：Choice 型、候选来自权限目录（内置 + 自定义）、且不给 ƒx",
+                permissionRow.Kind == ElementPropertyKind.Choice
+                && !permissionRow.IsBindable
+                && permissionRow.Choices.First() == ScadaPermissionKeys.NotLimitedValue
+                && permissionRow.Choices.Contains(ScadaPermissionKeys.ControlRun)
+                && permissionRow.Choices.Contains("Custom_Quality")
+                && permissionRow.Choices.Count == ScadaPermissionKeys.BuiltIn.Count + 2,
+                $"{permissionRow.Kind} / ƒx={permissionRow.IsBindable} / {string.Join("/", permissionRow.Choices)}");
 
-            // 权限行的候选本身就是中文文案，所以它过一遍词汇表应当原样出来（值 == 显示名）。
-            // 这正是"认不出的值原样返回"这条规矩要保住的：若哪天有人把词汇表改成"查不到就返回空"，
-            // 权限下拉会当场变成四个空白项——那比显示英文严重得多（用户根本不知道能选什么）。
-            Check("权限行的中文候选过词汇表原样出来：下拉里显示什么，写回的就是什么",
-                roleRow.ChoiceOptions.Count == roleRow.Choices.Count
-                && roleRow.ChoiceOptions.Select(o => o.Value).SequenceEqual(roleRow.Choices)
-                && roleRow.ChoiceOptions.All(o => o.Value == o.DisplayName),
-                string.Join("/", roleRow.ChoiceOptions.Select(o => $"{o.Value}={o.DisplayName}")));
+            // 候选的显示名来自权限目录本身（自定义权限只能由目录给），不是旧角色词汇表。
+            Check("权限行的候选带目录里的显示名：写回的是 Key，看到的是中文（自定义权限也一样）",
+                permissionRow.ChoiceOptions.Count == permissionRow.Choices.Count
+                && permissionRow.ChoiceOptions.All(o => permissionRow.Choices.Contains(o.Value))
+                && permissionRow.ChoiceOptions.Single(o => o.Value == ScadaPermissionKeys.ControlRun).DisplayName == "运行控制"
+                && permissionRow.ChoiceOptions.Single(o => o.Value == "Custom_Quality").DisplayName == "质量放行",
+                string.Join("/", permissionRow.ChoiceOptions.Select(o => $"{o.Value}={o.DisplayName}")));
 
             Check("默认是「不限制」，模型里就是 null（旧 .vms 反序列化后天然落在这一档，零迁移）",
-                roleRow.Value == "不限制" && stopBtn.RequiredRole == null,
-                $"{roleRow.Value} / {stopBtn.RequiredRole?.ToString() ?? "null"}");
+                permissionRow.Value == ScadaPermissionKeys.NotLimitedValue
+                && stopBtn.RequiredPermission == null
+                && stopBtn.RequiredRole == null,
+                $"{permissionRow.Value} / {stopBtn.RequiredPermission ?? "null"} / {stopBtn.RequiredRole?.ToString() ?? "null"}");
 
             ScadaEditHistory.Clear();
-            roleRow.Value = "工程师";
-            Check("选一个角色：模型跟着变，且撤销栈里是一条带操作名的记录（裸写 setter 只会留一条没名字的「编辑」）",
-                stopBtn.RequiredRole == ScadaRole.Engineer
+            permissionRow.Value = ScadaPermissionKeys.ControlRun;
+            Check("选一个权限：模型跟着变，且撤销栈里是一条带操作名的记录（裸写 setter 只会留一条没名字的「编辑」）",
+                stopBtn.RequiredPermission == ScadaPermissionKeys.ControlRun
+                && stopBtn.RequiredRole == null
                 && ScadaEditHistory.UndoCount == 1
-                && ScadaEditHistory.NextUndoLabel == "设置操作权限 [急停] → 工程师",
-                $"{stopBtn.RequiredRole?.ToString() ?? "null"} / {ScadaEditHistory.UndoCount} 条 / {ScadaEditHistory.NextUndoLabel ?? "null"}");
+                && ScadaEditHistory.NextUndoLabel == "设置所需权限 [急停] → 运行控制",
+                $"{stopBtn.RequiredPermission ?? "null"} / {ScadaEditHistory.UndoCount} 条 / {ScadaEditHistory.NextUndoLabel ?? "null"}");
+
+            Check("面板写下的 Key 就是运行态/Web 判权读的那一个（RequiredPermissionFor 原样返回）",
+                ScadaRuntime.RequiredPermissionFor(stopBtn, ScadaEventType.Pressed) == ScadaPermissionKeys.ControlRun,
+                ScadaRuntime.RequiredPermissionFor(stopBtn, ScadaEventType.Pressed) ?? "null");
 
             int versionBeforeSame = stopPage.Version;
             Check("值没变是空操作：返回 true 且版本号不动（面板刷新、下拉重选同一项都不该在撤销栈里堆记录）",
-                stopPage.TrySetRequiredRole(stopBtn, ScadaRole.Engineer, out _)
+                stopPage.TrySetRequiredPermission(stopBtn, ScadaPermissionKeys.ControlRun, out _)
                 && stopPage.Version == versionBeforeSame
                 && ScadaEditHistory.UndoCount == 1,
                 $"v{versionBeforeSame} → v{stopPage.Version} / {ScadaEditHistory.UndoCount} 条");
 
-            Check("拒绝写入非法角色 Undefined：否则会造出一个「谁都按不动、界面上还看不出为什么」的图元",
-                !stopPage.TrySetRequiredRole(stopBtn, ScadaRole.Undefined, out string undefError)
-                && stopBtn.RequiredRole == ScadaRole.Engineer,
-                undefError);
-
             Check("不属于本画面的图元一律拒（拿对象引用当通行证，权限就会写到看不见的画面上）",
-                !stopPage.TrySetRequiredRole(Named("Hmi.Button", "外来的"), ScadaRole.Operator, out string foreignError)
+                !stopPage.TrySetRequiredPermission(Named("Hmi.Button", "外来的"), ScadaPermissionKeys.ViewRuntime, out string foreignError)
                 && foreignError.Contains("不属于本画面"),
                 foreignError);
 
-            roleRow.Value = "不限制";
+            Check("领域层不校验 Key 是否在目录里：自定义权限、已删除权限的悬空 Key 都要能原样读出来（目录在宿主，不在领域）",
+                stopPage.TrySetRequiredPermission(stopBtn, "Custom_Quality", out _)
+                && stopBtn.RequiredPermission == "Custom_Quality",
+                stopBtn.RequiredPermission ?? "null");
+
+            permissionRow.Value = ScadaPermissionKeys.NotLimitedValue;
             Check("选「不限制」回到 null：与「没配过」是同一个状态，不是另存一个「不限」哨兵值",
-                stopBtn.RequiredRole == null && roleRow.Value == "不限制",
-                $"{stopBtn.RequiredRole?.ToString() ?? "null"} / {roleRow.Value}");
+                stopBtn.RequiredPermission == null && stopBtn.RequiredRole == null
+                && permissionRow.Value == ScadaPermissionKeys.NotLimitedValue,
+                $"{stopBtn.RequiredPermission ?? "null"} / {permissionRow.Value}");
 
-            // 坏值：模拟"高版本存、低版本读"——文件里就是 9 这个数，直接裸写绕开写入口。
-            stopBtn.RequiredRole = (ScadaRole)9;
-            Check("文件里的坏值不装看不见：模型一变面板就自动跟上，候选临时补上那一项，显示「未知角色(9)」而不是一片空白",
-                roleRow.Value == "未知角色(9)" && roleRow.Choices.Contains("未知角色(9)"),
-                $"{roleRow.Value} / {string.Join("/", roleRow.Choices)}");
+            // 旧 .vms 只写了 RequiredRole：运行时按 LegacyRolePermission 折算；面板也要显示折算后的 Key。
+            stopBtn.RequiredRole = ScadaRole.Engineer;
+            Check("旧角色 RequiredRole=Engineer 在面板里显示为折算后的 Key（ControlRun），不是「工程师」",
+                permissionRow.Value == ScadaPermissionKeys.ControlRun
+                && stopBtn.RequiredPermission == null,
+                $"{permissionRow.Value} / {stopBtn.RequiredRole}");
 
-            stopBtn.RequiredRole = ScadaRole.Administrator;
+            Check("旧元素角色在运行态事件路径同样折算成 Key（不是只在面板里好看）",
+                ScadaRuntime.RequiredPermissionFor(stopBtn, ScadaEventType.Pressed) == ScadaPermissionKeys.ControlRun,
+                ScadaRuntime.RequiredPermissionFor(stopBtn, ScadaEventType.Pressed) ?? "null");
+
+            permissionRow.Value = ScadaPermissionKeys.NotLimitedValue;
+            Check("对旧值选「不限制」：新字段为 null 且旧角色被清空（否则旧角色会重新兜底回来）",
+                stopBtn.RequiredPermission == null && stopBtn.RequiredRole == null,
+                $"{stopBtn.RequiredPermission ?? "null"} / {stopBtn.RequiredRole?.ToString() ?? "null"}");
+
+            // 坏值：模拟"权限目录里删掉了这条权限，但旧文件仍引用它"——直接裸写绕开写入口。
+            stopBtn.RequiredPermission = "Deleted_Permission";
+            Check("文件里的悬空 Key 不装看不见：模型一变面板就自动跟上，候选临时补上那一项，显示「未知权限(...)」而不是一片空白",
+                permissionRow.Value == "Deleted_Permission"
+                && permissionRow.Choices.Contains("Deleted_Permission")
+                && permissionRow.ChoiceOptions.Single(o => o.Value == "Deleted_Permission").DisplayName == "未知权限(Deleted_Permission)",
+                $"{permissionRow.Value} / {string.Join("/", permissionRow.Choices)}");
+
+            permissionRow.Value = ScadaPermissionKeys.Stop;
             Check("坏值被改走后候选也收回去（RefreshValue 里补的那次通知）：下拉里不留一条再也选不中的僵尸项",
-                roleRow.Value == "管理员" && !roleRow.Choices.Contains("未知角色(9)"),
-                $"{roleRow.Value} / {string.Join("/", roleRow.Choices)}");
+                permissionRow.Value == ScadaPermissionKeys.Stop
+                && !permissionRow.Choices.Contains("Deleted_Permission")
+                && stopBtn.RequiredPermission == ScadaPermissionKeys.Stop,
+                $"{permissionRow.Value} / {string.Join("/", permissionRow.Choices)}");
 
             // 认不出的文案（候选失配时 WPF 会把 SelectedItem 置空并回写）绝不能当成"取消限制"，
             // 那是一次静默的权限放大——现场只会看到"本来要工程师才能开，怎么操作员也能开了"。
-            roleRow.Value = string.Empty;
+            permissionRow.Value = string.Empty;
             Check("空文案不当作「不限制」：标红且模型一动不动（静默放权比报错难查一百倍）",
-                !roleRow.IsValid && stopBtn.RequiredRole == ScadaRole.Administrator,
-                $"valid={roleRow.IsValid} / {roleRow.ErrorText} / {stopBtn.RequiredRole}");
+                !permissionRow.IsValid && stopBtn.RequiredPermission == ScadaPermissionKeys.Stop,
+                $"valid={permissionRow.IsValid} / {permissionRow.ErrorText} / {stopBtn.RequiredPermission}");
+
+            // 用户管理里新建自定义权限后，面板下拉立刻多一项（不重选图元、不重建行）。
+            permissionCatalog.Items.Add(new ScadaPermissionInfo("Custom_New", "新权限", false));
+            permissionCatalog.RaiseChanged();
+            Check("权限目录变化后下拉当场刷新：新建的自定义权限不必重选图元就能选到",
+                permissionRow.Choices.Contains("Custom_New")
+                && permissionRow.ChoiceOptions.Single(o => o.Value == "Custom_New").DisplayName == "新权限",
+                string.Join("/", permissionRow.Choices));
 
             // ---------------- ①C 图元右键菜单：图层归属 + 叠放次序 + 对齐分布 + 锁定 + 删除 ----------------
             //
@@ -6869,6 +6971,34 @@ namespace ScadaChecks
             Check("面板改网格间距落在新画面上，旧画面不受牵连",
                 page2.GridSize == 25 && page.GridSize == 10,
                 $"新 {page2.GridSize} / 旧 {page.GridSize}");
+
+            // ---- 页面级权限（B3）：候选同样来自权限目录，旧 RequiredRole 折算 ----
+            var pagePermissionRow = Row("RequiredPermission");
+            Check("画面模式长出「所需权限」行：候选来自权限目录（含自定义），默认「不限制」",
+                pagePermissionRow.Kind == ElementPropertyKind.Choice
+                && pagePermissionRow.Choices.Contains(ScadaPermissionKeys.ViewRuntime)
+                && pagePermissionRow.Choices.Contains("Custom_Quality")
+                && pagePermissionRow.Value == ScadaPermissionKeys.NotLimitedValue,
+                $"{pagePermissionRow.Value} / {string.Join("/", pagePermissionRow.Choices)}");
+
+            ScadaEditHistory.Clear();
+            pagePermissionRow.Value = ScadaPermissionKeys.ViewRuntime;
+            Check("画面权限写回 RequiredPermission 并清空旧角色；撤销栈里是一条带操作名的记录",
+                page2.RequiredPermission == ScadaPermissionKeys.ViewRuntime
+                && page2.RequiredRole == null
+                && ScadaEditHistory.NextUndoLabel == "设置所需权限 [辅画面] → 看运行画面",
+                $"{page2.RequiredPermission ?? "null"} / {ScadaEditHistory.NextUndoLabel ?? "null"}");
+
+            page2.RequiredPermission = null;
+            page2.RequiredRole = ScadaRole.Administrator;
+            Check("旧页面角色 RequiredRole=Administrator 在面板里显示为折算后的 Key（SystemConfig）",
+                Row("RequiredPermission").Value == ScadaPermissionKeys.SystemConfig,
+                Row("RequiredPermission").Value);
+
+            Row("RequiredPermission").Value = ScadaPermissionKeys.NotLimitedValue;
+            Check("对旧页面角色选「不限制」：新字段为 null 且旧角色清空",
+                page2.RequiredPermission == null && page2.RequiredRole == null,
+                $"{page2.RequiredPermission ?? "null"} / {page2.RequiredRole?.ToString() ?? "null"}");
 
             // ---- 「运行」组：启动画面（方案级单选） + 画面级事件行（加载完成 / 卸载）----
             // 「启动画面」与事件行看着长得一模一样（都是勾选框），落点却相反：一个存方案的单个 Id，
@@ -9779,6 +9909,60 @@ namespace ScadaChecks
             Check("Stop 之后再报：一条都不跑（画面已经关了，动作还在写日志就是幽灵）",
                 rt.RaiseElementEvent(button, ScadaEventType.Pressed) == 0 && fired.Count == 3,
                 $"{fired.Count} 条");
+
+            // ---------------- ④b 运行态未授权点击：弹登录 → 登录后重判 → 继续原操作 ----------------
+
+            var gatedDoc = new ScadaDocument();
+            var gatedPage = gatedDoc.AddPage("受控页");
+            var gatedButton = new ScadaElement
+            {
+                TypeKey = "Hmi.Button",
+                Name = "停止按钮",
+                RequiredPermission = ScadaPermissionKeys.Stop,
+            };
+            gatedPage.Elements.Add(gatedButton);
+            gatedButton.GetOrAddEventHook(ScadaEventType.Pressed)
+                       .Actions.Add(new ScadaAction { Type = ScadaActionType.Log, Text = "停止" });
+
+            var gatedPolicy = new FakeAccessPolicy { CurrentRole = ScadaRole.Engineer }; // 工程师组没有 Stop
+            var gated = new ScadaRuntime(gatedDoc, gatedPolicy);
+            gated.Start();
+
+            int gatedFired = 0;
+            int gatedPrompts = 0;
+            string? gatedPromptKey = null;
+            gated.ElementEventRaised += (_, _) => gatedFired++;
+            gated.AccessLoginPrompt = key =>
+            {
+                gatedPrompts++;
+                gatedPromptKey = key;
+                gatedPolicy.Grant(ScadaPermissionKeys.Stop); // 模拟"换了一个有 Stop 的账号登录"
+                return true;
+            };
+
+            Check("[SL25-a] 未授权点击先弹登录，登录后按最新权限重判并继续原操作",
+                gated.RaiseElementEvent(gatedButton, ScadaEventType.Pressed) == 1
+                && gatedFired == 1 && gatedPrompts == 1 && gatedPromptKey == ScadaPermissionKeys.Stop,
+                $"fired={gatedFired} prompts={gatedPrompts} key={gatedPromptKey}");
+
+            var deniedPolicy = new FakeAccessPolicy { CurrentRole = ScadaRole.Engineer };
+            var deniedRuntime = new ScadaRuntime(gatedDoc, deniedPolicy);
+            deniedRuntime.Start();
+            int deniedCount = 0;
+            int deniedPrompts = 0;
+            string? deniedReason = null;
+            deniedRuntime.ElementAccessDenied += (_, reason) => { deniedCount++; deniedReason = reason; };
+            deniedRuntime.AccessLoginPrompt = _ => { deniedPrompts++; return false; };
+
+            Check("[SL25-b] 取消登录：不执行、只记一次拒绝、不递归",
+                deniedRuntime.RaiseElementEvent(gatedButton, ScadaEventType.Pressed) == 0
+                && deniedCount == 1 && deniedPrompts == 1
+                && deniedReason != null
+                && deniedReason.Contains(ScadaPermissionKeys.DisplayName(ScadaPermissionKeys.Stop), StringComparison.Ordinal),
+                $"denied={deniedCount} prompts={deniedPrompts} reason={deniedReason}");
+
+            deniedRuntime.Stop();
+            gated.Stop();
 
             // ---------------- ⑤ 画面勾选框 ↔ 钩子：投影不落地、脏标记不失真 ----------------
 
@@ -14041,16 +14225,68 @@ namespace ScadaChecks
         /// </summary>
         private sealed class FakeAccessPolicy : IScadaAccessPolicy
         {
-            public ScadaRole CurrentRole { get; set; } = ScadaRole.Operator;
+            private ScadaRole _role = ScadaRole.Operator;
+
+            /// <summary>旧断言仍按角色设权限：映射成 B3 的 Key 集合，判定只走 Can(Key)。</summary>
+            public ScadaRole CurrentRole
+            {
+                get => _role;
+                set
+                {
+                    _role = value;
+                    Permissions = value switch
+                    {
+                        ScadaRole.Administrator => ScadaPermissionKeys.BuiltInKeys.ToArray(),
+                        ScadaRole.Engineer => new[]
+                        {
+                            ScadaPermissionKeys.ViewRuntime,
+                            ScadaPermissionKeys.ControlRun,
+                        },
+                        _ => new[] { ScadaPermissionKeys.ViewRuntime },
+                    };
+                }
+            }
+
+            public IReadOnlyList<string> Permissions { get; private set; }
+                = new[] { ScadaPermissionKeys.ViewRuntime };
+
+            public string CurrentGroupId => _role == ScadaRole.Administrator
+                ? ScadaGroupDefaults.AdminTemplateId
+                : _role == ScadaRole.Engineer ? ScadaGroupDefaults.EngineerTemplateId
+                : ScadaGroupDefaults.OperatorTemplateId;
+
+            public string CurrentGroupName => _role.DisplayName();
 
             public bool IsLoggedIn { get; set; }
 
             public string CurrentUserName => IsLoggedIn ? "假用户" : "未登录";
 
-            public string LoginStateText => $"{CurrentUserName}（{CurrentRole.DisplayName()}）";
+            public string LoginStateText => $"{CurrentUserName}（{CurrentGroupName}）";
 
-            public bool CanOperate(ScadaRole? required, out string? reason)
-                => CurrentRole.Allows(required, out reason);
+            public bool Can(string requiredKey, out string? reason)
+            {
+                if (string.Equals(requiredKey, ScadaPermissionKeys.Always, StringComparison.Ordinal))
+                {
+                    reason = null;
+                    return true;
+                }
+                if (string.IsNullOrWhiteSpace(requiredKey))
+                {
+                    reason = "未声明权限 Key";
+                    return false;
+                }
+                if (Permissions.Contains(requiredKey, StringComparer.Ordinal))
+                {
+                    reason = null;
+                    return true;
+                }
+                reason = $"需要「{ScadaPermissionKeys.DisplayName(requiredKey)}」权限，当前是「{CurrentGroupName}」";
+                return false;
+            }
+
+            /// <summary>断言用：模拟"登录后换了一份权限快照"。</summary>
+            public void Grant(params string[] keys)
+                => Permissions = (keys ?? Array.Empty<string>()).ToArray();
         }
 
         /// <summary>
@@ -18812,12 +19048,12 @@ namespace ScadaChecks
             Check("单独归到「报警」分类（塞进「指示」那一组的话，找报警条要翻遍十几个同类项）",
                 descriptor?.Category == "报警", descriptor?.Category ?? "null");
 
-            Check("默认尺寸 320×140：装得下五行「徽标+时间+名字+条件+状态」",
-                descriptor?.DefaultWidth == 320 && descriptor?.DefaultHeight == 140,
+            Check("默认尺寸 320×36：装得下五行「徽标+时间+名字+条件+状态」",
+                descriptor?.DefaultWidth == 320 && descriptor?.DefaultHeight == 36,
                 $"{descriptor?.DefaultWidth}×{descriptor?.DefaultHeight}");
 
-            Check("属性键 = 6 个几何 + 14 个自有（行数 / 空态 / 四档色 / 外观四件 / 文字五件）",
-                descriptor?.Properties.Count == 20, $"{descriptor?.Properties.Count} 个");
+            Check("属性键 = 6 个几何 + 18 个自有（行数 / 自动滚动两件 / 空态 / 四档色 / 外观四件 / 文字五件）",
+                descriptor?.Properties.Count == 24, $"{descriptor?.Properties.Count} 个");
 
             Check("报警条自己的键落在自己的依赖属性上（不是把值塞进基类的同名属性）",
                 ReferenceEquals(ElementRegistry.FindProperty("Hmi.AlarmBanner", "MaxRows")?.TargetProperty,
@@ -19864,6 +20100,7 @@ namespace ScadaChecks
         /// 在断言进程的主线程上直接跑即可（<see cref="ScadaAccessPolicy"/> 那一份要
         /// <see cref="DispatcherTimer"/>，才必须挂 STA）。
         /// </summary>
+#if false
         private static void UserStoreChecks()
         {
             Section("[US] 账号存储（S12-c3：PBKDF2 / 原子写 / 出厂账号 / 管理员不可清零）");
@@ -20213,6 +20450,7 @@ namespace ScadaChecks
         /// 这一段用假日期测 <c>PurgeExpired</c>，锁住四条：删哪些、绝不误删别人的文件、
         /// <c>&lt;= 0</c> 表示永不清理、跨天只清一次；外加"写不成时不做清理"这条顺序约束。
         /// </summary>
+#endif
         private static void AuditWriterChecks()
         {
             Section("[AU] 操作审计落盘（S12-d：CSV 凭证 / 毫秒时间戳 / 按天滚动 / 四档结果 / 写不成不抛 / S13-c：保留策略）");
@@ -20831,11 +21069,12 @@ namespace ScadaChecks
                 Check("旧入口转发：带 group 参数打开时 InitialGroup 指向对应页签",
                     paged.InitialGroup == SystemSettingsDraft.GroupSafety, paged.InitialGroup);
 
-                // 十二个数值项都带整数校验：属性面板会在行内标红（它拦不住确定，
+                // 十三个数值项都带整数校验：属性面板会在行内标红（它拦不住确定，
                 // 真正的闸是确认时的解析——上一段已经钉过「3O / 空白都关不了窗」）。
+                // 2026-10-25 追加「语音播报」组后由 12 → 13（SpeechRateText）。
                 var numericTexts = visibleProps.Where(p => p.Name.EndsWith("Text", StringComparison.Ordinal)).ToList();
-                Check("十二个数值项都标了整数校验（行内红字的第一道提示）",
-                    numericTexts.Count == 12
+                Check("十三个数值项都标了整数校验（行内红字的第一道提示）",
+                    numericTexts.Count == 13
                     && numericTexts.All(p => p.GetCustomAttributes(
                         typeof(UI.Attributes.ValidationBaseAttribute), inherit: true).Any()),
                     string.Join(" | ", numericTexts.Select(p => p.Name)));
@@ -20953,6 +21192,114 @@ namespace ScadaChecks
             {
                 settings.Current.StartupSolutionPath = originalStartup;
                 settings.Current.Solutions = originalSolutions;
+                settings.Save();
+            }
+        }
+
+        /// <summary>
+        /// AppSettingsService.Load 必须幂等（2026-10-25「方案清单 32768 项」事故的回归闸）。
+        ///
+        /// 事故：Load 用 <c>JsonConvert.PopulateObject</c> 原地填充（为了保住 ScadaWeb 等
+        /// 嵌套对象的引用身份），而 Newtonsoft 对已存在的 <c>List&lt;T&gt;</c> 是**追加**不是替换。
+        /// 启动链上 Load 至少两次（<see cref="AppSettingsService"/> 构造器 + ConfigCheck），
+        /// 于是 Solutions 每次启动翻倍，任意一次 Save 把翻倍结果写回 AppConfig.json——
+        /// 实测 10-25 一天内 2048→4096→8192→16384→32768，配置文件涨到 27.4 MB。
+        ///
+        /// 为什么必须在「同一实例上连续 Load」而不是 new 两个实例：后者每次从空表开始，
+        /// 追加一次恰好等于文件内容，永远绿——这正是这条缺陷能活到现在的原因。
+        /// </summary>
+        private static void AppSettingsLoadIdempotencyChecks()
+        {
+            Section("[SL] AppSettingsService.Load 幂等（PopulateObject 对集合是追加，连续 Load 不许翻倍）");
+
+            var settings = new AppSettingsService();
+            var originalStartup = settings.Current.StartupSolutionPath;
+            var originalSolutions = settings.Current.Solutions;
+            var originalFavorites = settings.Current.Toolbox.Favorites;
+
+            try
+            {
+                settings.Current.StartupSolutionPath = @"C:\scada\startup.vms";
+                settings.Current.Solutions = new List<AppSolutionEntry>
+                {
+                    new() { Name = "line1", Comment = "", Path = @"C:\scada\line1.vms" }
+                };
+                settings.Current.Toolbox.Favorites = new List<string> { "Plugin.Matching.MatchingPlugin" };
+                settings.Save();
+
+                var webRef = settings.Current.ScadaWeb;
+
+                settings.Load();
+                settings.Load();
+
+                Check("连续 Load 两次，方案清单仍是 1 项（追加会变 3 项：1+1+1）",
+                    settings.Current.Solutions.Count == 1,
+                    $"Count={settings.Current.Solutions.Count}");
+
+                Check("连续 Load 两次，工具箱收藏仍是 1 项（同一段 PopulateObject 路径）",
+                    settings.Current.Toolbox.Favorites.Count == 1,
+                    $"Count={settings.Current.Toolbox.Favorites.Count}");
+
+                Check("Load 不替换 ScadaWeb 引用（模块手里那份必须继续生效）",
+                    ReferenceEquals(webRef, settings.Current.ScadaWeb),
+                    ReferenceEquals(webRef, settings.Current.ScadaWeb) ? "同一引用" : "引用被换掉");
+
+                Check("Load 后默认启动方案按磁盘值还原",
+                    settings.Current.StartupSolutionPath == @"C:\scada\startup.vms",
+                    settings.Current.StartupSolutionPath);
+
+                // ---------- 存量自愈：历史上被写成上万份重复方案的 AppConfig ----------
+                //
+                // 4096 / 16384 / 65536 都是 2 的幂：旧版 PopulateObject 对 List 追加，每次 Load 翻一倍。
+                // 追加缺陷已由 ReplaceCollectionsContractResolver 修掉，但磁盘上那份重复还在——
+                // 不清理的话，启动自检与方案列表显示的数量仍然是天文数字（现场实测 16384 项）。
+                settings.Current.Solutions = new List<AppSolutionEntry>
+                {
+                    new() { Name = "first", Path = @"C:\scada\dup.vms" },
+                    new() { Name = "second", Path = @" C:\scada\dup.vms " },
+                    new() { Name = "third", Path = @"C:\SCADA\DUP.vms" },
+                    new() { Name = "blank", Path = "   " },
+                    new() { Name = "other", Path = @"C:\scada\other.vms" }
+                };
+                settings.Current.Toolbox.Favorites = new List<string>
+                {
+                    "Plugin.Matching.MatchingPlugin",
+                    "Plugin.Matching.MatchingPlugin",
+                    "  "
+                };
+                settings.Save();
+
+                settings.Load();
+
+                Check("存量重复方案在 Load 时去重（同一路径 3 份 + 空白 1 份 → 只留 1 份）",
+                    settings.Current.Solutions.Count == 2
+                    && settings.Current.Solutions[0].Name == "first"
+                    && settings.Current.Solutions[1].Name == "other",
+                    string.Join(" | ", settings.Current.Solutions.Select(s => s.Name + "=" + s.Path)));
+
+                Check("路径首尾空白被 Trim（手工编辑 JSON 的常见形态）",
+                    settings.Current.Solutions[0].Path == @"C:\scada\dup.vms",
+                    settings.Current.Solutions[0].Path);
+
+                Check("工具箱收藏同样去重",
+                    settings.Current.Toolbox.Favorites.Count == 1,
+                    string.Join(" | ", settings.Current.Toolbox.Favorites));
+
+                Check("清理后 LastLoadNormalized=true（宿主据此把干净清单回写磁盘）",
+                    settings.LastLoadNormalized, "");
+
+                // 模拟 ConfigCheck 的回写：磁盘变干净后，再 Load 不该再报“清理过”
+                settings.Save();
+                settings.Load();
+                Check("清理 + 回写是幂等的：再 Load 不再报告改动",
+                    !settings.LastLoadNormalized && settings.Current.Solutions.Count == 2,
+                    $"normalized={settings.LastLoadNormalized} / count={settings.Current.Solutions.Count}");
+            }
+            finally
+            {
+                settings.Current.StartupSolutionPath = originalStartup;
+                settings.Current.Solutions = originalSolutions;
+                settings.Current.Toolbox.Favorites = originalFavorites;
                 settings.Save();
             }
         }
@@ -21103,8 +21450,8 @@ namespace ScadaChecks
                 // ---------------- ⑥ 密码最小长度 ----------------
                 var userPath = Path.Combine(tempRoot, "users.json");
                 var store8 = new ScadaUserStore(userPath, minPasswordLengthProvider: () => 8);
-                var shortOk = store8.TryAddUser("u1", "123456", ScadaRole.Operator, out var shortError);
-                var longOk = store8.TryAddUser("u1", "12345678", ScadaRole.Operator, out var longError);
+                var shortOk = store8.TryAddUser("u1", "123456", ScadaGroupDefaults.OperatorTemplateId, out var shortError);
+                var longOk = store8.TryAddUser("u1", "12345678", ScadaGroupDefaults.OperatorTemplateId, out var longError);
 
                 Check("密码最小长度=8：6 位被拒且说明写的是 8，8 位通过（规则现读配置，不用重启）",
                     !shortOk && (shortError ?? "").Contains("8") && longOk,
@@ -21112,7 +21459,7 @@ namespace ScadaChecks
 
                 // 0 / 负数按默认值处理：不能成为"允许空密码"的后门
                 var storeZero = new ScadaUserStore(Path.Combine(tempRoot, "users2.json"), minPasswordLengthProvider: () => 0);
-                var zeroOk = storeZero.TryAddUser("u2", "123", ScadaRole.Operator, out _);
+                var zeroOk = storeZero.TryAddUser("u2", "123", ScadaGroupDefaults.OperatorTemplateId, out _);
                 Check("密码最小长度填 0 按默认 4 处理（不是「允许空密码」）",
                     !zeroOk && storeZero.MinPasswordLength == ScadaUserStore.DefaultMinPasswordLength,
                     $"MinPasswordLength={storeZero.MinPasswordLength} / 3位={(zeroOk ? "通过" : "被拒")}");
@@ -21315,7 +21662,7 @@ namespace ScadaChecks
             var headers = tabControl?.Items.OfType<TabItem>().Select(t => t.Header as string).ToList()
                           ?? new List<string>();
 
-            Check("六个页签按 Group 生成，顺序是 运行窗口 → 安全与留档 → 画布 → 日志 → 服务与启动 → 并行执行",
+            Check("七个页签按 Group 生成，顺序是 运行窗口 → 安全与留档 → 画布 → 日志 → 服务与启动 → 并行执行 → 语音播报",
                 headers.SequenceEqual(new[]
                 {
                     SystemSettingsDraft.GroupRunWindow,
@@ -21324,6 +21671,7 @@ namespace ScadaChecks
                     SystemSettingsDraft.GroupLog,
                     SystemSettingsDraft.GroupServices,
                     SystemSettingsDraft.GroupParallel,
+                    SystemSettingsDraft.GroupSpeech,
                 }),
                 string.Join(" | ", headers));
 
@@ -22252,6 +22600,21 @@ namespace ScadaChecks
             Console.WriteLine($"通过: {_pass}  失败: {_fail}");
             Console.WriteLine(_fail == 0 ? ">>> 全部断言通过 <<<" : $">>> 存在 {_fail} 项失败 <<<");
             Environment.ExitCode = _fail == 0 ? 0 : 1;
+        }
+
+        /// <summary>权限目录夹具：可增删条目并抬事件，验证属性面板的候选刷新。</summary>
+        private sealed class FakePermissionCatalog : IScadaPermissionCatalog
+        {
+            public FakePermissionCatalog(params ScadaPermissionInfo[] items)
+                => Items = items?.ToList() ?? new List<ScadaPermissionInfo>();
+
+            public List<ScadaPermissionInfo> Items { get; }
+
+            public IReadOnlyList<ScadaPermissionInfo> PermissionCatalog => Items;
+
+            public event Action? CatalogChanged;
+
+            public void RaiseChanged() => CatalogChanged?.Invoke();
         }
     }
 }

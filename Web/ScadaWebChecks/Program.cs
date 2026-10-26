@@ -1022,6 +1022,21 @@ namespace ScadaWebChecks
             _passed += M2RegressionChecks.Pass;
             _failed += M2RegressionChecks.Failures;
 
+            // ============================================================
+            //  B4：方案级 Web 会话（SW1–SW9）
+            //  票/会话带方案身份、无方案 503、切方案撤销、在线会话管理口、组撤销。
+            //  这一段自带真宿主 + 随机端口，与上面的 M2HttpChecks 互不干扰。
+            // ============================================================
+            await SolutionSessionChecks.RunAsync(
+                (id, ok, detail) =>
+                {
+                    if (!ok) _failed++;
+                    Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {id}"
+                        + (string.IsNullOrEmpty(detail) ? string.Empty : "  " + detail));
+                },
+                _ => { });
+            _passed += SolutionSessionChecks.Pass;
+
             Console.WriteLine();
             Console.WriteLine(
                 $"--- M2 汇总：动作过滤 {M2ActionFilterChecks.Pass}/{M2ActionFilterChecks.Total}"
@@ -1029,6 +1044,7 @@ namespace ScadaWebChecks
                 + $"、命令 {M2CommandChecks.Pass}/{M2CommandChecks.Total}"
                 + $"、HTTP 端到端 {M2HttpChecks.Pass}/{M2HttpChecks.Total}"
                 + $"、回归 {M2RegressionChecks.Pass}/{M2RegressionChecks.Total}"
+                + $"、方案会话 {SolutionSessionChecks.Pass}/{SolutionSessionChecks.Total}"
                 + $"；本进程累计 {_passed} PASS / {_failed} FAIL ---");
 
             return Finish();

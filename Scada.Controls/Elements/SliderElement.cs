@@ -44,6 +44,9 @@ namespace VisionMaster.Scada.Controls
         public const string PartThumb = "PART_Thumb";
         public const string PartValueText = "PART_ValueText";
 
+        /// <summary>数值气泡外框（跟手定位；模板里没有它时退回只动文字）</summary>
+        public const string PartValuePlate = "PART_ValuePlate";
+
         /// <summary>模式：只读</summary>
         public const string ModeOutput = "Output";
 
@@ -181,8 +184,7 @@ namespace VisionMaster.Scada.Controls
                && RuntimeContext?.Writer is not null
                && Element?.FindBinding(ValueKey) is { IsEnabled: true }
                && IsEnabled
-               && (Element?.RequiredRole is not { } required
-                   || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
+               && RuntimeContext?.AccessPolicy.CanElement(Element) == true;
 
         protected override void OnRuntimeContextChanged(ScadaRuntimeContext? oldContext, ScadaRuntimeContext? newContext)
             => UpdateEditable();
@@ -698,6 +700,30 @@ namespace VisionMaster.Scada.Controls
                     ? Visibility.Visible
                     : Visibility.Collapsed;
                 valueText.ToolTip = error;
+
+                // 跟手气泡（2026-10-25 评审 Q3）：横向时把数值贴到拇指正上方。
+                // 位置在这里算而不是在模板里：拇指偏移只有代码知道（比例 × 轨道长度）。
+                if (GetTemplateChild(PartValuePlate) is FrameworkElement plate)
+                {
+                    plate.Visibility = valueText.Visibility;
+
+                    if (horizontal)
+                    {
+                        plate.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                        var width = plate.DesiredSize.Width;
+                        var center = host.Margin.Left + thumbOffset + ThumbSize / 2;
+                        var left = Math.Clamp(center - width / 2, 0, Math.Max(0, ActualWidth - width));
+
+                        plate.HorizontalAlignment = HorizontalAlignment.Left;
+                        plate.Margin = new Thickness(left, 0, 0, 2);
+                    }
+                    else
+                    {
+                        // 纵向：轨道跨两行，没有"拇指上方"可跟，退回右上角
+                        plate.HorizontalAlignment = HorizontalAlignment.Right;
+                        plate.Margin = new Thickness(0, 0, 0, 2);
+                    }
+                }
             }
         }
 

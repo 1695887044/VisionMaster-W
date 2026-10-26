@@ -155,21 +155,6 @@ namespace VisionMaster.ScadaWeb
             // DataGrid 行数据的只读出口（宿主实现；无运行窗口时为 null，表格显示“等待数据”）。
             var runtimeDataProvider = TryResolve<IScadaRuntimeDataProvider>(container, log, "IScadaRuntimeDataProvider");
 
-            // AllOperators 的监管闸门：缺项不是“少一层”，而是“配置看着放开了、实际没有护栏”。
-            // 缺项时拒绝启用该策略，回退 HighestRoleOnly（默认策略，不需要监管项）。
-            //
-            // ★ 必须在 Normalize **之前**用原始配置判：Normalize 会把 RequireAudit 夹回 true，
-            //   夹完再判等于这一项永远通过——"审计被关掉"这种非法配置就再也拦不住了。
-            if (settings.ClickPolicy == ScadaWebClickPolicy.AllOperators)
-            {
-                var probe = new ScadaWebAccessPolicy(settings, () => Array.Empty<ScadaWebSession>());
-                if (!probe.ValidateSupervision(out var supervisionError))
-                {
-                    log.Error($"[ScadaWeb] {supervisionError}；已回退 HighestRoleOnly（AllOperators 监管项不全时不允许放开）");
-                    settings.ClickPolicy = ScadaWebClickPolicy.HighestRoleOnly;
-                }
-            }
-
             // 配置夹取（RequireAudit 只能是 true；AllOperatorsRequiresLease 不能单独成立）。
             // 夹取本身不能静默：现场永远不知道自己配错了一项，直到出事查审计才发现没有记录。
             foreach (var message in ScadaWebAccessPolicy.Normalize(settings))
@@ -196,6 +181,22 @@ namespace VisionMaster.ScadaWeb
             // Application.Current 为 null = 非 WPF 宿主（断言/探针），传 null 走"直接调用"分支。
             var uiDispatcher = System.Windows.Application.Current?.Dispatcher;
 
+            // 方案上下文：**fail-closed**，不是可选件。
+            //
+            // 「解析不到」与「解析到了但 SolutionId == null」是两件事：
+            //   · 前者 = 装配缺失（宿主没注册 SolutionIdentityHolder），属 bug → 记 Error 且不启动 HTTP。
+            //     这是唯一能让「Web 在没有方案身份的装配下对外发票」不可能发生的位置。
+            //   · 后者 = 用户还没打开方案，属正常状态 → 照常启动，取票时回 503 E_NO_SOLUTION。
+            // 两条日志文案必须能区分，否则现场看到 503 会以为是装配坏了。
+            var solutionContext = TryResolveSolutionContext(container);
+            if (solutionContext == null)
+            {
+                log.Error("[ScadaWeb] 未接入 IScadaSolutionContext（方案身份）："
+                    + "账号本已改为方案级，没有方案身份的 Web 无法判定票属于哪个方案。"
+                    + "已按 fail-closed 处理：本次不启动 HTTP 服务");
+                return;
+            }
+
             var host = new ScadaWebHost(
                 hub,
                 authenticator,
@@ -211,9 +212,11 @@ namespace VisionMaster.ScadaWeb
                 alarmFeed,
                 flowTriggerQuery,
                 axisSource,
-                runtimeDataProvider);
+                runtimeDataProvider,
+                solutionContext);
 
             Host = host;
+            ScadaWebSessionAdminBridge.Current = host;
 
             host.Start();
 
@@ -237,21 +240,21 @@ namespace VisionMaster.ScadaWeb
                 // 可选能力，缺席不记 Warn（否则每个断言宿主都会多一行与本次无关的噪音）
             }
 
-            Action<string, string>? userChangedHandler = null;
+            Action<string, ScadaUserChangeKind>? userChangedHandler = null;
 
             if (userChanges != null)
             {
-                userChangedHandler = (userName, reason) =>
+                userChangedHandler = (userName, kind) =>
                 {
                     try
                     {
                         var closed = host.RevokeUser(userName);
-                        log.Info($"[ScadaWeb] 账号「{userName}」{reason}：已撤销其 Web 会话，关闭 {closed} 条连接");
+                        log.Info($"[ScadaWeb] 账号「{userName}」{kind.DisplayName()}：已撤销其 Web 会话，关闭 {closed} 条连接");
                     }
                     catch (Exception ex)
                     {
                         // 账号写操作已经成功；撤销失败只影响"旧会话没被立刻踢掉"，不能反过来影响账号操作。
-                        log.Error($"[ScadaWeb] 账号「{userName}」{reason}后撤销 Web 会话失败："
+                        log.Error($"[ScadaWeb] 账号「{userName}」{kind.DisplayName()}后撤销 Web 会话失败："
                                   + $"{ex.GetType().Name}：{ex.Message}");
                     }
                 };
@@ -265,6 +268,10 @@ namespace VisionMaster.ScadaWeb
                          + "旧 Web 会话不会立刻失效（要等 8 小时令牌自然过期）");
             }
 
+            // 切方案 = 撤销全部 Web 会话。订阅抽成 public static（见下），
+            // 退订句柄留在本地，退出任务里一并摘掉。
+            var solutionHandler = SubscribeSolutionChanges(solutionContext, host);
+
             // 超时 15s：停服要等命令泵把手里的命令跑完（最多 5s）+ 关闭帧（2s）+ 两条循环（各 2s）。
             // 5s 是 M1 只有值帧循环时的口径；M2a 接了命令泵之后不够用（超时会被退出链强制丢下）。
             lifetime.RegisterExitTask(new ExitTask(
@@ -274,9 +281,34 @@ namespace VisionMaster.ScadaWeb
                     if (userChanges != null && userChangedHandler != null)
                         userChanges.UserChanged -= userChangedHandler;
 
+                    if (solutionHandler != null)
+                        solutionContext.SolutionChanged -= solutionHandler;
+
                     await host.StopAsync().ConfigureAwait(false);
                 },
                 15000));
+        }
+
+        /// <summary>
+        /// 订阅「方案已切换」并撤销全部 Web 会话；返回退订句柄（<c>null</c> = 没订阅）。
+        ///
+        /// <b>为什么抽成 public static</b>：与 <see cref="TryResolveSolutionContext"/> 同一理由——
+        /// 「切方案后旧会话必须失效」这条接线要能被断言直接钉住，不必起整个模块。
+        ///
+        /// 走 <see cref="ScadaWebHost.RevokeAllSessions"/> 而不是 <c>KickAll</c>：
+        /// 前者让客户端拿到 <c>E_SOLUTION_CHANGED</c>（「方案已切换」），后者是普通撤销，
+        /// 客户端会看到「被管理员下线」——那句文案是错的。
+        /// </summary>
+        /// <returns>退订用的委托；调用方必须在退出任务里摘掉它</returns>
+        public static Action<ScadaSolutionChange>? SubscribeSolutionChanges(
+            IScadaSolutionContext? solutionContext,
+            ScadaWebHost? host)
+        {
+            if (solutionContext == null || host == null) return null;
+
+            Action<ScadaSolutionChange> handler = _ => host.RevokeAllSessions();
+            solutionContext.SolutionChanged += handler;
+            return handler;
         }
 
         /// <summary>
@@ -295,6 +327,32 @@ namespace VisionMaster.ScadaWeb
             {
                 log.Warn($"[ScadaWeb] 未能解析 {contractName}（{ex.GetType().Name}）：{ex.Message}"
                     + "。该出口相关功能将降级，Web 服务仍会启动");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// 解析方案身份出口（<see cref="IScadaSolutionContext"/>）。
+        ///
+        /// <b>为什么抽成 public static</b>：fail-closed 接线本身要能被断言钉住
+        /// （SW9-a 用「永远抛异常」的假容器调它，必须返回 null）。留在 Initialize 里写着，
+        /// 断言只能起一整个模块，而模块要真配置、真端口。
+        ///
+        /// <b>为什么 catch (Exception) 必须吞掉</b>：Prism/DryIoc 在「没注册」时抛的正是
+        /// <c>InvalidOperationException</c> 一族。用「返回 null 的假容器」会让「忘了 catch」
+        /// 这个 bug 测不出来——真实装配里那是一次未处理异常，会带走整个启动链。
+        /// </summary>
+        /// <returns>解析到的上下文；缺失返回 <c>null</c>（调用方必须记 Error 且不启动 HTTP）</returns>
+        public static IScadaSolutionContext? TryResolveSolutionContext(IContainerProvider container)
+        {
+            if (container == null) return null;
+
+            try
+            {
+                return container.Resolve<IScadaSolutionContext>();
+            }
+            catch
+            {
                 return null;
             }
         }

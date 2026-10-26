@@ -1,5 +1,5 @@
 {
-  "SolutionName": "压测方案-3000节点",
+  "SolutionName": "压测方案-3000节点-单流程",
   "Version": 1.0,
   "Config": {
     "ImageViewMode": 0

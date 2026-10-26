@@ -50,15 +50,33 @@ internal static partial class Program
     const string T_STR = "System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e";
     const string T_SGL = "System.Single, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e";
 
-    const string DIR_BOARD = @"D:\C#\VM\Image\board";
-    const string IMG_COLOR = @"D:\C#\VM\Image\颜色\合成颜色_8bit.png";
-    const string IMG_BEAD = @"D:\C#\VM\Image\bead\adhesive_bead_01.png";
-    const string IMG_BEAD_REF = @"D:\C#\VM\Image\bead\adhesive_bead_ref.png";
-    const string IMG_QR = @"D:\C#\VM\Image\images\datacode\qrcode\qr_workpiece_01.png";
-    const string DIR_CALIPER = @"D:\C#\VM\Image\卡尺测试";
+    // ---------- 方案内相对资产（一个方案一个文件夹：绝不写盘符路径） ----------
+    // 源文件在 D:\C#\VM\Image\...，生成期由 WriteFolderSolution 按 SourceImageMap
+    // 复制进 <方案>\Image\；.vms 里只出现下面这些 Image\文件名。
+    const string IMG_BOARD_01 = @"Image\board-01.png";
+    const string IMG_BOARD_02 = @"Image\board-02.png";
+    const string IMG_COLOR = @"Image\synthetic_color_8bit.png";
+    const string IMG_BEAD = @"Image\adhesive_bead_01.png";
+    const string IMG_BEAD_REF = @"Image\adhesive_bead_ref.png";
+    const string IMG_QR = @"Image\qr_workpiece_01.png";
+    const string IMG_LOT = @"Image\lot_number_01.png";
+    const string IMG_MISSING = @"Image\no_such_image.png";
+    const string IMG_BLANK = @"Image\blank_1200x800.png";
+    const string IMG_CALIPER_1 = @"Image\1-宽度40px.png";
+    const string IMG_CALIPER_2 = @"Image\2-两点距240px.png";
+    const string IMG_CALIPER_3 = @"Image\3-点到线距200px.png";
+    const string IMG_CALIPER_4 = @"Image\4-圆直径200px.png";
+    const string IMG_CALIPER_5 = @"Image\5-角度90.png";
 
     static void Main(string[] args)
     {
+        // 智能装配检测线（多工位 / 全图元 / 全插件 / 追溯报表）
+        if (args.Length > 0 && string.Equals(args[0], "--smart-line", StringComparison.OrdinalIgnoreCase))
+        {
+            WriteFolderSolution(BuildSmartLineSolution(), SL_NAME);
+            return;
+        }
+
         // 压测方案生成（--stress）：只在显式传参时跑，无参行为与历史完全一致
         if (args.Length > 0 && string.Equals(args[0], "--stress", StringComparison.OrdinalIgnoreCase))
         {
@@ -87,19 +105,16 @@ internal static partial class Program
             return;
         }
 
-        WriteSolution(BuildSolution(), @"D:\C#\VM\解决方案\综合检测线.vms");
-        WriteSolution(BuildTestSolution(), @"D:\C#\VM\解决方案\综合测试台.vms");
-        WriteSolution(BuildAssemblySolution(), @"D:\C#\VM\解决方案\柔性装配线.vms");
-        WriteSolution(BuildSortingSolution(), @"D:\C#\VM\解决方案\视觉分拣线.vms");
-        WriteSolution(BuildGatewaySolution(), @"D:\C#\VM\解决方案\数据网关.vms");
-        WriteSolution(BuildAutomationLineSolution(), @"D:\C#\VM\解决方案\自动化产线.vms");
-    }
-
-    static void WriteSolution(JObject solution, string outPath)
-    {
-        var json = JsonConvert.SerializeObject(solution, Formatting.Indented);
-        File.WriteAllText(outPath, json, new UTF8Encoding(false));
-        Console.WriteLine("WROTE " + outPath + " bytes=" + new FileInfo(outPath).Length);
+        // 默认六方案也走「一个方案一个文件夹」：
+        //   解决方案\<方案名>\<方案名>.vms + Image\ Alarms\ History\ Logs\
+        // 文件夹名逐字等于 SolutionName（SolutionPaths.IsFolderLayout 的判据），
+        // 图片一律 Image\文件名、账本一律 History\...，整包拷走就能用。
+        WriteFolderSolution(BuildSolution(), "综合检测线演示");
+        WriteFolderSolution(BuildTestSolution(), "综合测试台");
+        WriteFolderSolution(BuildAssemblySolution(), "柔性装配线");
+        WriteFolderSolution(BuildSortingSolution(), "视觉分拣线");
+        WriteFolderSolution(BuildGatewaySolution(), "数据网关");
+        WriteFolderSolution(BuildAutomationLineSolution(), "自动化产线");
     }
 
     // ==================================================================
@@ -176,7 +191,9 @@ internal static partial class Program
         // ---- For 循环体 ----
         var loopBody = new JArray
         {
-            ImgFolder("main:acq", "采集板卡图", DIR_BOARD, "main:loop", "循环检测", 1),
+            // 原先用文件夹模式（FolderPath 必须是绝对目录），与"方案内只写相对资产"冲突：
+            // 改成单文件 Image\board-01.png，循环体照常重复 5 轮，只是每轮读同一张样图。
+            ImgFile("main:acq", "采集板卡图", IMG_BOARD_01, 1),
             PreProcess("main:pre", "图像预处理", new JArray
             {
                 Op("gauss", ("Size", "5")),
@@ -196,7 +213,7 @@ internal static partial class Program
             GeometryRelation("main:rel", "两圆心距", "CircleRelation", "main:findCircle", "找圆", "main:findSmall", "找小圆", 0.05),
             PoseFollow("main:pose", "跟随ROI", "main:roi", "ROI圆区域", "main:findCircle", "找圆", 0),
             BlobDetect("main:blob", "表面缺陷检测", "main:pose", "跟随ROI", 0.05, 2),
-            ImgFile("main:ocrAcq", "采集批号图", @"D:\C#\VM\Image\images\ocr\lot_number_01.png", 0),
+            ImgFile("main:ocrAcq", "采集批号图", IMG_LOT, 0),
             Ocr("main:ocr", "OCR识别", new double[] { 272, 320, 0, 170, 40 }, 1, "main:ocrAcq", "采集批号图", true),
             Compare("main:cmpBlob", "缺陷数比较", "main:blob", "表面缺陷检测", "DefectCount", 10, "LessThanOrEqual"),
             Compare("main:cmpOcr", "OCR文本比较", "main:ocr", "OCR识别", "Count", 0, "GreaterThan"),
@@ -287,9 +304,9 @@ internal static partial class Program
         thenSteps.Add(Parallel("main:parallel", "并行收尾", 1, 0, 15000, new JArray
         {
             Branch(0, "上报MES", "", new JArray { Upload("main:upload", "上报MES") }),
-            Branch(0, "CSV记账", "", new JArray { CsvRecord("main:csv", "CSV记录") }),
+            Branch(0, "CSV记账", "", new JArray { CcgCsvRecord("main:csv", "CSV记录", DefaultCsvColumns()) }),
         }));
-        thenSteps.Add(Excel("main:excel", "导出Excel报表", "CSV记录"));
+        thenSteps.Add(CcgExcel("main:excel", "导出Excel报表", "CSV记录"));
         // 连续运行时给主流程一个节拍，避免空转把图像集/日志刷爆
         thenSteps.Add(Delay("main:cycleDelay", "循环节拍", 500));
 
@@ -341,25 +358,25 @@ internal static partial class Program
     {
         var steps = new JArray
         {
-            ImgFile("cal:acq1", "采集宽度图", DIR_CALIPER + @"\1-宽度40px.png", 1),
+            ImgFile("cal:acq1", "采集宽度图", IMG_CALIPER_1, 1),
             Caliper("cal:w", "宽度测量", "cal:acq1", "采集宽度图", "Width",
                 new[] { Reg("宽度区", "Rectangle", 240, 300, 0, 80, 100) }, 5, 30, 40, 0.5, -0.5, 1),
 
-            ImgFile("cal:acq2", "采集两点距图", DIR_CALIPER + @"\2-两点距240px.png", 1),
+            ImgFile("cal:acq2", "采集两点距图", IMG_CALIPER_2, 1),
             Caliper("cal:pp", "两点距测量", "cal:acq2", "采集两点距图", "PointToPoint",
                 new[] { Reg("左条", "Rectangle", 240, 100, 0, 60, 80), Reg("右条", "Rectangle", 240, 340, 0, 60, 80) },
                 5, 30, 240, 0.5, -0.5, 1),
 
-            ImgFile("cal:acq3", "采集点线距图", DIR_CALIPER + @"\3-点到线距200px.png", 1),
+            ImgFile("cal:acq3", "采集点线距图", IMG_CALIPER_3, 1),
             Caliper("cal:pl", "点到线距测量", "cal:acq3", "采集点线距图", "PointToLineDistance",
                 new[] { Reg("点区", "Rectangle", 250, 300, 0, 60, 60), Reg("线区", "Rectangle", 250, 100, 0, 60, 80) },
                 5, 30, 200, 0.5, -0.5, 1),
 
-            ImgFile("cal:acq4", "采集圆图", DIR_CALIPER + @"\4-圆直径200px.png", 1),
+            ImgFile("cal:acq4", "采集圆图", IMG_CALIPER_4, 1),
             Caliper("cal:dia", "圆直径测量", "cal:acq4", "采集圆图", "CircleDiameter",
                 new[] { Reg("圆搜索区", "Circle", 240, 320, 100) }, 16, 30, 200, 1, -1, 1),
 
-            ImgFile("cal:acq5", "采集角度图", DIR_CALIPER + @"\5-角度90.png", 1),
+            ImgFile("cal:acq5", "采集角度图", IMG_CALIPER_5, 1),
             Caliper("cal:ang", "角度测量", "cal:acq5", "采集角度图", "Angle",
                 new[] { Reg("竖线区", "Rectangle", 120, 240, 1.5708, 60, 80), Reg("横线区", "Rectangle", 240, 440, 0, 60, 80) },
                 5, 30, 90, 0.5, -0.5, 1),
@@ -731,21 +748,6 @@ internal static partial class Program
             ["DisplayViewIndex"] = view,
         });
 
-    static JObject ImgFolder(string seed, string name, string folder, string forSeed, string forName, int view)
-    {
-        var inputs = new JObject
-        {
-            ["Mode"] = "Folder",
-            ["FolderPath"] = folder,
-            ["DisplayViewIndex"] = view,
-        };
-        var links = new JObject
-        {
-            ["FileIndex"] = L(forSeed, "Index", forName),
-        };
-        return Action(seed, name, "常用工具", P_IMAGE, "图像采集", "\uf1c5", inputs, links);
-    }
-
     static JObject PreProcess(string seed, string name, JArray chain, int view,
         string imgSeed = "main:acq", string imgName = "采集板卡图")
         => Action(seed, name, "图像处理", P_PRE, "图像预处理", "\uf1fc", new JObject
@@ -1045,31 +1047,6 @@ internal static partial class Program
             ["SrcImage"] = L(imgSeed, "Image", imgName),
         });
 
-    static JObject CsvRecord(string seed, string name)
-        => Action(seed, name, "数据处理", P_CSV, "CSV记录", "\uf15c", new JObject
-        {
-            ["DirectoryTemplate"] = @"D:\Records\{StepName}\{yyyy-MM}\",
-            ["FileNamePattern"] = "{yyyy-MM-dd}.csv",
-            ["WriteHeader"] = true,
-            ["KeepDays"] = 30,
-            ["BlockOnFailure"] = false,
-            ["FlushEveryRow"] = false,
-            ["Columns"] = new JArray
-            {
-                Col("时间", "BuiltIn", "", "Timestamp"),
-                Col("序号", "BuiltIn", "", "Sequence"),
-                Col("结果", "Variable", "CurrentResult", "Timestamp"),
-                Col("OCR", "Variable", "OcrText", "Timestamp"),
-                Col("缺陷数", "Variable", "DefectCount", "Timestamp"),
-            },
-            ["ImageSaveMode"] = "Off",
-            ["ResultColumn"] = "结果",
-            ["NgValue"] = "NG",
-            ["ImageDirName"] = "img",
-            ["ImageNameTemplate"] = "{序号}_{结果}",
-            ["ImageFormat"] = "png",
-        });
-
     static JObject Col(string name, string source, string variable, string builtIn)
         => new() { ["Name"] = name, ["Source"] = source, ["VariableName"] = variable, ["BuiltIn"] = builtIn, ["Format"] = "", ["Enabled"] = true };
 
@@ -1100,22 +1077,6 @@ internal static partial class Program
 
     static JObject Field(string name, string source, string variable, string builtIn)
         => new() { ["Name"] = name, ["Source"] = source, ["VariableName"] = variable, ["BuiltIn"] = builtIn, ["Enabled"] = true };
-
-    static JObject Excel(string seed, string name, string csvStep)
-        => Action(seed, name, "数据处理", P_EXCEL, "Excel报表", "\uf1c3", new JObject
-        {
-            ["SourcePathTemplate"] = @"D:\Records\{源步骤}\{yyyy-MM}\{yyyy-MM-dd}.csv",
-            ["SourceStepName"] = csvStep,
-            ["OutputDirectoryTemplate"] = @"D:\Records\{StepName}\{yyyy-MM}\报表\",
-            ["ReportFileNamePattern"] = "{yyyy-MM-dd}_报表.xlsx",
-            ["LinkColumn"] = "图片路径",
-            ["FreezeHeader"] = true,
-            ["AutoFilter"] = true,
-            ["OnlyRowsWithImage"] = false,
-            ["ExportPolicy"] = "Manual",
-            ["OpenAfterExport"] = false,
-            ["BlockOnFailure"] = false,
-        });
 
     static JObject CommRead(string seed, string name, string varName)
         => Action(seed, name, "通讯", P_CREAD, "立刻读", "\uf0a4", new JObject

@@ -213,7 +213,7 @@
                                     VerticalAlignment="Center"
                                     Style="{StaticResource DialogFormLabel}"
                                     Text="类型" />
-                                <ComboBox
+                                <ComboBox Style="{StaticResource DialogComboCompact}"
                                     Grid.Row="1"
                                     Grid.Column="1"
                                     Height="32"
@@ -619,7 +619,7 @@
                                             VerticalAlignment="Center"
                                             Style="{StaticResource DialogFormLabel}"
                                             Text="类型" />
-                                        <ComboBox
+                                        <ComboBox Style="{StaticResource DialogComboCompact}"
                                             Grid.Column="3"
                                             Height="32"
                                             DisplayMemberPath="Text"

@@ -340,14 +340,14 @@ namespace ScadaChecks
                     !runtime.ClosePopup() && ReferenceEquals(runtime.CurrentPage, beforePopup),
                     runtime.CurrentPage?.Name);
 
-                // 角色闸门：默认策略是操作员，管理员页开不了
+                // 权限闸门：默认策略没有权限，管理员页（旧 RequiredRole 映射到 SystemConfig）开不了
                 popup.RequiredRole = ScadaRole.Administrator;
 
-                Check("弹窗⑩页面级角色：操作员打开管理员弹窗被拒，原因带所需角色",
+                Check("弹窗⑩页面级权限：未登录打开管理员弹窗被拒，原因带所需权限",
                     !runtime.OpenPopup(popup, out var roleReason)
                     && runtime.CurrentPopup == null
                     && roleReason != null
-                    && roleReason.Contains("管理员", StringComparison.Ordinal),
+                    && roleReason.Contains("权限", StringComparison.Ordinal),
                     roleReason);
 
                 popup.RequiredRole = null;
@@ -430,6 +430,10 @@ namespace ScadaChecks
                 Check("多基座编辑器④编辑基座页时多选菜单置灰（一层限制）",
                     !vm.CanSelectBasePage,
                     $"CanSelectBasePage={vm.CanSelectBasePage}");
+
+                // 与顶栏探针同一条纪律：`Activate()` 订阅的是**静态** ScadaEditHistory.Changed，
+                // 本段跑在一次性 STA 线程上，不摘就会让后面任何线程压栈都回调到一个死线程的 VM。
+                vm.Deactivate();
             }
 
             // ---------------------------------------------------------------- WPF（STA）

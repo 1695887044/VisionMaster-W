@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using VisionMaster.Models;
 using VisionMaster.Scada;
 
@@ -13,25 +14,26 @@ namespace VisionMaster.ScadaWeb
     /// <summary>
     /// Web 命令的权限策略（<b>逐命令、服务端</b>）：回答"此刻这个会话能不能操作这个图元"。
     ///
-    /// <b>五道闸的顺序是刻意的</b>（方案 §8.2）
+    /// <b>四道闸的顺序是刻意的</b>
     /// ---------
     ///   ① 总闸：<see cref="ScadaWebSettings.AllowCommands"/>（false = 只读镜像，一切命令都拒）；
     ///   ② 认证：未登录 → <c>E_UNAUTHENTICATED</c>（前端据此回登录卡片）；
     ///   ③ 只读会话：<b>显式只读票</b>（匿名票已在 ② 拒绝）→ <c>E_POLICY</c>；
     ///      "签票时总闸关着"造成的只读<b>不</b>在此处挡——它由 ① 按当前配置判定，
     ///      所以 <c>AllowCommands</c> 由 false 改回 true 后同一会话立即可操作；
-    ///   ④ 角色：<see cref="ScadaElement.RequiredRole"/> 经 <see cref="ScadaRoleExtensions.Allows"/>
-    ///      （<b>原因文案原样透传</b>，不在 web 侧重写措辞）；
-    ///   ⑤ 策略：<see cref="ScadaWebSettings.ClickPolicy"/>。
-    /// 先答"要不要管"、再答"你是谁"、最后答"这个对象要求什么"——反过来先比角色的话，
-    /// "只读模式"会被报成"角色不足"，现场照着日志去加权限，越改越乱。
+    ///   ④ 权限 Key：图元上的 <see cref="ScadaElementSnapshot.RequiredPermission"/>
+    ///      （未配则按事件的运动/停止族兜底，见 <see cref="Can"/>）。
+    /// 先答"要不要管"、再答"你是谁"、最后答"这个对象要求什么"——反过来先判权限的话，
+    /// "只读模式"会被报成"权限不足"，现场照着日志去加权限，越改越乱。
     ///
-    /// <b>HighestRoleOnly 的平局规则</b>
+    /// <b>没有「谁比谁高」这回事</b>
     /// ---------
-    /// 取<b>在线已认证会话</b>里的最高角色；达到该角色的会话都可点，<b>平局都可点</b>
-    /// （方案 §8.3：工业现场常见两个工程师同时在场，强行只让一个人点是人为故障）。
-    /// 没有已认证会话 → 全员只读。这里<b>不做</b>"最早连接优先 / sessionId 最小"之类的裁决：
-    /// 那等于让"谁先打开浏览器"决定谁能操作，且角色变化后无法稳定重算。要单人操作请开租约。
+    /// 账号本改成「用户组 + 权限 Key 集合」之后（B3），权限之间不存在大小关系：
+    /// 「能点停止」与「能点启动」是两件独立的事，没有一把尺子能量出谁更高。
+    /// 所以这里<b>不做</b>任何"当前在线账号里最高档才能操作"的裁决——
+    /// 那种口径（旧 <c>ClickPolicy=HighestRoleOnly</c>）在按 Key 的模型里无法定义，
+    /// 留着只会让现场分不清「我没权限」到底是 Key 没配还是角色不够高。
+    /// 要限制谁能操作，就把 Key 配到组上；要单人操作，请开租约。
     ///
     /// <b>为什么把判定写成静态核心 + 实例包装</b>
     /// ---------
@@ -105,47 +107,43 @@ namespace VisionMaster.ScadaWeb
                 return false;
             }
 
-            return CanOperate(session, ParseRequiredRole(element.RequiredRole), out code, out reason);
+            // 旧 .vms 只写了 RequiredRole：按 B3 的映射表折成一个 Key。
+            // 只接受成员名——数字串（"3"）虽然 Enum.TryParse 也认，但那是给"手改快照 /
+            // 高版本写了别的编码"留一条按数值提权的路径（"3" 恰好是管理员）。
+            var key = element.RequiredPermission;
+            if (string.IsNullOrWhiteSpace(key)
+                && element.RequiredRole is { Length: > 0 } legacyText
+                && !char.IsDigit(legacyText.Trim()[0])
+                && Enum.TryParse<ScadaRole>(legacyText.Trim(), ignoreCase: true, out var legacyRole)
+                && legacyRole.IsDefined())
+            {
+                key = ScadaPermissionKeys.LegacyRolePermission(legacyRole);
+            }
+
+            return Can(session, key, out code, out reason);
         }
 
-        public bool CanOperate(
-            ScadaWebSession session,
-            ScadaElementSnapshot element,
-            IReadOnlyList<ScadaWebSession> online,
-            out string code,
-            out string reason)
+        /// <summary>B3：按权限 Key 判定（Always 恒真；空 Key = 不限制；其余查登录快照）。</summary>
+        public bool Can(ScadaWebSession session, string? requiredKey, out string code, out string reason)
         {
-            if (element == null)
+            code = string.Empty;
+            reason = string.Empty;
+
+            // 先过全局闸（只读模式 / 未登录 / 匿名），再查权限 Key——否则 caps 会绕过 AllowCommands。
+            if (!Evaluate(session, _settings, out code, out reason))
+                return false;
+
+            if (!string.IsNullOrWhiteSpace(requiredKey)
+                && !string.Equals(requiredKey, ScadaPermissionKeys.Always, StringComparison.Ordinal)
+                && !session.Permissions.Contains(requiredKey!, StringComparer.Ordinal))
             {
-                code = ScadaWebErrorCodes.BadRequest;
-                reason = "图元快照为空";
+                code = ScadaWebErrorCodes.Policy;
+                reason = $"需要「{ScadaPermissionKeys.DisplayName(requiredKey)}」权限";
                 return false;
             }
 
-            return CanOperate(session, ParseRequiredRole(element.RequiredRole), online, out code, out reason);
-        }
-
-        /// <summary>按"图元要求的角色"判定（路由侧用活模型上的 <see cref="ScadaElement.RequiredRole"/>）</summary>
-        public bool CanOperate(ScadaWebSession session, ScadaRole? requiredRole, out string code, out string reason)
-            => CanOperate(session, requiredRole, SnapshotOnline(session), out code, out reason);
-
-        /// <summary>
-        /// 带在线快照的重载：<c>ApplyCaps</c> 一页只取一次在线列表，
-        /// 避免每个图元都 <c>presence.Sessions</c> 复制一次数组（1000 图元 × N 会话会变成 O(n²)）。
-        /// </summary>
-        public bool CanOperate(
-            ScadaWebSession session,
-            ScadaRole? requiredRole,
-            IReadOnlyList<ScadaWebSession> online,
-            out string code,
-            out string reason)
-        {
-            if (!Evaluate(session, requiredRole, _settings, online, out code, out reason))
-                return false;
-
-            // 租约是"可选加强"：只有 OperationLeaseEnabled + AllOperatorsRequiresLease 同时为 true
-            // 才把"必须持有租约"接进判权。两项缺一都不改变原有行为（C77 ①② 的配置校验仍在
-            // ScadaWebAccessPolicy.ValidateSupervision / Normalize 里）。
+            // 租约是"可选加强"，与权限 Key 正交：Key 有权限的人之间再分"此刻谁能动手"。
+            // 只有 OperationLeaseEnabled + AllOperatorsRequiresLease 同时为 true 才接进判权。
             if (_settings.OperationLeaseEnabled && _settings.AllOperatorsRequiresLease)
             {
                 if (_lease == null)
@@ -169,6 +167,20 @@ namespace VisionMaster.ScadaWeb
             return true;
         }
 
+        public bool CanOperate(
+            ScadaWebSession session,
+            ScadaElementSnapshot element,
+            IReadOnlyList<ScadaWebSession> online,
+            out string code,
+            out string reason)
+        {
+            // 在线快照参数刻意保留（签名稳定、调用点不用改），但它**不再参与判定**：
+            // 「谁比谁高」在按 Key 的模型里不存在。判定只看本会话自己的权限快照。
+            _ = online;
+
+            return CanOperate(session, element, out code, out reason);
+        }
+
         /// <summary>
         /// 只看策略层（不看具体图元）：这个会话<b>此刻有没有操作资格</b>。
         /// 在线列表的 <c>canOperate</c> 用它——那里没有"某一个图元"可言。
@@ -178,43 +190,19 @@ namespace VisionMaster.ScadaWeb
 
         /// <inheritdoc cref="CanOperateAtAll(ScadaWebSession, out string)"/>
         public bool CanOperateAtAll(ScadaWebSession session, out string code, out string reason)
-            => CanOperate(session, requiredRole: null, out code, out reason);
-
-        /// <summary>
-        /// 当前在线已认证会话里的最高角色；一个都没有时为 <c>null</c>（全员只读）。
-        /// <see cref="ScadaRole.Undefined"/>（非法值）不参与比较——它比谁都"小"，
-        /// 让它参与会把"文件里有个坏数字"变成"谁都别点"。
-        /// </summary>
-        public ScadaRole? HighestOnlineRole()
-        {
-            ScadaRole? highest = null;
-
-            foreach (var session in SnapshotOnline(null))
-            {
-                if (session == null || !session.IsAuthenticated || !session.Role.IsDefined())
-                    continue;
-
-                if (highest == null || session.Role > highest.Value)
-                    highest = session.Role;
-            }
-
-            return highest;
-        }
+            => Can(session, requiredKey: null, out code, out reason);
 
         #region 判定核心
 
         /// <summary>
         /// <b>权限判定的唯一实现</b>（实例方法、presence、断言都调它）。
         ///
-        /// <paramref name="online"/> 是"此刻在线的会话快照"；传空列表等价于"没有别的操作者"。
-        /// 被测会话即使不在快照里也会被计入最高角色（连接登记与命令到达之间有一个极小窗口，
-        /// 把"刚连上就点"判成"没有已登录操作者"是纯粹的误伤）。
+        /// 四道闸：总闸 → 认证 → 显式只读 → 权限 Key。
+        /// <b>没有角色闸、没有点击策略</b>：权限之间不存在高低，见类注释。
         /// </summary>
         public static bool Evaluate(
             ScadaWebSession? session,
-            ScadaRole? requiredRole,
             ScadaWebSettings? settings,
-            IReadOnlyList<ScadaWebSession>? online,
             out string code,
             out string reason)
         {
@@ -234,7 +222,7 @@ namespace VisionMaster.ScadaWeb
                 return false;
             }
 
-            // ① 总闸：默认只读。它排在角色之前——"关掉命令"这件事与你是谁无关。
+            // ① 总闸：默认只读。它排在身份之前——"关掉命令"这件事与你是谁无关。
             if (!settings.AllowCommands)
             {
                 reason = "当前为只读模式（ScadaWeb.AllowCommands=false）";
@@ -263,125 +251,14 @@ namespace VisionMaster.ScadaWeb
                 return false;
             }
 
-            // ④ 角色：原因逐字来自 ScadaRoleExtensions.Allows（唯一一份实现）。
-            if (!session.Role.Allows(requiredRole, out var roleReason))
-            {
-                code = ScadaWebErrorCodes.Role;
-                reason = roleReason ?? "当前角色没有操作权限";
-                return false;
-            }
-
-            // ⑤ 策略
-            switch (settings.ClickPolicy)
-            {
-                case ScadaWebClickPolicy.HighestRoleOnly:
-                    return EvaluateHighestRoleOnly(session, online, out code, out reason);
-
-                case ScadaWebClickPolicy.AllOperators:
-                    // ①~③ 已过；但监管项必须"用时再判"：
-                    // 模块启动时做的夹取会被随后的 ConfigCheck.Load() 原地回写覆盖
-                    // （2026-10-21 终审 P1-1），所以不能只信启动那一刻的结果。
-                    if (!ValidateSupervision(settings, out _))
-                        return EvaluateHighestRoleOnly(session, online, out code, out reason);
-
-                    break;
-
-                default:
-                    // 不认识的策略值（高版本配置被低版本读到）：fail-safe 只读。
-                    reason = $"不认识的点击策略（{(int)settings.ClickPolicy}），已按只读处理";
-                    return false;
-            }
-
             code = ScadaWebErrorCodes.Ok;
             reason = string.Empty;
-            return true;
-        }
-
-        /// <summary>
-        /// HighestRoleOnly 的判定体：没有已登录操作者 → 全员只读；低于当前最高档 → 只读；
-        /// 平局都可点。AllOperators 监管项不全时也回退到这里（fail-safe）。
-        /// </summary>
-        private static bool EvaluateHighestRoleOnly(
-            ScadaWebSession session,
-            IReadOnlyList<ScadaWebSession>? online,
-            out string code,
-            out string reason)
-        {
-            code = ScadaWebErrorCodes.Policy;
-            reason = string.Empty;
-
-            var highest = HighestOf(online, session);
-
-            if (highest == null)
-            {
-                reason = "当前没有已登录的操作者，全员只读";
-                return false;
-            }
-
-            // 平局都可点：这里只判"低于最高档"，不判"是不是唯一的那一个"。
-            if (!session.Role.Satisfies(highest.Value))
-            {
-                reason = $"只读：当前只有「{highest.Value.DisplayName()}」可以操作"
-                         + $"（{DisplayActor(session)} 是「{session.Role.DisplayName()}」）";
-                return false;
-            }
-
-            code = ScadaWebErrorCodes.Ok;
             return true;
         }
 
         /// <summary>当前在线快照（给批量判权用；一次复制，多次复用）</summary>
         public IReadOnlyList<ScadaWebSession> OnlineSnapshot(ScadaWebSession? self = null)
             => SnapshotOnline(self);
-
-        private static ScadaRole? HighestOf(IReadOnlyList<ScadaWebSession>? online, ScadaWebSession self)
-        {
-            ScadaRole? highest = null;
-
-            if (online != null)
-            {
-                foreach (var item in online)
-                {
-                    if (item == null || !item.IsAuthenticated || !item.Role.IsDefined())
-                        continue;
-
-                    if (highest == null || item.Role > highest.Value)
-                        highest = item.Role;
-                }
-            }
-
-            // 自己在窗口里没登记上也算（理由见 Evaluate 的注释）。
-            if (self.IsAuthenticated && self.Role.IsDefined()
-                && (highest == null || self.Role > highest.Value))
-            {
-                highest = self.Role;
-            }
-
-            return highest;
-        }
-
-        /// <summary>把 <see cref="ScadaElementSnapshot.RequiredRole"/> 的成员名解析成枚举</summary>
-        private static ScadaRole? ParseRequiredRole(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-                return null;
-
-            var trimmed = text.Trim();
-
-            // 只接受成员名。数字串（"3"）虽然 Enum.TryParse 也认，但快照里的 RequiredRole
-            // 是 ToString() 出来的成员名；接受数字等于给"手改快照 / 高版本写了别的编码"
-            // 留一条按数值提权的路径（"3" 恰好是管理员）。认不出的一律 Undefined，交给
-            // Allows 的 fail-safe 分支报"图元要求的权限值非法"。
-            if (char.IsDigit(trimmed[0]) || trimmed[0] == '-' || trimmed[0] == '+')
-                return ScadaRole.Undefined;
-
-            return Enum.TryParse<ScadaRole>(trimmed, ignoreCase: true, out var parsed)
-                ? parsed
-                : ScadaRole.Undefined;
-        }
-
-        private static string DisplayActor(ScadaWebSession session)
-            => string.IsNullOrWhiteSpace(session.UserName) ? "当前用户" : $"「{session.UserName}」";
 
         private IReadOnlyList<ScadaWebSession> SnapshotOnline(ScadaWebSession? self)
         {
@@ -395,58 +272,7 @@ namespace VisionMaster.ScadaWeb
 
         #endregion
 
-        #region 监管闸门（AllOperators）
-
-        /// <summary>
-        /// 校验 <see cref="ScadaWebClickPolicy.AllOperators"/> 的监管闸门（方案 §8.4）。
-        ///
-        /// <b>为什么缺项要拒绝启用、而不是悄悄跳过</b>
-        /// ---------
-        /// 五项各自对应一种现场事故（身份、留痕、限速、危险操作确认、在线可见性）。
-        /// "缺哪项就跳过哪项"的结果是：配置看着是放开的，实际少了一层护栏，
-        /// 而这种事<b>事后</b>才会被发现（出事时查不到是谁按的 / 连点把变量刷爆）。
-        ///
-        /// 返回 false 时 <paramref name="error"/> 逐项列出缺哪一条（带配置键名）。
-        /// <see cref="ScadaWebClickPolicy.HighestRoleOnly"/> 不需要任何监管项，恒为 true。
-        /// </summary>
-        public bool ValidateSupervision(out string error)
-            => ValidateSupervision(_settings, out error);
-
-        /// <summary>
-        /// 静态重载：供 <see cref="Evaluate"/> 在<b>每次判权时</b>复核监管项。
-        /// 配置对象可能在启动后被 ConfigCheck.Load 原地改写，不能只信启动时的夹取结果。
-        /// </summary>
-        public static bool ValidateSupervision(ScadaWebSettings? settings, out string error)
-        {
-            if (settings == null || settings.ClickPolicy != ScadaWebClickPolicy.AllOperators)
-            {
-                error = string.Empty;
-                return true;
-            }
-
-            var missing = new List<string>();
-
-            if (!settings.RequireOnlineUsers)
-                missing.Add("ScadaWeb.RequireOnlineUsers=false（在线用户列表被关闭）");
-
-            if (!settings.RequireAudit)
-                missing.Add("ScadaWeb.RequireAudit=false（命令审计被关闭；该项只能是 true）");
-
-            if (!settings.RequireRateLimit)
-                missing.Add("ScadaWeb.RequireRateLimit=false（速率限制被关闭）");
-
-            if (!settings.RequireConfirmForDangerous)
-                missing.Add("ScadaWeb.RequireConfirmForDangerous=false（危险动作二次确认被关闭）");
-
-            if (settings.AllOperatorsRequiresLease && !settings.OperationLeaseEnabled)
-                missing.Add("ScadaWeb.AllOperatorsRequiresLease=true 但 ScadaWeb.OperationLeaseEnabled=false（租约未启用）");
-
-            error = missing.Count == 0
-                ? string.Empty
-                : "AllOperators 监管闸门缺项：" + string.Join("；", missing);
-
-            return missing.Count == 0;
-        }
+        #region 配置夹取
 
         /// <summary>
         /// 加载期夹取（把非法配置改成安全值），返回逐条说明（空 = 没改任何东西）。
@@ -456,7 +282,7 @@ namespace VisionMaster.ScadaWeb
         ///     配置成 false 属于非法配置，夹回 true（不是只报错留 false）；
         ///   · <see cref="ScadaWebSettings.AllOperatorsRequiresLease"/>=true 但
         ///     <see cref="ScadaWebSettings.OperationLeaseEnabled"/>=false 是非法组合，夹回 false
-        ///     （方案 §8.4：它是"可选加强"，不能单独成立）。
+        ///     （它是"可选加强"，不能单独成立）。
         ///
         /// 调用方（宿主启动链）把返回的每一条按 Error 级别落日志——夹取本身不能静默，
         /// 否则现场永远不知道自己配错了一项。

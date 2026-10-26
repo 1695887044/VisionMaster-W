@@ -639,11 +639,11 @@ namespace ScadaWebChecks
                 else _defaultPasswordUsers.Remove(user);
             }
 
-            public bool TryValidate(string? userName, string? password, out ScadaRole role, out string? error)
+            public bool TryValidate(string? userName, string? password, out ScadaUserInfo? user, out string? error)
             {
                 Interlocked.Increment(ref _validateCount);
 
-                role = ScadaRole.Operator;
+                user = null;
                 error = null;
 
                 var name = userName?.Trim() ?? string.Empty;
@@ -655,8 +655,12 @@ namespace ScadaWebChecks
                     return false;
                 }
 
-                if (string.Equals(name, "admin", StringComparison.OrdinalIgnoreCase))
-                    role = ScadaRole.Administrator;
+                var isAdmin = string.Equals(name, "admin", StringComparison.OrdinalIgnoreCase);
+                user = new ScadaUserInfo(name,
+                    isAdmin ? ScadaGroupDefaults.AdminTemplateId : "G-op",
+                    isAdmin
+                        ? ScadaPermissionKeys.BuiltInKeys.ToArray()
+                        : new[] { ScadaPermissionKeys.ViewRuntime, ScadaPermissionKeys.ControlRun });
 
                 return true;
             }

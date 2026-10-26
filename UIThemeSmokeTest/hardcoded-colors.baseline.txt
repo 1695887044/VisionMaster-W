@@ -44,7 +44,6 @@ VisionMaster\Views\DialogViews\ScadaAxisPickerView.xaml|16
 VisionMaster\Views\DialogViews\ScadaFlowPickerView.xaml|19
 VisionMaster\Views\DialogViews\ScadaPagePickerView.xaml|26
 VisionMaster\Views\DialogViews\ScadaSystemSettingsView.xaml|11
-VisionMaster\Views\DialogViews\ScadaUserManagerView.xaml|40
 VisionMaster\Views\DialogViews\ScadaVariableEventDialogView.xaml|56
 VisionMaster\Views\DialogViews\ScadaVariablePickerView.xaml|23
 VisionMaster\Views\ScadaAlarmHistoryView.xaml|29

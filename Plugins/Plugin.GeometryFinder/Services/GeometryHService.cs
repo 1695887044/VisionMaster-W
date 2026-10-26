@@ -161,7 +161,11 @@ namespace Plugin.GeometryFinder.Services
                     out HTuple rowC, out HTuple colC, out HTuple phiT, out HTuple rad1, out HTuple rad2,
                     out HTuple _, out HTuple _, out HTuple _);
                 row = rowC.D; col = colC.D;
-                phi = Core.Interfaces.GeometryParam.NormalizePhi(phiT.D * RadToDeg);
+                // HALCON 的 fit_ellipse_contour_xld / gen_ellipse 用 Phi 表示"长轴相对列轴逆时针"，
+                // 在行向下的图像系里长轴方向是 (−sinφ, cosφ)；本仓 GeometryParam.Phi 的方向是
+                // (sinφ, cosφ)。两者差一个负号，不取反会把椭圆画成/算成镜像方向（φ=0/90 看不出来，
+                // φ=45 才现形）。Plugin.ResultDisplay 的 DisplayDraw 在画椭圆时也做了同样的 −Phi。
+                phi = Core.Interfaces.GeometryParam.NormalizePhi(-phiT.D * RadToDeg);
                 r1 = rad1.D; r2 = rad2.D;
                 return double.IsFinite(r1) && r1 > 0 && double.IsFinite(r2) && r2 > 0;
             }

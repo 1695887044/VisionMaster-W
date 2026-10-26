@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>控件改版对照 · 当前 / 改进后 / 理由</title>
+<style>
+  :root{--bg:#f5f7fb;--panel:#fff;--line:#e4e9f2;--text:#1e293b;--text2:#5b667a;--text3:#8a94a6;
+        --brand:#2563eb;--p1:#dc2626;--p1bg:#fdeaea;--p2:#d97706;--p2bg:#fdf3e3;--ok:#15803d;--okbg:#e9f7ee;
+        --radius:12px;--mono:"Cascadia Mono","Consolas",monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.75 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  header{padding:26px 40px 8px;max-width:1240px}
+  h1{font-size:25px;margin:0 0 6px}
+  .sub{color:var(--text2);margin:0}
+  .tabs{display:flex;gap:8px;padding:14px 40px 0;max-width:1240px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .tabs button{border:1px solid var(--line);border-bottom:0;background:#eef1f6;color:var(--text2);
+    padding:9px 18px;border-radius:10px 10px 0 0;font:inherit;font-size:14px;cursor:pointer}
+  .tabs button.on{background:#fff;color:var(--text);font-weight:600;box-shadow:0 -2px 0 var(--brand) inset}
+  main{max-width:1240px;padding:24px 40px 90px}
+  .pane{display:none}.pane.on{display:block}
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:12px 0 6px}
+  @media(max-width:900px){.pair{grid-template-columns:1fr}}
+  .shot{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:12px;text-align:center}
+  .shot .tag{display:inline-block;font-size:12px;border-radius:999px;padding:1px 10px;margin-bottom:8px}
+  .shot.before .tag{background:#eef1f6;color:#64748b}
+  .shot.after .tag{background:var(--okbg);color:var(--ok)}
+  .shot img{max-width:100%;border-radius:8px;display:block;margin:0 auto}
+  .shot .cap{font-size:12px;color:var(--text3);margin-top:8px}
+  h2{font-size:19px;margin:26px 0 8px}
+  h3{font-size:15px;margin:20px 0 6px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:12px 0}
+  table{border-collapse:collapse;width:100%;background:#fff;font-size:13.5px}
+  th,td{border-bottom:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-size:12.5px}
+  .chip{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700}
+  .chip.done{background:var(--okbg);color:var(--ok)}
+  .chip.todo{background:var(--p1bg);color:var(--p1)}
+  .chip.next{background:var(--p2bg);color:var(--p2)}
+  .chip.no{background:#eef1f6;color:#64748b}
+  .callout{border-left:4px solid var(--brand);background:#f2f7ff;border-radius:0 10px 10px 0;padding:12px 14px;margin:12px 0;font-size:14px}
+  .callout.warn{border-left-color:#d97706;background:#fffaf1}
+  code{font-family:var(--mono);font-size:12.5px;background:#eef2f8;border-radius:4px;padding:1px 5px}
+  .muted{color:var(--text3);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>控件改版对照 · 当前 / 改进后 / 理由</h1>
+  <p class="sub">第三轮会审（数据表格 / 轴面板 / 报警条）+ 前几轮已完成项。图片为 <code>_ScadaUiProbe --elements</code> 离屏渲染的真实 WPF 输出。</p>
+</header>
+
+<div class="tabs">
+  <button class="on" data-tab="axis">轴面板</button>
+  <button data-tab="grid">数据表格</button>
+  <button data-tab="banner">报警条</button>
+  <button data-tab="others">其它控件（前几轮）</button>
+</div>
+
+<main>
+  <!-- ==================== 轴面板 ==================== -->
+  <section class="pane on" id="axis">
+    <h2>轴面板 <code>Hmi.AxisPanel</code></h2>
+    <div class="pair">
+      <div class="shot before"><span class="tag">当前</span>
+        <img src="../app-shell/evidence/third-round/before/axispanel-unconfigured.png" alt="改前" />
+        <div class="cap">命令按钮 29px 高、字号 10、间距 5</div>
+      </div>
+      <div class="shot after"><span class="tag">改进后</span>
+        <img src="../app-shell/evidence/third-round/axispanel-unconfigured.png" alt="改后" />
+        <div class="cap">命令按钮 44px 高、字号 11、间距 6；面板默认高 310→380</div>
+      </div>
+    </div>
+
+    <table>
+      <tr><th style="width:170px">改动</th><th>理由</th></tr>
+      <tr><td><code>MinHeight</code> 29 → <b>44</b>，<code>Padding</code> 8,3 → 10,6，字号 10 → 11，间距 5 → 6</td>
+        <td>触摸命中区标准 ≥ 44px。原来 29px 的按钮戴手套点动时极易按到相邻键——这是会审 U3 与会审安全项 S1 的共同结论。</td></tr>
+      <tr><td>面板默认高度 310 → <b>380</b></td>
+        <td><b>实测教训</b>：只把按钮改高，310px 高的面板会把最后一行（回零/停止/清报警）裁掉。改尺寸必须连带改默认高度，否则"改好了"只存在于属性表里。</td></tr>
+      <tr><td>未改：未配置轴时按钮禁用</td>
+        <td><span class="chip todo">待做</span> 需要把命令按钮的 <code>IsEnabled</code> 与"有没有轴"绑定；涉及运行时状态与既有断言（六个命名件），风险高于纯尺寸改动，留给下一批。</td></tr>
+      <tr><td>未改：下发值 / 实际值加标签</td>
+        <td><span class="chip todo">待做</span> 要在模板里拆成"目标 / 当前"两行标签，属于布局改动，与上面那条一起做更省事。</td></tr>
+      <tr><td>撤销：状态点只靠颜色（A1）、失能入口（A2）、急停与点动（S3）</td>
+        <td><span class="chip no">用户裁定</span> 使能本来就是切换开关（绿=使能、灰=失能）；状态点是扫一眼的辅助信息；急停联锁在流程里断使能，界面不重复兜底。</td></tr>
+    </table>
+  </section>
+
+  <!-- ==================== 数据表格 ==================== -->
+  <section class="pane" id="grid">
+    <h2>数据表格 <code>Hmi.DataGrid</code></h2>
+    <div class="pair">
+      <div class="shot before"><span class="tag">当前</span>
+        <img src="../app-shell/evidence/third-round/before/datagrid-design.png" alt="改前" />
+        <div class="cap">配了 3 列仍显示"还没有配置采集"；无列头</div>
+      </div>
+      <div class="shot after"><span class="tag">改进后</span>
+        <img src="../app-shell/evidence/third-round/datagrid-design.png" alt="改后" />
+        <div class="cap">本轮未改（与左侧相同）</div>
+      </div>
+    </div>
+    <div class="callout warn">
+      <b>本轮没动这一块，原因写清楚</b>：两条 P1（"未绑采集信号"与"无数据"文案分开、设计期渲染列头）
+      都要改空态分支与列头渲染逻辑，而表格的空态由"采集信号是否绑定"驱动、列头由运行时列集合生成。
+      在没装配运行态上下文的条件下盲改，很可能出现"设计期有列头、运行期没有"的双分支问题。
+      <b>计划</b>：与"补运行态出图"一起做——先让探针能渲染有行/有列头的状态，再改文案与列头。
+    </div>
+    <table>
+      <tr><th style="width:170px">待做</th><th>理由</th></tr>
+      <tr><td><span class="chip todo">P1</span> 两种空态文案分开</td><td>"未绑定采集信号"是配置问题、"没有数据"是事实；同一句提示会让配列的人以为配错了。</td></tr>
+      <tr><td><span class="chip todo">P1</span> 设计期显示列头</td><td>配了列却看不到列头，无法确认列宽/对齐/格式。</td></tr>
+      <tr><td><span class="chip next">P2</span> 禁用态可辨</td><td>当前禁用与正常几乎无差别（两张截图肉眼一致）。</td></tr>
+      <tr><td><span class="chip next">P3</span> "采信"笔误</td><td>应为"采集"。</td></tr>
+    </table>
+  </section>
+
+  <!-- ==================== 报警条 ==================== -->
+  <section class="pane" id="banner">
+    <h2>报警条 <code>Hmi.AlarmBanner</code></h2>
+    <div class="pair">
+      <div class="shot before"><span class="tag">当前</span>
+        <img src="../app-shell/evidence/third-round/before/alarmbanner-empty.png" alt="改前" />
+        <div class="cap">空态只写"系统正常"（没接报警源也一样）</div>
+      </div>
+      <div class="shot after"><span class="tag">改进后</span>
+        <img src="../app-shell/evidence/third-round/alarmbanner-empty.png" alt="改后" />
+        <div class="cap">未接报警源时明确写出来，并降低不透明度</div>
+      </div>
+    </div>
+    <table>
+      <tr><th style="width:170px">改动</th><th>理由</th></tr>
+      <tr><td>空态区分「未接入报警源」与「系统正常」</td>
+        <td><b>静默假正常</b>：工程忘了启用报警时，界面照样显示"系统正常"，比不显示更危险。现在按"有没有报警源"分别给文案。</td></tr>
+      <tr><td>形态：单行跑马灯（默认）/ 卡片列表（可选）</td>
+        <td>按用户裁定：从右往左滚、不带确认、只要触发条件为 ON 就进队列；卡片列表 140px 高太占画面。</td></tr>
+      <tr><td>悬浮暂停</td><td>鼠标停在条上停住，移开继续；恢复时<b>扣掉暂停时长</b>而不是清零重来，否则文字会跳回起点、正在读的人跟丢。</td></tr>
+      <tr><td>未做：手动拖动后暂停 / 新报警是否打断阅读</td>
+        <td><span class="chip next">下一批</span> 建议加 <code>PauseOnUserScrollSeconds</code>（默认 10s），与"新报警插队"一起定。</td></tr>
+    </table>
+  </section>
+
+  <!-- ==================== 其它控件 ==================== -->
+  <section class="pane" id="others">
+    <h2>其它控件（前几轮已完成）</h2>
+    <p class="muted">这些控件已在更早的批次完成"审查 → 改版 → 断言"，对照图在各自的设计基线里。</p>
+    <table>
+      <tr><th style="width:150px">控件</th><th>已做的改动</th><th style="width:200px">对照</th></tr>
+      <tr><td><code>Hmi.Button</code></td>
+        <td>四态：按下压暗 18%、键盘焦点环（仅键盘导航出现）、危险变体 <code>Danger</code>、最小可点 36×72、禁用改箭头光标 + 暗蒙版（不再整体半透明）、悬停同时提亮边框</td>
+        <td><a href="../scada-button-review/design.html">按钮审查稿</a></td></tr>
+      <tr><td><code>Hmi.IOField</code></td>
+        <td>可写铅笔常显（触摸屏无 hover）、禁用态（箭头光标 + 底透明 + 字降亮）、数值与单位分列（小数点对齐）、<code>ValueOnlyText</code> 新只读属性</td>
+        <td><a href="../scada-iofield-slider-review/design.html">数值域/滑块审查稿</a></td></tr>
+      <tr><td><code>Hmi.Slider</code></td>
+        <td>数值气泡跟手（横向）、量程标注、命中区 44px、禁用态降饱和</td>
+        <td><a href="../scada-iofield-slider-review/design.html">同上</a></td></tr>
+      <tr><td><code>Hmi.BarChart</code> / <code>Hmi.PieChart</code></td>
+        <td>「数据项」改成「配置数据项…」按钮 + 变量选择器（原来只能手打变量名）；数据项编解码与轴范围/合并规则已断言</td>
+        <td><a href="../scada-chart-alarmtable/design.html">图表与报警表基线</a></td></tr>
+      <tr><td><code>Hmi.Report</code></td>
+        <td>「从账本导入列」：读 History 最新 CSV 表头一键生成列配置</td>
+        <td><a href="../scada-report-dynamicline/design.html">报表/动态画线基线</a></td></tr>
+    </table>
+    <div class="callout">
+      <b>还没审的</b>：<code>Hmi.PipeRun</code>（管线，已发现"可拖动/可改尺寸但无意义"）、<code>Hmi.Symbol</code>（工艺符号 30 种）、
+      <code>Hmi.KpiBoard</code>、<code>Hmi.MultiTrend</code>、<code>Hmi.RecipePanel</code>、<code>Hmi.SubPage</code>。
+      下一轮按"使用频率 × 出错后果"排序继续。
+    </div>
+  </section>
+</main>
+
+<script>
+(function(){
+  var buttons = document.querySelectorAll(".tabs button");
+  var panes = document.querySelectorAll(".pane");
+  buttons.forEach(function(b){
+    b.addEventListener("click", function(){
+      buttons.forEach(function(x){ x.classList.toggle("on", x === b); });
+      panes.forEach(function(p){ p.classList.toggle("on", p.id === b.dataset.tab); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

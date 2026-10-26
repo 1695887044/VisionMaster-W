@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using Core.Interfaces;
@@ -495,6 +496,59 @@ namespace FlowCanvasChecks
                 }
             }
 
+            // ---- 22c) 配置界面 Initialize 路径：灌配置不得推进方案里载入的标定时间 ----
+            // 22b 只覆盖"运行实例直接设属性"；配置界面走的是 base.Initialize → ApplyConfigValues，
+            // 每个带 OnXxxChanged 的属性都会触发 RefreshStatus → ComputeCalibration。
+            // CalibrationStampUtc 之后仍有 CaltabDescrFile/Intrinsics/UndistortBeforeCalibration
+            // 等属性，旧实现会在 stamp 写入之后再算一次，把时间刷成"刚刚"。
+            {
+                var step = new CheckStepData { StepName = "标定_Initialize时间戳" };
+                var stored = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+                var initRows = new ObservableCollection<CalibPointRow>();
+                for (int i = 0; i < imgPts.Length; i++)
+                    initRows.Add(new CalibPointRow
+                    {
+                        Name = "P" + (i + 1),
+                        MachineX = xs[i],
+                        MachineY = ys[i],
+                        ImageRow = imgPts[i].Row,
+                        ImageCol = imgPts[i].Col
+                    });
+
+                step.SetInputValue(nameof(CalibrationPlugin.Mode), CalibrationMode.NinePoint);
+                step.SetInputValue(nameof(CalibrationPlugin.GridSize), 3);
+                step.SetInputValue(nameof(CalibrationPlugin.PointRows), initRows);
+                step.SetInputValue(nameof(CalibrationPlugin.CalibrationStampUtc), stored);
+                // 关键：Intrinsics 既触发 RefreshStatus，又进 BuildInputSignature（IntrinsicsSignature）。
+                // CaltabDescrFile 只触发刷新、不进签名，拿它测不出时间戳被推进。
+                step.SetInputValue(nameof(CalibrationPlugin.Intrinsics), new CameraIntrinsicsDto
+                {
+                    CameraType = CameraIntrinsics.DivisionType,
+                    Focus = 0.05,
+                    Kappa = -1000,
+                    Sx = 5.2e-6,
+                    Sy = 5.2e-6,
+                    Cx = 640,
+                    Cy = 512,
+                    ImageWidth = 1280,
+                    ImageHeight = 1024,
+                    ImageCount = 12,
+                });
+
+                var loaded = new CalibrationPlugin { InstanceName = "标定_Initialize时间戳" };
+                try
+                {
+                    loaded.Initialize(step);
+                    Check("[CAL] 打开方案（Initialize）不推进载入的标定时间（配置灌值期间不重算）",
+                        loaded.CalibrationStampUtc == stored,
+                        $"stored={stored:O} → 载入后={loaded.CalibrationStampUtc:O}");
+                }
+                finally
+                {
+                    loaded.Dispose();
+                }
+            }
+
             // ---- 23) 像素当量：A/B 未取全必须明确失败（null 与 0 区分；不再拿 (0,0) 悄悄算）----
             {
                 var scale = new CalibrationPlugin { InstanceName = "标定_像素当量" };
@@ -532,6 +586,45 @@ namespace FlowCanvasChecks
                 finally
                 {
                     scale.Dispose();
+                }
+            }
+
+            // ---- 23b) 像素当量模式 + 去畸变开关：提示必须说"本模式不适用" ----
+            {
+                var hint = new CalibrationPlugin { InstanceName = "标定_像素当量去畸变提示" };
+                try
+                {
+                    hint.Mode = CalibrationMode.PixelScale;
+                    hint.Intrinsics = new CameraIntrinsicsDto
+                    {
+                        CameraType = CameraIntrinsics.DivisionType,
+                        Focus = 0.05,
+                        Kappa = -1000,
+                        Sx = 5.2e-6,
+                        Sy = 5.2e-6,
+                        Cx = 640,
+                        Cy = 512,
+                        ImageWidth = 1280,
+                        ImageHeight = 1024,
+                        ImageCount = 12,
+                    };
+                    hint.UndistortBeforeCalibration = true;
+
+                    Check("[CAL] 像素当量模式 + 去畸变开关：提示明确说本模式不适用（不谎称已生效）",
+                        hint.UndistortHintText.Contains("不适用") && hint.UndistortHintText.Contains("忽略"),
+                        hint.UndistortHintText);
+
+                    bool notified = false;
+                    hint.PropertyChanged += (_, e) =>
+                    {
+                        if (e.PropertyName == nameof(CalibrationPlugin.UndistortHintText)) notified = true;
+                    };
+                    hint.Mode = CalibrationMode.NinePoint;
+                    Check("[CAL] 模式切换会通知 UndistortHintText（提示跟着模式变）", notified, "");
+                }
+                finally
+                {
+                    hint.Dispose();
                 }
             }
 
@@ -951,6 +1044,71 @@ namespace FlowCanvasChecks
                 {
                     clean.Dispose();
                     dst.Dispose();
+                }
+
+                // (b2) 内参与「取点前先去畸变」必须一起导出/导入（否则跨机共享会静默换义）
+                var srcIntr = BuildPlugin(imgPts, xs, ys);
+                var dstIntr = new CalibrationPlugin { InstanceName = "标定_内参导入" };
+                try
+                {
+                    srcIntr.Intrinsics = new CameraIntrinsicsDto
+                    {
+                        CameraType = CameraIntrinsics.DivisionType,
+                        Focus = 0.05,
+                        Kappa = -1000,
+                        Sx = 5.2e-6,
+                        Sy = 5.2e-6,
+                        Cx = 640,
+                        Cy = 512,
+                        ImageWidth = 1280,
+                        ImageHeight = 1024,
+                        ImageCount = 12,
+                    };
+                    srcIntr.UndistortBeforeCalibration = true;
+
+                    string jsonIntr = srcIntr.BuildCalibrationExportJson();
+                    Check("[CAL] 导出：带内参的标定写入 Intrinsics 与 UndistortBeforeCalibration",
+                        jsonIntr.Contains("\"Intrinsics\"")
+                        && jsonIntr.Contains("\"UndistortBeforeCalibration\": true"),
+                        "");
+
+                    string errIntr = dstIntr.ImportCalibrationJson(jsonIntr);
+                    Check("[CAL] 导入：内参与去畸变开关往返一致（不再丢字段）",
+                        errIntr.Length == 0 && dstIntr.Intrinsics != null
+                        && Math.Abs(dstIntr.Intrinsics!.Kappa - (-1000)) < 1e-12
+                        && dstIntr.Intrinsics.ImageWidth == 1280
+                        && dstIntr.UndistortBeforeCalibration,
+                        errIntr.Length > 0
+                            ? errIntr
+                            : $"Intrinsics={(dstIntr.Intrinsics == null ? "null" : "有")} 开关={dstIntr.UndistortBeforeCalibration}");
+
+                    // 开关开但文件没带内参 → 必须在动本机数据之前拒绝
+                    var badFile = new CalibrationExportFile
+                    {
+                        Version = 1,
+                        Mode = (int)CalibrationMode.NinePoint,
+                        UndistortBeforeCalibration = true,
+                        Intrinsics = null,
+                        Points = new List<CalibrationExportPoint>(),
+                    };
+                    string badJson = JsonConvert.SerializeObject(badFile);
+                    var badDst = new CalibrationPlugin { InstanceName = "标定_内参导入拒绝" };
+                    try
+                    {
+                        string badErr = badDst.ImportCalibrationJson(badJson);
+                        Check("[CAL] 导入拒绝：开关开但内参缺失 → 明确失败（不静默退回不去畸变）",
+                            badErr.Contains("内参") && badErr.Contains("缺失"),
+                            badErr);
+                    }
+                    finally
+                    {
+                        badDst.Dispose();
+                    }
+                }
+                finally
+                {
+                    srcIntr.Dispose();
+                    dstIntr.Dispose();
                 }
 
                 // (c) 拒绝面：空内容 / 非法 JSON / 更高版本 / 锁定态

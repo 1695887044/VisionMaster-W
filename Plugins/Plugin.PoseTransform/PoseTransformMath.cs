@@ -155,6 +155,12 @@ namespace Plugin.PoseTransform
                     }
                     return true;
 
+                case CalibrationKind.HandEye:
+                    // 手眼是三维刚体变换（4×4），不是平面像素→毫米的映射；重标手眼也不会让本插件可用。
+                    error = "手眼标定给出的是三维刚体变换（4×4），本插件只做平面像素↔机械换算；"
+                          + "请把这份标定接到运动/抓取类消费者，或改用九点/透视/网格标定";
+                    return false;
+
                 default:
                     // 防"忘记分支"静默放行：未知 Kind 明确拒绝（消费方联动断言钉住）
                     error = $"不支持的标定类型（{t.Kind}）：请升级软件或重新标定";

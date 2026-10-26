@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SCADA 按钮图元 · Web 前端视角审查与改版对照 v1</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#fff; --line:#e3e8f0; --text:#1f2937; --text2:#5b667a; --text3:#8a94a6;
+    --brand:#2563eb; --brand2:#38bdf8; --danger:#e03a2b; --warn:#d97706; --ok:#16a34a;
+    --radius:10px; --mono:"Cascadia Mono","Consolas",monospace;
+    /* 画布侧（现状）令牌：取自 Scada.Controls 默认值 */
+    --canvas:#151c23; --canvas2:#1b242e; --stroke:#2a3745; --fg:#e6eef7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.65 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  code{font-family:var(--mono);font-size:12.5px;background:#eef2f8;border-radius:4px;padding:1px 5px}
+  .wrap{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;height:100vh;background:#0f172a;color:#cbd5e1;padding:22px 16px;overflow:auto}
+  nav .brand{font-size:15px;font-weight:700;color:#fff}
+  nav .ver{margin:6px 0 18px;font-size:11.5px;color:#7c8aa3}
+  nav a{display:block;color:#c2cddd;padding:7px 10px;border-radius:7px;font-size:13px;margin-bottom:2px;text-decoration:none}
+  nav a:hover{background:#1b2b45;color:#fff}
+  nav .grp{margin:16px 0 6px;font-size:11px;color:#64748b;letter-spacing:.08em}
+  main{padding:28px 34px 80px;max-width:1180px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--text2);margin:0 0 22px}
+  h2{font-size:19px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:20px 0 8px}
+  .muted{color:var(--text3);font-size:12.5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:12px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto}.grid2{grid-template-columns:1fr}}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-size:12.5px}
+  .p1{color:#b91c1c;font-weight:600}.p2{color:#b45309;font-weight:600}.p3{color:#475569}
+  .note{border-left:3px solid var(--brand2);background:#f2f8ff;padding:10px 12px;border-radius:0 8px 8px 0;font-size:13px;margin:12px 0}
+  .warnnote{border-left-color:var(--warn);background:#fffaf1}
+  .stage{background:var(--canvas);border-radius:var(--radius);padding:22px;display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+  .stage.light{background:#f8fafc;border:1px solid var(--line)}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .cell .cap{color:#8a94a6;font-size:11px}
+  .stage.light .cell .cap{color:#64748b}
+  /* ---------- 现状（复刻 ButtonElement.xaml） ---------- */
+  .b-old{
+    position:relative;display:flex;align-items:center;justify-content:center;
+    width:132px;height:42px;background:var(--canvas2);border:1px solid var(--stroke);border-radius:6px;
+    color:var(--fg);font-size:13px;cursor:pointer;user-select:none;overflow:hidden;
+  }
+  .b-old::after{content:"";position:absolute;inset:0;background:#fff;opacity:0;transition:opacity .12s}
+  .b-old:hover::after{opacity:.12}
+  .b-old.disabled{opacity:.5;cursor:pointer} /* 现状：禁用仍是手型，整体 50% 透明 */
+  /* ---------- 优化（v2） ---------- */
+  .b-new{
+    position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    min-height:36px;padding:0 16px;min-width:132px;
+    background:linear-gradient(180deg,#243040,#1b242e);
+    border:1px solid #33455a;border-radius:8px;color:var(--fg);font-size:13px;font-weight:500;
+    cursor:pointer;user-select:none;
+    transition:background .15s,border-color .15s,box-shadow .15s,transform .06s;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset,0 1px 2px rgba(0,0,0,.35);
+  }
+  .b-new:hover{border-color:#4a6a8a;background:linear-gradient(180deg,#2a3a4d,#202b38);box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 2px 6px rgba(0,0,0,.4)}
+  .b-new:active{transform:translateY(1px);background:linear-gradient(180deg,#18212c,#141b24);box-shadow:0 1px 0 rgba(255,255,255,.02) inset}
+  .b-new:focus-visible{outline:none;box-shadow:0 0 0 2px var(--canvas),0 0 0 4px var(--brand2)}
+  .b-new.disabled{opacity:1;background:#1a222c;border-color:#2a3542;color:#6b7787;cursor:not-allowed;box-shadow:none}
+  .b-new.danger{background:linear-gradient(180deg,#3a1c19,#2b1512);border-color:#7a2b23;color:#ffd9d4}
+  .b-new.danger:hover{border-color:#b03a2e;background:linear-gradient(180deg,#4a221e,#331815)}
+  .b-new.busy{pointer-events:none;color:#9fb0c4}
+  .spinner{width:12px;height:12px;border:2px solid #3b4a5d;border-top-color:var(--brand2);border-radius:50%;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .kv{font-family:var(--mono);font-size:12px;color:#475569}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">SCADA · 设计基线</div>
+    <div class="ver">按钮图元审查与改版　v1 · 2026-10-25 · 待确认</div>
+    <a href="#s0">0 · 结论</a>
+    <a href="#s1">1 · 现状还原（原图）</a>
+    <a href="#s2">2 · 审查发现（10 条）</a>
+    <a href="#s3">3 · 改版效果（对照）</a>
+    <a href="#s4">4 · 状态矩阵</a>
+    <a href="#s5">5 · 只改主题，不动契约</a>
+    <a href="#s6">6 · 待裁定</a>
+  </nav>
+
+  <main>
+    <h1>组态按钮图元：Web 前端视角审查</h1>
+    <p class="sub">
+      审查对象 <code>Hmi.Button</code>（<code>ButtonElement.xaml</code>，72 行）。
+      下面「原图」按该模板逐项复刻（颜色取 <code>#1B242E</code> 底 / <code>#2A3745</code> 边 / <code>#E6EEF7</code> 字，圆角 6，悬停白色 12%），
+      可直接用鼠标悬停/按下对照；「改版」为同尺寸下的建议效果。
+    </p>
+
+    <h2 id="s0">0 · 结论</h2>
+    <div class="card">
+      <p><b>能用的地方</b>：悬停提亮用的是"叠一层白"而不是改填充色，这个思路是对的——填充色可能是用户配的、也可能来自变量绑定，不该被样式覆盖。</p>
+      <p><b>主要缺口</b>：<b>没有按下反馈</b>、<b>没有键盘焦点环</b>、<b>禁用态仍是手型且整体半透明</b>、<b>没有危险动作变体</b>。
+         前两条在触摸屏 + 戴手套的场景是"操作员不确定点没点到"，后两条关系到误操作与可读性。</p>
+      <p class="muted">全部改动都落在<b>主题模板</b>内，不动模型、不动属性契约、不改落盘格式。</p>
+    </div>
+
+    <h2 id="s1">1 · 现状还原（原图）</h2>
+    <div class="stage">
+      <div class="cell"><div class="b-old">启动</div><div class="cap">Normal</div></div>
+      <div class="cell"><div class="b-old">启动</div><div class="cap">Hover（白色 12%）</div></div>
+      <div class="cell"><div class="b-old disabled">启动</div><div class="cap">Disabled（整体 50%，仍是手型）</div></div>
+      <div class="cell"><div class="b-old">急停复位</div><div class="cap">危险动作：与普通按钮同款</div></div>
+    </div>
+    <p class="muted">把鼠标移到第二、四个按钮上；第三个按钮请点一下——它仍然有手型光标。</p>
+
+    <h2 id="s2">2 · 审查发现</h2>
+    <table>
+      <tr><th style="width:52px">级别</th><th style="width:30%">问题</th><th>为什么是问题 / Web 惯例</th><th style="width:24%">建议</th></tr>
+      <tr>
+        <td class="p1">P1</td>
+        <td>没有<b>按下反馈</b>（模板注释写明"IsPressed 用不了"）</td>
+        <td>Web 里 <code>:active</code> 是硬要求：按下瞬间位移 1px 或变暗 8%。触摸屏上如果没有反馈，操作员会连点两三次</td>
+        <td>按下：下移 1px + 底色再暗一档（不改用户填充色，用叠加层）</td>
+      </tr>
+      <tr>
+        <td class="p1">P1</td>
+        <td>没有<b>键盘焦点环</b>（<code>Focusable=True</code> 但模板无 <code>IsKeyboardFocused</code> 触发器）</td>
+        <td>Tab 到按钮上完全看不出来，等于键盘导航不可用；与 R135"焦点必须可见"同一条纪律</td>
+        <td>2px 外环（品牌青）+ 1px 内描边，只在键盘聚焦时显示（鼠标点击不显示）</td>
+      </tr>
+      <tr>
+        <td class="p1">P1</td>
+        <td>没有<b>危险动作变体</b></td>
+        <td>急停、复位、清报警与"启动"长得一模一样；Web 里 danger 按钮是独立变体</td>
+        <td>加 <code>Danger</code> 属性（红底/红边），由属性面板勾选；只影响外观</td>
+      </tr>
+      <tr>
+        <td class="p1">P1</td>
+        <td>没有<b>最小可点尺寸</b></td>
+        <td>按钮尺寸由用户拉，可能只有 20px 高；触摸屏推荐 ≥ 44px 命中区（Web 无障碍 44×44）</td>
+        <td><code>MinHeight=36</code>（触摸场景由属性面板给 44），不影响已配好的大按钮</td>
+      </tr>
+      <tr>
+        <td class="p2">P2</td>
+        <td>禁用态<b>仍是手型光标</b>，且整体 50% 透明</td>
+        <td>手型 = "能点"的承诺；50% 透明会让深色底上的文字几乎不可读。Web 用 <code>cursor:not-allowed</code> + 降饱和但保文字对比</td>
+        <td>禁用：<code>Cursor=Arrow</code>、填充降饱和、文字保持 ~70% 对比度</td>
+      </tr>
+      <tr>
+        <td class="p2">P2</td>
+        <td>悬停反馈强度<b>取决于用户配色</b>（白色 12% 叠加）</td>
+        <td>浅色填充上几乎看不出，深色填充上很明显——同一套样式在不同工程里表现不一致</td>
+        <td>悬停同时提亮<b>边框</b>（固定色），叠加层保持 8~10%</td>
+      </tr>
+      <tr>
+        <td class="p2">P2</td>
+        <td>没有<b>忙碌/进行中态</b></td>
+        <td>启动流程要几秒，期间按钮无反馈，操作员会反复点（Web 用 disabled + spinner）</td>
+        <td>运行态执行动作期间显示 12px 圆环并吞掉点击</td>
+      </tr>
+      <tr>
+        <td class="p2">P2</td>
+        <td>文字<b>贴边</b>、无行高</td>
+        <td>Padding 由用户配，长文案换行时上下贴边（与 R184 同族）；Web 用 <code>padding + line-height</code> 保证呼吸</td>
+        <td>模板给 <code>TextBlock</code> 加 <code>LineHeight</code> 与 2px 上下余量</td>
+      </tr>
+      <tr>
+        <td class="p3">P3</td>
+        <td>圆角 6 与全局卡片 8 不一致</td>
+        <td>同一屏上按钮与面板圆角不同，观感"没对齐"</td>
+        <td>圆角走令牌（默认 8），已有工程保持原值</td>
+      </tr>
+      <tr>
+        <td class="p3">P3</td>
+        <td>无 <code>ToolTip</code> 兜底</td>
+        <td>长按钮名被截断时没有提示</td>
+        <td>运行态若文字被裁剪，自动挂 ToolTip（只读提示，不改文案）</td>
+      </tr>
+    </table>
+
+    <h2 id="s3">3 · 改版效果（左：现状 / 右：建议）</h2>
+    <div class="grid2">
+      <div>
+        <h3 style="margin-top:0">现状</h3>
+        <div class="stage">
+          <div class="cell"><div class="b-old">启动流程</div><div class="cap">Normal</div></div>
+          <div class="cell"><div class="b-old disabled">启动流程</div><div class="cap">Disabled</div></div>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-top:0">改版</h3>
+        <div class="stage">
+          <div class="cell"><div class="b-new">启动流程</div><div class="cap">Normal</div></div>
+          <div class="cell"><div class="b-new disabled">启动流程</div><div class="cap">Disabled（禁用手型已去掉）</div></div>
+        </div>
+      </div>
+    </div>
+    <p class="muted">把鼠标移到右侧「启动流程」上并按住：会看到 1px 下沉与底色变暗——这就是 P1 的按下反馈。</p>
+
+    <h2 id="s4">4 · 状态矩阵（改版）</h2>
+    <div class="stage">
+      <div class="cell"><div class="b-new">启动</div><div class="cap">Normal</div></div>
+      <div class="cell"><div class="b-new" style="border-color:#4a6a8a;background:linear-gradient(180deg,#2a3a4d,#202b38)">启动</div><div class="cap">Hover</div></div>
+      <div class="cell"><div class="b-new" style="transform:translateY(1px);background:linear-gradient(180deg,#18212c,#141b24)">启动</div><div class="cap">Pressed</div></div>
+      <div class="cell"><div class="b-new" style="box-shadow:0 0 0 2px var(--canvas),0 0 0 4px var(--brand2)">启动</div><div class="cap">Keyboard focus</div></div>
+      <div class="cell"><div class="b-new disabled">启动</div><div class="cap">Disabled</div></div>
+      <div class="cell"><div class="b-new danger">急停复位</div><div class="cap">Danger</div></div>
+      <div class="cell"><div class="b-new busy"><span class="spinner"></span>执行中…</div><div class="cap">Busy</div></div>
+    </div>
+    <div class="note">
+      <b>键盘焦点只在键盘导航时出现</b>：鼠标点击不画焦点环（Web 的 <code>:focus-visible</code> 语义），
+      否则每次点击都留一圈青边，触摸屏上像"卡住了"。
+    </div>
+
+    <h2 id="s5">5 · 只改主题，不动契约</h2>
+    <table>
+      <tr><th style="width:26%">改动</th><th>落点</th><th>不影响</th></tr>
+      <tr><td>按下 / 悬停 / 禁用 / 焦点 四态</td><td><code>ButtonElement.xaml</code> 模板触发器</td><td>模型、属性袋、落盘</td></tr>
+      <tr><td><code>Danger</code> 属性</td><td>新增 <code>[ScadaProperty]</code> 布尔项（默认 false）</td><td>老工程读不到该键 → 默认普通样式</td></tr>
+      <tr><td>忙碌态</td><td>运行态分发器执行动作期间置位（只读 DP）</td><td>动作语义、审计</td></tr>
+      <tr><td>最小尺寸</td><td>样式 <code>MinHeight/MinWidth</code></td><td>已配好的大按钮尺寸</td></tr>
+    </table>
+    <div class="note warnnote">
+      <b>不做</b>：渐变动画、阴影扩散、圆角动画。工业触摸屏上一律 150ms 以内、只做位移/明暗，
+      长时间运行的动画会烧 GPU 且在现场显得"软件卡了"。
+    </div>
+
+    <h2 id="s6">6 · 待裁定（4 条）</h2>
+    <div class="card">
+      <p><b>Q1</b> <code>Danger</code> 是否要做成"自动"——动作类型是危险动作（启停流程/轴运动/应用配方）时自动红？还是只由人工勾选？</p>
+      <p><b>Q2</b> 最小高度取 36（本稿）还是 44（触摸标准）？</p>
+      <p><b>Q3</b> 忙碌态是否显示"执行中…"文字（会改掉按钮文案），还是只加圆环？</p>
+      <p><b>Q4</b> 焦点环颜色用品牌青 <code>#38BDF8</code> 还是与报警区分度更高的琥珀？</p>
+      <p class="muted" style="margin-bottom:0">确认后冻结 v1 再改主题；改动需升 v2 并同步令牌映射（R128）。</p>
+    </div>
+
+    <p class="muted" style="margin-top:28px">
+      说明：本页是 <b>CSS 按 <code>ButtonElement.xaml</code> 逐项复刻</b>，不是 WPF 截图——
+      颜色、圆角、悬停叠加比例均照模板取值；像素级验收要在实现后同屏截图（R132）。
+    </p>
+  </main>
+</div>
+</body>
+</html>

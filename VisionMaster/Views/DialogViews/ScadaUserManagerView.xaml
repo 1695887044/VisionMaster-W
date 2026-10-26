@@ -4,397 +4,464 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:prism="http://prismlibrary.com/"
     xmlns:ui="http://schemas.UI.com/ui"
-    Width="760"
-    prism:ViewModelLocator.AutoWireViewModel="True"
     mc:Ignorable="d">
 
     <!--  ==========================================  -->
-    <!--  组态「用户管理」弹窗（管理员专属）  -->
-    <!--  左：账号清单；右：账号表单（新建 / 改角色 / 重置密码 / 删除）。  -->
-    <!--  界面灰掉只是"界面门"，真正的拒绝在 ViewModel 的 EnsureAdmin ——  -->
-    <!--  每个写命令第一句都是它（界面隐藏挡不住直接调命令）。  -->
+    <!--  「用户管理 · 账号与用户组」页签内容（v4）  -->
+    <!--  左：搜索 + 账号清单 + 新建；右：账号表单 + 安全策略摘要。  -->
+    <!--  外壳（标题栏 / 页签 / 底栏 / 关闭）归 UserManagementView，本视图只是页签内容。  -->
+    <!--  界面灰掉只是"界面门"，真正的拒绝在 ViewModel 的 EnsureAdmin。  -->
     <!--  ==========================================  -->
-
-    <prism:Dialog.WindowStyle>
-        <Style TargetType="Window">
-            <Setter Property="WindowStyle" Value="None" />
-            <Setter Property="ResizeMode" Value="NoResize" />
-            <Setter Property="SizeToContent" Value="WidthAndHeight" />
-            <!--  透明窗口：卡片外那圈 15px 只剩投影，不再是白底窗口边（用户看到的"白框"）。
-                  口径同 ScadaSystemSettingsView / ScadaLoginView。  -->
-            <Setter Property="AllowsTransparency" Value="True" />
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-    </prism:Dialog.WindowStyle>
 
     <UserControl.Resources>
         <ResourceDictionary>
-            <!--  就地合并 GridListViewStyle：本视图的 ListView 靠它让 Fluent 的隐式样式让位；
-                 断言宿主没有 Application（ScadaChecks 直连 new 视图），只能用相对 pack 写法自合并，
-                 不能依赖 App.xaml 那本主题字典（见 SolutionListView.xaml 同一段注释）。  -->
+            <!--  就地合并：断言宿主用真实例化证明令牌与样式可解析（R22）  -->
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
             </ResourceDictionary.MergedDictionaries>
-        <!--  行容器：整行可点，选中态与变量绑定弹窗同一套配色（#ECF5FF + #409EFF）  -->
-        <Style x:Key="UserRowStyle" TargetType="ListViewItem">
-            <Setter Property="OverridesDefaultStyle" Value="True" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-            <Setter Property="VerticalContentAlignment" Value="Center" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border
-                            x:Name="RowBorder"
-                            Padding="4,6"
-                            Background="Transparent"
-                            BorderBrush="#F2F3F5"
-                            BorderThickness="0,0,0,1">
-                            <!--  ★ 必须是 GridViewRowPresenter，不能用裸 ContentPresenter ★
-                                  两列（用户名 / 角色）的摆位全靠它按 Columns 排；
-                                  换成 ContentPresenter 后列布局整体丢失，屏幕上一行行的类型全名。  -->
-                            <!--  ★ 行容器左右内边距取 4 而不是 8：GridViewRowPresenter 会给每个单元格
-                                  再内置 6px 水平外边距，4 + 6 = 10，正好与列头 Padding 8（列头元素自身
-                                  比行容器右移 2px）落在同一条竖线上。对齐破了就是"表头压在数据上"。  -->
-                            <GridViewRowPresenter
-                                Columns="{TemplateBinding GridView.ColumnCollection}"
-                                Content="{TemplateBinding Content}"
-                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                SnapsToDevicePixels="True"
-                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#F5F7FA" />
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="RowBorder" Property="Background" Value="#ECF5FF" />
-                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="#409EFF" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
 
-        <!--  单元格正文：放不下就省略号 + 悬停看全值。
-              DisplayMemberBinding 生成的是裸 TextBlock（无 TextTrimming），
-              列宽是死的、账号名是活的，超宽只会被硬裁，所以这一层必须由模板兜住。  -->
-        <Style x:Key="UserCellTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#606266" />
-            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-        </Style>
+            <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
 
-        <!--  列头：浅灰底、深灰字  -->
-        <Style x:Key="UserHeaderStyle" TargetType="GridViewColumnHeader">
-            <Setter Property="Background" Value="#F5F7FA" />
-            <Setter Property="Foreground" Value="#606266" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderBrush" Value="#EBEEF5" />
-            <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="Padding" Value="8,6" />
-            <Setter Property="HorizontalContentAlignment" Value="Left" />
-        </Style>
+            <Style x:Key="FieldHintStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,5,0,0" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+            </Style>
 
-        <!--  字段标题：与登录弹窗同一套字号 / 灰度  -->
-        <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="#606266" />
-        </Style>
+            <Style x:Key="ReadOnlyFieldStyle" TargetType="Border">
+                <Setter Property="Height" Value="36" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogCardBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+            </Style>
 
-        <!--  只读字段的外观：账号名改不了，就用"浅底 + 灰字"直说，
-              而不是给一个看着能打字、打了却没反应的输入框
-              （TextBox 默认样式里没有只读态，IsReadOnly 之后长得和可编辑的一模一样）。
-              内边距 / 字号与 TextBox 默认样式对齐（10,8 + 13），两种模式切换时高度不跳。  -->
-        <Style x:Key="ReadOnlyFieldStyle" TargetType="Border">
-            <Setter Property="Background" Value="#F5F7FA" />
-            <Setter Property="BorderBrush" Value="#E4E7ED" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="5" />
-            <Setter Property="Padding" Value="10,8" />
-        </Style>
+            <!--  账号行：52 高、整行可点；选中态与表格行同一套浅蓝  -->
+            <Style x:Key="AccountRowStyle" TargetType="ListViewItem">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="Height" Value="52" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border
+                                x:Name="RowBorder"
+                                Padding="8,0"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <ContentPresenter
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                    <Setter TargetName="RowBorder" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid Margin="15">
-        <!--  投影层与内容层分离（口径同 DialogCardShadow）：两层同尺寸，内容层把投影层完全盖住，
-              只在圆角外露出阴影——透明窗口下，那片圆角外区域就是投影唯一可见的地方。  -->
-        <Border Background="White" CornerRadius="8">
-            <Border.Effect>
-                <DropShadowEffect
-                    BlurRadius="15"
-                    Direction="270"
-                    Opacity="0.15"
-                    ShadowDepth="3"
-                    Color="Black" />
-            </Border.Effect>
-        </Border>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-        <Border Background="White" CornerRadius="8">
+        <!--  ================= 左：账号清单 =================  -->
+        <Border Grid.Column="0" Style="{StaticResource DialogColumnCard}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="45" />
+                    <RowDefinition Height="48" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="56" />
+                    <RowDefinition Height="34" />
                 </Grid.RowDefinitions>
 
-                <!--  标题栏（无系统边框的弹窗靠它拖动）  -->
-                <Border
-                    Grid.Row="0"
-                    ui:WindowDragBehavior.IsWindowDraggable="True"
-                    Background="#F8F9FA"
-                    BorderBrush="#EBEEF5"
-                    BorderThickness="0,0,0,1"
-                    CornerRadius="8,8,0,0">
-                    <TextBlock
-                        Margin="20,0"
-                        VerticalAlignment="Center"
-                        FontSize="15"
-                        FontWeight="Bold"
-                        Foreground="#303133"
-                        Text="{Binding Title}" />
-                </Border>
-
-                <!--  ============ 内容区：左清单 / 右表单 ============  -->
-                <Grid Grid.Row="1" Margin="20,16,20,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="280" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <!--  ========== 左：账号清单 ==========  -->
-                    <Grid Grid.Column="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
+                <Grid Grid.Row="0" Margin="14,0">
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
-                            Grid.Row="0"
-                            FontSize="12"
-                            Foreground="#606266"
-                            Text="账号" />
-
-                        <Border
-                            Grid.Row="1"
-                            MinHeight="300"
-                            Margin="0,6,0,0"
-                            Background="#FFFFFF"
-                            BorderBrush="#E4E7ED"
-                            BorderThickness="1"
-                            CornerRadius="6">
-                            <Grid>
-                                <ListView
-                                    BorderThickness="0"
-                                    ItemContainerStyle="{StaticResource UserRowStyle}"
-                                    ItemsSource="{Binding Users}"
-                                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                    SelectedItem="{Binding SelectedUser}"
-                                    SelectionMode="Single"
-                                    Style="{StaticResource GridListViewStyle}">
-                                    <ListView.View>
-                                        <!--  列宽预算（左列 280）：
-                                                280 − 2（外框）− 17（竖滚动条）− 8（行容器 4×2）
-                                                    − 12（单元格内置 6×2）= 241；
-                                                两列之和取 230，留 11px 余量。  -->
-                                        <GridView ColumnHeaderContainerStyle="{StaticResource UserHeaderStyle}">
-                                            <GridViewColumn Header="用户名" Width="140">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock
-                                                            FontWeight="SemiBold"
-                                                            Foreground="#303133"
-                                                            Text="{Binding Name}"
-                                                            TextTrimming="CharacterEllipsis"
-                                                            ToolTip="{Binding Name}" />
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Header="角色" Width="90">
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock
-                                                            Style="{StaticResource UserCellTextStyle}"
-                                                            Text="{Binding RoleText}"
-                                                            ToolTip="{Binding RoleText}" />
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                        </GridView>
-                                    </ListView.View>
-                                </ListView>
-
-                                <!--  空态：正常不会出现（账号文件不存在时会种下出厂管理员），
-                                      但文件被清空 / 读坏时得有话说  -->
-                                <TextBlock
-                                    Margin="20"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    FontSize="12"
-                                    Foreground="#909399"
-                                    Text="账号清单为空。"
-                                    TextAlignment="Center"
-                                    TextWrapping="Wrap"
-                                    Visibility="{Binding HasUsers, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
-                            </Grid>
-                        </Border>
-
-                        <!--  账号文件在哪：出问题时现场第一句要问的就是它，所以常态就摆出来 -->
-                        <TextBlock
-                            Grid.Row="2"
-                            Margin="0,8,0,0"
-                            FontSize="11"
-                            Foreground="#C0C4CC"
-                            TextTrimming="CharacterEllipsis"
-                            ToolTip="{Binding StorePath}">
-                            <Run Text="账号文件：" /><Run Text="{Binding StoreFileName, Mode=OneWay}" />
-                        </TextBlock>
-                    </Grid>
-
-                    <!--  ========== 右：账号表单 ==========  -->
-                    <Grid Grid.Column="2">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <!--  抬头：新建账号 / 编辑账号：xxx  -->
-                        <TextBlock
-                            Grid.Row="0"
-                            FontSize="12"
+                            FontSize="14"
                             FontWeight="SemiBold"
-                            Foreground="#303133"
-                            Text="{Binding HeaderText}"
-                            TextTrimming="CharacterEllipsis" />
-
-                        <!--  非管理员警告条：弹窗开着的时候会话超时登出，这里立刻亮起来  -->
-                        <Border
-                            Grid.Row="1"
-                            Margin="0,8,0,0"
-                            Padding="10,7"
-                            Background="#FDF6EC"
-                            BorderBrush="#F5DAB1"
-                            BorderThickness="1"
-                            CornerRadius="4"
-                            Visibility="{Binding IsAdmin, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
-                            <TextBlock
-                                FontSize="11"
-                                Foreground="#E6A23C"
-                                Text="{Binding AdminHint}"
-                                TextWrapping="Wrap" />
-                        </Border>
-
-                        <StackPanel
-                            Grid.Row="2"
-                            Margin="0,12,0,0"
-                            IsEnabled="{Binding IsAdmin}">
-
-                            <!--  用户名：新建时可填，编辑时只读（账号存储没有改名接口，
-                                  改名 = 删掉再建，那是两次看得见的操作）  -->
-                            <TextBlock Style="{StaticResource FieldLabelStyle}" Text="用户名" />
-                            <TextBox
-                                Margin="0,4,0,0"
-                                Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
-                                Visibility="{Binding IsNewMode, Converter={ui:BooleanToVisibilityConverter}}" />
-                            <Border
-                                Margin="0,4,0,0"
-                                Style="{StaticResource ReadOnlyFieldStyle}"
-                                ToolTip="账号名不可修改。要改名请先删除该账号，再新建一个。"
-                                Visibility="{Binding IsNewMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
-                                <TextBlock
-                                    FontSize="13"
-                                    Foreground="#909399"
-                                    Text="{Binding EditName}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </Border>
-
-                            <!--  密码：新建时必填，编辑时留空即不改（标题随模式换，见 PasswordLabel）  -->
-                            <TextBlock
-                                Margin="0,10,0,0"
-                                Style="{StaticResource FieldLabelStyle}"
-                                Text="{Binding PasswordLabel}" />
-                            <PasswordBox
-                                Margin="0,4,0,0"
-                                ui:PasswordBoxHelper.BindablePassword="{Binding EditPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-
-                            <!--  角色：下拉里只有三档合法值，不含"非法值"那一档  -->
-                            <TextBlock
-                                Margin="0,10,0,0"
-                                Style="{StaticResource FieldLabelStyle}"
-                                Text="角色" />
-                            <ComboBox
-                                Margin="0,4,0,0"
-                                DisplayMemberPath="Text"
-                                ItemsSource="{Binding RoleOptions}"
-                                SelectedValue="{Binding EditRole, Mode=TwoWay}"
-                                SelectedValuePath="Value" />
-                        </StackPanel>
-
-                        <!--  结果提示：成功绿 / 失败红。固定 30px 占位，
-                              出错（含"再按一次确认删除"这类长句）时不会把按钮顶下去  -->
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="账号" />
                         <TextBlock
-                            Grid.Row="3"
-                            MinHeight="30"
-                            Margin="0,8,0,0"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
                             FontSize="11"
-                            Text="{Binding Message}"
-                            TextWrapping="Wrap">
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="{Binding UserCountText}" />
+                    </StackPanel>
+                    <Button
+                        Height="24"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Command="{Binding NewUserCommand}"
+                        Content="＋ 新建"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogLinkButton}" />
+                </Grid>
+
+                <!--  搜索：外框 + 放大镜 + 无边框输入 + 占位文字（IsHitTestVisible=False）  -->
+                <Border
+                    Grid.Row="1"
+                    Height="34"
+                    Margin="14,0,14,10"
+                    Style="{StaticResource DialogSearchChrome}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource DialogSearchIcon}" Text="&#xf002;" />
+                        <TextBox
+                            Grid.Column="1"
+                            VerticalContentAlignment="Center"
+                            Style="{StaticResource DialogSearchInput}"
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                        <TextBlock
+                            Grid.Column="1"
+                            Margin="8,0,10,0"
+                            VerticalAlignment="Center"
+                            FontSize="12"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            IsHitTestVisible="False"
+                            Text="搜索账号名">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Foreground" Value="#F56C6C" />
+                                    <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Succeeded}" Value="True">
-                                            <Setter Property="Foreground" Value="#67C23A" />
+                                        <DataTrigger Binding="{Binding SearchText}" Value="">
+                                            <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                    </Grid>
+                </Border>
 
-                        <!--  操作行：左"删除"、右"重置 / 保存"  -->
-                        <Grid Grid.Row="4" Margin="0,8,0,0">
+                <Grid Grid.Row="2" Margin="8,0,8,8">
+                    <ListView
+                        BorderThickness="0"
+                        ItemContainerStyle="{StaticResource AccountRowStyle}"
+                        ItemsSource="{Binding Users}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                        SelectedItem="{Binding SelectedUser}"
+                        SelectionMode="Single"
+                        Style="{StaticResource GridListViewStyle}">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="30"
+                                        Height="30"
+                                        Background="{StaticResource DialogAccentLightBrush}"
+                                        CornerRadius="15">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="12"
+                                            FontWeight="Bold"
+                                            Foreground="{StaticResource DialogAccentTextBrush}"
+                                            Text="{Binding Initial}" />
+                                    </Border>
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Margin="10,0,8,0"
+                                        VerticalAlignment="Center">
+                                        <TextBlock
+                                            FontSize="13"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding Name}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding Name}" />
+                                        <TextBlock
+                                            Margin="0,2,0,0"
+                                            FontSize="11"
+                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                            Text="{Binding GroupText}"
+                                            TextTrimming="CharacterEllipsis"
+                                            ToolTip="{Binding GroupText}" />
+                                    </StackPanel>
+                                    <Border
+                                        Grid.Column="2"
+                                        Padding="8,2"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource DialogAccentSoftBrush}"
+                                        BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Visibility="{Binding IsCurrent, Converter={ui:BooleanToVisibilityConverter}}">
+                                        <TextBlock
+                                            FontSize="11"
+                                            Foreground="{StaticResource DialogAccentTextBrush}"
+                                            Text="当前" />
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
 
-                            <!--  删除键：二次确认做在弹窗内，不弹系统 MessageBox ——
-                                  "要删的是谁"这句话就写在按钮旁边，不会被模态框盖住。
-                                  新建模式下整块隐藏：那时屏幕上是"新建账号"，而删除针对的是
-                                  左侧选中的那个账号，两件事对不上，容易误删。  -->
-                            <Grid
-                                HorizontalAlignment="Left"
-                                IsEnabled="{Binding IsAdmin}"
-                                Visibility="{Binding IsNewMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
-                                <!--  常态：白底红字红框  -->
+                    <TextBlock
+                        Margin="16"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="{Binding EmptyText}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap"
+                        Visibility="{Binding HasUsers, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                </Grid>
+
+                <Border
+                    Grid.Row="3"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,1,0,0">
+                    <TextBlock
+                        Margin="14,0"
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="{Binding StorePath}">
+                        <Run Text="账号文件：" /><Run Text="{Binding StoreFileName, Mode=OneWay}" />
+                    </TextBlock>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!--  ================= 右：账号表单 =================  -->
+        <Border
+            Grid.Column="2"
+            Padding="20,20,20,0"
+            Style="{StaticResource DialogColumnCard}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="{Binding HeaderText}" />
+                    <Border
+                        Margin="10,0,0,0"
+                        Padding="8,2"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource DialogAccentSoftBrush}"
+                        BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="10">
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{StaticResource DialogAccentTextBrush}"
+                            Text="{Binding SelectedGroupName}" />
+                    </Border>
+                </StackPanel>
+
+                <Grid Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!--  用户名  -->
+                    <StackPanel Grid.Row="0" Margin="0,16,0,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="用户名" />
+                        <TextBox
+                            Height="36"
+                            Margin="0,6,0,0"
+                            VerticalContentAlignment="Center"
+                            Style="{StaticResource DialogInput}"
+                            Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"
+                            Visibility="{Binding IsNewMode, Converter={ui:BooleanToVisibilityConverter}}" />
+                        <Border
+                            Margin="0,6,0,0"
+                            Style="{StaticResource ReadOnlyFieldStyle}"
+                            ToolTip="账号名不可修改。要改名请先删除该账号，再新建一个。"
+                            Visibility="{Binding IsNewMode, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="13"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="{Binding EditName}"
+                                TextTrimming="CharacterEllipsis" />
+                        </Border>
+                        <TextBlock Style="{StaticResource FieldHintStyle}" Text="账号名不可修改。要改名请先删除该账号，再新建一个。" />
+                    </StackPanel>
+
+                    <!--  用户组 + 管理用户组…  -->
+                    <StackPanel Grid.Row="1" Margin="0,14,0,0">
+                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="用户组" />
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox
+                                Height="36"
+                                DisplayMemberPath="Text"
+                                ItemsSource="{Binding GroupOptions}"
+                                SelectedValue="{Binding EditGroupId, Mode=TwoWay}"
+                                SelectedValuePath="GroupId"
+                                Style="{StaticResource DialogCombo}" />
+                            <Button
+                                Grid.Column="1"
+                                Height="34"
+                                Margin="8,0,0,0"
+                                Padding="12,0"
+                                Command="{Binding OpenGroupEditorCommand}"
+                                Content="管理用户组…"
+                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                Style="{StaticResource DialogSecondaryButton}" />
+                        </Grid>
+                        <TextBlock Style="{StaticResource FieldHintStyle}" Text="权限按组分配：组内勾选的权限决定该组用户能做什么。" />
+                    </StackPanel>
+
+                    <!--  新密码 / 确认密码  -->
+                    <StackPanel Grid.Row="2" Margin="0,14,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="新密码" />
+                                <PasswordBox
+                                    Height="36"
+                                    Margin="0,6,0,0"
+                                    ui:PasswordBoxHelper.BindablePassword="{Binding EditPassword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Style="{StaticResource FieldLabelStyle}" Text="确认密码" />
+                                <PasswordBox
+                                    Height="36"
+                                    Margin="0,6,0,0"
+                                    ui:PasswordBoxHelper.BindablePassword="{Binding EditPasswordConfirm, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Style="{StaticResource FieldHintStyle}" Text="{Binding PasswordHint}" />
+                    </StackPanel>
+
+                    <!--  只读策略提示  -->
+                    <StackPanel Grid.Row="3" Margin="0,16,0,0">
+                        <TextBlock
+                            FontSize="11"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="当前登录账号与最后一个管理员不可删除；删除需二次确认。" />
+                        <TextBlock
+                            Margin="0,4,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="保存失败会整体回滚，并给出具体原因。" />
+                    </StackPanel>
+
+                    <!--  结果提示：固定高度，长句不会把按钮顶下去  -->
+                    <TextBlock
+                        Grid.Row="4"
+                        Margin="0,12,0,0"
+                        VerticalAlignment="Bottom"
+                        FontSize="11"
+                        Text="{Binding Message}"
+                        TextWrapping="Wrap">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Succeeded}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <!--  操作行：左删除、右放弃修改 / 保存  -->
+                    <Border
+                        Grid.Row="5"
+                        Margin="0,0,0,14"
+                        Padding="0,14,0,0"
+                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                        BorderThickness="0,1,0,0">
+                        <Grid>
+                            <Grid HorizontalAlignment="Left" IsEnabled="{Binding IsAdmin}">
+                                <Grid.Style>
+                                    <Style TargetType="Grid">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsNewMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Grid.Style>
                                 <Button
-                                    Padding="14,7"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#F56C6C"
-                                    BorderThickness="1"
                                     Command="{Binding DeleteCommand}"
                                     Content="删除账号"
-                                    Cursor="Hand"
-                                    FontSize="12"
-                                    Foreground="#F56C6C"
-                                    Visibility="{Binding ConfirmingDelete, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
-                                <!--  待确认：实心红，与上一态同一位置，只有一次点击的差别  -->
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}">
+                                    <Button.Style>
+                                        <Style BasedOn="{StaticResource DialogDangerOutlineButton}" TargetType="Button">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ConfirmingDelete}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                                 <Button
-                                    Padding="14,7"
-                                    Background="#F56C6C"
-                                    BorderBrush="#F56C6C"
-                                    BorderThickness="1"
                                     Command="{Binding DeleteCommand}"
                                     Content="确认删除"
-                                    Cursor="Hand"
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    Foreground="White"
-                                    Visibility="{Binding ConfirmingDelete, Converter={ui:BooleanToVisibilityConverter}}" />
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}">
+                                    <Button.Style>
+                                        <Style BasedOn="{StaticResource DialogDangerButton}" TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ConfirmingDelete}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </Grid>
 
                             <StackPanel
@@ -402,56 +469,50 @@
                                 IsEnabled="{Binding IsAdmin}"
                                 Orientation="Horizontal">
                                 <Button
+                                    Height="34"
                                     Margin="0,0,10,0"
-                                    Padding="14,7"
-                                    Background="#FFFFFF"
-                                    BorderBrush="#DCDFE6"
-                                    BorderThickness="1"
+                                    Padding="14,0"
                                     Command="{Binding CancelNewCommand}"
-                                    Content="重置"
-                                    Cursor="Hand"
-                                    FontSize="12"
+                                    Content="放弃修改"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    Style="{StaticResource DialogSecondaryButton}"
                                     ToolTip="放弃未保存的修改，恢复成当前选中账号的内容" />
                                 <Button
-                                    Padding="20,7"
-                                    Background="#409EFF"
-                                    BorderThickness="0"
+                                    Height="34"
+                                    Padding="20,0"
                                     Command="{Binding SaveCommand}"
-                                    Content="保存"
-                                    Cursor="Hand"
-                                    FontSize="12"
-                                    FontWeight="SemiBold"
-                                    Foreground="White" />
+                                    Content="保存用户组"
+                                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                    Style="{StaticResource DialogPrimaryButton}" />
                             </StackPanel>
                         </Grid>
-                    </Grid>
+                    </Border>
                 </Grid>
 
-                <!--  ============ 底栏：新建（左）/ 关闭（右） ============  -->
-                <Grid Grid.Row="2" Margin="20,8">
-                    <Button
-                        Padding="14,6"
-                        HorizontalAlignment="Left"
-                        Background="#FFFFFF"
-                        BorderBrush="#409EFF"
-                        BorderThickness="1"
-                        Command="{Binding NewUserCommand}"
-                        Content="新建账号"
-                        Cursor="Hand"
-                        FontSize="12"
-                        Foreground="#409EFF"
-                        IsEnabled="{Binding IsAdmin}" />
-                    <Button
-                        Padding="14,6"
-                        HorizontalAlignment="Right"
-                        Background="#FFFFFF"
-                        BorderBrush="#DCDFE6"
-                        BorderThickness="1"
-                        Command="{Binding CloseCommand}"
-                        Content="关闭"
-                        Cursor="Hand"
-                        FontSize="12" />
-                </Grid>
+                <!--  安全策略摘要：只读，数字来自当前配置  -->
+                <Border
+                    Grid.Row="2"
+                    Margin="0,0,-20,0"
+                    Padding="20,11"
+                    Background="{StaticResource DialogRowAlternateBrush}"
+                    BorderBrush="{StaticResource DialogBorderLightBrush}"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,9,9">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="{Binding PolicySummary}" />
+                        <Button
+                            Height="22"
+                            Margin="8,0,0,0"
+                            Command="{Binding OpenSecuritySettingsCommand}"
+                            Content="在系统设置中修改"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            Style="{StaticResource DialogLinkButton}" />
+                    </StackPanel>
+                </Border>
             </Grid>
         </Border>
     </Grid>

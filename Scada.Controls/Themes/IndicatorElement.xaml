@@ -16,6 +16,9 @@
         深色画面上的绿灯边缘才不会糊成一片。
     -->
     <Style TargetType="{x:Type local:IndicatorElement}">
+        <!--  默认色取自状态令牌（2026-10-26）：不烤局部值，改令牌全局生效；用户改了则局部覆盖  -->
+        <Setter Property="OnColor" Value="{StaticResource HmiStateRunningBrush}" />
+        <Setter Property="OffColor" Value="{StaticResource HmiStateStoppedBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
 

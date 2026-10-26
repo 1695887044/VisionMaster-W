@@ -1,0 +1,77 @@
+[
+  {
+    "Key": "ViewRuntime",
+    "Name": "看运行画面",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "ControlRun",
+    "Name": "运行控制",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "Start",
+    "Name": "启动",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "Initialize",
+    "Name": "初始化",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "Stop",
+    "Name": "停止",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "ReportQuery",
+    "Name": "报表查询",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "AxisJog",
+    "Name": "轴点动",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "AxisSpeedConfig",
+    "Name": "定位速度配置",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "EditStructure",
+    "Name": "改结构",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "Compile",
+    "Name": "编译",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "SaveSolution",
+    "Name": "保存方案",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "HardwareRuntime",
+    "Name": "硬件运行态",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "HardwareConfig",
+    "Name": "硬件配置",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "SystemConfig",
+    "Name": "系统配置",
+    "IsBuiltIn": true
+  },
+  {
+    "Key": "UserAdministration",
+    "Name": "用户管理",
+    "IsBuiltIn": true
+  }
+]

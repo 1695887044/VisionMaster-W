@@ -171,6 +171,7 @@ namespace VisionMaster.Scada.Snapshots
                 LayerId = ToOptionalId(element.LayerId),
                 LayerVisible = layer?.IsVisible ?? true,
                 RequiredRole = element.RequiredRole?.ToString(),
+                RequiredPermission = element.RequiredPermission,
                 Properties = CopyProperties(element.Properties),
                 Bindings = BuildBindings(element.Bindings),
                 Animations = BuildAnimations(element.Animations),

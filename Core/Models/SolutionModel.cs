@@ -9,6 +9,7 @@ using Core.Interfaces.Io;
 using Newtonsoft.Json;
 using UI.Attributes;
 using UI.Icons;
+using VisionMaster.Models.Assets;
 
 namespace VisionMaster.Models
 {
@@ -119,6 +120,17 @@ namespace VisionMaster.Models
         public Guid SolutionId { get; set; } = Guid.NewGuid();
 
         /// <summary>
+        /// <see cref="SolutionId"/> 是否**来自磁盘**。刻意 [JsonIgnore]：它是加载/保存过程的产物，
+        /// 写进 .vms 会让「上一次保存过」这件事变成方案内容的一部分（副本、撤销栈、草稿都会带着它跑）。
+        /// 为什么需要它：SolutionId 有 = Guid.NewGuid() 初始化器，所以老文件（JSON 里没这个键）
+        /// 反序列化后拿到的是一个**全新的、每次加载都不同**的 Guid，且 != Guid.Empty。
+        /// 审计标签若直接用 id，同一个未落盘老方案每次启动都换一个标签，三个月后对不上账。
+        /// 因此：false ⇒ 标签写 "[sol=unsaved <name>]"；首次保存成功后转 true ⇒ 写 "[sol=<id12> <name>]"。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsIdentityPersisted { get; set; }
+
+        /// <summary>
         /// 通讯配置集合（跟着解决方案走）
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
@@ -182,6 +194,31 @@ namespace VisionMaster.Models
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<global::Core.Interfaces.MotionCamTable> CamTables { get; set; } = new();
+
+        /// <summary>
+        /// 方案级标定资产（随 .vms 落盘）。
+        ///
+        /// 与 CameraConfigs / MotionCards 同一落盘体系，但语义独立：
+        /// 标定描述的是"这套方案里哪台相机、哪个工位、哪块标定板解出的变换"，
+        /// 换型/换相机才重标；生产流程只引用 <see cref="CalibrationAsset.CalibrationId"/>。
+        ///
+        /// 具体类型 + 具体集合：TypeNameHandling.Auto 不会写出 $type，无需放宽 binder 白名单。
+        /// <c>global::</c> 前缀理由同 CameraConfigs（本文件命名空间是 VisionMaster.Models）。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<global::Core.Interfaces.CalibrationAsset> Calibrations { get; set; } = new();
+
+        /// <summary>方案级模板资产（文件放方案目录 Assets\Templates）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<TemplateAsset> TemplateAssets { get; set; } = new();
+
+        /// <summary>方案级模型资产（文件放方案目录 Assets\Models）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<ModelAsset> ModelAssets { get; set; } = new();
+
+        /// <summary>方案级图像资产（文件放方案目录 Image；流程采集图也可派生展示）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<ImageAsset> ImageAssets { get; set; } = new();
 
         /// <summary>
         /// 全局变量集合（跟着解决方案走）

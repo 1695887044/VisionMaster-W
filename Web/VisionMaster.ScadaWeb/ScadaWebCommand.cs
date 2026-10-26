@@ -58,10 +58,13 @@ namespace VisionMaster.ScadaWeb
         /// <summary>队列满 / 命令泵已停止</summary>
         public const string Busy = "E_BUSY";
 
-        /// <summary>只读模式（AllowCommands=false）、会话只读、未登录、或最高角色策略不允许</summary>
+        /// <summary>只读模式（AllowCommands=false）、会话只读、未登录、或缺少所需权限 Key</summary>
         public const string Policy = "E_POLICY";
 
-        /// <summary>角色不足（原因逐字来自 <see cref="ScadaRoleExtensions.Allows"/>）</summary>
+        /// <summary>
+        /// <b>已废弃，仅为兼容旧前端保留</b>：B3 起没有角色档位，判权不足一律回 <see cref="Policy"/>。
+        /// 常量留着是因为旧页面/旧文档还按它分支；新代码不要再用。
+        /// </summary>
         public const string Role = "E_ROLE";
 
         /// <summary>未登录会话发命令（与 E_POLICY 分开：前端据此回登录卡片）</summary>

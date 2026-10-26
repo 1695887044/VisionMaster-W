@@ -210,11 +210,15 @@ namespace ScadaChecks
                 Layout(slider);
                 slider.BeginDragAtRatio(0.25, captureMouse: false);
 
+                var track11 = slider.Template?.FindName("PART_Track", slider) as Border;
                 Check("[SL11] 纵向：比例 0.25 → 显示 25，填充块高度按轨道高度比例",
                     Math.Abs(slider.DisplayValue - 25) < 1e-9
                     && slider.Template?.FindName(SliderElement.PartFill, slider) is Border fill
-                    && Math.Abs(fill.Height - 12) < 0.6,
-                    $"display={slider.DisplayValue} / fillHeight={(slider.Template?.FindName(SliderElement.PartFill, slider) as Border)?.Height}");
+                    // 期望值按**实际轨道高度**算，不写死像素：模板加了量程标注行后轨道变矮，
+                    // 写死的 12 会把"比例正确但模板改了"误判成失败（2026-10-25）。
+                    && track11 != null
+                    && Math.Abs(fill.Height - track11.ActualHeight * 0.25) < 0.6,
+                    $"display={slider.DisplayValue} / fillHeight={(slider.Template?.FindName(SliderElement.PartFill, slider) as Border)?.Height} / track={track11?.ActualHeight}");
 
                 slider.EndDrag();
 
@@ -225,6 +229,29 @@ namespace ScadaChecks
                     Math.Abs(slider.DisplayValue - 40) < 1e-9
                     && externalText?.Text == "40",
                     $"display={slider.DisplayValue} / text={externalText?.Text}");
+
+                // 跟手气泡（2026-10-25 评审 Q3）：数值外框的水平位置随拇指比例移动，且夹在控件内。
+                // 判据取"两个不同比例下的左偏移"，不写死像素——模板/字号改了也不会误报。
+                // 注意：上面 SL11 把走向切成了纵向；跟手只对横向生效，这里先切回来。
+                slider.Orientation = ProgressBarOrientation.Horizontal;
+                Layout(slider);
+
+                var plate = slider.Template?.FindName(SliderElement.PartValuePlate, slider) as FrameworkElement;
+                var plateLeftAt40 = plate?.Margin.Left ?? double.NaN;
+
+                slider.Value = 10;
+                Layout(slider);
+                var plateLeftAt10 = plate?.Margin.Left ?? double.NaN;
+
+                Check("[SL12b] 数值气泡跟手：值越小越靠左，且始终夹在控件宽度内",
+                    plate != null
+                    && plateLeftAt10 < plateLeftAt40
+                    && plateLeftAt10 >= -0.5
+                    && plateLeftAt40 <= slider.ActualWidth + 0.5,
+                    $"plate@10={plateLeftAt10:0.#} / plate@40={plateLeftAt40:0.#} / width={slider.ActualWidth:0.#}");
+
+                slider.Value = 40;
+                Layout(slider);
 
                 slider.ShowValue = false;
                 Layout(slider);
@@ -394,10 +421,13 @@ namespace ScadaChecks
                 slider.Orientation = ProgressBarOrientation.Vertical;
                 Layout(slider);
 
+                var track18 = slider.Template?.FindName("PART_Track", slider) as Border;
                 Check("[SL18d] 只切 Orientation 再布局（不触发拖动）：纵向填充按新轨道高度重算",
                     slider.Template?.FindName(SliderElement.PartFill, slider) is Border orientationFill
-                    && Math.Abs(orientationFill.Height - 24) < 0.6,
-                    $"fillHeight={(slider.Template?.FindName(SliderElement.PartFill, slider) as Border)?.Height}");
+                    // 同 SL11：按实际轨道高度算（模板加量程标注后轨道变矮）
+                    && track18 != null
+                    && Math.Abs(orientationFill.Height - track18.ActualHeight * 0.5) < 0.6,
+                    $"fillHeight={(slider.Template?.FindName(SliderElement.PartFill, slider) as Border)?.Height} / track={track18?.ActualHeight}");
 
                 var writesBeforeGates = writer.Writes.Count;
                 slider.IsEnabled = false;

@@ -1383,6 +1383,11 @@
                                 <!--  标签跟着变红：非法线是要用户去修的错误提示，字色与线色必须同源  -->
                                 <Setter Property="Foreground" Value="{StaticResource FlowCanvasFailedTextBrush}" />
                             </DataTrigger>
+                            <!--  「只显示选中算子的数据线」：不在作用域内的线直接收起。
+                                  标记由主 VM 统一算（非法线永不置位），这里只消费结果。  -->
+                            <DataTrigger Binding="{Binding IsScopeHidden}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </nodify:StepConnection.Style>
@@ -1535,17 +1540,21 @@
                     <!--  自绘预览（C2 测量用）：把画布换成自绘渲染层，只读（平移/缩放/点选）。
                           默认关闭；打开后编辑器整体隐藏，避免两套渲染同时生效。
                           存在的意义是**在真机上对比同一流程的打开耗时**，不是日常使用入口。  -->
+                    <!--  **默认开启**（2026-10-25 上线）：日常走自绘渲染层。
+                          取消勾选 = 回到 Nodify 可编辑画布（拖动改序 / 框选 / 工具箱拖入 / 容器折叠）。
+                          自绘层目前是只读的，所以这个开关保留，不当"临时对比入口"用了。  -->
                     <CheckBox
                         x:Name="ChkSurfacePreview"
                         Margin="0,0,8,0"
                         VerticalAlignment="Center"
                         Checked="OnSurfacePreviewChanged"
-                        Content="自绘预览"
-                        ToolTip="用自绘渲染层预览当前流程（只读：可平移/缩放/点选；编辑请关闭）"
+                        Content="自绘画布"
+                        ToolTip="默认使用自绘渲染（只读：平移/缩放/点选/右键/双击）。取消勾选可回到可编辑画布（拖动改序、框选、工具箱拖入）"
                         Unchecked="OnSurfacePreviewChanged" />
                     <!--  flow-logic：小地图默认关闭，避免常驻右下角遮挡“结果汇总”等输出节点；
                           打开后仍可拖动/点击平移视口  -->
                     <CheckBox
+                        x:Name="ChkMinimap"
                         Margin="0,0,8,0"
                         VerticalAlignment="Center"
                         Content="小地图"
@@ -1812,13 +1821,22 @@
               只读——平移/缩放/点选，不参与拖动改序与拖线；编辑必须切回。
               存在意义：在真机上对比同一流程"打开到可交互"的耗时（C2 决策依据）。
               ============================================================  -->
+        <!--  自绘层的底：底色 + 24×24 点阵。**必须独立于自绘层**——拖动时自绘层整块位移，
+              背景要留在原地，否则拖出来的那块露白（2026-10-25 用户截图）。  -->
+        <Border
+            x:Name="SurfaceBackdrop"
+            Grid.Row="2"
+            Visibility="Collapsed" />
+
         <views:FlowCanvasSurface
             x:Name="SurfacePreview"
             Grid.Row="2"
             ClipToBounds="True"
+            MouseDown="OnSurfaceMouseDownAny"
             MouseLeftButtonDown="OnSurfaceMouseDown"
-            MouseLeftButtonUp="OnSurfaceMouseUp"
             MouseMove="OnSurfaceMouseMove"
+            MouseRightButtonDown="OnSurfaceMouseRightDown"
+            MouseUp="OnSurfaceMouseUp"
             MouseWheel="OnSurfaceMouseWheel"
             Visibility="Collapsed" />
 
@@ -1845,6 +1863,7 @@
         <!--  小地图（flow-logic：180×118，工具条开关控制，默认关闭）：
               打开后仍可拖动/点击平移视口；关闭时整体 Collapsed，不占位、不遮挡输出节点  -->
         <Border
+            x:Name="MiniMapHost"
             Grid.Row="2"
             Width="180"
             Height="118"

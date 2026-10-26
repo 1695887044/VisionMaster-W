@@ -2774,10 +2774,11 @@
     ];
 
     // 演示用在线用户（presence 的每行只有不透明 sessionRef，没有 sessionId）
+    // 身份字段是「用户组 + 权限 Key」（B3），没有角色档位。
     var DEMO_PRESENCE = [
-        { sessionRef: 'demo-self', user: '演示用户', role: 'Admin', ip: '127.0.0.1', self: true },
-        { sessionRef: 'demo-2', user: '张三', role: 'Engineer', ip: '10.0.0.21' },
-        { sessionRef: 'demo-3', user: '李四', role: 'Operator', ip: '10.0.0.35' }
+        { sessionRef: 'demo-self', user: '演示用户', groupId: 'tpl-admin', groupName: '模板·管理员', ip: '127.0.0.1', self: true },
+        { sessionRef: 'demo-2', user: '张三', groupId: 'tpl-engineer', groupName: '模板·工程师', ip: '10.0.0.21' },
+        { sessionRef: 'demo-3', user: '李四', groupId: 'G-lineop', groupName: '产线操作员', ip: '10.0.0.35' }
     ];
 
     // 演示用报警：Oldest 取 ActivatedAtUtc 最早的一条（alarm-2）

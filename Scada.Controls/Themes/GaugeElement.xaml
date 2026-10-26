@@ -25,6 +25,8 @@
         ControlTemplate.Triggers 里的 DataTrigger 不触发，写了也是死代码。
     -->
     <Style TargetType="{x:Type local:GaugeElement}">
+        <!--  状态色默认取令牌（2026-10-26）  -->
+        <Setter Property="ProgressColor" Value="{StaticResource HmiStateRunningBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
 

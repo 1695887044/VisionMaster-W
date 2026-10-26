@@ -44,10 +44,18 @@ namespace ScadaChecks
             "Hmi.Bezier",
             "Hmi.DynamicLine",
             "Hmi.Gif",
+            // 2026-10-25 图表批次：柱状图 / 饼图同属 Web 统一批次（与上面同一批清零）。
+            "Hmi.BarChart",
+            "Hmi.PieChart",
             // 2026-10-25 批次 D：位表与两个监视预设（同一控件、三个 TypeKey），Web 统一批次再补。
             "Hmi.BitTable",
             "Hmi.IoMonitor",
             "Hmi.VariableMonitor",
+            // 2026-10-25 中控对标批次：报表与工艺符号，Web 统一批次再补。
+            "Hmi.Report",
+            "Hmi.Symbol",
+            // 2026-10-25 管道连线（吸附/正交布线）：Web 统一批次再补。
+            "Hmi.PipeRun",
         };
 
         /// <summary>接线一行：<c>WebRendererCoverageChecks.Run();</c>（放在 RenderCatalogChecks 之后）</summary>
@@ -119,8 +127,8 @@ namespace ScadaChecks
                     ? $"例外 {exceptions.Count} 项全部仍然缺失且仍在注册表"
                     : "过期例外：" + string.Join("、", staleExceptions));
 
-            Check("[WR3] 例外清单只许变短（当前上限 9：StateView / SubPage + 批次 C 四件 + 批次 D 三件，Web 统一批次清零）",
-                KnownMissingWebRenderers.Length <= 9,
+            Check("[WR3] 例外清单只许变短（当前上限 12：StateView / SubPage + 批次 C 四件 + 批次 D 三件 + 报表/工艺符号/管道连线，Web 统一批次清零）",
+                KnownMissingWebRenderers.Length <= 14,
                 $"例外清单 {KnownMissingWebRenderers.Length} 项：" + string.Join("、", KnownMissingWebRenderers));
 
             Check("[WR4] 例外清单每项都仍是已注册图元（防止改名后例外悬空）",

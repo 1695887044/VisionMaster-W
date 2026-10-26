@@ -30,6 +30,7 @@ namespace VisionMaster.Services
         public static readonly string[] AssetFolderNames =
         {
             SolutionPaths.ImageFolderName,
+            SolutionPaths.AssetsFolderName,
             SolutionPaths.AlarmsFolderName,
             SolutionPaths.HistoryFolderName,
             SolutionPaths.LogsFolderName

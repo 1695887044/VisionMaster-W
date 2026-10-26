@@ -1413,9 +1413,11 @@ namespace Plugin.CaliperMeasure
         private (HTuple Rows, HTuple Cols) MeasurePosWithRetry(
             HObject gray, double[] caliper, MeasureParams p, int imgW, int imgH, List<HTuple> measureHandles)
         {
+            // 句柄只建一次：HALCON 的"首跑可能空、第二跑正常"是**同一个句柄**的行为；
+            // 每次重试新建句柄会让每次都是"首跑"，重试等于没做（2026-10-26 对拍实证）。
+            var handle = CreateMeasureHandle(caliper, p, imgW, imgH, measureHandles);
             for (int attempt = 0; attempt < 4; attempt++)
             {
-                var handle = CreateMeasureHandle(caliper, p, imgW, imgH, measureHandles);
                 HOperatorSet.MeasurePos(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
                     out HTuple rowEdge, out HTuple colEdge, out HTuple _, out HTuple _);
                 if (rowEdge.Length > 0) return (rowEdge, colEdge);
@@ -1427,9 +1429,10 @@ namespace Plugin.CaliperMeasure
         private (HTuple R1, HTuple C1, HTuple R2, HTuple C2, HTuple Intra) MeasurePairsWithRetry(
             HObject gray, double[] caliper, MeasureParams p, int imgW, int imgH, List<HTuple> measureHandles)
         {
+            // 同 MeasurePosWithRetry：句柄只建一次，重试必须落在同一个句柄上。
+            var handle = CreateMeasureHandle(caliper, p, imgW, imgH, measureHandles);
             for (int attempt = 0; attempt < 4; attempt++)
             {
-                var handle = CreateMeasureHandle(caliper, p, imgW, imgH, measureHandles);
                 HOperatorSet.MeasurePairs(gray, handle, p.Sigma, p.EdgeThreshold, p.Transition, p.Select,
                     out HTuple r1, out HTuple c1, out HTuple _,
                     out HTuple r2, out HTuple c2, out HTuple _,

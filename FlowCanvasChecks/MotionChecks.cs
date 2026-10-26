@@ -460,15 +460,19 @@ namespace FlowCanvasChecks
 
                 // 制造安全停机：让一条运动命令在卡侧失败（基类据此退 SafeStopped）
                 card.SimulateCommandFailure = true;
+                MotionCommandResult failingEnqueued;
+                bool failingCompleted;
                 using (var failing = Move(0, 10))
                 {
-                    card.Enqueue(failing);
-                    failing.Completion.Wait(2000);
+                    failingEnqueued = card.Enqueue(failing);
+                    failingCompleted = failing.Completion.Wait(2000);
                 }
 
+                // 失败明细里带 Enqueue 结果与"命令是否真的跑完"：
+                // 这两项一分开，就能立刻区分"状态没走到"和"命令根本没被执行"。
                 Check("前置：运动命令失败后进入安全停机",
                     WaitFor(() => card.State == MotionCardState.SafeStopped, 2000),
-                    $"状态={card.State} 说明={card.StateDetail}");
+                    $"状态={card.State} 说明={card.StateDetail} Enqueue={failingEnqueued} 完成={failingCompleted}");
 
                 using (var blocked = Move(0, 5))
                 {
@@ -509,18 +513,24 @@ namespace FlowCanvasChecks
                 // 于是拿不到"命令失败后进入安全停机"的证据（2026-10-25 实测两红）。
                 fake.AlarmMessage = "模拟：报警未清除";
                 fake.FailMove = true;
+                MotionCommandResult fakeEnqueued;
+                bool fakeCompleted;
                 using (var failing = Move(0, 10))
                 {
-                    fake.Enqueue(failing);
+                    fakeEnqueued = fake.Enqueue(failing);
                     // 5s，不是 2s：2026-10-22 全量 gate（六个宿主连着构建+跑）在这两处
                     // 超时判红，空载重跑同一条 exe 是 3298 通过 / 0 失败 —— 2s 量的是
                     // 机器负载，不是状态机。WaitFor 条件一满足就返回，绿灯不付这个余量。
-                    failing.Completion.Wait(5000);
+                    fakeCompleted = failing.Completion.Wait(5000);
                 }
 
+                // 失败明细同样带 Enqueue 结果与完成标志：
+                // NewFakeDescriptor 只映射逻辑轴 "F"，而 Move() 传的是 "X"——
+                // 若基类按逻辑轴名解析，命令会被拒（Enqueue≠Accepted）而永远不进 ExecuteCommandCore，
+                // 那样"状态=Online"就不是状态机没走，而是根本没制造出失败。明细必须能区分这两件事。
                 Check("前置：假设备命令失败后进入安全停机",
                     WaitFor(() => fake.State == MotionCardState.SafeStopped, 5000),
-                    $"状态={fake.State} 说明={fake.StateDetail}");
+                    $"状态={fake.State} 说明={fake.StateDetail} Enqueue={fakeEnqueued} 完成={fakeCompleted}");
 
                 fake.FailMove = false;
                 fake.ReportAlarm = true;   // 底层报警还挂着（安全停机期间不轮询，只能靠复核现读发现）
@@ -1278,6 +1288,14 @@ namespace FlowCanvasChecks
 
         private static void EnableAxis(MotionDeviceBase card, int axis)
         {
+            // Connect() 只表示"开始连接"：状态真正到 Online 之前，Enqueue 一律回
+            // Rejected_NotConnected（产品自己的提示原话就是"刚连接时请稍候一拍再下发运动"）。
+            // 不等这一拍就下发，Enable 与随后的 Move 会被**静默拒掉**，断言看到的是
+            // "状态=Online"（因为压根没执行），而不是"状态机没走到"——
+            // 2026-10-25 实测：闸门里 `前置：假设备命令失败后进入安全停机` 偶发红，
+            // 明细打出 Enqueue=Rejected_NotConnected 才定位到这里。
+            WaitFor(() => card.State == MotionCardState.Online, 5000);
+
             using var enable = new MotionCommand
             {
                 Kind = MotionCommandKind.Enable,

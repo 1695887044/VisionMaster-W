@@ -8,10 +8,11 @@ namespace VisionMaster.ScadaWeb
     ///
     /// <b>解决什么问题</b>
     /// ---------
-    /// <c>ClickPolicy=AllOperators</c> 允许所有登录操作员同时点击；多人同时改同一台设备时，
-    /// "最后一下覆盖前一下"是合法的，但现场常常需要"同一时刻只有一个人能操作"。
-    /// 租约就是一把<b>单写者令牌</b>：只有持有者能通过 <see cref="ScadaWebAccessPolicy.CanOperate"/>，
-    /// 其他人拿到 <c>E_LEASE_HELD</c> 和当前持有者名字。
+    /// 按权限 Key 判权（B3）之后，"有同一个 Key 的多个人可以同时点"是默认行为；
+    /// 多人同时改同一台设备时，"最后一下覆盖前一下"是合法的，但现场常常需要
+    /// "同一时刻只有一个人能操作"。租约就是一把<b>单写者令牌</b>：只有持有者能通过
+    /// <see cref="ScadaWebAccessPolicy.CanOperate"/>，其他人拿到 <c>E_LEASE_HELD</c>
+    /// 和当前持有者名字。
     ///
     /// <b>为什么是 60 秒 TTL</b>
     /// ---------

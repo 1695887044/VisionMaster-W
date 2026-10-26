@@ -42,14 +42,16 @@ namespace ScadaChecks
             /// </summary>
             private static void CheckEnumContract()
             {
-                Check("[BIT1] 枚举末尾追加且旧值不动：SetBit=24 / ResetBit=25 / ToggleBit=26，Log=1、ApplyRecipe=23",
+                Check("[BIT1] 枚举末尾追加且旧值不动：SetBit=24 / ResetBit=25 / ToggleBit=26 / PlaySound=27 / SpeakText=28，Log=1、ApplyRecipe=23",
                     (int)ScadaActionType.SetBit == 24
                     && (int)ScadaActionType.ResetBit == 25
                     && (int)ScadaActionType.ToggleBit == 26
+                    && (int)ScadaActionType.PlaySound == 27
+                    && (int)ScadaActionType.SpeakText == 28
                     && (int)ScadaActionType.Log == 1
                     && (int)ScadaActionType.ApplyRecipe == 23
                     && Enum.GetValues<ScadaActionType>().Select(v => (int)v)
-                        .SequenceEqual(Enumerable.Range(1, 27)),
+                        .SequenceEqual(Enumerable.Range(1, 28)),
                     $"SetBit={(int)ScadaActionType.SetBit} / ResetBit={(int)ScadaActionType.ResetBit} / " +
                     $"ToggleBit={(int)ScadaActionType.ToggleBit} / values=" +
                     string.Join(",", Enum.GetValues<ScadaActionType>().Select(v => (int)v)));

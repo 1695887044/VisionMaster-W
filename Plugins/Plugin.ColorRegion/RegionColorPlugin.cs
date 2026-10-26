@@ -161,6 +161,14 @@ namespace Plugin.ColorRegion
         /// <summary>结论全文（写给人看的那一句）</summary>
         public OutputPort<string> Verdict { get; } = new OutputPort<string>("Verdict", "结论全文");
 
+        /// <summary>
+        /// 本轮投射用的标注列表（托管对象，**不烘焙、不开窗**）。
+        /// 接「结果显示」的任意结果项，由它把标注烧进最终展示图；SCADA 只认像素，
+        /// 所以覆盖层上的轮廓/标签必须走这条路才能上画面。
+        /// </summary>
+        public OutputPort<List<MeasureAnnotation>> Annotations { get; } =
+            new("Annotations", "标注列表（接「结果显示」烧成图，供图像赋值/SCADA 使用）");
+
         // ==================================================================
         //  配置视图用的状态
         // ==================================================================
@@ -583,6 +591,8 @@ namespace Plugin.ColorRegion
 
         public override void RunAlgorithm(IExecutionContext context)
         {
+            Annotations.Value = null!;
+
             var image = Image.GetTypedValue();
             if (image == null || !image.IsInitialized())
             {
@@ -733,8 +743,6 @@ namespace Plugin.ColorRegion
         /// </summary>
         private void ProjectResult(HImage image, RegionColorResult result)
         {
-            if (DisplayViewIndex <= 0) return;
-
             try
             {
                 image.GetImageSize(out _, out int height);
@@ -760,11 +768,14 @@ namespace Plugin.ColorRegion
                 double textRow = Math.Clamp(above >= 10 ? above : bottom + 18, 10, Math.Max(10, height - 10));
                 marks.Add(ColorMarks.Text(textRow, RoiParams[1], result.Verdict, verdictColor));
 
-                this.PublishPreview(image, DisplayViewIndex, marks);
+                Annotations.Value = marks;
+
+                if (DisplayViewIndex > 0)
+                    this.PublishPreview(image, DisplayViewIndex, marks);
             }
             catch
             {
-                // 投递失败只是画面上没有标注，不影响判定结果
+                // 标注构建失败只是画面上没有标注，不影响判定结果；Annotations 保持开轮清空值
             }
         }
     }

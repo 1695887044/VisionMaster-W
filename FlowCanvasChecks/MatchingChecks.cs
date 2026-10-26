@@ -39,6 +39,7 @@ namespace FlowCanvasChecks
             RunNotFoundAndStaleness();
             RunCircleTemplate();
             RunSmearMask();
+            RunNccOrigin();
             RunRecipeContract();
             RunMigration();
             RunRegressionFixes();
@@ -598,6 +599,82 @@ namespace FlowCanvasChecks
                 c1.Dispose();
                 r1.Dispose();
                 s1.Dispose();
+            }
+        }
+
+        // ==================================================================
+        //  ⑥b NCC 原点：Row/Column 必须是 ROI 中心，不是模板域重心
+        // ==================================================================
+        private static void RunNccOrigin()
+        {
+            Section("[Matching] NCC 原点：Row/Column 必须是 ROI 中心（非模板域重心）");
+
+            var scene = BuildScene(PatternRow, PatternCol);
+            var creator = new MatchingPlugin { InstanceName = "匹配_NCC建模板" };
+            try
+            {
+                creator.DisplayImage = scene;
+                creator.AddTemplateEntry("NCC模板");
+                creator.CanvasShape = RoiShapeNames.Rectangle;
+                creator.CanvasRect = new double[] { PatternRow, PatternCol, 0, 80, 80 };
+                creator.MinScore = 0.2;
+                creator.EditingEntry!.Algorithm = MatchingAlgorithm.Ncc;
+
+                // 非对称掩膜：挖掉 ROI 左上角一块 → 模板域重心偏离 ROI 中心。
+                // 没有这块掩膜，NCC 重心≈ROI 中心，测不出原点补偿是否真的生效。
+                var mask = new HRegion();
+                mask.GenRectangle1(PatternRow - 80, PatternCol - 80, PatternRow - 10, PatternCol - 10);
+                creator.SmearMask = mask;   // 所有权转移给插件
+
+                creator.CreateTemplate();
+                var entry = creator.Library[0];
+                Check("【NCC 原点】非对称掩膜确实产生了重心偏移（否则本断言无效）",
+                    Math.Abs(entry.NccOffsetRow) > 1 || Math.Abs(entry.NccOffsetCol) > 1,
+                    $"offset=({entry.NccOffsetRow:0.###},{entry.NccOffsetCol:0.###})");
+
+                var runtime = new MatchingPlugin { InstanceName = "匹配_NCC断言" };
+                try
+                {
+                    runtime.Initialize(ConfirmToStepData(creator));
+                    runtime.Image.Value = scene;
+                    runtime.Execute(MakeContext(new StubLog()));
+
+                    double row = Convert.ToDouble(runtime.Row.Value);
+                    double col = Convert.ToDouble(runtime.Column.Value);
+                    Check("【NCC 原点】同图定位回准 ROI 中心 (150,200 ±0.5)",
+                        Convert.ToInt32(runtime.MatchCount.Value) == 1
+                        && Math.Abs(row - PatternRow) <= 0.5 && Math.Abs(col - PatternCol) <= 0.5,
+                        $"({row:0.00},{col:0.00}) Score={Convert.ToDouble(runtime.Score.Value):0.000}");
+
+                    var runtimeEntry = runtime.Library[0];
+                    if (runtimeEntry.RuntimeContours != null && runtimeEntry.RuntimeContours.IsInitialized())
+                    {
+                        using var placed = MatchingPlugin.PlaceContoursAtPoses(
+                            runtimeEntry.RuntimeContours,
+                            runtime.Rows.Value as HTuple ?? new HTuple(),
+                            runtime.Columns.Value as HTuple ?? new HTuple(),
+                            runtime.Angles.Value as HTuple ?? new HTuple());
+                        HOperatorSet.SmallestRectangle1Xld(
+                            placed, out HTuple rr1, out HTuple cc1, out HTuple rr2, out HTuple cc2);
+                        double cr = (rr1.D + rr2.D) / 2, cc = (cc1.D + cc2.D) / 2;
+                        Check("【NCC 轮廓】轮廓放置回 ROI 中心（不是参考图绝对坐标再平移一次）",
+                            Math.Abs(cr - PatternRow) <= 1 && Math.Abs(cc - PatternCol) <= 1,
+                            $"bbox center=({cr:0.00},{cc:0.00})");
+                    }
+                    else
+                    {
+                        Check("【NCC 轮廓】RuntimeContours 已生成", false, "null");
+                    }
+                }
+                finally
+                {
+                    runtime.Dispose();
+                }
+            }
+            finally
+            {
+                creator.Dispose();
+                scene.Dispose();
             }
         }
 

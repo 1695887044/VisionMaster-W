@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SCADA · 柱状图 / 饼图 / 报警汇总表 · 设计基线 v1</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#fff; --line:#e3e8f0; --text:#1f2937; --text2:#5b667a; --text3:#8a94a6;
+    --brand:#2563eb; --brand2:#38bdf8; --ok:#16a34a; --warn:#d97706; --danger:#dc2626;
+    --chip:#eef4ff; --radius:10px; --mono:"Cascadia Mono","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.65 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  code{font-family:var(--mono);font-size:12.5px;background:#eef2f8;border-radius:4px;padding:1px 5px}
+  .wrap{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;height:100vh;background:#0f172a;color:#cbd5e1;padding:22px 16px;overflow:auto}
+  nav .brand{font-size:15px;font-weight:700;color:#fff}
+  nav .ver{margin:6px 0 18px;font-size:11.5px;color:#7c8aa3}
+  nav a{display:block;color:#c2cddd;padding:7px 10px;border-radius:7px;font-size:13px;margin-bottom:2px;text-decoration:none}
+  nav a:hover{background:#1b2b45;color:#fff}
+  nav .grp{margin:16px 0 6px;font-size:11px;color:#64748b;letter-spacing:.08em}
+  main{padding:28px 34px 80px;max-width:1180px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--text2);margin:0 0 22px}
+  h2{font-size:19px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:22px 0 8px}
+  .muted{color:var(--text3);font-size:12.5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:12px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto}.grid2,.grid3{grid-template-columns:1fr}}
+  .tag{display:inline-block;background:var(--chip);color:#1d4ed8;border-radius:999px;padding:1px 9px;font-size:11.5px;margin-right:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-size:12.5px}
+  .sim{background:#f8fafc;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .sim .bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);flex-wrap:wrap}
+  .sim .bar .title{font-weight:600;font-size:13px}
+  .sim .bar .right{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text)}
+  .btn:hover{border-color:#b9c6da;background:#f9fbfe}
+  .btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2)}
+  .seg button.on{background:#e8f0ff;color:#1d4ed8;font-weight:600}
+  .note{border-left:3px solid var(--brand2);background:#f2f8ff;padding:10px 12px;border-radius:0 8px 8px 0;font-size:13px;margin:12px 0}
+  .warnnote{border-left-color:var(--warn);background:#fffaf1}
+  /* 图表 */
+  .chartwrap{padding:14px}
+  .chartwrap svg{display:block;width:100%;height:280px}
+  .chartwrap .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin-top:6px}
+  .chartwrap .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .tip{position:fixed;pointer-events:none;background:#0f172a;color:#e2e8f0;font:12px/1.5 var(--mono);
+       padding:4px 8px;border-radius:6px;opacity:0;transition:opacity .12s;z-index:9}
+  /* 报警表 */
+  .alm{padding:0}
+  .alm table{font-size:12.5px}
+  .alm th{position:sticky;top:0}
+  .alm tr.ack td{color:#94a3b8}
+  .alm td.sev{white-space:nowrap}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:1px}
+  .dot.c{background:var(--danger)} .dot.w{background:var(--warn)} .dot.i{background:#0ea5e9}
+  .alm .rowbtn{border:1px solid var(--line);background:#fff;border-radius:5px;font-size:11.5px;padding:1px 8px;cursor:pointer}
+  .alm .rowbtn:disabled{opacity:.4;cursor:not-allowed}
+  .alm .empty{padding:34px;text-align:center;color:#15803d;font-size:13px;background:#f6fdf8}
+  .alm .empty b{display:block;font-size:15px;margin-bottom:2px}
+  .banner{background:#fdeaea;color:#b91c1c;font-size:12.5px;padding:6px 12px;border-bottom:1px solid #f5c9c9}
+  .statechip{font-size:11.5px;border-radius:999px;padding:1px 8px;background:#f1f5f9;color:#475569}
+  .statechip.c{background:#fdeaea;color:#b91c1c}.statechip.w{background:#fdf3e3;color:#b45309}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">SCADA · 设计基线</div>
+    <div class="ver">柱状图 / 饼图 / 报警汇总表　v1 · 2026-10-25 · 待确认</div>
+    <a href="#s0">0 · 结论与取舍</a>
+    <div class="grp">柱状图</div>
+    <a href="#s1">1 · 用途与属性</a>
+    <a href="#s2">2 · 演示（可切换）</a>
+    <a href="#s3">3 · 状态与边界</a>
+    <div class="grp">饼图</div>
+    <a href="#s4">4 · 用途与属性</a>
+    <a href="#s5">5 · 演示（可切换）</a>
+    <a href="#s6">6 · 状态与边界</a>
+    <div class="grp">报警汇总表</div>
+    <a href="#s7">7 · 用途与列定义</a>
+    <a href="#s8">8 · 演示（可点确认）</a>
+    <a href="#s9">9 · 权限 / 状态 / 空态</a>
+    <div class="grp">收尾</div>
+    <a href="#s10">10 · 选型速查</a>
+    <a href="#s11">11 · 待裁定</a>
+  </nav>
+
+  <main>
+    <h1>柱状图 / 饼图 / 报警汇总表 —— 设计基线 v1</h1>
+    <p class="sub">
+      三个图元，两个解决「对比」、一个解决「确认」。所有交互都能点；末尾 7 条待你拍板。
+    </p>
+
+    <h2 id="s0">0 · 结论与取舍</h2>
+    <div class="grid3">
+      <div class="card">
+        <b>柱状图 Hmi.BarChart</b>
+        <p class="muted">一个变量一根柱：班次产量、设备稼动、工位良率。<br>支持目标线与"超目标变红"。</p>
+      </div>
+      <div class="card">
+        <b>饼图 Hmi.PieChart</b>
+        <p class="muted">占比构成：良率分布、报警级别占比、能耗构成。<br>支持环形与"小片并入其他"。</p>
+      </div>
+      <div class="card">
+        <b>报警汇总表 Hmi.AlarmTable</b>
+        <p class="muted">当前报警清单 + 逐条确认 + 静音。<br>列固定、按级别与时间排序。</p>
+      </div>
+    </div>
+    <div class="note">
+      <b>共同取舍</b>：三者都<b>不引入新数据源</b>。柱/饼用「变量名 + 标签」的列表（与报表列同一套编解码范式），
+      报警表直接读报警引擎的当前活动列表（与报警条同一份数据）。
+    </div>
+
+    <!-- ================= 柱状图 ================= -->
+    <h2 id="s1">1 · 柱状图：用途与属性</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="margin-top:0">现场要回答的问题</h3>
+        <p>「<b>哪个班/哪台设备/哪个工位</b>高、哪个低？」——趋势图回答"随时间怎么变"，柱状图回答"彼此比一比"。</p>
+        <p>典型：班次产量对比、设备稼动率、各工位良率、各通道计数。</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">属性（v1 就这些）</h3>
+        <table>
+          <tr><th>属性</th><th>说明</th></tr>
+          <tr><td>数据</td><td>列表：<code>标签 + 变量名 + 颜色(可选)</code>，按名字解析变量</td></tr>
+          <tr><td>方向</td><td>竖向 / 横向（横向适合标签长）</td></tr>
+          <tr><td>最大值</td><td>0 = 自动取最大柱；&gt;0 固定（同一屏多图对齐时用）</td></tr>
+          <tr><td>目标值</td><td>0 = 不画；&gt;0 画一条虚线，超过的柱变红</td></tr>
+          <tr><td>显示数值</td><td>柱顶/柱尾标数值</td></tr>
+          <tr><td>排序</td><td>保持配置顺序 / 降序 / 升序</td></tr>
+          <tr><td>数值格式</td><td>如 <code>F0</code> / <code>P1</code>，空 = <code>0.###</code></td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h2 id="s2">2 · 柱状图演示（切数据 / 切方向 / 开目标线）</h2>
+    <div class="sim">
+      <div class="bar">
+        <span class="title">各工位产量（今日）</span>
+        <span class="right">
+          <span class="seg" id="barDataSeg">
+            <button class="on" data-set="today">今日</button>
+            <button data-set="week">本周</button>
+            <button data-set="missing">含缺失变量</button>
+          </span>
+          <button class="btn" id="btnBarDir">横向</button>
+          <button class="btn" id="btnBarTarget">目标线</button>
+          <button class="btn" id="btnBarSort">排序：降序</button>
+        </span>
+      </div>
+      <div class="chartwrap">
+        <svg id="barSvg" viewBox="0 0 900 280" preserveAspectRatio="none"></svg>
+        <div class="legend" id="barLegend"></div>
+      </div>
+    </div>
+    <p class="muted">灰色柱 = 该变量解析不到（配置里写错名字 / 变量被删）。它<b>不占 0 值</b>——0 是真实数据，缺失是"不知道"。</p>
+
+    <h2 id="s3">3 · 柱状图：状态与边界</h2>
+    <table>
+      <tr><th style="width:22%">状态</th><th>表现</th></tr>
+      <tr><td>设计期</td><td>画等高的 4 根灰柱 + 提示「设计期不读变量」，不连数据</td></tr>
+      <tr><td>无数据</td><td>空坐标系 + 居中「没有配置数据列」</td></tr>
+      <tr><td>部分缺失</td><td>缺失柱画灰色斜纹 + 图例标「未解析」，其余照常</td></tr>
+      <tr><td>超目标</td><td>该柱变红 <b>且数值标签加粗</b>（不只靠颜色，色觉差异用户也能看出来）+ 柱顶小三角，不闪烁（闪烁留给报警条）</td></tr>
+      <tr><td>柱数过多</td><td>&gt; 24 根时自动转横向并缩字号；&gt; 60 根提示"改用数据表格"</td></tr>
+      <tr><td>负值</td><td>以 0 为基线向下画，颜色同主色；<b>纵轴范围取 [min(0, 最小值), max(0, 最大值)]</b>——只按最大值算会把负柱画到框外</td></tr>
+    </table>
+    <div class="note warnnote">
+      <b>不做</b>：堆叠柱、分组柱、双 Y 轴。它们会让属性面板从 7 项涨到 20 项，而现场 95% 的对比是一根柱一个量。
+      真要多系列时用「多趋势」或「数据表格」。
+    </div>
+
+    <!-- ================= 饼图 ================= -->
+    <h2 id="s4">4 · 饼图：用途与属性</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="margin-top:0">现场要回答的问题</h3>
+        <p>「<b>整体里各占多少</b>？」——饼图只在"合计有意义"时成立（良品+不良=总数、各类能耗=总能耗）。</p>
+        <p>典型：良率分布（良/不良类型）、报警级别占比、能耗构成、停机原因占比。</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">属性</h3>
+        <table>
+          <tr><th>属性</th><th>说明</th></tr>
+          <tr><td>数据</td><td>列表：<code>标签 + 变量名 + 颜色(可选)</code></td></tr>
+          <tr><td>形态</td><td>实心 / 环形（环形中间可显示合计或标题）</td></tr>
+          <tr><td>显示</td><td>百分比 / 数值 / 两者 / 不显示</td></tr>
+          <tr><td>图例</td><td>右侧 / 底部 / 不显示</td></tr>
+          <tr><td>小片合并</td><td>0 = 不合并；如 0.03 = 小于 3% 的并入「其他」</td></tr>
+          <tr><td>起始角</td><td>默认 -90°（12 点方向起，顺时针）</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h2 id="s5">5 · 饼图演示（切实心/环形 / 切合并阈值）</h2>
+    <div class="sim">
+      <div class="bar">
+        <span class="title">不良类型分布（本班）</span>
+        <span class="right">
+          <span class="seg" id="pieModeSeg">
+            <button class="on" data-donut="1">环形</button>
+            <button data-donut="0">实心</button>
+          </span>
+          <button class="btn" id="btnPieMerge">合并 &lt;3%</button>
+          <button class="btn" id="btnPieLegend">图例：右</button>
+        </span>
+      </div>
+      <div class="chartwrap">
+        <svg id="pieSvg" viewBox="0 0 900 280" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+
+    <h2 id="s6">6 · 饼图：状态与边界</h2>
+    <table>
+      <tr><th style="width:22%">状态</th><th>表现</th></tr>
+      <tr><td>设计期</td><td>4 等分灰饼 + 「设计期不读变量」</td></tr>
+      <tr><td>合计为 0</td><td>空心圆 + 「本班没有计数」（不是画一个满圆）</td></tr>
+      <tr><td>单一片 100%</td><td>整圆 + 图例只有一项；不显示"0.0%"的零片</td></tr>
+      <tr><td>负值</td><td>忽略该片并在图例标「负值已忽略」——占比里没有负数</td></tr>
+      <tr><td>片数过多</td><td>&gt; 8 片自动启用「其他」合并（阈值 2%），并在图例注明合并了几项</td></tr>
+    </table>
+    <div class="note warnnote">
+      <b>不做</b>：3D 饼、多环、饼+柱混合。饼图本身只适合"少数几类看占比"，超过 8 类一律建议换柱状图。
+    </div>
+
+    <!-- ================= 报警汇总表 ================= -->
+    <h2 id="s7">7 · 报警汇总表：用途与列定义</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="margin-top:0">它和「报警条」的分工</h3>
+        <p><b>报警条</b>：页面顶部一条，滚动显示最新几条，只读，让人"知道有事"。</p>
+        <p><b>报警汇总表</b>：一页里的完整清单，<b>能确认、能静音</b>，让人"把事处理掉"。</p>
+        <p class="muted">两者读同一份活动报警列表，不各存一份。</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">列（固定，不可配）</h3>
+        <table>
+          <tr><th>列</th><th>内容</th></tr>
+          <tr><td>级别</td><td>圆点 + 文字（严重/警告/提示）</td></tr>
+          <tr><td>时间</td><td>触发时刻 <code>HH:mm:ss</code></td></tr>
+          <tr><td>名称 / 说明</td><td>报警定义名 + 触发条件摘要</td></tr>
+          <tr><td>当前值</td><td>触发值（读不到显示 —）</td></tr>
+          <tr><td>状态</td><td>未确认 / 已确认（已恢复的自动消失）</td></tr>
+          <tr><td>操作</td><td>确认（需权限）</td></tr>
+        </table>
+        <p class="muted">列固定是刻意的：这是操作件，不是报表。要自定义列请用数据表格。</p>
+      </div>
+    </div>
+
+    <h2 id="s8">8 · 报警汇总表演示（点确认 / 切只读 / 看空态）</h2>
+    <div class="sim">
+      <div class="bar">
+        <span class="title">当前报警</span>
+        <span class="right">
+          <select id="almFilter" class="btn" style="padding:3px 6px">
+            <option value="all">全部级别</option>
+            <option value="warning">警告及以上</option>
+            <option value="critical">仅严重</option>
+          </select>
+          <button class="btn" id="btnAlmReadonly">切到只读（操作员无权限）</button>
+          <button class="btn" id="btnAlmEmpty">模拟：无报警</button>
+        </span>
+      </div>
+      <div id="almBanner"></div>
+      <div class="alm" id="almHost"></div>
+    </div>
+    <p class="muted">点「确认」会把该行变灰并标已确认；确认按钮在只读态下整列消失（不是灰掉——灰掉会让人以为"再点一下就好"）。</p>
+
+    <h2 id="s9">9 · 报警汇总表：权限 / 状态 / 空态</h2>
+    <table>
+      <tr><th style="width:22%">状态</th><th>表现</th></tr>
+      <tr><td>无报警</td><td>绿底空态「系统正常 · 当前没有报警」，不显示表头</td></tr>
+      <tr><td>有未确认</td><td>严重级行左侧 3px 红条 + 级别圆点；表头显示「未确认 N 条」</td></tr>
+      <tr><td>已确认</td><td>整行变灰，操作列按钮消失</td></tr>
+      <tr><td>只读（无确认权限）</td><td>操作列整列隐藏；表头右侧标「只读」</td></tr>
+      <tr><td>静音中</td><td>表格上方一条浅黄提示「已静音 30 分钟 · 严重级仍会响」+「取消静音」</td></tr>
+      <tr><td>条数过多</td><td>按「级别 → 时间倒序」排，超出 <code>MaxRows</code>（默认 50）时表内滚动，不翻页</td></tr>
+      <tr><td>报警恢复</td><td>行立即消失（活动列表语义）；历史请用报警历史/报表</td></tr>
+    </table>
+    <div class="note">
+      <b>确认与静音不是一回事</b>：确认 = "我看到了"（逐条，写审计，带操作者）；
+      静音 = "先别响"（全局、限时、严重级不受影响）。两个按钮放两处：确认在行内，静音在顶栏。
+    </div>
+
+    <h2 id="s10">10 · 选型速查</h2>
+    <table>
+      <tr><th>想要</th><th>用</th></tr>
+      <tr><td>几个对象比高低（一班/一台/一个工位）</td><td><b>柱状图</b></td></tr>
+      <tr><td>整体里各占多少（合计有意义）</td><td><b>饼图</b></td></tr>
+      <tr><td>随时间怎么变</td><td>趋势 / 多趋势</td></tr>
+      <tr><td>一个大数字 + 单位</td><td>KPI 板 / IO 域</td></tr>
+      <tr><td>知道有报警（只读、滚动）</td><td>报警条</td></tr>
+      <tr><td>处理报警（确认、静音）</td><td><b>报警汇总表</b></td></tr>
+      <tr><td>一段时间 + 汇总 + 导出打印</td><td>报表</td></tr>
+    </table>
+
+    <h2 id="s11">11 · 待裁定（7 条）</h2>
+    <div class="card">
+      <p><b>Q1</b> 柱状图数据列的上限：24 根（本稿）还是 12 根？超过时提示换表格。</p>
+      <p><b>Q2</b> 柱状图「超目标变红」是否同时加粗数值标签？（本稿已按"默认加粗"定，不只靠颜色区分）</p>
+      <p><b>Q3</b> 饼图默认形态：环形还是实心？（本稿环形）</p>
+      <p><b>Q4</b> 饼图「其他」合并阈值默认 3% 是否合适？</p>
+      <p><b>Q5</b> 报警汇总表默认 <code>MaxRows</code>：50 条是否够？（现场大量报警时表内滚动）</p>
+      <p><b>Q6</b> 报警汇总表是否显示「当前值」列？（会占用宽度；不显示则要双击看详情）</p>
+      <p><b>Q7</b> 确认操作是否需要二次确认框？（本稿不弹，直接确认并写审计）</p>
+      <p class="muted" style="margin-bottom:0">确认后冻结 v1 再进入实现；改动升 v2（R128）。</p>
+    </div>
+
+    <p class="muted" style="margin-top:28px">设计媒介，不进构建、不部署（R126）。本文件自包含，无外部依赖。</p>
+  </main>
+</div>
+
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var tip = document.getElementById("tip");
+  function showTip(evt, text){
+    tip.textContent = text; tip.style.opacity = 1;
+    tip.style.left = (evt.clientX + 14) + "px"; tip.style.top = (evt.clientY + 12) + "px";
+  }
+  function hideTip(){ tip.style.opacity = 0; }
+
+  /* ---------------- 柱状图 ---------------- */
+  var SETS = {
+    today: [
+      { label: "A 工位", value: 1280 }, { label: "B 工位", value: 1435 },
+      { label: "C 工位", value: 980 },  { label: "D 工位", value: 1510 },
+      { label: "E 工位", value: 1180 }
+    ],
+    week: [
+      { label: "周一", value: 6120 }, { label: "周二", value: 7040 },
+      { label: "周三", value: 5860 }, { label: "周四", value: 7320 },
+      { label: "周五", value: 6810 }
+    ],
+    missing: [
+      { label: "A 工位", value: 1280 }, { label: "B 工位", value: 1435 },
+      { label: "C 工位", value: null }, { label: "D 工位", value: 1510 }
+    ]
+  };
+  var barSet = "today", barHorizontal = false, barTarget = false, barSort = "desc";
+  var barSvg = document.getElementById("barSvg"), barLegend = document.getElementById("barLegend");
+
+  function renderBars(){
+    var data = SETS[barSet].slice();
+    if (barSort === "desc") data.sort(function(a,b){ return (b.value||-1) - (a.value||-1); });
+    if (barSort === "asc")  data.sort(function(a,b){ return (a.value||-1) - (b.value||-1); });
+
+    var max = 0;
+    data.forEach(function(d){ if (d.value != null && d.value > max) max = d.value; });
+    var target = barTarget ? Math.round(max * 0.8) : 0;
+    if (target > max) max = target;
+    if (max <= 0) max = 1;
+
+    var W = 900, H = 280, padL = barHorizontal ? 90 : 56, padR = 24, padT = 18, padB = barHorizontal ? 28 : 40;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var n = data.length, gap = 14;
+    var parts = [];
+
+    // 坐标轴
+    parts.push('<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="#cbd5e1"/>');
+    parts.push('<line x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(H-padB)+'" stroke="#cbd5e1"/>');
+
+    if (barHorizontal) {
+      var bh = Math.min(28, (innerH - gap * (n - 1)) / n);
+      data.forEach(function(d, i){
+        var y = padT + i * (bh + gap);
+        var w = d.value == null ? 0 : innerW * (d.value / max);
+        var over = target > 0 && d.value != null && d.value > target;
+        var fill = d.value == null ? "url(#hatch)" : (over ? "#dc2626" : "#2563eb");
+        parts.push('<rect x="'+padL+'" y="'+y+'" width="'+Math.max(w, d.value==null?innerW*0.35:0)+'" height="'+bh+'" rx="3" fill="'+fill+'"/>');
+        parts.push('<text x="'+(padL-8)+'" y="'+(y+bh/2+4)+'" text-anchor="end" font-size="12" fill="#475569">'+d.label+'</text>');
+        if (d.value != null) {
+          parts.push('<text x="'+(padL+Math.max(w,0)+8)+'" y="'+(y+bh/2+4)+'" font-size="12" fill="#334155">'+d.value+'</text>');
+        } else {
+          parts.push('<text x="'+(padL+8)+'" y="'+(y+bh/2+4)+'" font-size="11.5" fill="#64748b">未解析</text>');
+        }
+      });
+      if (target > 0) {
+        var tx = padL + innerW * (target / max);
+        parts.push('<line x1="'+tx+'" y1="'+padT+'" x2="'+tx+'" y2="'+(H-padB)+'" stroke="#d97706" stroke-dasharray="5 4"/>');
+        parts.push('<text x="'+(tx+4)+'" y="'+(padT+10)+'" font-size="11" fill="#b45309">目标 '+target+'</text>');
+      }
+    } else {
+      var bw = Math.min(64, (innerW - gap * (n - 1)) / n);
+      data.forEach(function(d, i){
+        var x = padL + i * (bw + gap);
+        var h = d.value == null ? 0 : innerH * (d.value / max);
+        var over = target > 0 && d.value != null && d.value > target;
+        var fill = d.value == null ? "url(#hatch)" : (over ? "#dc2626" : "#2563eb");
+        parts.push('<rect x="'+x+'" y="'+(H-padB-h)+'" width="'+bw+'" height="'+Math.max(h, d.value==null?innerH*0.35:0)+'" rx="3" fill="'+fill+'"/>');
+        parts.push('<text x="'+(x+bw/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" font-size="11.5" fill="#475569">'+d.label+'</text>');
+        if (d.value != null) {
+          parts.push('<text x="'+(x+bw/2)+'" y="'+(H-padB-h-6)+'" text-anchor="middle" font-size="11.5" fill="#334155">'+d.value+'</text>');
+        } else {
+          parts.push('<text x="'+(x+bw/2)+'" y="'+(H-padB-innerH*0.35-6)+'" text-anchor="middle" font-size="11" fill="#64748b">未解析</text>');
+        }
+      });
+      if (target > 0) {
+        var ty = H - padB - innerH * (target / max);
+        parts.push('<line x1="'+padL+'" y1="'+ty+'" x2="'+(W-padR)+'" y2="'+ty+'" stroke="#d97706" stroke-dasharray="5 4"/>');
+        parts.push('<text x="'+(W-padR-4)+'" y="'+(ty-4)+'" text-anchor="end" font-size="11" fill="#b45309">目标 '+target+'</text>');
+      }
+    }
+
+    parts.push('<defs><pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">'
+             + '<rect width="6" height="6" fill="#e2e8f0"/><line x1="0" y1="0" x2="0" y2="6" stroke="#94a3b8" stroke-width="2"/></pattern></defs>');
+    barSvg.innerHTML = parts.join("");
+    barLegend.innerHTML = '<span><i style="background:#2563eb"></i>正常</span>'
+      + (barTarget ? '<span><i style="background:#dc2626"></i>超目标</span>' : '')
+      + '<span><i style="background:#94a3b8"></i>变量未解析（不等于 0）</span>';
+  }
+
+  document.getElementById("barDataSeg").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    barSet = b.dataset.set;
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function(x){ x.classList.toggle("on", x === b); });
+    renderBars();
+  });
+  document.getElementById("btnBarDir").addEventListener("click", function(){
+    barHorizontal = !barHorizontal; this.textContent = barHorizontal ? "竖向" : "横向"; renderBars();
+  });
+  document.getElementById("btnBarTarget").addEventListener("click", function(){
+    barTarget = !barTarget; this.textContent = barTarget ? "关闭目标线" : "目标线"; renderBars();
+  });
+  document.getElementById("btnBarSort").addEventListener("click", function(){
+    barSort = barSort === "desc" ? "asc" : (barSort === "asc" ? "none" : "desc");
+    this.textContent = "排序：" + (barSort === "desc" ? "降序" : barSort === "asc" ? "升序" : "原序");
+    renderBars();
+  });
+  renderBars();
+
+  /* ---------------- 饼图 ---------------- */
+  var PIE = [
+    { label: "尺寸超差", value: 42, color: "#2563eb" },
+    { label: "外观划伤", value: 26, color: "#38bdf8" },
+    { label: "漏装", value: 18, color: "#22c55e" },
+    { label: "错料", value: 9, color: "#f59e0b" },
+    { label: "其他", value: 5, color: "#94a3b8" }
+  ];
+  var pieDonut = true, pieMerge = false, pieLegendRight = true;
+  var pieSvg = document.getElementById("pieSvg");
+
+  function renderPie(){
+    var data = PIE.map(function(d){ return { label: d.label, value: d.value, color: d.color }; });
+    if (pieMerge) {
+      var total0 = data.reduce(function(s,d){ return s + d.value; }, 0);
+      var small = data.filter(function(d){ return d.value / total0 < 0.03; });
+      if (small.length > 1) {
+        var rest = small.reduce(function(s,d){ return s + d.value; }, 0);
+        data = data.filter(function(d){ return d.value / total0 >= 0.03; });
+        data.push({ label: "其他（合并 " + small.length + " 项）", value: rest, color: "#cbd5e1" });
+      }
+    }
+
+    var total = data.reduce(function(s,d){ return s + d.value; }, 0);
+    var W = 900, H = 280;
+    var cx = pieLegendRight ? 260 : W/2, cy = H/2, R = 100, r = pieDonut ? 58 : 0;
+    var parts = [];
+
+    if (total <= 0) {
+      parts.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="#e2e8f0" stroke-width="2"/>');
+      parts.push('<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" font-size="13" fill="#94a3b8">本班没有计数</text>');
+      pieSvg.innerHTML = parts.join("");
+      return;
+    }
+
+    var start = -Math.PI / 2;
+    data.forEach(function(d){
+      var ang = (d.value / total) * Math.PI * 2;
+      var end = start + ang;
+      var large = ang > Math.PI ? 1 : 0;
+      var x1 = cx + R * Math.cos(start), y1 = cy + R * Math.sin(start);
+      var x2 = cx + R * Math.cos(end),   y2 = cy + R * Math.sin(end);
+      var path;
+      if (ang >= Math.PI * 2 - 1e-6) {
+        path = 'M'+(cx+R)+' '+cy+' A'+R+' '+R+' 0 1 1 '+(cx-R)+' '+cy+' A'+R+' '+R+' 0 1 1 '+(cx+R)+' '+cy;
+      } else if (r > 0) {
+        var ix2 = cx + r * Math.cos(end), iy2 = cy + r * Math.sin(end);
+        var ix1 = cx + r * Math.cos(start), iy1 = cy + r * Math.sin(start);
+        path = 'M'+x1+' '+y1+' A'+R+' '+R+' 0 '+large+' 1 '+x2+' '+y2
+             + ' L'+ix2+' '+iy2+' A'+r+' '+r+' 0 '+large+' 0 '+ix1+' '+iy1+' Z';
+      } else {
+        path = 'M'+cx+' '+cy+' L'+x1+' '+y1+' A'+R+' '+R+' 0 '+large+' 1 '+x2+' '+y2+' Z';
+      }
+      parts.push('<path d="'+path+'" fill="'+d.color+'" data-label="'+d.label+'" data-value="'+d.value+'" data-total="'+total+'"/>');
+      start = end;
+    });
+
+    if (pieDonut) {
+      parts.push('<text x="'+cx+'" y="'+(cy-4)+'" text-anchor="middle" font-size="20" font-weight="700" fill="#1f2937">'+total+'</text>');
+      parts.push('<text x="'+cx+'" y="'+(cy+16)+'" text-anchor="middle" font-size="11.5" fill="#8a94a6">合计（件）</text>');
+    }
+
+    if (pieLegendRight) {
+      var lx = 420, ly = 52;
+      data.forEach(function(d, i){
+        var y = ly + i * 26;
+        parts.push('<rect x="'+lx+'" y="'+(y-9)+'" width="10" height="10" rx="2" fill="'+d.color+'"/>');
+        parts.push('<text x="'+(lx+18)+'" y="'+y+'" font-size="12.5" fill="#334155">'+d.label+'</text>');
+        parts.push('<text x="'+(lx+250)+'" y="'+y+'" text-anchor="end" font-size="12.5" fill="#475569">'
+                 + (d.value / total * 100).toFixed(1) + '%　'+d.value+'</text>');
+      });
+    } else {
+      var bx = 120;
+      data.forEach(function(d, i){
+        var x = bx + i * 140;
+        parts.push('<rect x="'+x+'" y="'+(H-26)+'" width="10" height="10" rx="2" fill="'+d.color+'"/>');
+        parts.push('<text x="'+(x+16)+'" y="'+(H-17)+'" font-size="11.5" fill="#475569">'+d.label+'</text>');
+      });
+    }
+
+    pieSvg.innerHTML = parts.join("");
+  }
+
+  pieSvg.addEventListener("mousemove", function(e){
+    var p = e.target.closest("path"); if (!p) { hideTip(); return; }
+    var v = +p.dataset.value, t = +p.dataset.total;
+    showTip(e, p.dataset.label + "　" + v + " 件　" + (v / t * 100).toFixed(1) + "%");
+  });
+  pieSvg.addEventListener("mouseleave", hideTip);
+
+  document.getElementById("pieModeSeg").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    pieDonut = b.dataset.donut === "1";
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function(x){ x.classList.toggle("on", x === b); });
+    renderPie();
+  });
+  document.getElementById("btnPieMerge").addEventListener("click", function(){
+    pieMerge = !pieMerge; this.textContent = pieMerge ? "取消合并" : "合并 <3%"; renderPie();
+  });
+  document.getElementById("btnPieLegend").addEventListener("click", function(){
+    pieLegendRight = !pieLegendRight; this.textContent = pieLegendRight ? "图例：右" : "图例：底"; renderPie();
+  });
+  renderPie();
+
+  /* ---------------- 报警汇总表 ---------------- */
+  var ALARMS = [
+    { id: 1, sev: "c", time: "14:32:07", name: "一号罐液位高", cond: "液位 > 85%", value: "91.2 %", ack: false },
+    { id: 2, sev: "w", time: "14:28:51", name: "B 工位节拍超时", cond: "节拍 > 12s", value: "14.6 s", ack: false },
+    { id: 3, sev: "w", time: "14:21:10", name: "相机 2 丢帧", cond: "丢帧率 > 1%", value: "2.3 %", ack: false },
+    { id: 4, sev: "i", time: "14:05:44", name: "配方已切换", cond: "事件", value: "—", ack: true },
+    { id: 5, sev: "c", time: "13:58:02", name: "急停回路断开", cond: "DI3 = 0", value: "0", ack: true }
+  ];
+  var almReadonly = false, almEmpty = false, almFilter = "all";
+  var almHost = document.getElementById("almHost"), almBanner = document.getElementById("almBanner");
+
+  function sevRank(s){ return s === "c" ? 3 : s === "w" ? 2 : 1; }
+  function sevText(s){ return s === "c" ? "严重" : s === "w" ? "警告" : "提示"; }
+
+  function renderAlarms(){
+    if (almEmpty) {
+      almHost.innerHTML = '<div class="empty"><b>系统正常</b>当前没有报警</div>';
+      almBanner.innerHTML = "";
+      return;
+    }
+
+    var rows = ALARMS.slice().sort(function(a,b){ return sevRank(b.sev) - sevRank(a.sev); });
+    if (almFilter === "warning") rows = rows.filter(function(r){ return sevRank(r.sev) >= 2; });
+    if (almFilter === "critical") rows = rows.filter(function(r){ return r.sev === "c"; });
+
+    var unacked = rows.filter(function(r){ return !r.ack; }).length;
+    almBanner.innerHTML = '<div class="banner">未确认 ' + unacked + ' 条 · 静音 30 分钟中（严重级仍会响）'
+      + '<span style="float:right;cursor:pointer;text-decoration:underline">取消静音</span></div>';
+
+    var head = '<tr><th style="width:76px">级别</th><th style="width:88px">时间</th><th>名称</th>'
+      + '<th style="width:150px">条件</th><th style="width:90px">当前值</th><th style="width:80px">状态</th>'
+      + (almReadonly ? '' : '<th style="width:70px">操作</th>') + '</tr>';
+
+    var body = rows.map(function(r){
+      var cls = r.ack ? "ack" : "";
+      return '<tr class="'+cls+'">'
+        + '<td class="sev"><span class="dot '+r.sev+'"></span>'+sevText(r.sev)+'</td>'
+        + '<td>'+r.time+'</td>'
+        + '<td>'+r.name+'</td>'
+        + '<td class="muted">'+r.cond+'</td>'
+        + '<td class="num">'+r.value+'</td>'
+        + '<td><span class="statechip '+r.sev+'">'+(r.ack?'已确认':'未确认')+'</span></td>'
+        + (almReadonly ? '' : '<td>'+(r.ack ? '' : '<button class="rowbtn" data-id="'+r.id+'">确认</button>')+'</td>')
+        + '</tr>';
+    }).join("");
+
+    almHost.innerHTML = '<table>'+head+body+'</table>';
+  }
+
+  almHost.addEventListener("click", function(e){
+    var b = e.target.closest("button[data-id]"); if (!b) return;
+    var id = +b.dataset.id;
+    ALARMS.forEach(function(r){ if (r.id === id) r.ack = true; });
+    renderAlarms();
+  });
+  document.getElementById("almFilter").addEventListener("change", function(){
+    almFilter = this.value; renderAlarms();
+  });
+  document.getElementById("btnAlmReadonly").addEventListener("click", function(){
+    almReadonly = !almReadonly;
+    this.textContent = almReadonly ? "切回可操作" : "切到只读（操作员无权限）";
+    renderAlarms();
+  });
+  document.getElementById("btnAlmEmpty").addEventListener("click", function(){
+    almEmpty = !almEmpty;
+    this.textContent = almEmpty ? "恢复报警" : "模拟：无报警";
+    renderAlarms();
+  });
+  renderAlarms();
+})();
+</script>
+</body>
+</html>

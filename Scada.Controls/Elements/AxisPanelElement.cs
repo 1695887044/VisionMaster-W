@@ -319,6 +319,12 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         public static readonly DependencyProperty CanOperateProperty = CanOperatePropertyKey.DependencyProperty;
 
+        private static readonly DependencyPropertyKey CanStopPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanStop), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        /// <summary>有命令出口 + 有选中轴 + 当前组含 Stop（只读；停止按钮的绑定源）。</summary>
+        public static readonly DependencyProperty CanStopProperty = CanStopPropertyKey.DependencyProperty;
+
         private static readonly DependencyPropertyKey CommandMessagePropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(CommandMessage), typeof(string), typeof(AxisPanelElement), new PropertyMetadata(string.Empty));
 
@@ -402,8 +408,8 @@ namespace VisionMaster.Scada.Controls
                 EndJog();
             };
 
-            TeachCommand = new DelegateCommand<AxisPointRow>(OnTeach, r => r != null && CanOperate);
-            LocateCommand = new DelegateCommand<AxisPointRow>(OnLocate, r => r != null && CanOperate);
+            TeachCommand = new DelegateCommand<AxisPointRow>(OnTeach, r => r != null && CanAttemptOperate);
+            LocateCommand = new DelegateCommand<AxisPointRow>(OnLocate, r => r != null && CanAttemptOperate);
         }
 
         /// <summary>下拉框的候选轴（只读，见 <see cref="AxisItemsProperty"/>）</summary>
@@ -463,6 +469,9 @@ namespace VisionMaster.Scada.Controls
         /// <summary>操作按钮是否可用（只读）</summary>
         public bool CanOperate => (bool)GetValue(CanOperateProperty);
 
+        /// <summary>有命令出口 + 有选中轴 + 当前组含 Stop（只读；停止按钮的绑定源）</summary>
+        public bool CanStop => (bool)GetValue(CanStopProperty);
+
         private static readonly DependencyPropertyKey CanJogPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(CanJog), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
 
@@ -477,6 +486,36 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>两个点动键是否可点（只读；运动中锁这两颗，其余按钮照常）</summary>
         public bool CanJog => (bool)GetValue(CanJogProperty);
+
+        // ---- 「可尝试」= 有出口 + 有选中轴，不含权限 ----
+        // B3：运行态未授权点击要弹登录，所以按钮不能因为缺权限而置灰（置灰就点不进来了）。
+        // 权限仍在命令出口判；这里只表达"这颗按钮此刻有没有执行条件"。
+        private static readonly DependencyPropertyKey CanAttemptOperatePropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanAttemptOperate), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        public static readonly DependencyProperty CanAttemptOperateProperty =
+            CanAttemptOperatePropertyKey.DependencyProperty;
+
+        /// <summary>非停按钮是否可点（只读）= 有出口 + 有选中轴（权限在点击后判）</summary>
+        public bool CanAttemptOperate => (bool)GetValue(CanAttemptOperateProperty);
+
+        private static readonly DependencyPropertyKey CanAttemptStopPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanAttemptStop), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        public static readonly DependencyProperty CanAttemptStopProperty =
+            CanAttemptStopPropertyKey.DependencyProperty;
+
+        /// <summary>停止按钮是否可点（只读）= 有出口 + 有选中轴（权限在点击后判）</summary>
+        public bool CanAttemptStop => (bool)GetValue(CanAttemptStopProperty);
+
+        private static readonly DependencyPropertyKey CanAttemptJogPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(CanAttemptJog), typeof(bool), typeof(AxisPanelElement), new PropertyMetadata(false));
+
+        public static readonly DependencyProperty CanAttemptJogProperty =
+            CanAttemptJogPropertyKey.DependencyProperty;
+
+        /// <summary>点动键是否可点（只读）= 有出口 + 有选中轴 + 轴没在动（权限在点击后判）</summary>
+        public bool CanAttemptJog => (bool)GetValue(CanAttemptJogProperty);
 
         // ---- 步进点动行的算好属性 ----
         // 与 CommandsVisibility / PointsVisibility 同一套路：基类是纯 DP 控件、没有 CLR 属性通知，
@@ -588,9 +627,9 @@ namespace VisionMaster.Scada.Controls
         /// 权限、命令出口、选中轴三件事缺一不可；任何一条不满足都返回 false 并给原因，
         /// <b>绝不静默空跑</b>——操作员按了按钮什么都没发生，是这类界面最伤信任的失效。
         /// </summary>
-        public bool TryExecuteCommand(ScadaAxisCommandKind command, double? value = null)
+        public bool TryExecuteCommand(ScadaAxisCommandKind command, double? value = null, bool interactive = true)
         {
-            if (!CheckCanRun(out var error))
+            if (!CheckCanRun(command, interactive, out var error))
             {
                 SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
                 return false;
@@ -616,7 +655,13 @@ namespace VisionMaster.Scada.Controls
         /// "权限 + 出口 + 选中轴"的统一闸门：操作按钮与点位写入都先过这里。
         /// 返回 false 时 <paramref name="error"/> 已是可上屏的原因。
         /// </summary>
-        private bool CheckCanRun(out string? error)
+        private bool CheckCanRun(out string? error) => CheckCanRun(null, interactive: true, out error);
+
+        /// <summary>
+        /// "权限 + 出口 + 选中轴"的统一闸门。交互式调用（用户点击）在缺权限时会弹登录，
+        /// 登录成功后按最新权限重判；非交互调用（如松开鼠标补发的 JogStop）只判不弹。
+        /// </summary>
+        private bool CheckCanRun(ScadaAxisCommandKind? command, bool interactive, out string? error)
         {
             error = null;
 
@@ -638,15 +683,39 @@ namespace VisionMaster.Scada.Controls
                 return false;
             }
 
-            // 权限：与事件钩子同一口径（高角色含低角色，未登录=操作员）。
-            // 这里先判一次是为了让操作员"按之前"就知道自己没权限，而不是命令发出去才被拦。
-            if (!RuntimeContext.AccessPolicy.CanOperate(Element?.RequiredRole, out var denyReason))
-            {
-                error = denyReason ?? "没有权限操作该轴";
+            var required = ResolveRequiredPermission(command);
+
+            if (RuntimeContext.AccessPolicy.Can(required, out error))
+                return true;
+
+            if (!interactive || !RuntimeContext.TryAuthorize(required, out error))
                 return false;
+
+            // 登录成功：权限快照已换，按钮可用性/点动锁都要跟着重算（刚才点的可能就是灰按钮）。
+            RefreshCanOperate();
+            RefreshJogAvailability();
+            return true;
+        }
+
+        /// <summary>
+        /// 这条命令要求的权限 Key：显式 <see cref="ScadaElement.RequiredPermission"/> 优先；
+        /// 未配置时按命令族兜底（点动 → AxisJog、停止族 → Stop、其余 → ControlRun）。
+        /// </summary>
+        private string ResolveRequiredPermission(ScadaAxisCommandKind? command)
+        {
+            var required = Element?.RequiredPermission;
+            if (string.IsNullOrEmpty(required) && command is { } kind)
+            {
+                required = kind switch
+                {
+                    ScadaAxisCommandKind.JogStart => ScadaPermissionKeys.AxisJog,
+                    ScadaAxisCommandKind.JogStop => ScadaPermissionKeys.Stop,
+                    ScadaAxisCommandKind.Stop => ScadaPermissionKeys.Stop,
+                    _ => ScadaPermissionKeys.ControlRun,
+                };
             }
 
-            return true;
+            return required ?? ScadaPermissionKeys.ControlRun;
         }
 
         /// <summary>
@@ -655,10 +724,24 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private void RefreshCanOperate()
         {
-            bool can = RuntimeContext?.AxisCommands != null
-                       && SelectedAxisId != Guid.Empty
-                       && RuntimeContext.AccessPolicy.CanOperate(Element?.RequiredRole, out _);
+            bool hasAxisAndSink = RuntimeContext?.AxisCommands != null && SelectedAxisId != Guid.Empty;
 
+            bool can = hasAxisAndSink
+                       && RuntimeContext!.AccessPolicy.Can(ButtonPermissionKey, out _);
+
+            bool canStop = hasAxisAndSink
+                           && RuntimeContext!.AccessPolicy.Can(ScadaActionTaxonomy.StopPermission, out _);
+
+            // 自动收手必须排在写 CanStop/CanOperate 之前：按钮灰掉后 WPF 不再派发 MouseUp。
+            if ((!can || !canStop) && _jogHeld)
+                EndJogForAxis(SelectedAxisId);
+
+            // 「可尝试」只表达执行条件；缺权限时按钮仍可点，点击后弹登录（见 CheckCanRun）。
+            SetValue(CanAttemptOperatePropertyKey, hasAxisAndSink);
+            SetValue(CanAttemptStopPropertyKey, hasAxisAndSink);
+            SetValue(CanAttemptJogPropertyKey, hasAxisAndSink && !IsMoving);
+
+            SetValue(CanStopPropertyKey, canStop);
             SetValue(CanOperatePropertyKey, can);
             SetValue(CanEditPropertyKey, can && ShowCommands);
 
@@ -669,6 +752,11 @@ namespace VisionMaster.Scada.Controls
             TeachCommand.RaiseCanExecuteChanged();
             LocateCommand.RaiseCanExecuteChanged();
         }
+
+        private string ButtonPermissionKey
+            => Element?.RequiredPermission is { Length: > 0 } configured
+                ? configured
+                : ScadaPermissionKeys.ControlRun;
 
         // ==================================================================
         //  点位区（与运动共用同一个 SelectedAxisId —— 这是合并控件的核心）
@@ -1210,18 +1298,18 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private bool StepJog(int direction)
         {
-            if (!CanStepJog)
+            // 权限先判：缺权限时要弹登录，而不是先报"步长是 0"（那个提示与真实原因无关）。
+            if (!CheckCanRun(null, interactive: true, out var error))
+            {
+                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
+                return false;
+            }
 
+            if (!CanStepJog)
             {
                 SetValue(CommandMessagePropertyKey, JogStepMm <= 0
                     ? "单步点动的步长是 0，请先设一个 0.1~50 mm 的步长"
                     : $"单步步长「{JogStepMm:F2}」超出 0~{JogStepMaxMm:F0} mm，请改到范围内");
-                return false;
-            }
-
-            if (!CheckCanRun(out var error))
-            {
-                SetValue(CommandMessagePropertyKey, error ?? "命令不可用");
                 return false;
             }
 
@@ -1264,7 +1352,8 @@ namespace VisionMaster.Scada.Controls
         {
             if (!_jogHeld) return;
             _jogHeld = false;
-            TryExecuteCommand(ScadaAxisCommandKind.JogStop);
+            // 松手补发的停止不弹登录：这是安全收手，不是一次新的操作请求。
+            TryExecuteCommand(ScadaAxisCommandKind.JogStop, null, interactive: false);
         }
 
         /// <summary>
@@ -1304,7 +1393,7 @@ namespace VisionMaster.Scada.Controls
 
         private void OnHomePressed(object? sender, MouseButtonEventArgs e)
         {
-            if (!CanOperate) return;
+            if (!CanAttemptOperate) return;
 
             _homeHoldTimer ??= new DispatcherTimer { Interval = HomeHoldDelay };
             _homeHoldTimer.Tick -= OnHomeHoldElapsed;
@@ -1624,10 +1713,12 @@ namespace VisionMaster.Scada.Controls
         private void RefreshJogAvailability()
         {
             bool can = CanOperate && !IsMoving;
+            bool attempt = RuntimeContext?.AxisCommands != null && SelectedAxisId != Guid.Empty;
             bool step = JogMode == ScadaJogMode.Step;
             double stepMm = NormalizeJogStep(JogStepMm);
 
             SetValue(CanJogPropertyKey, can);
+            SetValue(CanAttemptJogPropertyKey, attempt && !IsMoving);
             SetValue(IsStepJogPropertyKey, step);
             SetValue(IsContinuousJogPropertyKey, !step);
             SetValue(IsStepFieldEditablePropertyKey, step && CanOperate);

@@ -171,7 +171,7 @@ namespace ScadaWebChecks
             // ---------------- S10：匿名令牌在 AllowAnonymousView=false 后不能续期 ----------------
             {
                 var tickets = new ScadaWebTicketService();
-                var anonymousTicket = tickets.Issue(userName: null, ScadaRole.Operator, readOnly: true);
+                var anonymousTicket = tickets.Issue(userName: null, readOnly: true);
 
                 var redeemed = tickets.TryRedeem(anonymousTicket.Ticket, remoteIp: null, out var grant, out var reason);
                 var token = grant?.Session?.Token;
@@ -183,7 +183,7 @@ namespace ScadaWebChecks
                 var afterResolve = tickets.TryResolveSession(token, remoteIp: null, out _, out var afterError);
 
                 // 关掉匿名之后，连"已签发但未核销的匿名票"也不许再进
-                var secondAnonymousTicket = tickets.Issue(userName: null, ScadaRole.Operator, readOnly: true);
+                var secondAnonymousTicket = tickets.Issue(userName: null, readOnly: true);
                 var secondRedeem = tickets.TryRedeem(secondAnonymousTicket.Ticket, remoteIp: null, allowCommands: true, out _, out _, out var secondError);
 
                 Check("S10",
@@ -235,7 +235,7 @@ namespace ScadaWebChecks
                 var bob = RedeemFor(tickets, "bob");
 
                 // 撤销前先留一张未核销的票：撤销账号必须连它一起作废
-                var pending = tickets.Issue("alice", ScadaRole.Operator, readOnly: false);
+                var pending = tickets.Issue("alice", readOnly: false);
 
                 gate.RevokeUser("alice");
 
@@ -259,9 +259,9 @@ namespace ScadaWebChecks
             {
                 var tickets = new ScadaWebTicketService { MaxSessionTokens = 2 };
 
-                var first = tickets.Issue("op1", ScadaRole.Operator, readOnly: false);
-                var second = tickets.Issue("op2", ScadaRole.Operator, readOnly: false);
-                var third = tickets.Issue("op3", ScadaRole.Operator, readOnly: false);
+                var first = tickets.Issue("op1", readOnly: false);
+                var second = tickets.Issue("op2", readOnly: false);
+                var third = tickets.Issue("op3", readOnly: false);
 
                 var firstOk = tickets.TryRedeem(first.Ticket, null, allowCommands: true, out _, out _, out var firstError);
                 var secondOk = tickets.TryRedeem(second.Ticket, null, allowCommands: true, out _, out _, out var secondError);
@@ -280,9 +280,9 @@ namespace ScadaWebChecks
             {
                 var tickets = new ScadaWebTicketService();
 
-                var writable = tickets.Issue("op", ScadaRole.Operator, readOnly: false, allowCommands: true);
-                var readOnlyByPolicy = tickets.Issue("op", ScadaRole.Operator, readOnly: false, allowCommands: false);
-                var anonymous = tickets.Issue(userName: null, ScadaRole.Operator, readOnly: false, allowCommands: true);
+                var writable = tickets.Issue("op", readOnly: false, allowCommands: true);
+                var readOnlyByPolicy = tickets.Issue("op", readOnly: false, allowCommands: false);
+                var anonymous = tickets.Issue(userName: null, readOnly: false, allowCommands: true);
 
                 Check("S14",
                     !writable.ReadOnly && readOnlyByPolicy.ReadOnly && anonymous.ReadOnly,
@@ -291,7 +291,7 @@ namespace ScadaWebChecks
                     + $"；匿名+allowCommands=true → readOnly={anonymous.ReadOnly}（期望 true）");
 
                 // 核销时按当前策略再压一次：签票时可写，握手前策略改成"禁止写"
-                var downgraded = tickets.Issue("op", ScadaRole.Operator, readOnly: false, allowCommands: true);
+                var downgraded = tickets.Issue("op", readOnly: false, allowCommands: true);
                 var redeemOk = tickets.TryRedeem(downgraded.Ticket, null, allowCommands: false, out var grant, out var reason, out _);
 
                 Check("S15",
@@ -304,7 +304,7 @@ namespace ScadaWebChecks
             // ---------------- S16：ticket 仍是 30 秒 + 单次 ----------------
             {
                 var tickets = new ScadaWebTicketService();
-                var ticket = tickets.Issue("op", ScadaRole.Operator, readOnly: false);
+                var ticket = tickets.Issue("op", readOnly: false);
 
                 var firstRedeem = tickets.TryRedeem(ticket.Ticket, null, out _, out _);
                 var secondRedeem = tickets.TryRedeem(ticket.Ticket, null, out _, out var secondReason);
@@ -386,7 +386,7 @@ namespace ScadaWebChecks
         /// <summary>签一张票并核销，返回它的会话令牌（断言夹具）</summary>
         private static ScadaWebSessionGrant RedeemFor(ScadaWebTicketService tickets, string userName)
         {
-            var ticket = tickets.Issue(userName, ScadaRole.Operator, readOnly: false);
+            var ticket = tickets.Issue(userName, readOnly: false);
 
             if (!tickets.TryRedeem(ticket.Ticket, remoteIp: null, out var grant, out var reason) || grant?.Session == null)
                 throw new InvalidOperationException($"断言夹具：ticket 核销失败（{reason}）");
@@ -405,9 +405,10 @@ namespace ScadaWebChecks
             public FakeAuthenticator(params string[] defaultPasswordUsers)
                 => _defaultPasswordUsers = new HashSet<string>(defaultPasswordUsers, StringComparer.Ordinal);
 
-            public bool TryValidate(string? userName, string? password, out ScadaRole role, out string? error)
+            public bool TryValidate(string? userName, string? password, out ScadaUserInfo? user, out string? error)
             {
-                role = ScadaRole.Operator;
+                user = new ScadaUserInfo(userName ?? string.Empty, "G-op",
+                    new[] { ScadaPermissionKeys.ViewRuntime });
                 error = null;
                 return !string.IsNullOrEmpty(userName) && !string.IsNullOrEmpty(password);
             }
@@ -419,9 +420,10 @@ namespace ScadaWebChecks
         /// <summary>校验器自己抛异常（验证"查不出来 = 拒绝"的 fail closed 口径）</summary>
         private sealed class ThrowingAuthenticator : IScadaUserAuthenticator
         {
-            public bool TryValidate(string? userName, string? password, out ScadaRole role, out string? error)
+            public bool TryValidate(string? userName, string? password, out ScadaUserInfo? user, out string? error)
             {
-                role = ScadaRole.Operator;
+                user = new ScadaUserInfo(userName ?? string.Empty, "G-op",
+                    new[] { ScadaPermissionKeys.ViewRuntime });
                 error = null;
                 return true;
             }

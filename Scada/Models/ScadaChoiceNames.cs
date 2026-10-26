@@ -195,10 +195,69 @@ namespace VisionMaster.Scada
                 ["Last7Days"] = "最近 7 天",
                 ["Last30Days"] = "最近 30 天",
 
+                // ---- 报表（Hmi.Report）：模式 / 分组 / 纸张方向 ----
+                ["Detail"] = "明细",
+                ["Summary"] = "汇总",
+                ["Shift"] = "班次",
+                ["Day"] = "日",
+                ["Hour"] = "小时",
+                ["Portrait"] = "纵向",
+                ["Landscape"] = "横向",
+
+                // ---- 工艺符号位号落点（Hmi.Symbol） ----
+                ["Above"] = "上方",
+                ["Below"] = "下方",
+                ["Inside"] = "内部",
+
+                // ---- 管道连线走线方式（Hmi.PipeRun） ----
+                ["Orthogonal"] = "正交",
+                ["Straight"] = "直线",
+
+                // ---- 工艺符号种类（Hmi.Symbol）：值写进 .vms，显示名只在这里 ----
+                ["Tower"] = "精馏塔",
+                ["Reactor"] = "反应釜",
+                ["ShellTube"] = "管壳式换热器",
+                ["PlateHx"] = "板式换热器",
+                ["Compressor"] = "离心压缩机",
+                ["Fan"] = "风机",
+                ["Filter"] = "过滤器",
+                ["Separator"] = "气液分离器",
+                ["TankHorizontal"] = "卧式储罐",
+                ["Sphere"] = "球罐",
+                ["ControlValve"] = "调节阀",
+                ["GateValve"] = "闸阀",
+                ["Burner"] = "燃烧器",
+                ["Stack"] = "烟囱",
+                ["Conveyor"] = "皮带机",
+                ["Agitator"] = "搅拌器",
+                ["Cyclone"] = "旋风分离器",
+                ["CoolingTower"] = "冷却塔",
+                ["BallValve"] = "球阀",
+                ["ButterflyValve"] = "蝶阀",
+                ["SafetyValve"] = "安全阀",
+                ["CheckValve"] = "止回阀",
+                ["Tee"] = "三通",
+                ["Cross"] = "四通",
+                ["Flange"] = "法兰",
+                ["Blind"] = "盲板",
+                ["Reducer"] = "异径管",
+                ["FlowArrow"] = "流向箭头",
+                ["Gauge"] = "就地压力表",
+                ["PidLoop"] = "PID 回路",
+
                 // None 是上面「图像缩放方式」里的"不缩放"，也是「管路流向」里的"不画箭头"。
                 // 全局词汇表一个值只能有一个词（见类注释），所以取了个两边都读得通的「无」：
                 // 「流向 = 无」「缩放方式 = 无」，各自都成立。
                 ["None"] = "无",
+
+                // 报警条形态（2026-10-26）：原来是手填文本，改成下拉后必须有译名——
+                // 现场看到 "Ticker" 这种单词根本不知道是什么。
+                ["Ticker"] = "单行跑马灯",
+                ["List"] = "卡片列表",
+
+                // 柱状图排序：与「无」共用 None；这两个是"怎么排"，不是"排不排"。
+                ["Desc"] = "降序",
+                ["Asc"] = "升序",
             };
 
         /// <summary>

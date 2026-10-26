@@ -82,7 +82,7 @@ namespace ScadaChecks
                     saved.Success && File.Exists(file), saved.Message);
 
                 var structure = SolutionPaths.EnsureStructure(file, out var structureError);
-                Check("[SF10] 目录骨架建全（Image / Alarms / History / Logs）",
+                Check("[SF10] 目录骨架建全（Image / Alarms / History / Logs / Users）",
                     structure && SolutionPaths.StructureFolderNames.All(
                         n => Directory.Exists(Path.Combine(folder, n))),
                     structureError);
@@ -184,6 +184,8 @@ namespace ScadaChecks
                 File.WriteAllText(Path.Combine(folder, "Alarms", "AlarmHistory.json"), "{\"probe\":1}");
                 File.WriteAllText(Path.Combine(folder, "History", "2026-10-23.csv"), "时间,SN\r\n2026-10-23 08:00:00,SN-1\r\n");
                 File.WriteAllText(Path.Combine(folder, "Logs", "probe.log"), "probe");
+                Directory.CreateDirectory(Path.Combine(folder, "Assets", "Templates"));
+                File.WriteAllText(Path.Combine(folder, "Assets", "Templates", "sample.tpl"), "probe-template");
 
                 var targetParent = Path.Combine(root, "target");
                 Directory.CreateDirectory(targetParent);
@@ -193,10 +195,11 @@ namespace ScadaChecks
                 SolutionPaths.EnsureStructure(newFile, out _);
                 var copyFailures = SolutionAssetFolders.CopyAlongside(file, newFile);
 
-                Check("[SF18] 另存为把 Image / Alarms / History / Logs 的内容一起带到新方案文件夹",
+                Check("[SF18] 另存为把 Image / Assets / Alarms / History / Logs 的内容一起带到新方案文件夹",
                     saveAs.Success
                     && copyFailures.Length == 0
                     && File.Exists(Path.Combine(newFolder, "Image", "sample.png"))
+                    && File.Exists(Path.Combine(newFolder, "Assets", "Templates", "sample.tpl"))
                     && File.Exists(Path.Combine(newFolder, "Alarms", "AlarmHistory.json"))
                     && File.Exists(Path.Combine(newFolder, "History", "2026-10-23.csv"))
                     && File.Exists(Path.Combine(newFolder, "Logs", "probe.log")),
@@ -206,6 +209,7 @@ namespace ScadaChecks
                     SolutionAssetFolders.AssetFolderNames.SequenceEqual(new[]
                     {
                         SolutionPaths.ImageFolderName,
+                        SolutionPaths.AssetsFolderName,
                         SolutionPaths.AlarmsFolderName,
                         SolutionPaths.HistoryFolderName,
                         SolutionPaths.LogsFolderName

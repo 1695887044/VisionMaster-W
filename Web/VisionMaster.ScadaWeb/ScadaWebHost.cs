@@ -46,7 +46,7 @@ namespace VisionMaster.ScadaWeb
     /// <b>命令面的三闸都在服务端、且缺一不可</b>
     /// ---------
     ///   ① 总闸 <see cref="ScadaWebSettings.AllowCommands"/>（false = 只读镜像，任何 <c>cmd.*</c> 回 <c>E_POLICY</c>）；
-    ///   ② 会话闸（只读票 / 未登录 / 角色 / <c>ClickPolicy</c>，见 <see cref="ScadaWebAccessPolicy"/>）；
+    ///   ② 会话闸（只读票 / 未登录 / 权限 Key，见 <see cref="ScadaWebAccessPolicy"/>）；
     ///   ③ 版本闸（<c>runGeneration</c>/<c>pageId</c>/<c>pageVersion</c> 必填，见 <see cref="ScadaWebCommandRouter"/>）。
     /// 客户端身份字段一律不读——身份只从 <see cref="ScadaWebSession"/> 取（改一个 JSON 字段不该变管理员）。
     ///
@@ -74,7 +74,7 @@ namespace VisionMaster.ScadaWeb
     /// 宿主级一条循环拍一次、序列化一次、扇出给所有会话（镜像模式的前提就是"大家看的是同一页"）。
     /// 慢消费者只会丢自己队列里的帧（<see cref="ScadaWebSession"/> 的有界队列），不拖累别人。
     /// </summary>
-    public sealed class ScadaWebHost
+    public sealed class ScadaWebHost : IScadaWebSessionAdmin
     {
         /// <summary>协议版本（hello/status 里回给客户端；与帧结构同版本号）</summary>
         public const string ProtocolVersion = "1";
@@ -145,7 +145,12 @@ namespace VisionMaster.ScadaWeb
         private readonly Dispatcher? _uiDispatcher;
         private readonly ILogService _log;
         private readonly ScadaWebSettings _settings;
-        private readonly ScadaWebTicketService _tickets = new();
+        /// <summary>
+        /// 票表。声明处<b>不许</b>写 <c>= new()</c>：它要在 ctor 里带上方案上下文构造。
+        /// 两处都写的话，先 new 一个再被 ctor 覆盖——而 <see cref="_securityGate"/> 持有的是哪一个
+        /// 取决于语句顺序，这类「两份票表」的 bug 编译期全绿。
+        /// </summary>
+        private readonly ScadaWebTicketService _tickets;
         private readonly ConcurrentDictionary<Guid, ScadaWebSession> _sessions = new();
         private readonly ScadaPageSnapshotBuilder _builder = new();
         private readonly ScadaWebValueResolver _resolver;
@@ -192,6 +197,7 @@ namespace VisionMaster.ScadaWeb
         private readonly IScadaFlowTriggerQuery? _flowTriggerQuery;
         private readonly IScadaAxisSource? _axisSource;
         private readonly IScadaRuntimeDataProvider? _dataProvider;
+        private readonly IScadaSolutionContext? _solutionContext;
         private readonly ScadaWebSecurityGate _securityGate;
         private readonly ScadaWebPresence _presence;
         private readonly ScadaWebAccessPolicy _policy;
@@ -278,10 +284,15 @@ namespace VisionMaster.ScadaWeb
             IScadaAlarmFeed? alarmFeed = null,
             IScadaFlowTriggerQuery? flowTriggerQuery = null,
             IScadaAxisSource? axisSource = null,
-            IScadaRuntimeDataProvider? dataProvider = null)
+            IScadaRuntimeDataProvider? dataProvider = null,
+            IScadaSolutionContext? solutionContext = null)
         {
             _hub = hub;
             _authenticator = authenticator;
+            _solutionContext = solutionContext;
+            // 切方案的撤销由 ScadaWebModule.SubscribeSolutionChanges 统一订阅（那里才持有退订句柄）。
+            // 宿主这里**不再**自己订阅：两处都挂会让一次切方案执行两遍撤销，
+            // 第二遍时表已空、日志里会多一条「撤销 0 枚」的噪音，且订阅永不释放。
             _catalog = catalog;
             _values = values;
             _uiDispatcher = uiDispatcher;
@@ -326,6 +337,9 @@ namespace VisionMaster.ScadaWeb
             _dataProvider = dataProvider;
 
             // 票表是身份的唯一来源：安全闸必须委托**同一份**票表（两份 = 撤销一边、放行另一边）。
+            // 方案上下文在这里注入票表——票/会话令牌的「属于哪一代」由票表自己盖戳，
+            // 宿主的三处 Issue 调用点看不见方案概念（这正是把 _solution 放进票表的理由）。
+            _tickets = new ScadaWebTicketService(_solutionContext);
             _tickets.AllowAnonymousView = _settings.AllowAnonymousView;
 
             _securityGate = new ScadaWebSecurityGate(_tickets)
@@ -950,7 +964,7 @@ namespace VisionMaster.ScadaWeb
                 }
 
                 _log.Info($"[ScadaWeb] WS 握手放行：ticket={grant.ShortTicket}…，"
-                    + $"user={grant.UserName ?? "<匿名只读>"}，role={grant.Role.DisplayName()}，"
+                    + $"user={grant.UserName ?? "<匿名只读>"}，group={grant.GroupName}，"
                     + $"readOnly={grant.ReadOnly}");
 
                 return Task.FromResult(new AuthResult
@@ -1203,6 +1217,23 @@ namespace VisionMaster.ScadaWeb
                     ("retryAfterMs", (int)ScadaWebSecurityGate.TicketRateWindow.TotalMilliseconds));
             }
 
+            // ---- ③ 方案级账号本：没有打开的方案就没有账号/权限/会话归属，直接 503（不是 401）----
+            //
+            // **位置是硬约束，不许为复用代码挪动**。必须排在 ① Origin 与 ② 限速之后、
+            // 请求体解析（DataAsString）之前，这样同时满足三件事：
+            //   1. 两道安全闸先判（无方案不等于放开跨站与洪水）；
+            //   2. 早于登录分支的 ValidateCredentials（PBKDF2 十万次）——SW1 用计数假认证器钉住零调用；
+            //   3. 早于默认密码闸门 IsUsingDefaultPassword——SW1 同样钉住零调用。
+            //
+            // 它**不走** TryRedeem 的统一 401 出口（那是握手阶段的语义），
+            // 错误码与 E_ORIGIN / E_RATE_LIMITED / E_DEFAULT_PASSWORD / E_CAPACITY 并列成「取票家族」。
+            if (_solutionContext != null && _solutionContext.SolutionId == null)
+            {
+                _log.Info("[ScadaWeb] 取票被拒：桌面端尚未打开方案（E_NO_SOLUTION）");
+                return Fail(request, 503, ScadaWebTicketService.ErrorNoSolution,
+                    "尚未打开方案，Web 运行态不可用");
+            }
+
             string user = string.Empty;
             string password = string.Empty;
             string refreshToken = string.Empty;
@@ -1257,14 +1288,15 @@ namespace VisionMaster.ScadaWeb
                     return Fail(request, 401, code, "会话已失效，请重新登录");
                 }
 
-                var renewed = _tickets.Issue(session.UserName, session.Role,
-                    session.ExplicitReadOnly ?? session.ReadOnly, allowCommands: allowCommands);
+                var renewed = _tickets.Issue(session.UserName, session.GroupId, session.GroupName,
+                    session.Permissions, readOnly: session.ExplicitReadOnly ?? session.ReadOnly,
+                    allowCommands: allowCommands);
 
                 // 续期不轮换令牌：客户端手里那枚继续有效（见 BindSession 的注释）
                 _tickets.BindSession(renewed, session);
 
                 _log.Info($"[ScadaWeb] 会话续期：session={session.ShortToken}…，user={MaskUser(session.UserName)}，"
-                    + $"role={session.Role.DisplayName()} → 新 ticket {renewed.ShortTicket}…（30s、单次）");
+                    + $"group={session.GroupName} → 新 ticket {renewed.ShortTicket}…（30s、单次）");
 
                 return TicketResponse(renewed);
             }
@@ -1296,7 +1328,7 @@ namespace VisionMaster.ScadaWeb
                 if (!_settings.AllowAnonymousView)
                     return Fail(request, 401, "E_AUTH_REQUIRED", "需要登录后才能查看运行画面（AllowAnonymousView=false）");
 
-                var viewer = _tickets.Issue(userName: null, ScadaRole.Operator, readOnly: true, allowCommands: allowCommands);
+                var viewer = _tickets.Issue(userName: null, readOnly: true, allowCommands: allowCommands);
                 _log.Info($"[ScadaWeb] 已签发匿名只读 ticket：{viewer.ShortTicket}…（30s、单次）");
 
                 return TicketResponse(viewer);
@@ -1317,10 +1349,12 @@ namespace VisionMaster.ScadaWeb
                 return Fail(request, 401, "E_AUTH_FAILED", result.Error ?? "用户名或密码错误");
             }
 
-            if (!result.Role.IsDefined())
+            // 组或权限集合为空 = 账号本数据不完整。按 Key 判权时"空权限集"等于什么都点不动，
+            // 与其让用户登进去发现全灰，不如在这里明确拒绝并写清是哪个账号。
+            if (result.User == null || string.IsNullOrWhiteSpace(result.User.GroupId))
             {
-                _log.Warn($"[ScadaWeb] 登录被拒：user={MaskUser(user)}，账号角色非法（{(int)result.Role}）");
-                return Fail(request, 403, "E_ROLE", "账号角色非法，已按安全策略拒绝");
+                _log.Warn($"[ScadaWeb] 登录被拒：user={MaskUser(user)}，账号未绑定用户组");
+                return Fail(request, 403, "E_NO_GROUP", "账号未绑定用户组，请联系管理员");
             }
 
             // ---- ⑤ 出厂默认密码闸门（账号校验通过之后、签票之前）----
@@ -1336,14 +1370,15 @@ namespace VisionMaster.ScadaWeb
             }
 
             // 只读口径 = 配置总闸；匿名永远只读由 Issue 内部再压一次。
-            var grant = _tickets.Issue(user, result.Role, readOnly: false, allowCommands: allowCommands);
+            var grant = _tickets.Issue(user, result.User.GroupId, result.User.GroupName,
+                result.User.Permissions, readOnly: false, allowCommands: allowCommands);
 
             _log.Info($"[ScadaWeb] 已签发 ticket：{grant.ShortTicket}…，user={MaskUser(user)}，"
-                + $"role={grant.Role.DisplayName()}，readOnly={grant.ReadOnly}（30s、单次）");
+                + $"group={grant.GroupName}，readOnly={grant.ReadOnly}（30s、单次）");
 
             // 登录成功同样留痕：与失败成对，才能看出"某账号在某段时间的登录轨迹"。
             AuditSecurity(user, sessionId: null, clientIp, "取票", "Web 登录",
-                "登录", "成功", $"role={grant.Role.DisplayName()}，readOnly={grant.ReadOnly}");
+                "登录", "成功", $"group={grant.GroupName}，readOnly={grant.ReadOnly}");
 
             return TicketResponse(grant);
         }
@@ -1575,30 +1610,30 @@ namespace VisionMaster.ScadaWeb
             ticket = grant.Ticket,
             expiresIn = (int)ScadaWebTicketService.Lifetime.TotalSeconds,
             user = grant.UserName,
-            role = grant.Role.ToString(),
+            groupId = grant.GroupId,
+            groupName = grant.GroupName,
             readOnly = grant.ReadOnly,
             sessionToken = grant.Session?.Token,
             sessionExpiresIn = grant.Session?.RemainingSeconds(DateTime.UtcNow) ?? 0
         };
 
         /// <summary>凭据校验（在后台线程执行）。<c>IScadaUserAuthenticator</c> 缺席时一律失败</summary>
-        private (bool Ok, ScadaRole Role, string? Error) ValidateCredentials(string user, string password)
+        private (bool Ok, ScadaUserInfo? User, string? Error) ValidateCredentials(string user, string password)
         {
             if (_authenticator == null)
-                return (false, ScadaRole.Undefined, "服务端未注册账号校验服务（IScadaUserAuthenticator），Web 登录不可用");
+                return (false, null, "服务端未注册账号校验服务（IScadaUserAuthenticator），Web 登录不可用");
 
             try
             {
-                if (_authenticator.TryValidate(user, password, out var role, out var error))
-                    return (true, role, null);
+                if (_authenticator.TryValidate(user, password, out var account, out var error))
+                    return (true, account, null);
 
-                return (false, ScadaRole.Undefined,
+                return (false, null,
                     string.IsNullOrWhiteSpace(error) ? "用户名或密码错误" : error);
             }
             catch (Exception ex)
             {
-                // 校验实现自己抛异常 = 服务端故障，但对外仍是"登录失败"（不泄露内部细节）
-                return (false, ScadaRole.Undefined, $"账号校验异常：{ex.GetType().Name}");
+                return (false, null, $"账号校验异常：{ex.GetType().Name}");
             }
         }
 
@@ -1950,15 +1985,14 @@ namespace VisionMaster.ScadaWeb
             }
 
             // 租约作为"可选加强"时（AllOperatorsRequiresLease=true）必须先过与命令相同的
-            // 角色/策略闸门（不含租约本身，否则死锁）：否则 HighestRoleOnly 下的普通操作员
-            // 可以先占住租约，把管理员也挡在门外。
+            // 总闸/认证/只读闸门（不含租约本身，否则死锁）：否则一个只读会话可以先占住租约，
+            // 把能操作的人挡在门外。
             // 仅 OperationLeaseEnabled=true、AllOperatorsRequiresLease=false 时租约只是
             // 展示/协作信息，不参与判权，任何已登录会话都可以取得/释放。
             if (kind != ScadaWebCommandKinds.LeaseRelease && _settings.AllOperatorsRequiresLease)
             {
                 if (!ScadaWebAccessPolicy.Evaluate(
-                        session, requiredRole: null, _settings, _presence.Sessions,
-                        out var gateCode, out var gateReason))
+                        session, _settings, out var gateCode, out var gateReason))
                 {
                     ReplyCommandError(session, requestId, kind, gateCode, gateReason);
                     return;
@@ -2613,7 +2647,8 @@ namespace VisionMaster.ScadaWeb
                 sessionRef = session.SessionRef,
                 readOnly = IsSessionReadOnly(session),
                 user = session.UserName,
-                role = session.Role.ToString(),
+                groupId = session.GroupId,
+                groupName = session.GroupName,
                 running = snapshot.Running,
                 runGeneration = snapshot.Generation,
                 structureSeq = Volatile.Read(ref _structureSeq),
@@ -3820,11 +3855,13 @@ namespace VisionMaster.ScadaWeb
                 {
                     sessionRef = entry.SessionRef,
                     user = entry.User,
-                    role = entry.Role,
+                    groupId = entry.GroupId,
+                    groupName = entry.GroupName,
                     ip = entry.Ip,
                     connectedAtUtc = entry.ConnectedAtUtc,
                     lastSeenUtc = entry.LastSeenUtc,
-                    canOperate = entry.CanOperate
+                    canOperate = entry.CanOperate,
+                    operateReason = entry.OperateReason
                 };
             }
 
@@ -3872,10 +3909,10 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>
-        /// 广播一帧 <c>caps</c>：角色/策略变化后让已连客户端<b>立即</b>刷新可操作性。
+        /// 广播一帧 <c>caps</c>：配置或权限变化后让已连客户端<b>立即</b>刷新可操作性。
         ///
         /// 快照里的 <c>CanOperate</c> 只在结构变化时下发；如果只靠它，
-        /// “管理员上线/下线、工程师降权、ClickPolicy 切换”要等到下一次切页或重连才生效，
+        /// “<c>AllowCommands</c> 热切换、账号被降权”要等到下一次切页或重连才生效，
         /// 现场表现就是“列表里说只读、其实还能点”或反过来。2 秒一拍与 presence 同频，
         /// 对 10 图元/10 客户端足够；客户端按 <c>deny/allow/default</c> 覆盖快照里的旧值。
         /// </summary>
@@ -4043,10 +4080,98 @@ namespace VisionMaster.ScadaWeb
         /// 撤销一个账号的全部会话（改密 / 降权 / 删号之后）：票表按用户撤销，并关闭该用户所有连接。
         /// </summary>
         /// <returns>被关闭的连接数</returns>
+        #region IScadaWebSessionAdmin（B3：桌面端在线会话/按组撤销）
+
+        public bool IsAvailable => true;
+
+        public IReadOnlyList<ScadaWebSessionInfo> ListOnline()
+            => _sessions.Values
+                // 已撤销的会话从"标记"到"连接真的关掉、字典条目被 WS handler 摘掉"之间有一个窗口。
+                // 不在这里滤掉，桌面端的在线列表会短暂显示一个刚被踢下线的人。
+                .Where(session => !session.IsRevoked)
+                .Select(session =>
+            {
+                // 与 hello/caps 同源：AllowCommands 是运行期可切换的，用签票时冻结的
+                // session.ReadOnly 会让"配置已放开"的会话在列表里继续显示只读。
+                var readOnly = IsSessionReadOnly(session);
+
+                return new ScadaWebSessionInfo(
+                    session.SessionRef,
+                    session.UserName,
+                    session.GroupId,
+                    session.GroupName,
+                    session.Permissions,
+                    session.RemoteIp,
+                    session.ConnectedAtUtc,
+                    session.LastSeenUtc,
+                    readOnly,
+                    !readOnly && !session.IsRevoked);
+            }).ToArray();
+
+        public bool TryKick(string sessionRef)
+        {
+            var session = _sessions.Values.FirstOrDefault(s =>
+                string.Equals(s.SessionRef, sessionRef, StringComparison.Ordinal));
+            if (session?.Session == null) return false;
+            return RevokeSession(session.Session.Token) > 0;
+        }
+
+        public int KickAll()
+        {
+            var closed = 0;
+            foreach (var session in _sessions.Values.ToArray())
+            {
+                if (session.Session == null) continue;
+                closed += RevokeSession(session.Session.Token);
+            }
+            return closed;
+        }
+
+        public int RevokeGroup(string groupId)
+        {
+            if (string.IsNullOrWhiteSpace(groupId)) return 0;
+            var closed = 0;
+            foreach (var session in _sessions.Values.ToArray())
+            {
+                if (session.Session == null) continue;
+                if (!string.Equals(session.GroupId, groupId, StringComparison.Ordinal)) continue;
+                closed += RevokeSession(session.Session.Token);
+            }
+            return closed;
+        }
+
+        /// <summary>
+        /// 撤销<b>全部</b>会话与票（切方案时调用）。
+        ///
+        /// 与 <see cref="KickAll"/> 的差别是语义而非范围：本方法先在票表里把每枚令牌记进
+        /// 「因换方案而失效」那张表，客户端续期时拿到 <c>E_SOLUTION_CHANGED</c>（「方案已切换」）；
+        /// <see cref="KickAll"/> 走的是普通撤销，客户端拿到 <c>E_SESSION_REVOKED</c>（「被管理员下线」）。
+        /// 两者都关连接，区别只在客户端能看到的那句话。
+        /// </summary>
+        /// <returns>被撤销的会话令牌数</returns>
+        public int RevokeAllSessions()
+        {
+            var revoked = _tickets.RevokeAll();
+
+            var closed = 0;
+            foreach (var session in _sessions.Values.ToArray())
+            {
+                session.MarkRevoked();
+                CloseRevokedSession(session, "方案已切换，请重新登录");
+                _lease.Release(session);
+                _presence.Unregister(session);
+                closed++;
+            }
+
+            if (closed > 0) _log.Info($"[ScadaWeb] 方案切换：已撤销 {revoked} 枚会话令牌、关闭 {closed} 条连接");
+            return revoked;
+        }
+
+        #endregion
+
         public int RevokeUser(string? userName)
         {
             _securityGate.RevokeUser(userName);
-
             if (string.IsNullOrWhiteSpace(userName))
                 return 0;
 

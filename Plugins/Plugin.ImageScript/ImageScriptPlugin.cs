@@ -91,6 +91,14 @@ namespace Plugin.ImageScript
             }
         }
 
+        /// <summary>
+        /// 脚本自绘效果图（<c>dev_display</c> / <c>dev_disp_text</c> 画完后由宿主回读的图）。
+        /// **固定端口，名字保留**：脚本输出变量表里不要再叫 <c>AnnotatedImage</c>（同名会被跳过）。
+        /// 与主界面预览窗口 1 收到的是同一张图；接「图像赋值」即可让 SCADA 看到脚本画的缺陷/文字。
+        /// </summary>
+        public OutputPort<HImage> AnnotatedImage { get; } =
+            new("AnnotatedImage", "脚本自绘效果图（dev_* 绘制后的回读图）");
+
         #endregion
 
         #region 配置生命周期 / 视图
@@ -1128,7 +1136,11 @@ namespace Plugin.ImageScript
                 {
                     HImage fx = HDevDisplayBackend.Capture();
                     if (fx != null)
+                    {
+                        // 端口持有这张图（下一轮轮首由基类回收）；预览订阅方按事件契约自行拷贝
+                        AnnotatedImage.Value = fx;
                         this.PublishPreview(fx, 1);
+                    }
                 }
 
                 Success.Value = true;

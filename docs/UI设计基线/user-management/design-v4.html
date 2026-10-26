@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>用户管理 · 设计稿 v4（草案）</title>
+<style>
+/* ---------------------------------------------------------------
+   令牌名与 Colors.xaml 的键一一对应，复刻时按名字取资源，不抄色值。
+   评审条不属于产品界面（R126）；?shot=1 时隐藏。
+   --------------------------------------------------------------- */
+:root{
+  --DialogAccentBrush:#0EA5E9;
+  --DialogAccentDarkBrush:#0284C7;
+  --DialogAccentLightBrush:#E0F2FE;
+  --DialogAccentSoftBrush:#F0F9FF;
+  --DialogAccentBorderBrush:#BAE6FD;
+  --DialogAccentTextBrush:#0369A1;
+  --DialogBackgroundBrush:#EEF2F7;
+  --DialogSurfaceBrush:#FFFFFF;
+  --DialogCardBorderBrush:#E3E9F2;
+  --DialogInputBackgroundBrush:#F8FAFC;
+  --DialogBorderBrush:#E2E8F0;
+  --DialogBorderLightBrush:#EEF2F7;
+  --DialogBorderStrongBrush:#CBD5E1;
+  --DialogTextPrimaryBrush:#0F172A;
+  --DialogTextSecondaryBrush:#475569;
+  --DialogTextTertiaryBrush:#64748B;
+  --DialogTextMutedBrush:#94A3B8;
+  --DialogSuccessBrush:#22C55E;
+  --DialogDangerBrush:#EF4444;
+  --DialogWarningBrush:#F59E0B;
+  --DialogDangerSubtleBrush:#FEF2F2;
+  --DialogDangerTextBrush:#B91C1C;
+  --DialogDangerBorderBrush:#FECACA;
+  --DialogWarningSubtleBrush:#FFF4E5;
+  --DialogWarningTextBrush:#B45309;
+  --DialogWarningBorderBrush:#FDE68A;
+  --DialogSuccessSubtleBrush:#F0FDF4;
+  --DialogSuccessTextBrush:#15803D;
+  --DialogSuccessBorderBrush:#BFF7D0;
+  --DialogRowHoverBrush:#F1F5F9;
+  --DialogRowAlternateBrush:#F8FAFC;
+  --r-card:10px;
+  --r-ctl:6px;
+  --shadow-card:0 1px 2px rgba(15,23,42,.04),0 8px 24px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  width:1100px;height:820px;overflow:hidden;
+  background:#E9EEF5;
+  font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif;
+  color:var(--DialogTextPrimaryBrush);
+  -webkit-font-smoothing:antialiased;
+}
+body.review{height:auto;width:auto;min-width:1100px;overflow:visible;padding:56px 0 40px}
+body.review .app{margin:0 auto;box-shadow:0 24px 64px rgba(15,23,42,.18)}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.ic.sm{width:14px;height:14px}
+
+/* 评审条 */
+.reviewbar{display:none}
+body.review .reviewbar{
+  display:flex;position:fixed;top:0;left:0;right:0;height:56px;z-index:100;
+  align-items:center;gap:6px;padding:0 16px;background:#0F172A;color:#fff;
+  font-size:12px;
+}
+body.review .reviewbar b{font-weight:600;margin-right:8px}
+body.review .reviewbar button{
+  height:28px;padding:0 10px;border:1px solid rgba(255,255,255,.22);border-radius:6px;
+  background:transparent;color:#E2E8F0;font:inherit;cursor:pointer;
+}
+body.review .reviewbar button.on{background:#0EA5E9;border-color:#0EA5E9;color:#fff;font-weight:600}
+body.review .reviewbar span.tip{margin-left:auto;color:#94A3B8}
+
+/* 窗口壳 */
+.app{
+  position:relative;width:1100px;height:820px;overflow:hidden;
+  background:var(--DialogBackgroundBrush);border-radius:12px;
+  display:flex;flex-direction:column;
+}
+.titlebar{height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px}
+.brandmark{
+  width:30px;height:30px;border-radius:9px;flex:none;
+  background:linear-gradient(140deg,#0EA5E9,#0369A1);
+  color:#fff;font-size:14px;font-weight:700;display:grid;place-items:center;
+}
+.titles{display:flex;flex-direction:column;justify-content:center;gap:2px}
+.titles h1{margin:0;font-size:19px;line-height:22px;font-weight:600;letter-spacing:.2px}
+.titles p{margin:0;font-size:11px;line-height:14px;color:var(--DialogTextTertiaryBrush)}
+.titlebar .grow{flex:1}
+.iconbtn{
+  width:32px;height:32px;border:0;border-radius:8px;background:transparent;
+  color:var(--DialogTextTertiaryBrush);display:grid;place-items:center;cursor:pointer;
+}
+.iconbtn:hover{background:var(--DialogRowHoverBrush);color:var(--DialogTextPrimaryBrush)}
+
+/* 页签：高度由 MinHeight + Padding 决定，选中态用底边而不是方块（R133） */
+.tabs{height:44px;flex:none;display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--DialogBorderBrush)}
+.tab{
+  position:relative;height:44px;padding:0 16px;border:0;background:transparent;
+  font-family:inherit;font-size:13px;color:var(--DialogTextSecondaryBrush);cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;
+}
+.tab:hover{color:var(--DialogTextPrimaryBrush)}
+.tab.active{color:var(--DialogTextPrimaryBrush);font-weight:600}
+.tab.active::after{
+  content:"";position:absolute;left:12px;right:12px;bottom:-1px;height:2px;
+  background:var(--DialogAccentBrush);border-radius:2px 2px 0 0;
+}
+.badge{
+  min-width:18px;height:18px;padding:0 5px;border-radius:9px;
+  background:var(--DialogAccentLightBrush);color:var(--DialogAccentTextBrush);
+  font-size:11px;font-weight:600;display:inline-grid;place-items:center;
+}
+
+.content{height:672px;flex:none;padding:16px 20px;position:relative}
+.screen{display:none;height:100%}
+.screen.active{display:block}
+
+.footer{
+  height:52px;flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;border-top:1px solid var(--DialogBorderBrush);background:var(--DialogSurfaceBrush);
+}
+.footer .note{font-size:12px;color:var(--DialogTextTertiaryBrush)}
+
+/* 通用控件 */
+.btn{
+  height:34px;padding:0 14px;border:1px solid transparent;border-radius:var(--r-ctl);
+  background:var(--DialogSurfaceBrush);color:var(--DialogTextPrimaryBrush);
+  font-family:inherit;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  cursor:pointer;white-space:nowrap;
+}
+.btn.sm{height:30px;padding:0 10px;font-size:12px}
+.btn.primary{background:var(--DialogAccentBrush);color:#fff;font-weight:600}
+.btn.primary:hover{background:var(--DialogAccentDarkBrush)}
+.btn.secondary{background:var(--DialogSurfaceBrush);border-color:var(--DialogBorderStrongBrush);color:var(--DialogTextSecondaryBrush)}
+.btn.secondary:hover{border-color:var(--DialogTextMutedBrush);color:var(--DialogTextPrimaryBrush)}
+.btn.danger{background:var(--DialogSurfaceBrush);border-color:var(--DialogDangerBorderBrush);color:var(--DialogDangerTextBrush)}
+.btn.danger:hover{background:var(--DialogDangerSubtleBrush)}
+.btn.ghost{background:transparent;color:var(--DialogAccentTextBrush);padding:0 8px}
+.btn.ghost:hover{background:var(--DialogAccentSoftBrush)}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.btn[disabled]:hover{background:var(--DialogSurfaceBrush);border-color:var(--DialogBorderStrongBrush)}
+.link{border:0;background:none;padding:0;font:inherit;font-size:12px;cursor:pointer;color:var(--DialogAccentTextBrush)}
+.link:hover{text-decoration:underline}
+.link.danger{color:var(--DialogDangerTextBrush)}
+.link.disabled{color:var(--DialogTextMutedBrush);cursor:not-allowed;text-decoration:none}
+
+.input,.select{
+  height:36px;border:1px solid var(--DialogBorderBrush);border-radius:var(--r-ctl);
+  background:var(--DialogInputBackgroundBrush);color:var(--DialogTextPrimaryBrush);
+  font-family:inherit;font-size:13px;display:flex;align-items:center;padding:0 10px;gap:8px;
+}
+.input.mono{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px}
+.input.plain{background:var(--DialogSurfaceBrush)}
+.select{cursor:pointer;justify-content:space-between;color:var(--DialogTextPrimaryBrush)}
+.select .ic{color:var(--DialogTextMutedBrush)}
+.readonly{
+  height:36px;border:1px solid var(--DialogCardBorderBrush);border-radius:var(--r-ctl);
+  background:var(--DialogRowAlternateBrush);color:var(--DialogTextTertiaryBrush);
+  font-size:13px;display:flex;align-items:center;padding:0 10px;
+}
+.hint{margin:5px 0 0;font-size:11px;line-height:16px;color:var(--DialogTextTertiaryBrush)}
+.field-label{display:block;font-size:12px;line-height:16px;color:var(--DialogTextSecondaryBrush)}
+.field-label + .input, .field-label + .readonly, .field-label + .select{margin-top:6px}
+
+.chip{
+  display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:10px;
+  font-size:11px;line-height:1;white-space:nowrap;
+}
+.chip.ok{background:var(--DialogSuccessSubtleBrush);color:var(--DialogSuccessTextBrush);border:1px solid var(--DialogSuccessBorderBrush)}
+.chip.bad{background:var(--DialogDangerSubtleBrush);color:var(--DialogDangerTextBrush);border:1px solid var(--DialogDangerBorderBrush)}
+.chip.warn{background:var(--DialogWarningSubtleBrush);color:var(--DialogWarningTextBrush);border:1px solid var(--DialogWarningBorderBrush)}
+.chip.muted{background:var(--DialogRowHoverBrush);color:var(--DialogTextTertiaryBrush);border:1px solid var(--DialogBorderBrush)}
+.chip.accent{background:var(--DialogAccentSoftBrush);color:var(--DialogAccentTextBrush);border:1px solid var(--DialogAccentBorderBrush)}
+
+/* 卡片 */
+.card{
+  background:var(--DialogSurfaceBrush);border:1px solid var(--DialogCardBorderBrush);
+  border-radius:var(--r-card);box-shadow:var(--shadow-card);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+
+/* ---------- 账号与用户组 ---------- */
+.split{display:flex;gap:16px;height:100%}
+.list-card{width:300px;flex:none}
+.card-head{height:48px;flex:none;display:flex;align-items:center;gap:8px;padding:0 14px}
+.card-title{font-size:14px;font-weight:600}
+.count{font-size:11px;color:var(--DialogTextTertiaryBrush)}
+.card-head .spacer{flex:1}
+.search{
+  height:34px;margin:0 14px 10px;border:1px solid var(--DialogBorderBrush);border-radius:var(--r-ctl);
+  background:var(--DialogInputBackgroundBrush);display:flex;align-items:center;gap:8px;padding:0 10px;
+  color:var(--DialogTextMutedBrush);font-size:12px;
+}
+.acct-list{flex:1;overflow-y:auto;padding:0 8px 8px;margin:0;list-style:none}
+.acct{
+  display:flex;align-items:center;gap:10px;height:52px;padding:0 8px;border-radius:8px;
+  border:1px solid transparent;cursor:pointer;
+}
+.acct:hover{background:var(--DialogRowHoverBrush)}
+.acct.active{background:var(--DialogAccentSoftBrush);border-color:var(--DialogAccentBorderBrush)}
+.avatar{
+  width:30px;height:30px;flex:none;border-radius:50%;display:grid;place-items:center;
+  background:var(--DialogAccentLightBrush);color:var(--DialogAccentTextBrush);
+  font-size:12px;font-weight:700;text-transform:uppercase;
+}
+.acct-main{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.acct-main b{font-size:13px;font-weight:600;line-height:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-main small{font-size:11px;line-height:14px;color:var(--DialogTextTertiaryBrush)}
+.card-foot{
+  height:34px;flex:none;display:flex;align-items:center;padding:0 14px;
+  border-top:1px solid var(--DialogBorderLightBrush);
+  font-size:11px;color:var(--DialogTextMutedBrush);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
+.form-card{flex:1;padding:20px 20px 0}
+.form-head{display:flex;align-items:center;gap:10px;height:24px}
+.form-head h2{margin:0;font-size:15px;font-weight:600}
+.form-head .spacer{flex:1}
+.form-body{flex:1;min-height:0;display:flex;flex-direction:column}
+.field{margin-top:14px}
+.field.first{margin-top:16px}
+.pw-row{display:flex;gap:12px;margin-top:14px}
+.pw-row > div{flex:1;min-width:0}
+.pw-wrap{position:relative;margin-top:6px}
+.pw-wrap .input{padding-right:36px;letter-spacing:2px}
+.pw-wrap .eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);color:var(--DialogTextMutedBrush)}
+.group-row{display:flex;gap:8px;margin-top:6px}
+.group-row .select{flex:1}
+.group-row .btn{flex:none}
+.notes{margin-top:16px;display:flex;flex-direction:column;gap:4px}
+.notes p{margin:0;font-size:11px;line-height:16px;color:var(--DialogTextTertiaryBrush)}
+.form-actions{
+  margin-top:auto;padding:16px 0 14px;display:flex;align-items:center;justify-content:space-between;
+  border-top:1px solid var(--DialogBorderLightBrush);
+}
+.form-actions .right{display:flex;gap:10px}
+.policy-bar{
+  margin:0 -20px;padding:11px 20px;border-top:1px solid var(--DialogBorderLightBrush);
+  background:var(--DialogRowAlternateBrush);font-size:11px;line-height:16px;color:var(--DialogTextTertiaryBrush);
+}
+.policy-bar a{color:var(--DialogAccentTextBrush);text-decoration:none;margin-left:6px;cursor:pointer}
+.policy-bar a:hover{text-decoration:underline}
+
+/* ---------- 表格页 ---------- */
+.table-card{height:100%}
+.toolbar{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-bottom:1px solid var(--DialogBorderLightBrush)}
+.toolbar h2{margin:0;font-size:15px;font-weight:600}
+.toolbar .grow{flex:1}
+.toolbar .right{display:flex;gap:8px}
+.grid{width:100%;border-collapse:collapse;table-layout:fixed}
+.grid th{
+  position:sticky;top:0;z-index:2;
+  height:36px;padding:0 10px;text-align:left;font-size:12px;font-weight:600;
+  color:var(--DialogTextTertiaryBrush);background:var(--DialogRowAlternateBrush);
+  border-bottom:1px solid var(--DialogBorderBrush);white-space:nowrap;
+}
+.grid td{
+  height:40px;padding:0 10px;font-size:12px;color:var(--DialogTextSecondaryBrush);
+  border-bottom:1px solid var(--DialogBorderLightBrush);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.grid tbody tr:hover td{background:var(--DialogRowHoverBrush)}
+.grid td.strong{color:var(--DialogTextPrimaryBrush);font-weight:600}
+.grid td.mono{font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;color:var(--DialogTextTertiaryBrush)}
+.grid td.num{text-align:center}
+.grid .t-right{text-align:right}
+.scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
+
+/* 审计 */
+.audit-head{flex:none;display:flex;align-items:flex-start;gap:12px;padding:14px 16px 10px}
+.audit-head h2{margin:0;font-size:15px;font-weight:600}
+.audit-head p{margin:3px 0 0;font-size:11px;line-height:15px;color:var(--DialogTextTertiaryBrush)}
+.audit-head .grow{flex:1}
+.filters{
+  flex:none;display:flex;align-items:center;gap:8px;padding:0 16px 12px;
+  font-size:12px;color:var(--DialogTextTertiaryBrush);flex-wrap:nowrap;
+}
+.filters .fl{white-space:nowrap}
+.filters .input{height:32px;width:116px;background:var(--DialogSurfaceBrush)}
+.filters .select{height:32px;width:92px;background:var(--DialogSurfaceBrush)}
+.filters .sep{color:var(--DialogTextMutedBrush)}
+.check{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--DialogTextSecondaryBrush);white-space:nowrap;cursor:pointer}
+.check .box{
+  width:14px;height:14px;border:1px solid var(--DialogBorderStrongBrush);border-radius:3px;
+  background:var(--DialogSurfaceBrush);display:grid;place-items:center;color:transparent;
+}
+.check.on .box{background:var(--DialogAccentBrush);border-color:var(--DialogAccentBrush);color:#fff}
+.filters .grow{flex:1}
+.meta{
+  flex:none;height:36px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;border-top:1px solid var(--DialogBorderLightBrush);
+  font-size:11px;color:var(--DialogTextTertiaryBrush);
+}
+.empty{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  color:var(--DialogTextMutedBrush);
+}
+.empty .icon-wrap{
+  width:44px;height:44px;border-radius:50%;background:var(--DialogRowHoverBrush);
+  display:grid;place-items:center;color:var(--DialogTextMutedBrush);
+}
+.empty b{font-size:13px;font-weight:600;color:var(--DialogTextTertiaryBrush)}
+.empty span{font-size:11px}
+
+/* ---------- 模态 ---------- */
+.scrim{
+  position:absolute;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.45);
+}
+.scrim.show{display:flex}
+.modal{
+  width:820px;height:620px;background:var(--DialogSurfaceBrush);border-radius:12px;
+  box-shadow:0 24px 64px rgba(15,23,42,.30);display:flex;flex-direction:column;overflow:hidden;
+}
+.modal-head{
+  height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 20px;
+  border-bottom:1px solid var(--DialogBorderLightBrush);
+}
+.modal-head h2{margin:0;font-size:16px;font-weight:600}
+.modal-head .grow{flex:1}
+.count-chip{
+  height:22px;padding:0 9px;border-radius:11px;display:inline-flex;align-items:center;
+  background:var(--DialogAccentLightBrush);color:var(--DialogAccentTextBrush);
+  font-size:11px;font-weight:600;
+}
+.count-chip.full{background:var(--DialogWarningSubtleBrush);color:var(--DialogWarningTextBrush);border:1px solid var(--DialogWarningBorderBrush)}
+
+/* 权限目录 */
+.modal-toolbar{height:48px;flex:none;display:flex;align-items:center;gap:10px;padding:0 20px}
+.modal-toolbar .hint{margin:0;flex:1}
+.newform{
+  display:none;flex:none;align-items:center;gap:10px;margin:0 20px 10px;padding:10px;
+  background:var(--DialogAccentSoftBrush);border:1px solid var(--DialogAccentBorderBrush);border-radius:8px;
+}
+.newform.show{display:flex}
+.newform .input{flex:1;background:var(--DialogSurfaceBrush)}
+.newform .key-preview{
+  width:180px;height:36px;border:1px dashed var(--DialogBorderStrongBrush);border-radius:var(--r-ctl);
+  display:flex;align-items:center;padding:0 10px;
+  font-family:Consolas,"Cascadia Mono",monospace;font-size:12px;color:var(--DialogTextTertiaryBrush);
+}
+.newform .btn{flex:none}
+.modal .scroll{padding:0 20px}
+.modal .grid th{height:34px}
+.modal .grid td{height:34px}
+.modal-note{
+  flex:none;padding:10px 20px 12px;border-top:1px solid var(--DialogBorderLightBrush);
+  background:var(--DialogRowAlternateBrush);font-size:11px;line-height:16px;color:var(--DialogTextTertiaryBrush);
+}
+.modal-warn{
+  display:none;flex:none;align-items:center;gap:8px;padding:10px 20px;
+  background:var(--DialogWarningSubtleBrush);border-top:1px solid var(--DialogWarningBorderBrush);
+  color:var(--DialogWarningTextBrush);font-size:12px;
+}
+.modal-warn.show{display:flex}
+
+/* 用户组编辑 */
+.group-body{flex:1;min-height:0;display:flex;padding:16px 20px 0;gap:16px}
+.group-list{width:232px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--DialogBorderLightBrush);padding-right:12px}
+.group-sec{font-size:11px;color:var(--DialogTextMutedBrush);margin:6px 0 4px;padding:0 8px}
+.group-item{
+  height:40px;display:flex;align-items:center;gap:8px;padding:0 8px;border-radius:8px;
+  border:1px solid transparent;cursor:pointer;font-size:13px;color:var(--DialogTextSecondaryBrush);
+}
+.group-item:hover{background:var(--DialogRowHoverBrush)}
+.group-item.active{background:var(--DialogAccentSoftBrush);border-color:var(--DialogAccentBorderBrush);color:var(--DialogTextPrimaryBrush);font-weight:600}
+.group-item .n{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.group-item .c{font-size:11px;color:var(--DialogTextMutedBrush)}
+.group-item .lock{color:var(--DialogTextMutedBrush)}
+.group-list .newgroup{padding:10px 0 12px}
+.group-form{flex:1;min-width:0;display:flex;flex-direction:column}
+.perm-head{display:flex;align-items:center;justify-content:space-between;margin-top:16px}
+.perm-head .field-label{margin:0}
+.perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:2px 18px;margin-top:8px}
+.perm{height:30px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--DialogTextSecondaryBrush);cursor:pointer}
+.perm .box{
+  width:16px;height:16px;flex:none;border:1px solid var(--DialogBorderStrongBrush);border-radius:4px;
+  background:var(--DialogSurfaceBrush);display:grid;place-items:center;color:transparent;
+}
+.perm.on .box{background:var(--DialogAccentBrush);border-color:var(--DialogAccentBrush);color:#fff}
+.perm .k{margin-left:6px;font-family:Consolas,"Cascadia Mono",monospace;font-size:10px;color:var(--DialogTextMutedBrush)}
+.perm-warn{
+  margin-top:14px;padding:9px 10px;border:1px solid var(--DialogWarningBorderBrush);border-radius:6px;
+  background:var(--DialogWarningSubtleBrush);color:var(--DialogWarningTextBrush);
+  font-size:11px;line-height:16px;display:flex;gap:8px;
+}
+.modal-foot{
+  height:60px;flex:none;display:flex;align-items:center;gap:10px;padding:0 20px;
+  border-top:1px solid var(--DialogBorderLightBrush);background:var(--DialogRowAlternateBrush);
+}
+.modal-foot .grow{flex:1}
+.modal-foot .why{font-size:11px;color:var(--DialogTextMutedBrush)}
+.modal-foot .right{display:flex;gap:10px}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-close" viewBox="0 0 16 16"><path d="M4 4l8 8M12 4l-8 8"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 16 16"><path d="M8 3.5v9M3.5 8h9"/></symbol>
+  <symbol id="i-search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2L13.5 13.5"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 16 16"><path d="M4.5 6.5L8 10l3.5-3.5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 16 16"><path d="M1.8 8S4.2 4 8 4s6.2 4 6.2 4S11.8 12 8 12 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.8"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 16 16"><path d="M8 2.5l5.5 10h-11z"/><path d="M8 6.5v3M8 11.2v.1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7"/><path d="M13 2.5V5h-2.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 16 16"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></symbol>
+  <symbol id="i-empty" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h6"/></symbol>
+</svg>
+
+<div class="reviewbar">
+  <b>设计稿 v4 评审</b>
+  <button data-screen="accounts">账号与用户组</button>
+  <button data-screen="sessions">在线会话</button>
+  <button data-screen="audit">审计记录</button>
+  <button data-screen="catalog">权限目录</button>
+  <button data-screen="catalog-new">权限目录 · 行内新建</button>
+  <button data-screen="catalog-full">权限目录 · 32/32</button>
+  <button data-screen="groups">用户组编辑</button>
+  <span class="tip">评审条不属于产品界面；?shot=1 隐藏</span>
+</div>
+
+<div class="app">
+
+  <header class="titlebar">
+    <div class="brandmark">用</div>
+    <div class="titles">
+      <h1>用户管理</h1>
+      <p>账号与用户组 / 在线会话 / 审计记录 · 账号本属于当前方案</p>
+    </div>
+    <div class="grow"></div>
+    <button class="iconbtn" title="关闭"><svg class="ic"><use href="#i-close"/></svg></button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="accounts">账号与用户组</button>
+    <button class="tab" data-tab="sessions">在线会话<span class="badge">3</span></button>
+    <button class="tab" data-tab="audit">审计记录</button>
+  </nav>
+
+  <main class="content">
+
+    <!-- ================= 账号与用户组 ================= -->
+    <section class="screen active" id="s-accounts">
+      <div class="split">
+
+        <aside class="card list-card">
+          <div class="card-head">
+            <span class="card-title">账号</span>
+            <span class="count">4 个</span>
+            <span class="spacer"></span>
+            <button class="btn ghost sm"><svg class="ic sm"><use href="#i-plus"/></svg>新建</button>
+          </div>
+          <div class="search">
+            <svg class="ic sm"><use href="#i-search"/></svg>
+            <span>搜索账号名</span>
+          </div>
+          <ul class="acct-list">
+            <li class="acct active">
+              <span class="avatar">a</span>
+              <span class="acct-main"><b>admin</b><small>模板管理员</small></span>
+              <span class="chip accent">当前</span>
+            </li>
+            <li class="acct">
+              <span class="avatar">o</span>
+              <span class="acct-main"><b>operator1</b><small>产线操作员</small></span>
+            </li>
+            <li class="acct">
+              <span class="avatar">e</span>
+              <span class="acct-main"><b>engineer1</b><small>厂家</small></span>
+            </li>
+            <li class="acct">
+              <span class="avatar">v</span>
+              <span class="acct-main"><b>viewer</b><small>普工</small></span>
+            </li>
+          </ul>
+          <div class="card-foot">账号文件：Users/ScadaUsers.json</div>
+        </aside>
+
+        <section class="card form-card">
+          <div class="form-head">
+            <h2>编辑账号：admin</h2>
+            <span class="chip accent">模板管理员</span>
+            <span class="spacer"></span>
+          </div>
+
+          <div class="form-body">
+            <div class="field first">
+              <label class="field-label">用户名</label>
+              <div class="readonly">admin</div>
+              <p class="hint">账号名不可修改。要改名请先删除该账号，再新建一个。</p>
+            </div>
+
+            <div class="field">
+              <label class="field-label">用户组</label>
+              <div class="group-row">
+                <div class="select">模板管理员<svg class="ic sm"><use href="#i-chevron"/></svg></div>
+                <button class="btn secondary">管理用户组…</button>
+              </div>
+              <p class="hint">权限按组分配：组内勾选的权限决定该组用户能做什么。</p>
+            </div>
+
+            <div class="field">
+              <div class="pw-row">
+                <div>
+                  <label class="field-label">新密码</label>
+                  <div class="pw-wrap">
+                    <div class="input pw">••••••••</div>
+                    <svg class="ic sm eye"><use href="#i-eye"/></svg>
+                  </div>
+                </div>
+                <div>
+                  <label class="field-label">确认密码</label>
+                  <div class="pw-wrap">
+                    <div class="input pw">••••••••</div>
+                    <svg class="ic sm eye"><use href="#i-eye"/></svg>
+                  </div>
+                </div>
+              </div>
+              <p class="hint">重置密码时填写，留空表示不修改；最短 8 位，两次输入必须一致。</p>
+            </div>
+
+            <div class="notes">
+              <p>当前登录账号与最后一个管理员不可删除；删除需二次确认。</p>
+              <p>保存失败会整体回滚，并给出具体原因。</p>
+            </div>
+
+            <div class="form-actions">
+              <button class="btn danger">删除账号</button>
+              <div class="right">
+                <button class="btn secondary">放弃修改</button>
+                <button class="btn primary">保存用户组</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="policy-bar">
+            安全策略：密码最短 8 位 · 空闲 30 分钟自动登出 · 审计保留 90 天
+            <a>在系统设置中修改</a>
+          </div>
+        </section>
+
+      </div>
+    </section>
+
+    <!-- ================= 在线会话 ================= -->
+    <section class="screen" id="s-sessions">
+      <div class="card table-card">
+        <div class="toolbar">
+          <h2>在线会话</h2>
+          <span class="count">3 个在线</span>
+          <span class="grow"></span>
+          <div class="right">
+            <button class="btn secondary"><svg class="ic sm"><use href="#i-refresh"/></svg>刷新</button>
+            <button class="btn danger">全部踢下线</button>
+          </div>
+        </div>
+        <div class="scroll">
+          <table class="grid">
+            <colgroup>
+              <col style="width:10%"><col style="width:11%"><col style="width:15%"><col style="width:12%">
+              <col style="width:15%"><col style="width:15%"><col style="width:9%"><col style="width:13%">
+            </colgroup>
+            <thead>
+              <tr><th>会话</th><th>用户</th><th>用户组</th><th>来源 IP</th><th>建立时间</th><th>最近活动</th><th>只读</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="mono">web-7f3a</td><td class="strong">admin</td><td>模板管理员</td><td>127.0.0.1</td>
+                <td>10-25 18:41:02</td><td>10-25 18:54:09</td>
+                <td><span class="chip ok">可操作</span></td><td><button class="link danger">撤销</button></td>
+              </tr>
+              <tr>
+                <td class="mono">web-2b91</td><td class="strong">operator1</td><td>产线操作员</td><td>192.168.1.24</td>
+                <td>10-25 17:58:10</td><td>10-25 18:52:47</td>
+                <td><span class="chip ok">可操作</span></td><td><button class="link danger">撤销</button></td>
+              </tr>
+              <tr>
+                <td class="mono">web-9c04</td><td class="strong">viewer</td><td>普工</td><td>192.168.1.31</td>
+                <td>10-25 16:12:55</td><td>10-25 18:49:03</td>
+                <td><span class="chip muted">只读</span></td><td><button class="link danger">撤销</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 审计记录 ================= -->
+    <section class="screen" id="s-audit">
+      <div class="card table-card">
+        <div class="audit-head">
+          <div>
+            <h2>审计记录</h2>
+            <p>只读；默认只显示当前方案标签的行。CSV 仍是 7 列，外部脚本不受影响。</p>
+          </div>
+          <span class="grow"></span>
+          <button class="btn secondary"><svg class="ic sm"><use href="#i-refresh"/></svg>刷新</button>
+        </div>
+
+        <div class="filters">
+          <span class="fl">日期范围</span>
+          <div class="input">2026-10-01</div>
+          <span class="sep">至</span>
+          <div class="input">2026-10-25</div>
+          <span class="fl">操作者</span>
+          <div class="select">全部<svg class="ic sm"><use href="#i-chevron"/></svg></div>
+          <span class="fl">结果</span>
+          <div class="select">全部<svg class="ic sm"><use href="#i-chevron"/></svg></div>
+          <label class="check"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>显示未归属（历史记录）</label>
+          <span class="grow"></span>
+          <button class="btn primary sm">查询</button>
+        </div>
+
+        <div class="scroll">
+          <table class="grid">
+            <colgroup>
+              <col style="width:11%"><col style="width:10%"><col style="width:15%"><col style="width:9%">
+              <col style="width:17%"><col style="width:8%"><col style="width:30%">
+            </colgroup>
+            <thead>
+              <tr><th>时间</th><th>操作者</th><th>对象</th><th>事件</th><th>动作</th><th>结果</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>10-25 18:54:09</td><td class="strong">admin</td><td>综合测试台（测试员版）</td><td>执行前确认</td><td>取消</td><td><span class="chip muted">未执行</span></td><td>用户取消或没有可用的确认出口</td></tr>
+              <tr><td>10-25 18:53:34</td><td class="strong">admin</td><td>运行逻辑测试</td><td>执行前确认</td><td>取消</td><td><span class="chip muted">未执行</span></td><td>用户取消或没有可用的确认出口</td></tr>
+              <tr><td>10-25 18:48:25</td><td class="strong">admin</td><td>返回总览</td><td>画面导航</td><td>切换画面 → 测试总览</td><td><span class="chip ok">成功</span></td><td>—</td></tr>
+              <tr><td>10-25 18:48:23</td><td class="strong">admin</td><td>写触发1</td><td>变量写入</td><td>写变量 PLC_Trigger := 1</td><td><span class="chip bad">失败</span></td><td>连接 [PLC_Modbus] 离线，变量 [PLC_Trigger] 未写入设备</td></tr>
+              <tr><td>10-25 18:48:22</td><td class="strong">admin</td><td>通讯页</td><td>画面导航</td><td>切换画面 → 通讯测试</td><td><span class="chip ok">成功</span></td><td>—</td></tr>
+              <tr><td>10-25 18:48:21</td><td class="strong">admin</td><td>运行通讯测试</td><td>流程执行</td><td>执行一次流程 Test_Comm</td><td><span class="chip ok">成功</span></td><td>已下发单次执行</td></tr>
+              <tr><td>10-25 14:50:14</td><td class="strong">admin</td><td>综合测试台（测试员版）</td><td>方案切换</td><td>切换方案</td><td><span class="chip ok">成功</span></td><td>旧方案：综合测试台（测试员版）</td></tr>
+              <tr><td>10-25 14:38:30</td><td class="strong">admin</td><td>报警_1</td><td>报警</td><td>新建报警</td><td><span class="chip ok">成功</span></td><td>新建报警「报警_1」</td></tr>
+              <tr><td>10-25 14:36:07</td><td class="strong">运行态未登录</td><td>按钮</td><td>图元操作</td><td>播放声音</td><td><span class="chip ok">成功</span></td><td>播报「报警_1」</td></tr>
+              <tr><td>10-25 14:36:06</td><td class="strong">运行态未登录</td><td>按钮</td><td>图元操作</td><td>播放声音</td><td><span class="chip warn">警告</span></td><td>语音设备忙，已跳过本次播报</td></tr>
+              <tr><td>10-25 14:36:04</td><td class="strong">operator1</td><td>启动搅拌</td><td>图元操作</td><td>启动</td><td><span class="chip bad">被拒绝</span></td><td>缺少权限「运行控制（ControlRun）」</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="meta">
+          <span>显示 11 条 / 共 128 行 / 已跳过 2 行（格式异常）</span>
+          <span>审计只读，不提供修改与删除</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="footer">
+    <span class="note" id="foot-note">账号本属于当前方案；修改在保存方案后生效。</span>
+    <button class="btn secondary">关闭</button>
+  </footer>
+
+  <!-- ================= 权限目录 ================= -->
+  <div class="scrim" id="m-catalog">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>权限目录</h2>
+        <span class="count-chip" id="cat-count">16/32</span>
+        <span class="grow"></span>
+        <button class="iconbtn" title="关闭"><svg class="ic"><use href="#i-close"/></svg></button>
+      </div>
+
+      <div class="modal-toolbar">
+        <p class="hint">已定义 <b id="cat-defined">16</b> 条（<span id="cat-split">内置 15 + 自定义 1</span>），上限 32 条</p>
+        <button class="btn primary sm" id="cat-add"><svg class="ic sm"><use href="#i-plus"/></svg>新建权限</button>
+      </div>
+
+      <div class="newform" id="cat-newform">
+        <div class="input">报警确认</div>
+        <div class="key-preview">AlarmAck</div>
+        <span class="hint" style="margin:0;flex:1">Key 由显示名生成，创建后不可修改</span>
+        <button class="btn secondary sm">取消</button>
+        <button class="btn primary sm">创建</button>
+      </div>
+
+      <div class="scroll">
+        <table class="grid">
+          <colgroup>
+            <col style="width:30%"><col style="width:26%"><col style="width:11%"><col style="width:12%"><col style="width:21%">
+          </colgroup>
+          <thead>
+            <tr><th>名称</th><th>Key</th><th>使用组</th><th>类型</th><th>操作</th></tr>
+          </thead>
+          <tbody id="cat-body">
+            <tr><td class="strong pname">启动</td><td class="mono pkey">Start</td><td class="num">6</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">初始化</td><td class="mono pkey">Initialize</td><td class="num">5</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">轴点动</td><td class="mono pkey">AxisJog</td><td class="num">5</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">定位速度配置</td><td class="mono pkey">AxisSpeedConfig</td><td class="num">3</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">看运行画面</td><td class="mono pkey">ViewRuntime</td><td class="num">6</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">运行控制</td><td class="mono pkey">ControlRun</td><td class="num">5</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">停止</td><td class="mono pkey">Stop</td><td class="num">6</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">报表查询</td><td class="mono pkey">ReportQuery</td><td class="num">5</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">配方下发</td><td class="mono pkey">RecipePublish</td><td class="num">1</td><td><span class="chip ok">自定义</span></td><td><button class="link">改名</button> <button class="link danger">删除</button></td></tr>
+            <tr><td class="strong pname">改结构</td><td class="mono pkey">EditStructure</td><td class="num">3</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">编译</td><td class="mono pkey">Compile</td><td class="num">3</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">保存方案</td><td class="mono pkey">SaveSolution</td><td class="num">3</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">硬件运行态</td><td class="mono pkey">HardwareRuntime</td><td class="num">3</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">硬件配置</td><td class="mono pkey">HardwareConfig</td><td class="num">2</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">系统配置</td><td class="mono pkey">SystemConfig</td><td class="num">2</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+            <tr><td class="strong pname">用户管理</td><td class="mono pkey">UserAdministration</td><td class="num">2</td><td><span class="chip muted">内置</span></td><td><button class="link">改名</button> <button class="link disabled" title="内置权限不可删除">删除</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="modal-note" id="cat-note">
+        删除前扫描所有组权限与全方案页面/图元的 RequiredPermission；任一引用即拒绝，并提示「N 个组 / M 个按钮引用」。
+        内置不可删；改名只改显示名；上限 32 条。
+      </div>
+      <div class="modal-warn" id="cat-warn">
+        <svg class="ic sm"><use href="#i-warn"/></svg>
+        已达上限 32 条，删除或合并后再建。
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 用户组编辑 ================= -->
+  <div class="scrim" id="m-groups">
+    <div class="modal">
+      <div class="modal-head">
+        <h2>用户组编辑</h2>
+        <span class="grow"></span>
+        <button class="iconbtn" title="关闭"><svg class="ic"><use href="#i-close"/></svg></button>
+      </div>
+
+      <div class="group-body">
+        <aside class="group-list">
+          <div class="group-sec">模板（只读）</div>
+          <div class="group-item"><span class="n">模板·操作员</span><span class="c">7</span><svg class="ic sm lock"><use href="#i-lock"/></svg></div>
+          <div class="group-item"><span class="n">模板·工程师</span><span class="c">12</span><svg class="ic sm lock"><use href="#i-lock"/></svg></div>
+          <div class="group-item"><span class="n">模板·管理员</span><span class="c">15</span><svg class="ic sm lock"><use href="#i-lock"/></svg></div>
+          <div class="group-sec">自定义</div>
+          <div class="group-item active"><span class="n">产线操作员</span><span class="c">7</span></div>
+          <div class="group-item"><span class="n">普工</span><span class="c">3</span></div>
+          <div class="group-item"><span class="n">厂家</span><span class="c">15</span></div>
+          <div class="newgroup"><button class="btn secondary sm"><svg class="ic sm"><use href="#i-plus"/></svg>新建组</button></div>
+        </aside>
+
+        <section class="group-form">
+          <label class="field-label">组名</label>
+          <div class="input plain" style="margin-top:6px">产线操作员</div>
+          <p class="hint">组名可改；改名不影响已登录用户，下次登录生效。</p>
+
+          <div class="perm-head">
+            <label class="field-label">权限（7/16）</label>
+            <button class="link">管理权限目录…</button>
+          </div>
+
+          <div class="perm-grid">
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>看运行画面<span class="k">ViewRuntime</span></div>
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>运行控制<span class="k">ControlRun</span></div>
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>启动<span class="k">Start</span></div>
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>初始化<span class="k">Initialize</span></div>
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>停止<span class="k">Stop</span></div>
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>报表查询<span class="k">ReportQuery</span></div>
+            <div class="perm on"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>轴点动<span class="k">AxisJog</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>定位速度配置<span class="k">AxisSpeedConfig</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>改结构<span class="k">EditStructure</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>编译<span class="k">Compile</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>保存方案<span class="k">SaveSolution</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>硬件运行态<span class="k">HardwareRuntime</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>硬件配置<span class="k">HardwareConfig</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>系统配置<span class="k">SystemConfig</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>用户管理<span class="k">UserAdministration</span></div>
+            <div class="perm"><span class="box"><svg class="ic sm"><use href="#i-check"/></svg></span>配方下发<span class="k">RecipePublish</span></div>
+          </div>
+
+          <div class="perm-warn">
+            <svg class="ic sm"><use href="#i-warn"/></svg>
+            <span>取消「停止（Stop）」后该组将无法停止设备；若含「轴点动（AxisJog）」，点动中只能靠系统自动 JogStop。</span>
+          </div>
+        </section>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn danger" disabled>删除组</button>
+        <span class="why">有 2 个用户引用，先迁移再删除</span>
+        <span class="grow"></span>
+        <div class="right">
+          <button class="btn secondary">取消</button>
+          <button class="btn primary">保存组</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var q = new URLSearchParams(location.search);
+  var shot = q.has('shot');
+  var screen = q.get('screen') || 'accounts';
+  var mode = q.get('mode') || '';
+  document.body.classList.toggle('review', !shot);
+
+  var notes = {
+    accounts: '账号本属于当前方案；修改在保存方案后生效。',
+    sessions: '会话由 Web 运行态创建；撤销后该浏览器立即掉线。',
+    audit: '审计只读；默认只显示当前方案标签的行。'
+  };
+
+  function show(name){
+    screen = name;
+    var base = (name === 'sessions') ? 'sessions'
+             : (name === 'audit') ? 'audit'
+             : 'accounts';
+    document.querySelectorAll('.screen').forEach(function(s){
+      s.classList.toggle('active', s.id === 's-' + base);
+    });
+    document.querySelectorAll('.tab').forEach(function(t){
+      t.classList.toggle('active', t.getAttribute('data-tab') === base);
+    });
+    document.querySelectorAll('.scrim').forEach(function(s){ s.classList.remove('show'); });
+    document.querySelectorAll('.reviewbar button').forEach(function(b){
+      b.classList.toggle('on', b.getAttribute('data-screen') === name);
+    });
+    document.getElementById('foot-note').textContent = notes[base];
+
+    if (name === 'catalog' || name === 'catalog-new' || name === 'catalog-full'){
+      document.getElementById('m-catalog').classList.add('show');
+      applyCatalog(name);
+    }
+    if (name === 'groups'){
+      document.getElementById('m-groups').classList.add('show');
+    }
+  }
+
+  function applyCatalog(name){
+    var form = document.getElementById('cat-newform');
+    var add = document.getElementById('cat-add');
+    var count = document.getElementById('cat-count');
+    var defined = document.getElementById('cat-defined');
+    var split = document.getElementById('cat-split');
+    var note = document.getElementById('cat-note');
+    var warn = document.getElementById('cat-warn');
+    var body = document.getElementById('cat-body');
+    var sc = document.querySelector('#m-catalog .scroll');
+
+    form.classList.toggle('show', name === 'catalog-new');
+
+    if (name === 'catalog-full'){
+      if (body.rows.length < 32){
+        var base = body.rows[8];
+        for (var i = 1; i <= 16; i++){
+          var tr = base.cloneNode(true);
+          tr.querySelector('.pname').textContent = '自定义权限 ' + i;
+          tr.querySelector('.pkey').textContent = 'CustomPerm' + String(i).padStart(2, '0');
+          tr.querySelectorAll('.num')[0].textContent = '1';
+          body.appendChild(tr);
+        }
+      }
+      count.textContent = '32/32';
+      count.classList.add('full');
+      defined.textContent = '32';
+      split.textContent = '内置 15 + 自定义 17';
+      add.setAttribute('disabled', 'disabled');
+      note.style.display = 'none';
+      warn.classList.add('show');
+      setTimeout(function(){ sc.scrollTop = sc.scrollHeight; }, 0);
+    } else {
+      count.textContent = '16/32';
+      count.classList.remove('full');
+      defined.textContent = '16';
+      split.textContent = '内置 15 + 自定义 1';
+      add.removeAttribute('disabled');
+      note.style.display = '';
+      warn.classList.remove('show');
+      sc.scrollTop = 0;
+    }
+  }
+
+  document.querySelectorAll('.reviewbar button').forEach(function(b){
+    b.addEventListener('click', function(){ show(b.getAttribute('data-screen')); });
+  });
+  document.querySelectorAll('.tab').forEach(function(t){
+    t.addEventListener('click', function(){ show(t.getAttribute('data-tab')); });
+  });
+
+  show(mode === 'new' ? 'catalog-new' : mode === 'full' ? 'catalog-full' : screen);
+})();
+</script>
+</body>
+</html>

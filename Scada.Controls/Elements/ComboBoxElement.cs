@@ -191,8 +191,7 @@ namespace VisionMaster.Scada.Controls
                && !IsOutputMode
                && RuntimeContext?.Writer is not null
                && Element?.FindBinding(ValueKey) is { IsEnabled: true }
-               && (Element?.RequiredRole is not { } required
-                   || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
+               && RuntimeContext?.AccessPolicy.CanElement(Element) == true;
 
         protected override void OnRuntimeContextChanged(ScadaRuntimeContext? oldContext, ScadaRuntimeContext? newContext)
         {

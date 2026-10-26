@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Core.Halcon.Helpers;
 using Core.Interfaces;
 using HalconDotNet;
 using Plugin.Calibration;
@@ -188,6 +189,40 @@ namespace FlowCanvasChecks
                 Check("[PT] 对齐图方向：内容从位姿搬回参考点（T⁻¹，不是推远两倍）",
                     blobArea > 100 && Math.Abs(blobRow - 60) <= 1 && Math.Abs(blobCol - 60) <= 1,
                     $"亮点中心 ({blobRow:0.##},{blobCol:0.##})，面积 {blobArea:0.#}（期望中心 (60,60)）");
+            }
+
+            // ---- 7b) 叠加预览：AnnotationBaker 在 3 通道图上能上色 ----
+            // HALCON 23.05 实测：3 通道图 + 3 元组的 PaintXld 静默不上色（轮廓点仍是 0,0,0）。
+            // 这里直接验替代路径（共享离屏烘焙件）确实把绿色画上去了。
+            {
+                HOperatorSet.GenImageConst(out HObject bakeBlackObj, "byte", 100, 100);
+                using var black = new HImage(bakeBlackObj);
+                HOperatorSet.Compose3(black, black, black, out HObject bakeRgbObj);
+                using var rgb = new HImage(bakeRgbObj);
+                HOperatorSet.GenRectangle1(out HObject bakeRectObj, 20, 20, 80, 80);
+                using var rect = new HRegion(bakeRectObj);
+                HOperatorSet.GenContourRegionXld(rect, out HObject bakeBorder, "border");
+
+                bool colored = false;
+                try
+                {
+                    var plan = new BakePlan();
+                    plan.Objects.Add(new BakeObj(bakeBorder, "green", 1, "margin"));
+                    using var baker = new AnnotationBaker();
+                    using var baked = baker.Bake(rgb, plan, msg => { });
+                    if (baked != null)
+                    {
+                        HOperatorSet.GetGrayval(baked, 20, 50, out HTuple pixel);
+                        colored = pixel.Length >= 3 && pixel[1].D > 0;
+                    }
+                }
+                finally
+                {
+                    bakeBorder.Dispose();
+                }
+
+                Check("[PT] 叠加预览：AnnotationBaker 在 3 通道图上能上色（替代静默不上色的 PaintXld）",
+                    colored, colored ? "绿色通道 > 0" : "未上色");
             }
 
             // ================= 插件层 =================
@@ -438,11 +473,18 @@ namespace FlowCanvasChecks
             Check("[PT] 透视矩阵缺失/退化/长度不足 → 拒绝且文案含「损坏/重新运行标定」",
                 pjMiss && pjZero && pjShort, pje1 ?? pje2 ?? "");
 
-            // ---- 14) 未知 Kind → 拒绝（不静默按旧逻辑；矩阵故意给"可用仿射"作反证） ----
-            var tUnknown = new CalibrationTransform { Kind = (CalibrationKind)7, Matrix = new[] { 1d, 0, 0, 1, 10, 20 } };
+            // ---- 14) HandEye Kind → 拒绝（三维刚体变换，本插件只做平面像素↔机械） ----
+            var tHandEye = new CalibrationTransform { Kind = CalibrationKind.HandEye, Matrix = new[] { 1d, 0, 0, 1, 10, 20 } };
+            bool handEyeRejected = !PoseTransformMath.CheckCalibrationUsable(tHandEye, out string? he1)
+                                   && (he1 ?? "").Contains("三维刚体变换");
+            Check("[PT] HandEye Kind → 拒绝（三维刚体变换，本插件只做平面像素↔机械）",
+                handEyeRejected, he1 ?? "（竟然通过）");
+
+            // ---- 14b) 未知 Kind=99 → 拒绝（不静默按旧逻辑；矩阵故意给"可用仿射"作反证） ----
+            var tUnknown = new CalibrationTransform { Kind = (CalibrationKind)99, Matrix = new[] { 1d, 0, 0, 1, 10, 20 } };
             bool unknownRejected = !PoseTransformMath.CheckCalibrationUsable(tUnknown, out string? ue1)
                                    && (ue1 ?? "").Contains("不支持的标定类型");
-            Check("[PT] 未知 Kind=(CalibrationKind)7 → 拒绝（防「忘记分支」静默按旧逻辑放行）",
+            Check("[PT] 未知 Kind=(CalibrationKind)99 → 拒绝（防「忘记分支」静默按旧逻辑放行）",
                 unknownRejected, ue1 ?? "（竟然通过）");
 
             // ---- 15) 分母≈0 的像素点 → 明确失败（w=0 线上拒绝；线外点照常映射） ----

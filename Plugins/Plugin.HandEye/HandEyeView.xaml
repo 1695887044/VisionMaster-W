@@ -70,7 +70,7 @@
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="ProgressBar">
-                            <Border x:Name="Track"
+                            <Border x:Name="PART_Track"
                                     CornerRadius="3"
                                     Background="{StaticResource DialogBorderLightBrush}">
                                 <Border x:Name="PART_Indicator"
@@ -294,12 +294,12 @@
 
             <WrapPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="装法" Style="{StaticResource FieldLabelStyle}" />
-                <RadioButton Content="眼在手上"
+                <RadioButton Content="{Binding EyeInHandLabel}"
                              GroupName="HandEyePoseKind"
                              Style="{StaticResource PoseSegmentStyle}"
                              IsChecked="{Binding IsEyeInHand, Mode=TwoWay}"
                              ToolTip="相机装在机器人末端：结果是 T_gripper←camera" />
-                <RadioButton Content="眼在手外"
+                <RadioButton Content="{Binding EyeToHandLabel}"
                              GroupName="HandEyePoseKind"
                              Style="{StaticResource PoseSegmentStyle}"
                              Margin="0,0,14,0"
@@ -760,7 +760,7 @@
                 <TextBlock Style="{StaticResource HintTextStyle}"
                            Margin="0,6,0,0"
                            TextWrapping="Wrap"
-                           Text="失败时 Transform 端口被置空、UsedPairs 归零 —— 上一次的解不会留在流程里被下游误用。" />
+                           Text="求解失败时 Transform 端口被置空、指标归零；质量门槛失败时指标保留真实值（供现场判读），Transform 仍为空——上一次的解不会留在流程里被下游误用。" />
             </StackPanel>
         </Border>
 

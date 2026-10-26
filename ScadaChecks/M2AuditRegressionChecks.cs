@@ -95,25 +95,27 @@ namespace ScadaChecks
                 var store = new ScadaUserStore(Path.Combine(userDir, "users.json"));
 
                 string? notifiedUser = null;
-                string? notifiedReason = null;
-                store.UserChanged += (name, reason) =>
+                ScadaUserChangeKind? notifiedKind = null;
+                store.UserChanged += (name, kind) =>
                 {
                     notifiedUser = name;
-                    notifiedReason = reason;
+                    notifiedKind = kind;
                 };
 
                 var resetOk = store.TryResetPassword("admin", "NewPass#2026", out var resetError);
-                Check("A3", resetOk && notifiedUser == "admin" && !string.IsNullOrWhiteSpace(notifiedReason),
-                    $"reset={resetOk} err={resetError ?? "<无>"} user={notifiedUser ?? "<未通知>"} reason={notifiedReason ?? "<无>"}");
+                Check("A3", resetOk && notifiedUser == "admin"
+                        && notifiedKind == ScadaUserChangeKind.PasswordReset,
+                    $"reset={resetOk} err={resetError ?? "<无>"} user={notifiedUser ?? "<未通知>"} kind={notifiedKind?.ToString() ?? "<无>"}");
 
                 notifiedUser = null;
-                notifiedReason = null;
+                notifiedKind = null;
 
-                var addOk = store.TryAddUser("op1", "OpPass#2026", ScadaRole.Operator, out var addError);
+                var addOk = store.TryAddUser("op1", "OpPass#2026", ScadaGroupDefaults.OperatorTemplateId, out var addError);
                 string? roleError = null;
-                var roleOk = addOk && store.TrySetRole("op1", ScadaRole.Engineer, out roleError);
-                Check("A4", roleOk && notifiedUser == "op1" && !string.IsNullOrWhiteSpace(notifiedReason),
-                    $"add={addOk} role={roleOk} err={addError ?? roleError ?? "<无>"} user={notifiedUser ?? "<未通知>"} reason={notifiedReason ?? "<无>"}");
+                var roleOk = addOk && store.TryChangeGroup("op1", ScadaGroupDefaults.EngineerTemplateId, out roleError);
+                Check("A4", roleOk && notifiedUser == "op1"
+                        && notifiedKind == ScadaUserChangeKind.GroupChanged,
+                    $"add={addOk} group={roleOk} err={addError ?? roleError ?? "<无>"} user={notifiedUser ?? "<未通知>"} kind={notifiedKind?.ToString() ?? "<无>"}");
             }
             catch (Exception ex)
             {

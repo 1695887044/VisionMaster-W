@@ -39,6 +39,7 @@ namespace VisionMaster.Scada
         private ObservableCollection<ScadaAlarmDefinition> _alarms = new();
         private ObservableCollection<ScadaVariableEvent> _variableEvents = new();
         private ObservableCollection<ScadaStateList> _stateLists = new();
+        private ObservableCollection<ScadaSchedule> _schedules = new();
 
         /// <summary>
         /// 结构版本号（落盘）。加载到小于 <see cref="CurrentSchemaVersion"/> 的文件时，
@@ -81,6 +82,7 @@ namespace VisionMaster.Scada
             _alarms.CollectionChanged += OnAlarmsChanged;
             _variableEvents.CollectionChanged += OnVariableEventsChanged;
             _stateLists.CollectionChanged += OnStateListsChanged;
+            _schedules.CollectionChanged += OnSchedulesChanged;
 
             // 基座集合同样要在<b>字段初始化的那份实例</b>上挂订阅——只在属性 setter 里挂的话，
             // 新建文档（不走反序列化）就永远收不到 CollectionChanged：
@@ -156,6 +158,34 @@ namespace VisionMaster.Scada
         /// <summary>变量事件增删 → 记一条变更（理由与删报警相同：删配置也要能撤销）</summary>
         private void OnVariableEventsChanged(object? sender, NotifyCollectionChangedEventArgs e)
             => ScadaCollectionRecorder.Record(_variableEvents, e);
+
+        /// <summary>
+        /// 计划表（落盘）："什么时间 / 什么条件下，自动做哪些事"。
+        ///
+        /// 与 <see cref="VariableEvents"/> 同一套范式（整体替换 + setter 摘旧挂新 + 变更记录）。
+        /// 运行态的 <c>ScadaScheduleEngine</c> 订阅本集合与逐条计划——运行中改计划不用重启。
+        ///
+        /// 为什么另起一张表而不并进 <see cref="VariableEvents"/>：变量事件是"值一变就干点事"的边沿钩子，
+        /// 没有时间维度；计划表要的是"到点"与"持续多久"。合并会让变量事件的边沿判定里长出一套时钟逻辑。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaSchedule> Schedules
+        {
+            get => _schedules;
+            set
+            {
+                var old = _schedules;
+                if (old != null)
+                    old.CollectionChanged -= OnSchedulesChanged;
+
+                _schedules = value ?? new ObservableCollection<ScadaSchedule>();
+                _schedules.CollectionChanged += OnSchedulesChanged;
+            }
+        }
+
+        /// <summary>计划增删 → 记一条变更</summary>
+        private void OnSchedulesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScadaCollectionRecorder.Record(_schedules, e);
 
         /// <summary>
         /// 方案级文本列表（落盘）：ComboBox 等控件按稳定 Id 引用。

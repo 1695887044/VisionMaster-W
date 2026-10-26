@@ -82,6 +82,17 @@ namespace VisionMaster.Scada.Controls
         public bool ShowInToolbox { get; init; } = true;
 
         /// <summary>
+        /// 属性面板里**只读**的属性键（显示但置灰，并提示"由系统计算"）。
+        ///
+        /// 为什么不从 <see cref="Properties"/> 里删掉：几何项（`$X`/`$Y`/`$Width`/`$Height`/`$Rotation`）
+        /// 是注册校验的硬要求——删掉会让图元直接注册失败（实测 `Hmi.PipeRun` 注册表 50→49，
+        /// 所有依赖注册表的断言连锁红）。所以"不能改"表达为"显示但只读"，而不是"不存在"。
+        ///
+        /// 首个使用者：`Hmi.PipeRun`——管线几何由路由器现算，改了会被下一拍写回。
+        /// </summary>
+        public IReadOnlyList<string> ReadOnlyKeys { get; init; } = Array.Empty<string>();
+
+        /// <summary>
         /// 造一个"新建状态"的图元模型（只填模型，不碰 WPF）。
         ///
         /// 名字先填显示名（图层列表里不至于一排空白）；重名由 S3 编辑器在放置时去重，

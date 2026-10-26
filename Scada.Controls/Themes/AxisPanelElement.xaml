@@ -132,10 +132,11 @@
         <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
         <Setter Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="MinHeight" Value="29" />
-        <Setter Property="Padding" Value="8,3" />
-        <Setter Property="Margin" Value="0,0,5,0" />
-        <Setter Property="FontSize" Value="10" />
+        <!--  触摸命中区 ≥ 44（2026-10-26 会审 P1）：原来 29px，戴手套点动容易按到相邻键  -->
+        <Setter Property="MinHeight" Value="44" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Margin" Value="0,0,6,0" />
+        <Setter Property="FontSize" Value="11" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
         <Setter Property="Template">
@@ -593,14 +594,15 @@
                             </StackPanel>
 
                             <!--  操作按钮（ShowCommands=false 时整块收起）。
-                                  容器绑 CanOperate：没有命令出口/没选轴/权限不够时一起灰掉，比"按下去没反应"诚实。
-                                  两颗点动键另外单独绑 CanJog（= CanOperate && !IsMoving）：
-                                  运动中必须拦住点动，但停止/清报警/失能/回零不能跟着灰——那是安全动作。  -->
+                                  ★ 容器不再整体绑 CanOperate：六个按钮逐个绑定
+                                  （WPF 的 IsEnabled 是继承的，父级为 false 时子级写 true 也翻不回来）。
+                                  B3：这里绑「可尝试」（有出口+有选中轴），不绑权限——
+                                  缺权限时按钮仍可点，点击后弹登录；权限在命令出口判。  -->
                             <StackPanel
                                 Grid.Row="5"
                                 Margin="12,0,12,10"
                                 Visibility="{TemplateBinding CommandsVisibility}">
-                                <Grid IsEnabled="{TemplateBinding CanOperate}">
+                                <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="*" />
@@ -617,6 +619,7 @@
                                         Grid.Column="0"
                                         Margin="0,0,5,4"
                                         Content="{TemplateBinding EnableButtonText}"
+                                        IsEnabled="{TemplateBinding CanAttemptOperate}"
                                         Style="{StaticResource AxisCommandButton}" />
 
                                     <Button
@@ -625,7 +628,7 @@
                                         Grid.Column="1"
                                         Margin="0,0,5,4"
                                         Content="◀ 点动"
-                                        IsEnabled="{TemplateBinding CanJog}"
+                                        IsEnabled="{TemplateBinding CanAttemptJog}"
                                         Style="{StaticResource AxisCommandButton}" />
 
                                     <Button
@@ -634,7 +637,7 @@
                                         Grid.Column="2"
                                         Margin="0,0,0,4"
                                         Content="点动 ▶"
-                                        IsEnabled="{TemplateBinding CanJog}"
+                                        IsEnabled="{TemplateBinding CanAttemptJog}"
                                         Style="{StaticResource AxisCommandButton}" />
 
                                     <Button
@@ -643,6 +646,7 @@
                                         Grid.Column="0"
                                         Margin="0,0,5,0"
                                         Content="回零"
+                                        IsEnabled="{TemplateBinding CanAttemptOperate}"
                                         Style="{StaticResource AxisCommandButton}"
                                         ToolTip="长按 0.5 秒才触发（防误触）" />
 
@@ -652,6 +656,7 @@
                                         Grid.Column="1"
                                         Margin="0,0,5,0"
                                         Content="停止"
+                                        IsEnabled="{TemplateBinding CanAttemptStop}"
                                         Style="{StaticResource AxisCommandDangerButton}" />
 
                                     <Button
@@ -659,6 +664,7 @@
                                         Grid.Row="1"
                                         Grid.Column="2"
                                         Content="清报警"
+                                        IsEnabled="{TemplateBinding CanAttemptOperate}"
                                         Style="{StaticResource AxisCommandButton}" />
                                 </Grid>
 

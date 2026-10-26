@@ -307,9 +307,48 @@ namespace ScadaChecks
             Check("AlarmBannerElement：外层 BannerFrame 圆角真的落到 Border（8）",
                 bannerFrame != null && Math.Abs(bannerFrame.CornerRadius.TopLeft - 8) < 0.01,
                 bannerFrame == null ? "找不到 BannerFrame" : bannerFrame.CornerRadius.ToString());
-            Check("AlarmBannerElement：空态显示 EmptyText（系统正常）",
-                emptyHint != null && emptyHint.Text == "系统正常" && emptyHint.Visibility == Visibility.Visible,
+            // 2026-10-26 会审 P1：空态要区分"没接报警源"与"系统正常"。
+            // 断言宿主没有运行态上下文 = 没接报警源，所以这里应该看到"未接入报警源"，
+            // 而不是无条件的"系统正常"（那正是被评审点名的静默假正常）。
+            Check("AlarmBannerElement：无报警源时空态明确写「未接入报警源」（不是「系统正常」）",
+                emptyHint != null
+                && emptyHint.Text.Contains("未接入报警源")
+                && emptyHint.Visibility == Visibility.Visible,
                 emptyHint == null ? "找不到 EmptyHint" : emptyHint.Text);
+
+            // 2026-10-26 修复：ControlTemplate 里的 Freezable 会被 WPF 在封存时冻结，而且所有实例
+            // 共享同一个冻结对象（.NET 9 探针实测：两次实例化拿到的 RenderTransform 引用相等、
+            // IsFrozen=true）。跑马灯每拍写 X 会抛"只读"，异常被节拍源吞成一行日志——现场表现是
+            // 跑马灯纹丝不动 + 日志每拍刷两行。判据：模板套上之后，位移变换必须是本实例私有的可写对象。
+            var tickerText = banner.Template?.FindName(AlarmBannerElement.PartTickerText, banner) as TextBlock;
+            var tickerPeer = new AlarmBannerElement { Width = 340, Height = 180, Text = "实时报警" };
+            Host(tickerPeer, 340, 180);
+            var peerText = tickerPeer.Template?.FindName(AlarmBannerElement.PartTickerText, tickerPeer) as TextBlock;
+
+            var shift = tickerText?.RenderTransform as TranslateTransform;
+            var peerShift = peerText?.RenderTransform as TranslateTransform;
+            bool tickerWritable = false;
+            string tickerDetail;
+
+            if (shift == null || peerShift == null)
+            {
+                tickerDetail = "找不到 PART_TickerText 或其 TranslateTransform";
+            }
+            else
+            {
+                double before = shift.X;
+                bool threw = false;
+
+                try { shift.X = before + 7; }
+                catch (InvalidOperationException) { threw = true; }
+
+                tickerWritable = !threw && !shift.IsFrozen && Math.Abs(shift.X - (before + 7)) < 1e-9;
+                tickerDetail = $"frozen={shift.IsFrozen} / shared={ReferenceEquals(shift, peerShift)} / X={shift.X:0.##} / threw={threw}";
+            }
+
+            Check("AlarmBannerElement：跑马灯位移变换可写且每实例独立（模板里那份是冻结共享的）",
+                tickerWritable && shift != null && peerShift != null && !ReferenceEquals(shift, peerShift),
+                tickerDetail);
 
             var axis = new AxisPanelElement { Width = 320, Height = 470, CornerRadius = 12 };
             Host(axis, 320, 470);

@@ -151,8 +151,12 @@ namespace VisionMaster.Scada.Controls
         /// <paramref name="eventType"/> 只是"发生了什么"，<b>不代表它会被执行</b>——
         /// 有没有配钩子、该不该执行、按什么顺序执行，全在运行态会话那三道闸门里（D1：规则住在领域层）。
         /// 所以这里不判 IsReadOnly、不查 EventHooks：一个只负责发声的控件不该认识产品规则。
+        ///
+        /// <b>virtual</b> 只为一类派生类开：默认"不该响"的图元（工艺符号）要按自己的
+        /// `Interactive` 开关决定要不要发声——它在控件自己手里，领域层看不见。
+        /// 派生类覆写只许"少发"，不许凭空多发（多发等于绕过会话闸门）。
         /// </summary>
-        protected internal void RaiseScadaEvent(ScadaEventType eventType)
+        protected internal virtual void RaiseScadaEvent(ScadaEventType eventType)
         {
             var args = new ScadaElementEventArgs(ScadaEventEvent, eventType) { Source = this };
 
@@ -446,6 +450,56 @@ namespace VisionMaster.Scada.Controls
         /// <summary>按名字找画面；空白/没有解析器一律 null</summary>
         protected ScadaPage? ResolvePageByName(string? pageName)
             => string.IsNullOrWhiteSpace(pageName) ? null : PageNameResolver?.Invoke(pageName.Trim());
+
+        private Func<IReadOnlyList<ScadaElement>>? _pageElementsResolver;
+
+        /// <summary>
+        /// 本页图元清单（供"按 Id 找兄弟图元"的图元用，如管道连线）。
+        ///
+        /// 为什么给整份清单而不是 <c>Func&lt;Guid, ScadaElement?&gt;</c>：管道连线既要找两个端点，
+        /// 又要拿"其余图元"当避让障碍——一次给全比开两个解析器省事，也不会出现
+        /// "端点能解析、障碍列表却是空的"这种半接线状态。清单由画布现取，图元不缓存。
+        /// </summary>
+        public Func<IReadOnlyList<ScadaElement>>? PageElementsResolver
+        {
+            get => _pageElementsResolver;
+            set
+            {
+                if (ReferenceEquals(_pageElementsResolver, value))
+                    return;
+
+                _pageElementsResolver = value;
+                OnPageElementsResolverChanged();
+            }
+        }
+
+        /// <summary>图元清单解析器变更（含首次注入）时调用</summary>
+        protected virtual void OnPageElementsResolverChanged()
+        {
+        }
+
+        /// <summary>按稳定 Id 找本页图元；没有解析器/找不到一律 null</summary>
+        protected ScadaElement? ResolveElement(Guid id)
+        {
+            if (id == Guid.Empty || PageElementsResolver == null)
+                return null;
+
+            var elements = PageElementsResolver();
+            if (elements == null)
+                return null;
+
+            for (var i = 0; i < elements.Count; i++)
+            {
+                if (elements[i]?.ElementId == id)
+                    return elements[i];
+            }
+
+            return null;
+        }
+
+        /// <summary>本页全部图元（没有解析器时返回空表，调用方按"没有障碍"处理）</summary>
+        protected IReadOnlyList<ScadaElement> ResolvePageElements()
+            => PageElementsResolver?.Invoke() ?? Array.Empty<ScadaElement>();
 
         /// <summary>
         /// 图层开关翻转后由宿主逐个调用，重算本控件的可见性。

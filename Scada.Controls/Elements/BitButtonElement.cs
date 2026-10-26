@@ -295,8 +295,7 @@ namespace VisionMaster.Scada.Controls
             => RuntimeContext?.Writer is not null
                && Element?.FindBinding(StateKey) is { IsEnabled: true }
                && IsEnabled
-               && (Element?.RequiredRole is not { } required
-                   || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
+               && RuntimeContext?.AccessPolicy.CanElement(Element) == true;
 
         /// <summary>
         /// 把状态写回工程变量。<b>刻意不自己改 <see cref="IsOn"/></b>：值由变量持有，

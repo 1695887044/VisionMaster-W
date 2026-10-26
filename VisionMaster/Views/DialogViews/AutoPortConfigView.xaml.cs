@@ -123,17 +123,32 @@ namespace VisionMaster.Views.DialogViews
 
             if (Window.GetWindow(this) is not { } window) return;
 
-            // MinWidth 必须一起调小：PluginConfigShellView 的 WindowStyle 给插件自带视图
-            // 留了 640 的保底宽度；不改它，Width=560 会被外壳钳成 640（设计基线 v1 的 560 就落不了地）。
+            // 实测（2026-10-25 日志取证）：旧写法连改三次尺寸，分布在 24ms 内的不同帧上——
+            //   960x680 → 560x680（改宽）→ 560x560（SizeToContent 被旧 MinHeight=560 钳住）
+            //   → 560x486（MinHeight 放宽到 180 后高度再掉一次）
+            // 肉眼就是"先弹大窗、再抖两下"。
+            //
+            // 现在改成：**先把上下限都放好，再在 560 宽下量一次内容高，最后一次性设宽高**。
+            // 不再用 SizeToContent——它每次都会自己触发一轮布局，必然多出一帧。
             window.MinWidth = 560;
-            window.Width = 560;
-            window.SizeToContent = SizeToContent.Height;
-
-            // MinHeight 必须一起调小：外壳默认的 560 是给插件大视图留的保底高度，
-            // 留着它就等于"内容 260、窗口 560"，下方依旧是一块空白。
-            // 参数（端口 + [StepConfig]）多到超过 760 时由本视图内的 ScrollViewer 滚动。
             window.MinHeight = 180;
             window.MaxHeight = 760;
+
+            window.SizeToContent = SizeToContent.Manual;
+            window.Width = 560;
+            window.UpdateLayout();   // 让内容在 560 宽下重新量
+
+            if (Content is FrameworkElement root && root.ActualHeight > 0)
+            {
+                // 非客户区 = 窗口高 − 内容高（WindowStyle=None 时主要是圆角外边距）
+                double chrome = Math.Max(0, window.ActualHeight - root.ActualHeight);
+                window.Height = Math.Clamp(root.DesiredSize.Height + chrome, window.MinHeight, window.MaxHeight);
+            }
+            else
+            {
+                // 量不到内容（理论上不会）：退回按内容定高，至少不会卡在大窗口
+                window.SizeToContent = SizeToContent.Height;
+            }
         }
 
         /// <summary>

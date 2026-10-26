@@ -29,6 +29,17 @@
         <Style TargetType="Window">
             <Setter Property="WindowStyle" Value="None" />
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
+            <!--
+                打开瞬间先全透明：框架自动生成的参数面板会在自己的 Loaded 里把窗口从
+                960×680 改成 560×按内容定高（见 AutoPortConfigView.OnLoaded）。
+
+                **AllowsTransparency 必须为 True**：为 False 时 WPF 只把"内容"变透明，
+                窗口那块系统绘制的矩形照样不透明——实测 Opacity 已是 0.00，用户仍然看到
+                "白色大矩形 → 缩小"（2026-10-25 日志取证）。开了真透明后 Opacity=0 才是真看不见。
+            -->
+            <Setter Property="AllowsTransparency" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Opacity" Value="0" />
             <!--  居中：见 WindowCenteringBehavior 的说明（不能在 Loaded 里设 WindowStartupLocation）  -->
             <Setter Property="ui:WindowCenteringBehavior.IsEnabled" Value="True" />
             <Setter Property="Width" Value="960" />

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using VisionMaster.Scada;
@@ -68,6 +69,15 @@ namespace VisionMaster.Scada.Controls
         /// <summary>模板部件名：左侧严重度色条（闪烁就是改它的透明度）</summary>
         public const string PartAccentBar = "AccentBar";
 
+        /// <summary>跑马灯容器（单行、裁剪）</summary>
+        public const string PartTickerHost = "TickerHost";
+
+        /// <summary>跑马灯文字（Inlines 由代码按严重度上色）</summary>
+        public const string PartTickerText = "PART_TickerText";
+
+        /// <summary>跑马灯的横向位移</summary>
+        public const string PartTickerShift = "TickerShift";
+
         /// <summary>闪烁"暗"那一拍的色条透明度</summary>
         private const double BlinkDimOpacity = 0.25;
 
@@ -89,6 +99,40 @@ namespace VisionMaster.Scada.Controls
                        Description = "最多画几行，超出的不画（表头计数仍报全量）；" +
                                      "行数多到超出控件高度时会出现滚动条，所以这里不必留余量")]
         public partial int MaxRows { get; set; }
+
+        /// <summary>
+        /// 形态：`Ticker` = 单行跑马灯（默认，从右往左滚，只报"哪条报警在触发"）；
+        /// `List` = 卡片列表（带严重度胶囊、时间、状态，占地方但信息全）。
+        ///
+        /// 为什么默认改成跑马灯（2026-10-25 用户反馈）：报警条钉在画面顶部，卡片列表 140px 高
+        /// 会吃掉整块画面；跑马灯单行 28~32px 就够，且"报警在响"这件事本身就是扫一眼。
+        /// </summary>
+        [ScadaProperty(Key = "ScrollMode", DisplayName = "形态", Kind = ElementPropertyKind.Choice,
+                       Choices = new[] { "Ticker", "List" },
+                       Group = ScadaPropertyGroups.State, DefaultValue = "Ticker",
+                       Description = "Ticker = 单行跑马灯（从右往左，默认）；List = 卡片列表（带时间与状态，占地方）")]
+        public partial string ScrollMode { get; set; }
+
+        /// <summary>跑马灯速度（像素/秒）</summary>
+        [ScadaProperty(Key = "ScrollSpeed", DisplayName = "跑马灯速度（像素/秒）", Kind = ElementPropertyKind.Number,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "60", Min = 10, Max = 300,
+                       Description = "单行跑马灯的移动速度；太快看不清，现场一般 40~80")]
+        public partial double ScrollSpeed { get; set; }
+
+        /// <summary>自动滚动（默认开）。报警条是"扫一眼"的东西：条数超过一屏时，
+        /// 让它按固定节奏逐行下移、到底回顶，操作员不必手动去拖滚动条
+        /// （触摸屏上拖一条 140px 高的条子本来就很难受）。
+        /// </summary>
+        [ScadaProperty(Key = "AutoScroll", DisplayName = "自动滚动", Kind = ElementPropertyKind.Bool,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "True",
+                       Description = "条数超过一屏时按固定节奏逐行下移、到底回顶；关掉则停在原处由用户手动滚动")]
+        public partial bool AutoScroll { get; set; }
+
+        /// <summary>每行停留秒数（自动滚动时）</summary>
+        [ScadaProperty(Key = "SecondsPerRow", DisplayName = "每行停留（秒）", Kind = ElementPropertyKind.Number,
+                       Group = ScadaPropertyGroups.State, DefaultValue = "2.5", Min = 0.5, Max = 30,
+                       Description = "自动滚动时每行停留多久。太小看不清、太大像没在动；现场一般 2~3 秒")]
+        public partial double SecondsPerRow { get; set; }
 
         /// <summary>一条报警都没有时显示的那句话</summary>
         [ScadaProperty(Key = "EmptyText", DisplayName = "无报警提示", Kind = ElementPropertyKind.Text,
@@ -172,6 +216,12 @@ namespace VisionMaster.Scada.Controls
         /// <summary>与 <see cref="IsFlashingProperty"/> 同步的普通字段，供节拍线程无锁读取</summary>
         private bool _isFlashing;
 
+        /// <summary>跑马灯开始悬浮的时刻（累计秒）；null = 没在暂停</summary>
+        private double? _tickerPausedAt;
+
+        /// <summary>累计被暂停的秒数（恢复时从位移里扣掉，避免文字跳回起点）</summary>
+        private double _tickerPausedSeconds;
+
         /// <summary>与 <see cref="BlinkOnProperty"/> 同步的普通字段，同上</summary>
         private bool _blinkOn = true;
 
@@ -207,6 +257,13 @@ namespace VisionMaster.Scada.Controls
         public override void OnApplyTemplate()
         {
             base.OnApplyTemplate();
+
+            // 模板里的位移变换是"封存期被冻结、所有实例共享"的那一个，必须在这里换成本实例可写的一份。
+            // 见 EnsureTickerShift 的说明；提前换（而不是等第一拍）还有一个好处：
+            // "模板套上之后跑马灯的变换一定可写"成为一条可以静态断言的不变式。
+            if (GetTemplateChild(PartTickerText) is TextBlock tickerText)
+                EnsureTickerShift(tickerText);
+
             UpdateBannerLayout();
         }
 
@@ -220,11 +277,132 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private void UpdateBannerLayout()
         {
-            SetPartVisible(PartListScroll, HasAlarms);
+            var ticker = IsTickerMode;
+
+            // 跑马灯与卡片列表互斥：有报警时按形态二选一，没报警时两块都收起、只留空态提示。
+            SetPartVisible(PartTickerHost, HasAlarms && ticker);
+            SetPartVisible(PartListScroll, HasAlarms && !ticker);
             SetPartVisible(PartEmptyHint, !HasAlarms);
+
+            // 空态文案分两种（2026-10-26 会审 P1）：没接报警源 ≠ 系统正常。
+            // 前者是"静默假正常"，比不显示更危险——工程忘了启用报警时，界面不该替它报平安。
+            if (GetTemplateChild(PartEmptyHint) is TextBlock hint)
+            {
+                var hasSource = RuntimeContext?.Alarms != null;
+                hint.Text = AlarmBannerScroll.EmptyHintFor(hasSource, EmptyText);
+                hint.Opacity = hasSource ? 1d : 0.75d;
+            }
+
+            if (ticker && HasAlarms)
+                RebuildTicker();
 
             if (GetTemplateChild(PartAccentBar) is UIElement accent)
                 accent.Opacity = IsFlashing && !BlinkOn ? BlinkDimOpacity : 1d;
+        }
+
+        /// <summary>形态是否为单行跑马灯（任何非 List 的写法都按 Ticker 处理，老工程缺键时也走默认）</summary>
+        private bool IsTickerMode
+            => !string.Equals(ScrollMode, "List", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// 重建跑马灯文字：**所有"触发条件为 ON"的报警**都进队列（不看是否确认——
+        /// 用户口径：报警在响就该滚，确认与否是报警汇总表的事），按严重度排序，
+        /// 每条按自己的严重度色，条与条之间用分隔符隔开。
+        /// </summary>
+        private void RebuildTicker()
+        {
+            if (GetTemplateChild(PartTickerText) is not TextBlock text)
+                return;
+
+            text.Inlines.Clear();
+
+            // 内容换了就从头滚（新的那句话从右缘进来）；暂停累计归零，否则新内容会"凭空偏一段"
+            _tickerPausedSeconds = 0;
+            _tickerPausedAt = null;
+
+            for (int i = 0; i < _active.Count; i++)
+            {
+                if (i > 0)
+                    text.Inlines.Add(new Run("　·　") { Foreground = HmiMutedBrush() });
+
+                var record = _active[i];
+                var label = string.IsNullOrWhiteSpace(record.Message)
+                    ? record.Name
+                    : $"{record.Name}：{record.Message}";
+
+                text.Inlines.Add(new Run(label) { Foreground = PickColor(record.Severity), FontWeight = FontWeights.SemiBold });
+            }
+        }
+
+        private static Brush HmiMutedBrush()
+            => System.Windows.Application.Current?.TryFindResource("HmiTextMutedBrush") as Brush ?? Brushes.Gray;
+
+        /// <summary>跑马灯每拍推进（按累计时长取模，不累加）</summary>
+        private void ApplyTicker(TimeSpan elapsed)
+        {
+            if (!IsTickerMode || !HasAlarms)
+                return;
+
+            if (GetTemplateChild(PartTickerText) is not TextBlock text)
+                return;
+
+            var shift = EnsureTickerShift(text);
+
+            // 悬浮暂停（2026-10-26 用户要求）：鼠标停在条上就不走，让人把这句话读完。
+            // 恢复时**扣掉暂停时长**而不是清零重来——清零会让文字瞬间跳回起点，读的人跟丢。
+            var now = elapsed.TotalSeconds;
+
+            if (IsMouseOver)
+            {
+                _tickerPausedAt ??= now;
+                return;
+            }
+
+            if (_tickerPausedAt is { } pausedAt)
+            {
+                _tickerPausedSeconds += Math.Max(0, now - pausedAt);
+                _tickerPausedAt = null;
+            }
+
+            var effective = AlarmBannerScroll.EffectiveSeconds(now, _tickerPausedSeconds);
+
+            var textWidth = text.ActualWidth;
+            var viewport = Math.Max(0, ActualWidth);
+
+            if (textWidth <= 0)
+            {
+                // 还没量出来（首帧/文本刚换）：下一拍再算，别把位移钉死在 0
+                text.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+                textWidth = text.DesiredSize.Width;
+                if (textWidth <= 0)
+                    return;
+            }
+
+            shift.X = AlarmBannerScroll.TickerX(effective, ScrollSpeed, textWidth, viewport);
+        }
+
+        /// <summary>
+        /// 取跑马灯文字的位移变换，保证它是<b>本实例私有、可写</b>的那一个。
+        ///
+        /// <b>为什么不能直接用模板里声明的那一个</b>：WPF 在模板封存时会把 ControlTemplate 里的
+        /// Freezable <b>冻结</b>，而且<b>所有实例共享同一个冻结对象</b>（.NET 9 实测：同一个模板
+        /// 两次实例化拿到的 RenderTransform 引用相等、<c>IsFrozen</c> 为 true）。
+        /// 往它身上写 <c>X</c> 会抛"无法在对象 System.Windows.Media.TranslateTransform 上设置属性，
+        /// 因为它处于只读状态"，而调用点是节拍订阅者——异常被 <see cref="ScadaBeatSource"/> 吞成
+        /// 一行日志，现场表现是<b>跑马灯纹丝不动 + 日志每拍刷两行</b>，且两条报警条就算不抛也会
+        /// 共用同一个位移。所以模板只负责声明"有个位移"，真正写入的对象在这里换成本实例新造的。
+        ///
+        /// 只在真的不可写时才替换：模板若哪天改成代码赋值（未冻结），这条路径不会再白造对象。
+        /// </summary>
+        private static TranslateTransform EnsureTickerShift(TextBlock text)
+        {
+            if (text.RenderTransform is TranslateTransform shift && !shift.IsFrozen)
+                return shift;
+
+            var fresh = new TranslateTransform();
+            text.RenderTransform = fresh;
+
+            return fresh;
         }
 
         /// <summary>
@@ -342,6 +520,34 @@ namespace VisionMaster.Scada.Controls
         } ?? Brushes.Transparent;
 
         /// <summary>
+        /// 自动滚动：按累计时长算出该停在哪一行，把列表滚过去。
+        ///
+        /// 行数不足一屏时不滚（否则"滚了个寂寞"，还让人以为漏了报警）；
+        /// 位置按累计时长取模，漏拍/卡顿都不会越走越偏（见 <see cref="AlarmBannerScroll"/>）。
+        /// </summary>
+        private void ApplyAutoScroll(TimeSpan elapsed)
+        {
+            if (!AutoScroll)
+                return;
+
+            if (GetTemplateChild(PartListScroll) is not ScrollViewer scroll)
+                return;
+
+            int count = Rows?.Count ?? 0;
+            if (count <= 1 || scroll.ViewportHeight <= 0)
+                return;
+
+            int visible = Math.Max(1, (int)(scroll.ViewportHeight / AlarmBannerScroll.RowStride));
+            if (AlarmBannerScroll.ScrollPositions(count, visible) <= 0)
+                return;
+
+            double offset = AlarmBannerScroll.Offset(elapsed.TotalSeconds, SecondsPerRow, count, visible);
+
+            if (Math.Abs(scroll.VerticalOffset - offset) > 0.5)
+                scroll.ScrollToVerticalOffset(offset);
+        }
+
+        /// <summary>
         /// 节拍到了：只在"该闪"时改相位，其余时候一拍都不碰 UI。
         ///
         /// 相位从 <paramref name="elapsed"/>（累计时长）算，而不是"每拍取反"：
@@ -350,6 +556,13 @@ namespace VisionMaster.Scada.Controls
         /// </summary>
         private void OnBeat(TimeSpan elapsed)
         {
+            // 自动滚动先走：它不依赖"该不该闪"，而且必须每拍都推进，
+            // 否则一条不闪的报警条永远停在第一屏（2026-10-25 用户反馈"效果不理想"）。
+            if (IsTickerMode)
+                ApplyTicker(elapsed);
+            else
+                ApplyAutoScroll(elapsed);
+
             if (!_isFlashing)
                 return;
 

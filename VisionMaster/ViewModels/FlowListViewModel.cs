@@ -25,6 +25,9 @@ namespace VisionMaster.ViewModels
         private readonly IRuntimeManager _runtimeManager;
         private readonly IFlowEngine _flowEngine;
         private readonly ILogService _log;
+        private readonly ScadaAccessPolicy _accessPolicy;
+        private readonly ScadaPermissionGate _permissionGate;
+        private readonly SolutionSessionCoordinator _sessionCoordinator;
 
         public IWorkspaceManager Workspace { get; init; }
 
@@ -69,7 +72,10 @@ namespace VisionMaster.ViewModels
             FlowCompiler compiler,
             IRuntimeManager runtimeManager,
             IFlowEngine flowEngine,
-            ILogService logService)
+            ILogService logService,
+            ScadaAccessPolicy accessPolicy,
+            ScadaPermissionGate permissionGate,
+            SolutionSessionCoordinator sessionCoordinator)
         {
             Workspace = workspace;
             this.dialogService = dialogService;
@@ -77,8 +83,16 @@ namespace VisionMaster.ViewModels
             _runtimeManager = runtimeManager;
             _flowEngine = flowEngine;
             _log = logService;
-            FlowCommand = new AsyncDelegateCommand<FlowAction?>(FlowCommandExecute);
+            _accessPolicy = accessPolicy;
+            _permissionGate = permissionGate;
+            _sessionCoordinator = sessionCoordinator;
+            FlowCommand = new AsyncDelegateCommand<FlowAction?>(FlowCommandExecute, CanExecuteFlow);
         }
+
+        /// <summary>流程栏 13 项统一接 gate；只判权限，不判运行态（运行中的 Stop 必须仍可用）。</summary>
+        public bool CanExecuteFlow(FlowAction? action)
+            => action != null
+               && _permissionGate.Can(ScadaPermissionGate.PermissionFor(action.Value), out _);
 
         private bool _subscribed;
 
@@ -94,6 +108,8 @@ namespace VisionMaster.ViewModels
 
             // 用命名方法而非 lambda：GlobalEventBus.Unsubscribe 依赖委托的 Target+Method 匹配
             GlobalEventBus.Subscribe<MainRunState>(OnMainRunStateChanged);
+            _accessPolicy.PropertyChanged += OnAccessPolicyPropertyChanged;
+            _sessionCoordinator.SessionBoundaryChanged += OnSessionBoundaryChanged;
 
             // 面板重见时补挂当前选中流的属性转发（与 Deactivate 的摘除配对，见 SelectFlow 注释）
             if (SelectFlow != null)
@@ -109,9 +125,21 @@ namespace VisionMaster.ViewModels
             _subscribed = false;
 
             GlobalEventBus.Unsubscribe<MainRunState>(OnMainRunStateChanged);
+            _accessPolicy.PropertyChanged -= OnAccessPolicyPropertyChanged;
+            _sessionCoordinator.SessionBoundaryChanged -= OnSessionBoundaryChanged;
 
             if (SelectFlow != null)
                 SelectFlow.PropertyChanged -= OnSelectFlowPropertyChanged;
+        }
+
+        private void OnSessionBoundaryChanged() => FlowCommand.RaiseCanExecuteChanged();
+
+        private void OnAccessPolicyPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName is nameof(ScadaAccessPolicy.IsLoggedIn)
+                or nameof(ScadaAccessPolicy.CurrentGroupId)
+                or nameof(ScadaAccessPolicy.Permissions))
+                FlowCommand.RaiseCanExecuteChanged();
         }
 
         private void OnMainRunStateChanged(MainRunState state) => _runState = state;
@@ -124,6 +152,14 @@ namespace VisionMaster.ViewModels
 
         private async Task FlowCommandExecute(FlowAction? action)
         {
+            if (action == null) return;
+            if (!_permissionGate.Can(ScadaPermissionGate.PermissionFor(action.Value), out var denyReason))
+            {
+                Notifier.ShowWarning(ScadaPermissionDenial.Message(
+                    ScadaPermissionGate.Describe(action.Value), denyReason));
+                return;
+            }
+
             // 运行中编译：RegisterSession 会静默停掉同名运行会话，等于“边跑边拆台”，直接拦下。
             // 判据两条并用：MainRunState（界面整体运行）+ 本条流程自己的 RunState（单流程运行 / HTTP 触发
             // 都不写 MainRunState，只认前者会让"单跑时编译本流程"把那条流程静默杀掉）

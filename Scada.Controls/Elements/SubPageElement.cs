@@ -269,11 +269,10 @@ namespace VisionMaster.Scada.Controls
                 return;
             }
 
-            if (RuntimeContext is { } context
-                && page.RequiredRole is { } required
-                && !context.AccessPolicy.CanOperate(required, out _))
+            if (RuntimeContext is { } context && !context.AccessPolicy.CanPage(page))
             {
-                SetPlaceholder("无权查看此画面", $"目标页要求「{required.DisplayName()}」权限；不渲染半页内容。");
+                var key = page.RequiredPermissionOf();
+                SetPlaceholder("无权查看此画面", $"目标页要求「{ScadaPermissionKeys.DisplayName(key)}」权限；不渲染半页内容。");
                 StopBinder();
                 return;
             }

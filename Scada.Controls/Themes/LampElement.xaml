@@ -15,6 +15,10 @@
         写了也是死代码；同理模板里也不写 Visibility 初值（它的优先级高过触发器 setter）。
     -->
     <Style TargetType="{x:Type local:LampElement}">
+        <!--  状态色默认取令牌（2026-10-26）：不烤局部值，改令牌全局生效；用户改了则局部覆盖  -->
+        <Setter Property="OnColor" Value="{StaticResource HmiStateRunningBrush}" />
+        <Setter Property="WarningColor" Value="{StaticResource HmiStateWarningBrush}" />
+        <Setter Property="AlarmColor" Value="{StaticResource HmiStateFaultBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
 

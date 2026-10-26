@@ -319,6 +319,18 @@ namespace VisionMaster.Scada
             set => SetProperty(ref _requiredRole, value);
         }
 
+        private string? _requiredPermission;
+
+        /// <summary>
+        /// 运行态要求的权限 Key（B3）。空 = 不限制；<c>"Always"</c> = 恒放行。
+        /// 显式配置优先于运动/停止族兜底；旧 <see cref="RequiredRole"/> 仅作历史数据保留。
+        /// </summary>
+        public string? RequiredPermission
+        {
+            get => _requiredPermission;
+            set => SetProperty(ref _requiredPermission, value);
+        }
+
         /// <summary>
         /// 图元特有属性的键值袋（键名由 S2 描述符声明，值一律以字符串承载）。
         ///

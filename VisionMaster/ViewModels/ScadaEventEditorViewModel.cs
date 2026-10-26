@@ -45,6 +45,12 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private static readonly IReadOnlyList<ScadaActionTypeOption> TypeChoices
             = Enum.GetValues<ScadaActionType>()
+                // 轴控九条（Motion*）**不进事件动作表**（2026-10-25 纠偏）。
+                // 按钮/画面事件不是下运动命令的通道：它没有轴面板那套"权限在按下前判 + 使能/回零/
+                // 软限位 + 忙判定"的闸门，一条误配的按钮就能让轴动起来。要动轴请走轴面板，
+                // 或流程里的轴步骤（那里每一条都过 MotionCommandGate）。
+                // 枚举值保留不删（落盘值不许回收），只是不再出现在候选里。
+                .Where(t => !ScadaActionTaxonomy.IsMotion(t))
                 .OrderBy(ActionDisplayOrder)
                 .Select(t => new ScadaActionTypeOption(t))
                 .ToArray();

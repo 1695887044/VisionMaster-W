@@ -144,15 +144,26 @@ namespace VisionMaster.Scada.Controls
                 Description = "网格线间距，同时是吸附步距（设计像素）",
                 Read = (p, _) => Format(p.GridSize), Write = (p, _, v) => { if (TryNumber(v, out var d)) p.GridSize = d; },
             },
-            // ---- 页面级角色：进入这一页所需的最低角色 ----
+            // ---- 页面级权限（B3）：进入这一页所需的权限 Key ----
+            // 候选的权威来源是用户管理的权限目录（含自定义），由 ScadaPagePropertyRow 在
+            // 构造时向宿主取；这里给的 Choices 只是"没有宿主时"的内置兜底。
             new ScadaPagePropertySpec
             {
-                Key = "RequiredRole", DisplayName = "所需角色", Kind = ElementPropertyKind.Choice,
+                Key = "RequiredPermission", DisplayName = "所需权限", Kind = ElementPropertyKind.Choice,
                 Group = ScadaPropertyGroups.PageRun,
-                Choices = new[] { "None", "Operator", "Engineer", "Administrator" },
-                Description = "进入这一页所需的最低角色；None = 不限制。运行态切页、返回与页面菜单都按它过滤",
-                Read = (p, _) => p.RequiredRole?.ToString() ?? "None",
-                Write = (p, _, v) => p.RequiredRole = ParseRole(v),
+                Choices = new[] { ScadaPermissionKeys.NotLimitedValue }
+                    .Concat(ScadaPermissionKeys.BuiltInKeys)
+                    .ToArray(),
+                Description = "进入这一页所需的权限；不限制 = 谁都能进。候选来自用户管理的权限目录（含自定义），运行态切页、返回与页面菜单都按它过滤",
+                Read = (p, _) => p.RequiredPermissionOf() ?? ScadaPermissionKeys.NotLimitedValue,
+                Write = (p, _, v) =>
+                {
+                    p.RequiredPermission = string.IsNullOrWhiteSpace(v)
+                        || string.Equals(v, ScadaPermissionKeys.NotLimitedValue, StringComparison.Ordinal)
+                        ? null
+                        : v.Trim();
+                    p.RequiredRole = null; // 新配置只写 Key；旧角色清掉，避免空值时又被兜底回来
+                },
             },
 
             // ---- 弹窗（特殊画面）：弹窗页不参与普通导航，只由「打开弹窗」动作打开 ----
@@ -216,21 +227,6 @@ namespace VisionMaster.Scada.Controls
                 },
             },
         };
-
-        /// <summary>
-        /// 把面板提交的文本解析成角色；"None"/空 = 不限制，非法值保持 null（不把坏数据写成权限）。
-        /// </summary>
-        private static ScadaRole? ParseRole(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text)
-                || string.Equals(text.Trim(), "None", StringComparison.OrdinalIgnoreCase))
-                return null;
-
-            return Enum.TryParse<ScadaRole>(text.Trim(), ignoreCase: true, out var role)
-                   && role.IsDefined()
-                ? role
-                : null;
-        }
 
         /// <summary>按不变文化格式化——和图元几何值同一个口径，否则 .vms 在中文系统上会写成 "1,5"</summary>
         private static string Format(double value)

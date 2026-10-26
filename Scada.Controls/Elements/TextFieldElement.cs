@@ -191,8 +191,7 @@ namespace VisionMaster.Scada.Controls
             => !IsOutputMode
                && RuntimeContext?.Writer is not null
                && Element?.FindBinding(ValueKey) is { IsEnabled: true }
-               && (Element?.RequiredRole is not { } required
-                   || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
+               && RuntimeContext?.AccessPolicy.CanElement(Element) == true;
 
         /// <summary>
         /// 进入就地编辑态：把当前文本填进编辑框、把焦点交给它。

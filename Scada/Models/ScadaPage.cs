@@ -208,6 +208,18 @@ namespace VisionMaster.Scada
             set => SetProperty(ref _requiredRole, value);
         }
 
+        private string? _requiredPermission;
+
+        /// <summary>
+        /// 进入这一页要求的权限 Key（B3）。空 = 不限制；<c>"Always"</c> = 恒放行。
+        /// 显式配置优先；旧 <see cref="RequiredRole"/> 仅作历史数据保留。
+        /// </summary>
+        public string? RequiredPermission
+        {
+            get => _requiredPermission;
+            set => SetProperty(ref _requiredPermission, value);
+        }
+
         /// <summary>
         /// 本页引用的<b>基座画面</b> Id 列表（按渲染顺序：靠前的压在下面，靠后的盖在上面）。
         ///
@@ -1169,6 +1181,103 @@ namespace VisionMaster.Scada
 
             return true;
         }
+
+        /// <summary>
+        /// 设置单个图元的<b>所需权限</b>（B3）：运行态操作它要求哪个权限 Key。
+        ///
+        /// <b>与 <see cref="TrySetRequiredRole"/> 的关系</b>
+        /// ---------
+        /// 旧 .vms 只有 <see cref="ScadaElement.RequiredRole"/>，运行时由
+        /// <see cref="ScadaPermissionKeys.LegacyRolePermission"/> 折成 Key 兜底；新配置只写
+        /// <see cref="ScadaElement.RequiredPermission"/>。本入口在写入新字段的同时把旧角色清空，
+        /// 否则用户选「不限制」时旧角色会重新兜底，表现成"明明取消了限制却还要工程师"。
+        ///
+        /// <b>为什么空值等于「不限制」</b>
+        /// ---------
+        /// 权限模型里 <c>null</c>/空串就是"这条规则不存在"，与 <see cref="ScadaElement.RequiredPermission"/>
+        /// 的注释同一口径。界面上的「不限制」由面板折成空值再进来，领域层不认识界面哨兵。
+        ///
+        /// <b>值没变时是空操作</b>（返回 <c>true</c> 且不产记录）：面板刷新、下拉重选同一项
+        /// 都不该在撤销栈里堆记录。判据用"折算后的有效权限"（显式优先、旧角色兜底），
+        /// 所以旧角色已经映射到同一个 Key 时也不会白记一条。
+        /// </summary>
+        /// <param name="element">要改的图元</param>
+        /// <param name="permissionKey">权限 Key；<c>null</c>/空 = 不限制</param>
+        /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
+        public bool TrySetRequiredPermission(ScadaElement? element, string? permissionKey, out string error)
+        {
+            error = string.Empty;
+
+            if (element == null || FindElement(element.ElementId) == null)
+            {
+                error = "图元不属于本画面，无法设置操作权限";
+                return false;
+            }
+
+            var target = NormalizePermissionKey(permissionKey);
+            var current = element.RequiredPermissionOf();
+
+            if (string.Equals(current, target, StringComparison.Ordinal)
+                && (target != null || element.RequiredRole == null))
+            {
+                return true; // 有效权限没变，空操作
+            }
+
+            string label = target == null
+                ? $"取消权限限制 [{element.Name}]"
+                : $"设置所需权限 [{element.Name}] → {ScadaPermissionKeys.DisplayName(target)}";
+
+            using (BeginEdit(label))
+            {
+                element.RequiredPermission = target;
+                element.RequiredRole = null;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 设置<b>本画面</b>的所需权限（B3）：运行态进入这一页要求哪个权限 Key。
+        ///
+        /// 口径与图元版逐字一致：空 = 不限制；写新字段的同时清掉旧角色；
+        /// 有效权限没变是空操作。页面级闸门在 <see cref="ScadaRuntime.CanAccess"/>，
+        /// 页面菜单、动作表「切换画面」、返回上一页都走那一个出口。
+        /// </summary>
+        /// <param name="permissionKey">权限 Key；<c>null</c>/空 = 不限制</param>
+        /// <param name="error">失败原因（直接可展示给用户的中文文案）</param>
+        public bool TrySetRequiredPermission(string? permissionKey, out string error)
+        {
+            error = string.Empty;
+
+            var target = NormalizePermissionKey(permissionKey);
+            var current = this.RequiredPermissionOf();
+
+            if (string.Equals(current, target, StringComparison.Ordinal)
+                && (target != null || RequiredRole == null))
+            {
+                return true; // 有效权限没变，空操作
+            }
+
+            string label = target == null
+                ? $"取消权限限制 [{Name}]"
+                : $"设置所需权限 [{Name}] → {ScadaPermissionKeys.DisplayName(target)}";
+
+            using (BeginEdit(label))
+            {
+                RequiredPermission = target;
+                RequiredRole = null;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 权限 Key 的落盘规范化：去掉首尾空白，空/纯空白折成 <c>null</c>（不限制）。
+        /// 不校验"是否在权限目录里"——目录属于用户管理（宿主），领域层只认 Key 字符串；
+        /// 自定义权限、以及旧文件里已删除权限的悬空 Key 都要能原样读出来。
+        /// </summary>
+        private static string? NormalizePermissionKey(string? permissionKey)
+            => string.IsNullOrWhiteSpace(permissionKey) ? null : permissionKey.Trim();
 
         /// <summary>
         /// 把一批图元组合成一个组（同组图元在编辑器里被当成一个整体选中与搬动）。

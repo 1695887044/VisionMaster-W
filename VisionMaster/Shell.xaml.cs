@@ -13,8 +13,10 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using Core.Interfaces;
 using UI.Models;
 using VisionMaster.Services;
+using VisionMaster.ViewModels;
 using VisionMaster.Views;
 
 namespace VisionMaster
@@ -37,6 +39,54 @@ namespace VisionMaster
         private void ApplyDockTheme()
         {
             dockManager.Theme = new FluentLightTheme();
+        }
+
+        /// <summary>
+        /// 胶囊点击：走 Click 事件而不是 InputBinding/Command 绑定。
+        /// MouseBinding 不在可视树里、RelativeSource 解析不到 DataContext；Button 的 Command
+        /// 绑定在实测里只拿到焦点没有执行，所以这里直接由 DataContext 取命令并执行。
+        /// </summary>
+        private void OnInspectorCapsuleClick(object sender, RoutedEventArgs e)
+        {
+            // 点击链路留痕：本仓 Logs\yyyy-MM-dd.log 只由 ILogService 写（NLog 无配置），
+            // 没有这两行就无法区分"没点中"和"点了但守卫没通过"。
+            var log = TryResolveLogService();
+            log?.Warn($"[胶囊] Click 到达 sender={sender?.GetType().Name} " +
+                      $"item={(sender as FrameworkElement)?.DataContext?.GetType().Name} " +
+                      $"shellDc={DataContext?.GetType().Name}");
+
+            if (sender is FrameworkElement { DataContext: InspectorCapsuleItem item }
+                && DataContext is ShellViewModel vm)
+            {
+                vm.ShowInspectorCapsuleCommand.Execute(item);
+            }
+            else
+            {
+                log?.Warn("[胶囊] Click 到达但守卫未通过（item 或 ShellViewModel 不匹配）");
+            }
+        }
+
+        private static ILogService? TryResolveLogService()
+        {
+            try { return Prism.Ioc.ContainerLocator.Container.Resolve<ILogService>(); }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// 状态栏「系统资源」浮窗：点 CPU/MEM 打开。
+        /// Popup 用 <c>StaysOpen=False</c>（点外面自动关），代价是"开着的时候再点按钮"这一下
+        /// 会先被 Popup 自己关掉、再触发 Click 又立刻打开——看起来像关不掉。
+        /// 所以在 PreviewMouseLeftButtonDown 里先把"已开着"的那一下吃掉，Click 只负责打开。
+        /// </summary>
+        private void PerfButton_Click(object sender, RoutedEventArgs e) => PerfPopup.IsOpen = true;
+
+        private void PerfButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!PerfPopup.IsOpen)
+                return;
+
+            PerfPopup.IsOpen = false;
+            e.Handled = true;
         }
 
         /// <summary>
@@ -163,7 +213,7 @@ namespace VisionMaster
         protected override async void OnContentRendered(EventArgs e)
         {
             base.OnContentRendered(e);
-            LayoutHelper.Load();
+            bool layoutLoaded = LayoutHelper.Load();
 
             if (DataContext is ShellViewModel vm)
             {
@@ -178,6 +228,12 @@ namespace VisionMaster
                 // 再按模式收敛右侧面板组：磁盘上的 Layout.xml 会把上次退出时的可见性原样恢复，
                 // 必须在这里盖一次，否则"组态三面板只在组态设计时显示"这条改造对老布局等于没发生。
                 vm.ApplyPanelMode();
+
+                // A 方案（2026-10-26）：首次启动没有 Layout.xml 时，调试/自由默认把底部控制台
+                // 收成 32，把 200px 还给图像。有布局文件时由 LoadFromString 的 ConsoleState
+                // 属性决定（老布局没有该属性 → 按模式默认，同样是 32）。
+                if (!layoutLoaded && vm.CurrentMode is ShellMode.Debug or ShellMode.Free)
+                    LayoutHelper.CollapseConsole();
 
                 await vm.AutoLoadStartupSolutionAsync();
             }

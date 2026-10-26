@@ -8,6 +8,7 @@ using System.Linq;
 using Core.Halcon;
 using Core.Halcon.Models;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 
 namespace Plugin.Ocr
@@ -114,6 +115,10 @@ namespace Plugin.Ocr
         /// <summary>外部模型路径。留空 = 用内置模型（0-9 / A-Z）；填了则用指定模型（如中文/自训练）</summary>
         [StepConfig]
         public string ModelPath { get; set; } = string.Empty;
+
+        /// <summary>方案模型资产 Id（优先于 ModelPath；运行期由宿主解析成绝对路径）。</summary>
+        [StepConfig]
+        public string ModelAssetId { get; set; } = string.Empty;
 
         /// <summary>true = 按列优先排序（竖排文本），false = 按行优先（横排）</summary>
         [StepConfig]
@@ -387,7 +392,7 @@ namespace Plugin.Ocr
                 return;
             }
 
-            if (!TryRecognize(DisplayImage, out var outcome, out string error))
+            if (!TryRecognize(DisplayImage, null, out var outcome, out string error))
             {
                 ResultSummary = "试算失败：" + error;
                 Hint = "试算失败：先确认识别区是否框住整行字符、极性是否选对，再调整字符尺寸或阈值";
@@ -418,7 +423,7 @@ namespace Plugin.Ocr
                 return;
             }
 
-            if (!TryRecognize(image, out var outcome, out string error))
+            if (!TryRecognize(image, context, out var outcome, out string error))
             {
                 Fail(error);
                 return;
@@ -459,7 +464,7 @@ namespace Plugin.Ocr
         /// 分割 + 识别。运行期与配置期试算共用同一条路径 ——
         /// 若试算与运行走两套代码，界面上看着对、跑起来不对，那种问题最难查。
         /// </summary>
-        private bool TryRecognize(HImage image, out OcrOutcome? outcome, out string error)
+        private bool TryRecognize(HImage image, IExecutionContext? context, out OcrOutcome? outcome, out string error)
         {
             outcome = null;
             error = string.Empty;
@@ -486,7 +491,10 @@ namespace Plugin.Ocr
 
             using (segment)
             {
-                if (!OcrEngine.TryResolveModel(ModelPath, out string modelPath, out error))
+                if (!ProjectAssetPathResolver.TryResolve(context, ModelAssetId, ModelPath, "model", out var configuredPath, out error))
+                    return false;
+
+                if (!OcrEngine.TryResolveModel(configuredPath, out string modelPath, out error))
                     return false;
 
                 if (!_engine.TryRecognize(segment, modelPath, out var recognition, out error) || recognition == null)

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>第三轮控件会审 · 数据表格 / 轴面板 / 报警条</title>
+<style>
+  :root{
+    --bg:#f5f7fb; --panel:#fff; --line:#e4e9f2; --text:#1e293b; --text2:#5b667a; --text3:#8a94a6;
+    --brand:#2563eb; --p1:#dc2626; --p1bg:#fdeaea; --p2:#d97706; --p2bg:#fdf3e3; --p3:#475569; --p3bg:#eef1f6;
+    --ok:#15803d; --okbg:#e9f7ee; --radius:12px; --mono:"Cascadia Mono","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.75 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  .wrap{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;height:100vh;background:#0f172a;color:#cbd5e1;padding:24px 18px;overflow:auto}
+  nav .brand{font-size:16px;font-weight:700;color:#fff}
+  nav .ver{margin:6px 0 20px;font-size:12px;color:#7c8aa3;line-height:1.6}
+  nav a{display:block;color:#c2cddd;padding:8px 10px;border-radius:8px;font-size:13.5px;margin-bottom:2px;text-decoration:none}
+  nav a:hover{background:#1b2b45;color:#fff}
+  nav .grp{margin:18px 0 6px;font-size:11px;color:#64748b;letter-spacing:.08em}
+  nav .filters{margin-top:22px;border-top:1px solid #1e293b;padding-top:14px}
+  nav .filters label{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#9fb0c4;margin:6px 0;cursor:pointer}
+  main{padding:32px 40px 90px;max-width:1180px}
+  h1{font-size:26px;margin:0 0 8px;letter-spacing:.2px}
+  .sub{color:var(--text2);margin:0 0 26px}
+  h2{font-size:21px;margin:46px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:26px 0 10px;color:#334155}
+  p{margin:8px 0}
+  .muted{color:var(--text3);font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin:14px 0}
+  .callout{border-left:4px solid var(--brand);background:#f2f7ff;border-radius:0 10px 10px 0;padding:14px 16px;margin:16px 0;font-size:14px}
+  .callout.warn{border-left-color:#d97706;background:#fffaf1}
+  .chip{display:inline-block;border-radius:999px;padding:1px 10px;font-size:12px;font-weight:700;margin-right:8px;vertical-align:1px}
+  .chip.p1{background:var(--p1bg);color:var(--p1)}
+  .chip.p2{background:var(--p2bg);color:var(--p2)}
+  .chip.p3{background:var(--p3bg);color:var(--p3)}
+  .chip.ok{background:var(--okbg);color:var(--ok)}
+  .chip.hold{background:#eef1f6;color:#64748b}
+  /* 发现条目 */
+  .finding{display:grid;grid-template-columns:64px 1fr;gap:14px;padding:14px 0;border-bottom:1px dashed var(--line)}
+  .finding:last-child{border-bottom:0}
+  .finding .id{font:12.5px var(--mono);color:var(--text3);padding-top:3px}
+  .finding .body b{font-weight:600}
+  .finding .why{color:var(--text2);font-size:13.5px;margin-top:4px}
+  .role{display:flex;align-items:center;gap:10px;margin:22px 0 6px}
+  .role .tag{background:#eef4ff;color:#1d4ed8;border-radius:6px;padding:2px 9px;font-size:12px;font-weight:600}
+  .role .who{color:var(--text3);font-size:12.5px}
+  /* 截图 */
+  .shots{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0}
+  .shot{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center}
+  .shot img{max-width:100%;border-radius:6px;display:block;margin:0 auto 8px}
+  .shot .cap{font-size:12px;color:var(--text3)}
+  /* 裁定表 */
+  table{border-collapse:collapse;width:100%;background:#fff;font-size:13.5px;border-radius:10px;overflow:hidden}
+  th,td{border-bottom:1px solid var(--line);padding:10px 12px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-size:12.5px;font-weight:600}
+  tr.hide{display:none}
+  .decision{font-weight:600}
+  .decision.do{color:var(--p1)}
+  .decision.next{color:var(--p2)}
+  .decision.later{color:var(--text3)}
+  @media(max-width:1000px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto}.finding{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">第三轮控件会审</div>
+    <div class="ver">2026-10-25 · 数据表格 / 轴面板 / 报警条<br>8 张现状图 · 8 条 P1</div>
+    <a href="#top">↑ 顶部</a>
+    <div class="grp">控件</div>
+    <a href="#axis">轴面板 AxisPanel</a>
+    <a href="#grid">数据表格 DataGrid</a>
+    <a href="#banner">报警条 AlarmBanner</a>
+    <div class="grp">结论</div>
+    <a href="#verdict">裁定表</a>
+    <a href="#next">下一步</a>
+    <div class="filters">
+      <div class="grp" style="margin-top:0">筛选级别</div>
+      <label><input type="checkbox" data-p="p1" checked> P1 必须改</label>
+      <label><input type="checkbox" data-p="p2" checked> P2 下一批</label>
+      <label><input type="checkbox" data-p="p3" checked> P3 顺手</label>
+      <label><input type="checkbox" data-p="hold" checked> 挂起（等运行态图）</label>
+    </div>
+  </nav>
+
+  <main id="top">
+    <h1>第三轮控件会审</h1>
+    <p class="sub">数据表格 · 轴面板 · 报警条 —— 四个角色（应用工程师 / 前端设计 / 运动安全 / 实现）的证据与裁定</p>
+
+    <div class="callout warn">
+      <b>证据边界</b>：现有 8 张图只覆盖<b>不依赖运行态</b>的状态（空态 / 未配置 / 禁用）。
+      表格有行、报警条有多条报警、轴在动这三类需要 <code>ScadaRuntimeContext</code>（采集信号 + 报警引擎 + 轴源），
+      本轮未装配，所以这些结论标了 <span class="chip hold">挂起</span>，<b>补图后才能定级</b>。
+    </div>
+
+    <!-- ================= 轴面板 ================= -->
+    <h2 id="axis">轴面板 <code>Hmi.AxisPanel</code></h2>
+    <p class="muted">唯一会动设备的图元。证据最充分：未配置态下状态区、命令区、点动模式全都可见。</p>
+
+    <div class="shots">
+      <div class="shot"><img src="../app-shell/evidence/third-round/axispanel-unconfigured.png" alt="轴面板未配置" /><div class="cap">未配置轴（状态区 8 点 + 命令区 6 按钮）</div></div>
+      <div class="shot"><img src="../app-shell/evidence/third-round/axispanel-disabled.png" alt="轴面板禁用" /><div class="cap">禁用</div></div>
+      <div class="shot"><img src="../app-shell/evidence/third-round/axisconsole-unconfigured.png" alt="轴控台未配置" /><div class="cap">轴控台（含点位区）</div></div>
+    </div>
+
+    <div class="role"><span class="tag">应用工程师</span><span class="who">工艺 + 电气·运动：看操作顺序与"能不能看出状态"</span></div>
+    <div class="card">
+      <div class="finding" data-p="p3"><div class="id">A1</div><div class="body">
+        <span class="chip ok">裁定：不改</span><b>八个状态点只靠灰/亮区分</b>
+        <div class="why">用户裁定：<b>保持现状</b>。状态点是"一眼扫过"的辅助信息，主操作区才是判断依据；改成每点带文字会把 280px 宽的轴面板撑满。</div>
+      </div></div>
+      <div class="finding" data-p="p3"><div class="id">A2</div><div class="body">
+        <span class="chip ok">裁定：不是问题</span><b>「失能」没有独立按钮</b>
+        <div class="why">用户澄清：<b>轴使能本来就是切换开关</b>——使能态绿色、失能态灰色，点同一个控件切换。不存在"缺一个失能按钮"。</div>
+      </div></div>
+      <div class="finding" data-p="p1"><div class="id">A3</div><div class="body">
+        <span class="chip p1">P1</span><b>未配置轴时按钮仍可点</b>
+        <div class="why">画面右上角写着"未配置轴"，但按钮是正常态。这是"点了没反应"与"点了动错轴"之间最危险的一档。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">A4</div><div class="body">
+        <span class="chip p2">P2</span><b>下发值 vs 实际值没有标签</b>
+        <div class="why">两个 <code>— mm</code> 一上一下，没有"目标/当前"字样。违反 R99「下发 ≠ 到位」的表达要求。</div>
+      </div></div>
+      <div class="finding" data-p="p3"><div class="id">A5</div><div class="body">
+        <span class="chip p3">P3</span><b>设计预览提示只在设计期出现</b>
+        <div class="why">"设计预览（运行后显示实时值）"这句运行期消失，设计期与运行期差异没有其它提示。</div>
+      </div></div>
+    </div>
+
+    <div class="role"><span class="tag">前端设计师</span><span class="who">信息层级、密度、命中区、危险分级</span></div>
+    <div class="card">
+      <div class="finding" data-p="p1"><div class="id">U3</div><div class="body">
+        <span class="chip p1">P1</span><b>触摸命中区偏小</b>
+        <div class="why">六个按钮约 76×32，触摸目标应 ≥ 44 高；按钮间距 6px 也偏紧，戴手套时容易连点相邻键。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">U1</div><div class="body">
+        <span class="chip p2">P2</span><b>停止按钮危险分级只做了一半</b>
+        <div class="why">红底做对了，但尺寸与其它按钮一致。触摸误触时最先够到的应该是"停止"，它该更宽或更靠边。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">U2</div><div class="body">
+        <span class="chip p2">P2</span><b>点动模式的分组含糊</b>
+        <div class="why">连续/单步的分段控件在"点动"标题<b>上方</b>，视觉上属于"速度"那一组。</div>
+      </div></div>
+      <div class="finding" data-p="p3"><div class="id">U4</div><div class="body">
+        <span class="chip p3">P3</span><b>状态点与文字基线不齐</b>
+        <div class="why">点 8px、字 12px，整块看起来"毛"。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">U5</div><div class="body">
+        <span class="chip p2">P2</span><b>空态不明确</b>
+        <div class="why">未配置轴只在右上角写一行灰色小字，与正常态无差别；应整块降饱和 + 居中提示。</div>
+      </div></div>
+    </div>
+
+    <div class="role"><span class="tag">运动安全</span><span class="who">门禁、兜底、下发与到位</span></div>
+    <div class="card">
+      <div class="finding" data-p="p1"><div class="id">S1</div><div class="body">
+        <span class="chip p1">P1</span><b>未配置轴时按钮不禁用（与 A3 同条）</b>
+        <div class="why">安全评审把它列为本轮第一优先：任何一个"点了不知道会发生什么"的按钮都不该存在。</div>
+      </div></div>
+      <div class="finding" data-p="p1"><div class="id">S2</div><div class="body">
+        <span class="chip p1">P1</span><b>没有"命令已下发 / 已到位"两态</b>
+        <div class="why">停止按钮在任何状态下都在（图上成立），但操作员会以为按下即到位。R99 要求两态可区分。</div>
+      </div></div>
+      <div class="finding" data-p="p3"><div class="id">S3</div><div class="body">
+        <span class="chip ok">裁定：不处理</span><b>急停断开时点动是否仍可发</b>
+        <div class="why">用户裁定：<b>不管</b>。需要时会在流程里把使能断掉——安全联锁不在界面层兜底，避免两处各断一次。</div>
+      </div></div>
+    </div>
+
+    <!-- ================= 数据表格 ================= -->
+    <h2 id="grid">数据表格 <code>Hmi.DataGrid</code></h2>
+    <p class="muted">报警历史 / 日志 / 追溯清单全靠它；技术债最密（R19 / R21 / R159）。</p>
+
+    <div class="shots">
+      <div class="shot"><img src="../app-shell/evidence/third-round/datagrid-design.png" alt="数据表格配了列" /><div class="cap">配了 3 列，但未绑采集信号 → 仍显示"还没有配置采集"</div></div>
+      <div class="shot"><img src="../app-shell/evidence/third-round/datagrid-empty.png" alt="数据表格空态" /><div class="cap">空态（未配置）</div></div>
+      <div class="shot"><img src="../app-shell/evidence/third-round/datagrid-disabled.png" alt="数据表格禁用" /><div class="cap">禁用（与正常态几乎无差别）</div></div>
+    </div>
+
+    <div class="role"><span class="tag">应用工程师</span><span class="who">配置是否正确、异常是否能看出来</span></div>
+    <div class="card">
+      <div class="finding" data-p="p1"><div class="id">D1</div><div class="body">
+        <span class="chip p1">P1</span><b>「未绑采集信号」与「没有数据」用同一句提示</b>
+        <div class="why">截图直接暴露：配了 3 列仍显示"还没有配置采集"。配列的人会以为自己配错了，实际是缺采集信号绑定。</div>
+      </div></div>
+      <div class="finding" data-p="hold"><div class="id">D4</div><div class="body">
+        <span class="chip hold">挂起</span><b>实时插入时"看历史不被拽回顶部"</b>
+        <div class="why">需要运行态数据流才能验证（属性 <code>NewestFirst</code> 已存在，行为未在真机确认）。</div>
+      </div></div>
+      <div class="finding" data-p="p3"><div class="id">D2</div><div class="body">
+        <span class="chip p3">P3</span><b>文案疑有笔误</b>
+        <div class="why">"绑定采信信号"——应为"采集"。</div>
+      </div></div>
+    </div>
+
+    <div class="role"><span class="tag">前端设计师</span><span class="who">设计期可确认性、状态可辨性</span></div>
+    <div class="card">
+      <div class="finding" data-p="p1"><div class="id">U6</div><div class="body">
+        <span class="chip p1">P1</span><b>设计期不显示列头</b>
+        <div class="why">配了列却看不到列头，无法确认列宽、对齐、格式是否如预期——设计期的唯一反馈被空态盖住了。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">U8</div><div class="body">
+        <span class="chip p2">P2</span><b>禁用态几乎不可辨</b>
+        <div class="why">两张 8KB 截图肉眼几乎一样。禁用应有降饱和与禁用光标。</div>
+      </div></div>
+      <div class="finding" data-p="p3"><div class="id">U7</div><div class="body">
+        <span class="chip p3">P3</span><b>空态文字层级偏弱</b>
+        <div class="why">空态与表体同为 12 号字，缺主次。</div>
+      </div></div>
+    </div>
+
+    <!-- ================= 报警条 ================= -->
+    <h2 id="banner">报警条 <code>Hmi.AlarmBanner</code></h2>
+    <p class="muted">操作员第一眼看到的报警面。与「报警汇总表」分工：条=知道有事，表=处理掉。</p>
+
+    <div class="shots">
+      <div class="shot"><img src="../app-shell/evidence/third-round/alarmbanner-empty.png" alt="报警条空态" /><div class="cap">空态「系统正常」</div></div>
+      <div class="shot"><img src="../app-shell/evidence/third-round/alarmbanner-disabled.png" alt="报警条禁用" /><div class="cap">禁用</div></div>
+    </div>
+
+    <div class="role"><span class="tag">应用工程师</span><span class="who">报警语义与"假正常"</span></div>
+    <div class="card">
+      <div class="finding" data-p="p1"><div class="id">B1</div><div class="body">
+        <span class="chip p1">P1</span><b>「未接入报警源」与「系统正常」同形</b>
+        <div class="why">工程根本没配报警时，界面同样显示"系统正常"——这是静默假正常，比不显示更危险。</div>
+      </div></div>
+      <div class="finding" data-p="hold"><div class="id">B2</div><div class="body">
+        <span class="chip hold">挂起</span><b>新报警插入是否打断阅读；MaxRows 超出后堆叠还是轮播</b>
+        <div class="why">需要多条活动报警的运行态截图。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">B3</div><div class="body">
+        <span class="chip p2">P2</span><b>条上不提供确认入口</b>
+        <div class="why">分工上"条=知道、表=处理"是合理的，但需现场确认接受（否则操作员会在条上找按钮）。</div>
+      </div></div>
+    </div>
+
+    <div class="role"><span class="tag">前端设计师</span><span class="who">状态切换的视觉连续性</span></div>
+    <div class="card">
+      <div class="finding" data-p="hold"><div class="id">U10</div><div class="body">
+        <span class="chip hold">挂起</span><b>严重级三重编码在 3 行时是否仍可辨</b>
+        <div class="why">3px 色条 + 圆点 + 文字的设计成立，但 140px 高、三行时的实际可读性要图。</div>
+      </div></div>
+      <div class="finding" data-p="p2"><div class="id">U9</div><div class="body">
+        <span class="chip p2">P2</span><b>空态与有报警时形态差异过大</b>
+        <div class="why">空态是纯文字、无图标；有报警是彩色条。切换时跳变感明显。</div>
+      </div></div>
+    </div>
+
+    <h3>新版：自动滚动（2026-10-25 已实现）</h3>
+    <div class="card">
+      <p>原来的问题不只是"不滚"：<code>OnBeat</code> 第一句是 <code>if (!_isFlashing) return;</code>，
+        <b>只有需要闪烁的报警才走节拍</b>——一条不闪的报警条永远停在第一屏，连刷新都不做。
+        现在改成按固定节奏逐行下移、到底回顶：</p>
+      <style>
+        .tk{background:#151c23;border:1px solid #2a3745;border-radius:8px;padding:10px 12px;width:320px;
+            font-size:12.5px;color:#e6eef7;overflow:hidden}
+        .tk .hd{display:flex;justify-content:space-between;color:#a9b7c6;font-size:11.5px;margin-bottom:6px}
+        .tk .vp{height:118px;overflow:hidden;position:relative}
+        .tk .rows{animation:tkroll 7.5s steps(3,end) infinite}
+        .tk .row{height:44px;margin-bottom:3px;background:#1b242d;border-radius:4px;padding:5px 8px;
+                 display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;font-size:11.5px}
+        .tk .sev{border-radius:999px;padding:0 7px;font-size:10.5px;border:1px solid}
+        .tk .c{color:#ff8d7a;border-color:#ff8d7a}
+        .tk .w{color:#ffcf70;border-color:#ffcf70}
+        .tk .i{color:#7cc4ff;border-color:#7cc4ff}
+        .tk .t{color:#8a94a6;font-size:10.5px}
+        @keyframes tkroll{0%{transform:translateY(0)}100%{transform:translateY(-141px)}}
+        @media (prefers-reduced-motion: reduce){.tk .rows{animation:none}}
+      </style>
+      <div class="tk">
+        <div class="hd"><span>实时报警</span><span>未确认 2 / 共 3</span></div>
+        <div class="vp">
+          <div class="rows">
+            <div class="row"><span class="sev c">严重</span><span>一号罐液位高</span><span class="t">14:32</span></div>
+            <div class="row"><span class="sev w">警告</span><span>B 工位节拍超时</span><span class="t">14:28</span></div>
+            <div class="row"><span class="sev w">警告</span><span>相机 2 丢帧</span><span class="t">14:21</span></div>
+            <div class="row"><span class="sev i">提示</span><span>配方已切换</span><span class="t">14:05</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="margin-bottom:0">↑ 示意（每行停留 2.5 秒、到底回顶）。条数不足一屏时不滚——否则"滚了个寂寞"，还让人以为漏了报警。</p>
+
+      <table style="margin-top:14px">
+        <tr><th style="width:150px">新增属性</th><th style="width:110px">默认</th><th>说明</th></tr>
+        <tr><td><code>AutoScroll</code></td><td><code>True</code></td><td>条数超过一屏时自动逐行下移、到底回顶；关掉则停在原处手动滚</td></tr>
+        <tr><td><code>SecondsPerRow</code></td><td><code>2.5</code></td><td>每行停留秒数（0.5~30）。太小看不清、太大像没在动</td></tr>
+      </table>
+      <p class="muted">实现细节：位置按<b>累计时长取模</b>算（与闪烁相位同一理由），漏拍/卡顿不会越走越偏；
+        可见行数按 <code>ViewportHeight ÷ 47px</code> 算；断言 <code>[AB-S1]~[AB-S3]</code> 已钉住。</p>
+
+      <p><b>没做的两件</b>：① 横向跑马灯（会丢掉时间与状态两列，与"三重编码"的结论冲突）；
+        ② 用户手动拖动后暂停自动滚动（现在会被下一拍拽回）——建议与"新报警插入是否打断阅读"一起在下一批处理。</p>
+    </div>
+
+    <h3>改为横向跑马灯（同日，按用户裁定 · 已实现）</h3>
+    <div class="card">
+      <p>用户反馈：要的是<b>从右往左滚</b>、<b>不带确认</b>、<b>只要触发条件为 ON 就在队列里</b>，
+        而且纵向卡片<b>太占空间</b>。所以形态改成两种，默认跑马灯：</p>
+      <style>
+        .mq{background:#151c23;border:1px solid #2a3745;border-radius:8px;height:34px;display:flex;align-items:center;
+            overflow:hidden;position:relative;width:100%;max-width:760px}
+        .mq .lane{white-space:nowrap;font-size:12.5px;animation:mqmove 16s linear infinite;padding-left:100%}
+        .mq .s{font-weight:600}
+        .mq .c{color:#ff8d7a}.mq .w{color:#ffcf70}.mq .i{color:#7cc4ff}
+        .mq .sep{color:#7c8a99;margin:0 10px}
+        @keyframes mqmove{from{transform:translateX(0)}to{transform:translateX(-100%)}}
+        @media (prefers-reduced-motion: reduce){.mq .lane{animation:none;padding-left:8px}}
+      </style>
+      <div class="mq">
+        <div class="lane">
+          <span class="s c">一号罐液位高：液位 91.2%（上限 85%）</span><span class="sep">·</span>
+          <span class="s w">B 工位节拍超时：14.6 s</span><span class="sep">·</span>
+          <span class="s w">相机 2 丢帧：2.3%</span><span class="sep">·</span>
+          <span class="s i">配方已切换</span>
+        </div>
+      </div>
+      <p class="muted">↑ 示意：单行 34px、从右往左、按严重度上色、条间用「·」隔开。
+        <b>不带确认状态</b>——确认是报警汇总表的事；这里只回答"现在有哪些报警在响"。</p>
+      <p class="callout" style="margin:10px 0"><b>悬浮暂停（2026-10-26）</b>：鼠标停在条上立刻停住，移开继续走。
+        恢复时<b>扣掉暂停时长</b>而不是清零重来——清零会让文字瞬间跳回起点，正在读的人直接跟丢。</p>
+
+      <table style="margin-top:14px">
+        <tr><th style="width:170px">属性</th><th style="width:110px">默认</th><th>说明</th></tr>
+        <tr><td><code>ScrollMode</code></td><td><code>Ticker</code></td><td><b>Ticker</b> = 单行跑马灯（默认）；<b>List</b> = 卡片列表（带时间与状态，占地方）</td></tr>
+        <tr><td><code>ScrollSpeed</code></td><td><code>60</code></td><td>跑马灯速度（像素/秒，10~300）</td></tr>
+        <tr><td><code>AutoScroll</code> / <code>SecondsPerRow</code></td><td><code>True</code> / <code>2.5</code></td><td>只在 <b>List</b> 形态生效：逐行下移、到底回顶</td></tr>
+      </table>
+
+      <p><b>实现要点</b>：位移 = <code>视口宽 − (累计秒 × 速度) mod (文本宽 + 视口宽)</code>，
+        按累计时长取模，漏拍/卡顿不会越走越偏；文字用 <code>Run</code> 按严重度上色；
+        断言 <code>[AB-T1]</code>（从右缘出发、走完一圈回起点）与 <code>[AB-T2]</code>（空文本不滚、拼接跳过空项）已钉住。</p>
+
+      <p class="muted" style="margin-bottom:0">纵向自动滚动保留为 <b>List</b> 形态的能力（老工程配了 List 也不会变样）；
+        新拖入的报警条默认走跑马灯，高度建议 34~40px。</p>
+    </div>
+
+    <!-- ================= 裁定 ================= -->
+    <h2 id="verdict">裁定表</h2>
+    <table>
+      <tr><th style="width:56px">#</th><th style="width:110px">控件</th><th>问题</th><th style="width:70px">级别</th><th style="width:110px">结论</th></tr>
+      <tr data-p="p1"><td>1</td><td>轴面板</td><td>未配置轴时按钮必须整块禁用并给原因</td><td><span class="chip p1">P1</span></td><td class="decision do">本轮改</td></tr>
+      <tr data-p="p3"><td>2</td><td>轴面板</td><td>「失能」入口缺失</td><td><span class="chip ok">撤销</span></td><td class="decision later">不是问题：使能是切换开关</td></tr>
+      <tr data-p="p3"><td>3</td><td>轴面板</td><td>状态点只靠颜色</td><td><span class="chip ok">撤销</span></td><td class="decision later">用户裁定不改</td></tr>
+      <tr data-p="p1"><td>4</td><td>轴面板</td><td>触摸命中区 32px 偏小</td><td><span class="chip p1">P1</span></td><td class="decision do">本轮改</td></tr>
+      <tr data-p="p1"><td>5</td><td>轴面板</td><td>下发值 vs 实际值无标签</td><td><span class="chip p1">P1</span></td><td class="decision do">本轮改</td></tr>
+      <tr data-p="p1"><td>6</td><td>数据表格</td><td>「未绑采集信号」与「无数据」文案不分</td><td><span class="chip p1">P1</span></td><td class="decision do">本轮改</td></tr>
+      <tr data-p="p1"><td>7</td><td>数据表格</td><td>设计期不显示列头</td><td><span class="chip p1">P1</span></td><td class="decision do">本轮改</td></tr>
+      <tr data-p="p1"><td>8</td><td>报警条</td><td>「未接报警源」与「系统正常」同形</td><td><span class="chip p1">P1</span></td><td class="decision do">本轮改</td></tr>
+      <tr data-p="p2"><td>9</td><td>轴面板</td><td>停止按钮权重 / 位置</td><td><span class="chip p2">P2</span></td><td class="decision next">下一批</td></tr>
+      <tr data-p="p2"><td>10</td><td>轴面板</td><td>点动模式分组含糊</td><td><span class="chip p2">P2</span></td><td class="decision next">下一批</td></tr>
+      <tr data-p="p2"><td>11</td><td>数据表格</td><td>禁用态不可辨</td><td><span class="chip p2">P2</span></td><td class="decision next">下一批</td></tr>
+      <tr data-p="p2"><td>12</td><td>报警条</td><td>空态无图标</td><td><span class="chip p2">P2</span></td><td class="decision next">下一批</td></tr>
+      <tr data-p="p3"><td>15</td><td>报警条</td><td>自动滚动（逐行下移、到底回顶）</td><td><span class="chip ok">已实现</span></td><td class="decision do">本轮已改</td></tr>
+      <tr data-p="hold"><td>13</td><td>三个</td><td>所有「需运行态图」条目</td><td><span class="chip hold">挂起</span></td><td class="decision later">补图后定级</td></tr>
+      <tr data-p="p3"><td>14</td><td>数据表格</td><td>「采信」笔误</td><td><span class="chip p3">P3</span></td><td class="decision later">顺手改</td></tr>
+    </table>
+
+    <p style="margin-top:14px">表决：<b>P1 共 6 条进本轮</b>（原 8 条，A1 状态点与 A2 失能入口经用户裁定撤销；S3 不处理——需要时在流程里断使能）。
+    P2 四条排下一批；P3 两条顺手改。排序原则 <b>现场安全 &gt; 可读性 &gt; 密度</b>。</p>
+
+    <h2 id="next">下一步</h2>
+    <div class="card">
+      <p><b>① 补运行态出图</b>：装配 <code>ScadaRuntimeContext</code>（采集信号 / 活动报警 / 轴源），把 4 条挂起项定级。</p>
+      <p><b>② 按裁定表改 8 条 P1</b>：每条配断言——按钮禁用、命名件齐全、<code>MinHeight ≥ 44</code>、文字标签、两种空态文案不同、设计期渲染列头。</p>
+      <p><b>③ 重跑 <code>ScadaChecks</code></b> 并在 <code>docs/code-changes/</code> 留档。</p>
+      <p class="muted" style="margin-bottom:0">文字版记录：<code>docs/UI设计基线/scada-third-round-review/评审记录.md</code>；现状包：同目录 <code>README.md</code>。</p>
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var boxes = document.querySelectorAll("nav input[type=checkbox]");
+  function apply(){
+    var show = {};
+    boxes.forEach(function(b){ show[b.dataset.p] = b.checked; });
+    document.querySelectorAll("[data-p]").forEach(function(el){
+      if (!el.classList.contains("finding") && el.tagName !== "TR") return;
+      el.classList.toggle("hide", !show[el.dataset.p]);
+    });
+  }
+  boxes.forEach(function(b){ b.addEventListener("change", apply); });
+  apply();
+})();
+</script>
+</body>
+</html>

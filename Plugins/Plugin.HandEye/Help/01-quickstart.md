@@ -77,7 +77,7 @@ robotX,robotY,robotZ,robotRx,robotRy,robotRz,camX,camY,camZ,camRx,camRy,camRz
   插件会直接判失败并提示"旋转激励不足"。
 
 一个够用的摆法：让机器人在 6~9 个位姿下各拍一次，姿态在 RX/RY/RZ 三个方向上
-都有明显变化（各方向跨度 15° 以上比较稳），位置也分散在工作空间的不同角落。
+都有明显变化（各方向最大旋转角 15° 以上比较稳），位置也分散在工作空间的不同角落。
 
 ---
 

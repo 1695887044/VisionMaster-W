@@ -103,7 +103,9 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
      Ncc            → FindNccModel(reduced, id, minAngleRad, angleExtent, minScore, numMatches,
                                     maxOverlap, "true", numLevels, out rows, out cols, out angles, out scores)
                       scales = Enumerable.Repeat(1.0, rows.Length)
-                      行/列再加上 (entry.Rect[0]-ModelOriginRow, entry.Rect[1]-ModelOriginCol) 补偿
+                      行/列再按学习时记下的 entry.NccOffsetRow/Col 补偿：NCC 的原点是模板域重心，
+                      用 VectorAngleToRigid(0,0,0, row,col,angle) + AffineTransPoint2d 把
+                      "重心 → ROI 中心"的偏移按匹配角旋转后补回（形状匹配侧已用 set_shape_model_origin 锚到 ROI 中心）
       级联回退        → 见 §5.1：learned 级联没有时 HALCON 会自动减层，不需要插件处理
      ScaleEnabled   → FindScaledShapeModel(..., "least_squares", numLevels, greediness, …)
      其它            → FindShapeModel(..., "least_squares", numLevels, greediness, …)
@@ -146,9 +148,9 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
 6  原点锚定（**仅形状模型**）：用新模型在参考图上自匹配一次（minScore 0.8、numMatches 1、maxOverlap 0.5、
     greediness 0.9），再 SetShapeModelOrigin(modelId, sr[0] - CanvasRect[0], sc[0] - CanvasRect[1])
     ← 依据：found_after = found_default − offset；实测圆形区域默认原点偏 +1.5,+1.5；**自匹配失败就静默不锚**
-    ← NCC 没有 set_ncc_model_origin，这一步整体跳过；代价是输出点恒为模型重心，
-      输出侧用 (Rect[0]-ModelOriginRow, Rect[1]-ModelOriginCol) 补偿（当前实现里这两个差是 0，
-      保留方法只为把"为什么 NCC 不需要偏移"留在代码里）
+    ← NCC 没有 set_ncc_model_origin，这一步整体跳过；改为在学习时 AreaCenter(domainSource)
+      记下 entry.NccOffsetRow/Col = ROI 中心 − 模板域重心，匹配时按角度旋转补回。
+      非对称掩膜（涂抹）会让重心偏离 ROI 中心；旧方案没有这两个字段 → 0，需要重新学习一次。
 7  写临时文件：形状 .shm / NCC .ncm（**扩展名必须跟着算法走**，HALCON 靠它判类型）
     WriteShapeModel / WriteNccModel → 读字节 → base64 → entry.Model；掩膜按原始涂抹编码 entry.Mask
 8  GetShapeModelParams（9 个 out）/ GetNccModelParams（**5 个 out：levels/minAngle/angleExtent/angleStep/metric**）

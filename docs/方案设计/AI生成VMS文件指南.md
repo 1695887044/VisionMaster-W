@@ -4,7 +4,8 @@
 > 依据：本仓库 `Core\Models\SolutionModel.cs`、`Core\Models\FlowModel.cs`、`Scada\Models\*`，以及 `tools\vms-generator` 的可用生成器。
 > 示例：`解决方案\CCG-BGA焊球全检\CCG-BGA焊球全检.vms`、`解决方案\CCG-包装线全检追溯\`、
 > `解决方案\CCG-精密尺寸测量站\`（**文件夹化布局 + 方案内相对路径**，见 §1.1），
-> 以及 `解决方案\自动化产线.vms`（14 流程 / 315 步 / 8 页组态）和 `解决方案\综合测试台.vms`（14 流程 / 边界测试）。
+> 以及 `解决方案\自动化产线\自动化产线.vms`（14 流程 / 315 步 / 8 页组态）和
+> `解决方案\综合测试台\综合测试台.vms`（14 流程 / 边界测试）。
 
 ---
 
@@ -20,13 +21,16 @@
 <保存位置>\
 └── <方案名>\
     ├── <方案名>.vms          配置文件，文件夹名与文件名必须同名
-    ├── Image\                组态图元用到的图片（平铺一层）
+    ├── Image\                组态图元 / 采集步骤用到的图片（平铺一层）
+    ├── Assets\               方案内容资产
+    │   ├── Templates\        模板文件（Matching 模板库 JSON 等）
+    │   └── Models\           模型文件（.onnx 等）
     ├── Alarms\               报警历史 CSV
     ├── History\              生产历史 CSV（Hmi.DataGrid 的"历史源"读这里）
     └── Logs\                 运行日志
 ```
 
-四条生成期纪律：
+五条生成期纪律：
 
 1. **`.vms` 里只写方案内相对路径**：`Image\bga.png`。绝不写 `D:\...`，绝不写 `..\Image\...`。
 2. **图片必须平铺在 `Image\` 一层**，不要再套子目录。宿主 `VisionMaster\Services\SolutionAssetService.cs:198`
@@ -39,6 +43,9 @@
    （运行时 `VisionMaster\Views\ScadaRuntimeWindow.xaml.cs:191-194/268-269`，编辑器
    `ScadaEditorView.xaml.cs:73-78`，探针 `tools\probes\_ScadaUiProbe\Program.cs:324`）。
    探针与宿主都按「方案文件所在目录 + 相对路径」解析，所以整包搬走就能用。
+5. **模板 / 模型资产写 `Assets\Templates\` / `Assets\Models\`**，图片仍写 `Image\`；
+   `.vms` 只存 `RelativePath` + `ContentHash`，不把模型二进制写进 JSON。
+   `AssetId` 必须是稳定 GUID；插件按 Id 解析文件，不再依赖绝对路径。
 
 流程里 CSV/Excel 的落点同理，写相对目录（`DirectoryTemplate = "History\{StepName}\{yyyy-MM}\"`），
 不要写 `D:\Records\...`。**已知边界**：`RecordingHub.ExpandTemplate` 之后走 `Path.GetFullPath`，
@@ -50,11 +57,18 @@
 - 全文正则 `"[^"]*[A-Za-z]:\\` 命中数 = 0；
 - 全文正则 `\.\.[\\/]` 命中数 = 0；
 - 每个 `SourcePath` / `SourceImagePath` 值都匹配 `^Image\\[^\\]+$`，且该文件确实存在于方案 `Image\`；
+- 每个 `TemplateAssets[].RelativePath` 都匹配 `^Assets\\Templates\\[^\\]+$`，`ModelAssets[].RelativePath` 都匹配 `^Assets\\Models\\[^\\]+$`，且文件存在；
+- 每个 `TemplateAssets[].AssetId` / `ModelAssets[].AssetId` / `ImageAssets[].AssetId` 都是稳定 Guid；插件 `TemplateAssetId` / `ModelAssetId` 能反查到对应集合；
 - 把整个方案文件夹复制到另一个目录后，**两个探针仍然全绿**（这是唯一的搬迁证据）。
 
 `tools\vms-generator\Program.CcgSolutionFolder.cs` 是这套纪律的可复制实现：
 `WriteFolderSolution`（建目录 + 收图 + 复制 + 自检）、`SourceImageMap`（样图库子目录 → 方案内平铺文件名）、
 `AssertNoExternalPath`、`CcgCsvRecord`/`CcgExcel`（相对输出目录）。
+
+2026-10-25 起，生成器的**所有**模式（默认六方案、`--stress`、`--smart-line`、`--ccg-*`）都走
+`WriteFolderSolution`；旧的 `WriteSolution`（平铺 + 绝对路径）已删除。压测产物在
+`解决方案\压测方案-3000节点\` 与 `解决方案\压测方案-3000节点-单流程\`。
+唯一例外是 `FlowCanvasChecks` 的断言夹具 `解决方案\合成颜色验证.vms`（不是生成器产物）。
 
 
 ---
@@ -85,6 +99,10 @@ SolutionModel
   "CameraConfigs": [],
   "MotionCards": [],
   "CamTables": [],
+  "Calibrations": [],
+  "TemplateAssets": [],
+  "ModelAssets": [],
+  "ImageAssets": [],
   "VariableSnapshots": [],
   "VariableGroups": [],
   "WatchItems": [],
@@ -358,7 +376,182 @@ static Guid G(string seed)
 - `ByteoRDER`（拼写就是这五个字母）在通讯配置里：0=ABCD，3=CDAB；
 - 只读区：`DiscreteInputs` / `InputRegisters` / S7 `I` 不能写。
 
-### 5.3 系统运动变量
+### 5.3 方案级标定资产 `Calibrations`
+
+商业软件的“标定一次、生产只引用”在 `.vms` 里对应顶层 `Calibrations` 集合，
+而不是把标定步骤塞进每件产品的流程：
+
+```json
+"Calibrations": [
+  {
+    "CalibrationId": "稳定 GUID",
+    "Name": "LineCalib",
+    "Description": "产线像素当量标定",
+    "IsLocked": false,
+    "Version": 1,
+    "Transform": {
+      "Kind": 0,
+      "MmPerPixel": 1.0,
+      "Matrix": [1.0, 0, 0, 1.0, 0, 0],
+      "ProjectiveMatrix": null,
+      "MeshNodes": null,
+      "MeshSize": 0,
+      "Intrinsics": null,
+      "SourceImageWidth": 640,
+      "SourceImageHeight": 480,
+      "SourceTag": "LineCalib",
+      "CameraSerial": "NET-STATION-02",
+      "CreatedAtUtc": "2026-10-25T00:00:00Z",
+      "ResidualRmsPx": 0,
+      "MaxResidualPx": 0,
+      "ResidualByRadiusBands": [0, 0, 0],
+      "ResidualBandCounts": [0, 0, 0],
+      "HandEyeMatrix": null,
+      "HandEyePose": 0,
+      "HandEyeRotationRmsRad": 0,
+      "HandEyeTranslationRmsMm": 0,
+      "HandEyeSampleCount": 0
+    }
+  }
+]
+```
+
+「标定」步骤的两种用法（同一个 `Plugin.Calibration` 类型）：
+
+- **计算并写入资产**：`UseSavedCalibration=false`、`SaveToCatalog=true`、`CatalogAssetName` / `CatalogAssetId`；
+  放在独立的 `Calib` 流程或换型流程里，不在每件节拍中执行。
+- **引用资产**：`UseSavedCalibration=true`、`SavedCalibrationName` 或 `SavedCalibrationId`；
+  不读图、不重算，输出资产里的 `Transform` / `MmPerPixel`。
+- 资产失配（Id/名字不存在、相机序列号不符）会明确失败，绝不静默退回当前表格计算。
+
+### 5.4 方案内容资产（模板 / 模型 / 图像）
+
+这三类是**方案级内容资产**，和 `Calibrations` 一样随 `.vms` 落盘，但文件本体放在方案目录：
+
+| 集合 | 文件落点 | 典型用途 |
+|---|---|---|
+| `TemplateAssets` | `Assets\Templates\` | Matching 模板库 JSON、几何模板 |
+| `ModelAssets` | `Assets\Models\` | OCR / YOLO / DL 的 `.onnx` 模型 |
+| `ImageAssets` | `Image\` | 标准图 / 参考图 / 采集图 |
+
+最小模板资产：
+
+```json
+"TemplateAssets": [
+  {
+    "AssetId": "稳定 GUID",
+    "Name": "Board01",
+    "Description": "ST2 定位模板库",
+    "Scope": "ST2 · 视觉定位",
+    "Camera": "NET-STATION-02",
+    "Version": 1,
+    "Status": "有效",
+    "IsFrozen": false,
+    "RelativePath": "Assets\\Templates\\Board01.json",
+    "ContentHash": "SHA256",
+    "FileSize": 12345,
+    "CreatedAtUtc": "2026-10-26T00:00:00Z",
+    "UpdatedAtUtc": "2026-10-26T00:00:00Z",
+    "CreatedBy": "AI",
+    "UpdatedBy": "AI",
+    "TemplateKind": "模板库",
+    "PreviewRelativePath": ""
+  }
+]
+```
+
+最小模型资产：
+
+```json
+"ModelAssets": [
+  {
+    "AssetId": "稳定 GUID",
+    "Name": "Yolo_ProductA",
+    "Description": "产品 A 目标检测",
+    "Scope": "ST6 · 识别追溯",
+    "Camera": "NET-STATION-02",
+    "Version": 1,
+    "Status": "有效",
+    "IsFrozen": false,
+    "RelativePath": "Assets\\Models\\productA.onnx",
+    "ContentHash": "SHA256",
+    "FileSize": 12345678,
+    "CreatedAtUtc": "2026-10-26T00:00:00Z",
+    "UpdatedAtUtc": "2026-10-26T00:00:00Z",
+    "CreatedBy": "AI",
+    "UpdatedBy": "AI",
+    "ModelKind": "ONNX",
+    "InputWidth": 640,
+    "InputHeight": 640,
+    "Labels": "OK,NG"
+  }
+]
+```
+
+最小图像资产：
+
+```json
+"ImageAssets": [
+  {
+    "AssetId": "稳定 GUID",
+    "Name": "Board01_Ref",
+    "Description": "板卡定位参考图",
+    "Scope": "ST2 · 视觉定位",
+    "Camera": "NET-STATION-02",
+    "Version": 1,
+    "Status": "有效",
+    "IsFrozen": false,
+    "RelativePath": "Image\\board_01.png",
+    "ContentHash": "SHA256",
+    "FileSize": 619775,
+    "CreatedAtUtc": "2026-10-26T00:00:00Z",
+    "UpdatedAtUtc": "2026-10-26T00:00:00Z",
+    "CreatedBy": "AI",
+    "UpdatedBy": "AI",
+    "Width": 1280,
+    "Height": 960,
+    "ImageKind": "标准图",
+    "SourceCamera": "NET-STATION-02"
+  }
+]
+```
+
+生成规则：
+
+1. `AssetId` 用稳定种子生成，**不要每次随机**；同一资产跨次生成必须同 Id。
+2. `RelativePath` 只用方案内相对路径；模板/模型不能写 `D:\...`，图片必须落 `Image\`。
+3. `ContentHash` 写文件 SHA-256（大写/小写保持一致即可）；`FileSize` 写字节数。
+4. `Version` 从 1 开始；只有内容真正变化才递增，不能每次生成都 +1。
+5. 文件本体必须真实存在；`TemplateAssets` / `ModelAssets` / `ImageAssets` 里有记录但文件缺失，资产页会标“缺失”，插件解析会明确失败。
+6. 模板资产若是 Matching 模板库，文件内容必须是 `MatchingTemplateEntry[]` JSON；不是任意 JSON 都能当模板库。
+
+**插件按 AssetId 引用（优先于路径）：**
+
+| 插件 | `InputValues` 字段 | 资产类型 |
+|---|---|---|
+| `Plugin.Matching.MatchingPlugin` | `TemplateAssetId` | template |
+| `Plugin.Ocr.OcrPlugin` | `ModelAssetId` | model |
+| `Plugin.Yolo.YoloPlugin` | `ModelAssetId` | model |
+| `Plugin.DlAnomaly.DlAnomalyPlugin` | `ModelAssetId` | model |
+| `Plugin.DlClassify.DlClassifyPlugin` | `ModelAssetId` | model |
+| `Plugin.DlSegment.DlSegmentPlugin` | `ModelAssetId` | model |
+
+示例：
+
+```json
+"InputValues": {
+  "TemplateAssetId": "稳定 GUID",
+  "ModelAssetId": "",
+  "ModelPath": ""
+}
+```
+
+- `AssetId` 非空时优先解析资产文件；为空才回退旧 `ModelPath` / `TemplateLibraryJson`。
+- `AssetId` 必须是合法 Guid；类型不符（例如把模板 Id 填到模型槽）会明确失败。
+- 模板资产必须是模板库 JSON；模型资产必须是可读文件。
+- 生成器可以只写 `AssetId`，不要再同时复制一份路径；两者都写时以 Id 为准。
+
+### 5.5 系统运动变量
 
 SCADA 绑定 `System.Motion.X.Position` 等，ID 不是 `G("var:...")`，而是：
 
@@ -563,10 +756,10 @@ S7：
 | --- | --- |
 | `Hmi.Text` | `Text`、`Foreground`、`FontSize`、`FontWeight`、`TextAlignment` |
 | `Hmi.Rectangle` | `Fill`、`Stroke`、`StrokeThickness`、`CornerRadius` |
-| `Hmi.Button` | `Text`、`Fill`、`Stroke`、`CornerRadius`、`Foreground` |
+| `Hmi.Button` | `Text`、`Fill`、`Stroke`、`CornerRadius`、`Foreground`、`Danger`（`"True"` = 危险动作：红边 + 淡红字） |
 | `Hmi.Indicator` | `IsOn`、`OnColor`、`OffColor`、`Shape`、`Text` |
 | `Hmi.Lamp` | `State`、`OnColor`、`WarningColor`、`AlarmColor`、`Text` |
-| `Hmi.IOField` | `Value`、`ValueFormat`、`Unit`、`Text` |
+| `Hmi.IOField` | `Value`、`ValueFormat`、`Unit`、`Text`（`ValueOnlyText` 是只读派生，**不要写**） |
 | `Hmi.TextField` | `Value`、`Placeholder`、`MaxLength`、`Mode`、`Text` |
 | `Hmi.KpiBoard` | `Columns`、`Label1..4`、`Value1..4`、`Unit1..4` |
 | `Hmi.Gauge` | `Value`、`Minimum`、`Maximum`、`ValueFormat`、`Unit` |
@@ -574,6 +767,11 @@ S7：
 | `Hmi.AxisConsole` | `AxisOptions`（JSON 字符串）、`ShowCommands`、`ShowPoints`、`PointsRows` |
 | `Hmi.AlarmBanner` | `MaxRows`、`EmptyText`、`NormalColor`、`WarningColor`、`CriticalColor` |
 | `Hmi.AckButton` | `Scope`、`Text`、`Fill` |
+| `Hmi.Report` | `Mode`（`Detail`/`Summary`）、`From`、`To`、`Grouping`、`ShiftStarts`、`Keyword`、`ReportColumns`（JSON 字符串）、`AutoQuery`、`MaxRows`、`PageSize`、`AllowExport`、`AllowPrint`、`ShowToolbar`、`PageOrientation`、`Zebra` |
+| `Hmi.Symbol` | `SymbolKind`（30 种，见 `ProcessSymbolCatalog`）、`State`、`AccentColor`、`StoppedColor`、`FaultColor`、`BlinkOnFault`、`DetailCount`、`TagPlacement`、`ShowValue`、`Value`、`ValueFormat`、`Unit`、`Interactive` |
+| `Hmi.PipeRun` | `FromId` / `ToId`（**图元 Id，不是名字**）、`FromPort` / `ToPort`（`Top`/`Right`/`Bottom`/`Left`）、`RouteMode`（`Orthogonal`/`Straight`）、`Detour`、`ShowLabel`、`LabelAt`（0~1）、`LabelOffset`、`Text`（管线号标签） |
+| `Hmi.BarChart` | `BarSeries`（JSON 字符串）、`Horizontal`、`MaxValue`、`TargetValue`、`ShowValues`、`SortMode`（`None`/`Desc`/`Asc`）、`ValueFormat` |
+| `Hmi.PieChart` | `PieSlices`（JSON 字符串）、`Donut`、`ShowPercent`、`MergeBelow`（0~1）、`ValueFormat` |
 
 `Hmi.AxisConsole` 的 `AxisOptions`：
 
@@ -582,6 +780,37 @@ S7：
 ```
 
 注意它是 **JSON 字符串**，不是数组。
+
+#### 7.3.1 三个"JSON 字符串"属性怎么写
+
+`ReportColumns` / `BarSeries` / `PieSlices` 在 `Properties` 里都是**字符串**（要再转义一层），
+内容是一个数组。**能用属性面板的「配置列… / 配置数据项…」就用面板生成**，下面是手写时的格式。
+
+柱状图 `BarSeries`（`Label` 显示名、`Variable` 工程变量名、`Color` 可空）：
+
+```json
+"[{\"Label\":\"A 工位\",\"Variable\":\"Qty_A\",\"Color\":\"\"},{\"Label\":\"B 工位\",\"Variable\":\"Qty_B\",\"Color\":\"#38BDF8\"}]"
+```
+
+饼图 `PieSlices` 同形，只是键名换成 `PieSlices`。
+
+报表 `ReportColumns`（字段：来源列名 → 显示名 → 格式 → 聚合 → 宽度）：
+
+```json
+"[{\"Source\":\"时间\",\"Title\":\"时间\",\"Format\":\"HH:mm:ss\",\"Aggregate\":0,\"Width\":140},{\"Source\":\"产量\",\"Title\":\"产量\",\"Format\":\"F0\",\"Aggregate\":1,\"Width\":0}]"
+```
+
+`Aggregate` 序号：`0` 不聚合 / `1` 求和 / `2` 平均 / `3` 最小 / `4` 最大 / `5` 计数 / `6` 末值。
+`Width=0` 表示占满剩余宽度。**来源列必须与账本 CSV 表头一致**（报表按列名取值，不是变量名）。
+
+管线两端引用的是**图元 Id**（`ElementId`），不是 `Name`：
+
+```json
+"FromId": "G(\"el:总览:罐1\")", "ToId": "G(\"el:总览:泵1\")", "FromPort": "Right", "ToPort": "Left"
+```
+
+生成顺序上，管线要放在两端图元**之后**，否则画布重排时找不到端点（会按空管线处理）。
+
 
 ### 7.4 绑定
 
@@ -875,6 +1104,11 @@ dotnet run --project tools\probes\_ScadaUiProbe\_ScadaUiProbe.csproj -- --soluti
 | 页面 X+Width > 1920 | 小屏裁切 | 控制右边界，时钟放 1400+300 |
 | 用 `Get-Content/Set-Content` 改 `.vms` | 中文/编码损坏 | 用 `[IO.File]::ReadAllText/WriteAllText(UTF8 no BOM)` |
 | 只构建插件不重建 | `Modules\` 仍旧 DLL | 改插件源码必须重建该插件工程 |
+| 把只读派生属性写进 `Properties` | 加载后被立刻覆盖（写不进） | `ValueOnlyText` / `DisplayBrush` / `DisplayStroke` / `IsEditing` 这类是运行时算的，**不要写** |
+| `ReportColumns` / `BarSeries` / `PieSlices` 写成 JSON 数组 | 反序列化失败，面板显示"未配置" | 它们在 `Properties` 里是**字符串**（再转义一层），见 §7.3.1 |
+| 管线 `FromId`/`ToId` 写成图元名字 | 运行时找不到端点，管线不显示 | 必须写 `ElementId`；且管线要排在两端图元之后 |
+| 报表 `Source` 写成工程变量名 | 报表查不到列 | `Source` 是**账本 CSV 列名**（不是变量名）；用「从账本导入列」生成最稳 |
+| 柱/饼的数据项写成 `label=var` 文本 | 也能读（兼容），但面板不认 | 规范形态是 §7.3.1 的 JSON；手写文本只作为兜底 |
 
 ---
 

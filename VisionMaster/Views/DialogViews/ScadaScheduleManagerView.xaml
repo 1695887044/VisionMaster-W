@@ -1,0 +1,361 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.ScadaScheduleManagerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    x:Name="Root"
+    d:DesignHeight="620"
+    d:DesignWidth="980"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--  本视图自带口粮（R22）：脱离 App 单独渲染时也能取到令牌  -->
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="FieldLabel" TargetType="TextBlock">
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+            </Style>
+
+            <Style x:Key="FieldBox" TargetType="TextBox">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="6,3" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="FieldCombo" TargetType="ComboBox">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="RowButton" TargetType="Button">
+                <Setter Property="Width" Value="24" />
+                <Setter Property="Height" Value="24" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="2,0,0,0" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Cursor" Value="Hand" />
+            </Style>
+
+            <DataTemplate x:Key="ScheduleItem">
+                <StackPanel Margin="2,3">
+                    <TextBlock
+                        FontSize="13"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="{Binding Name, FallbackValue=未命名计划}"
+                        TextTrimming="CharacterEllipsis" />
+                    <TextBlock
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="{Binding Describe}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="2" MinWidth="940" MaxHeight="600">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!--  ====================  左列：计划清单  ====================  -->
+        <DockPanel Grid.Column="0" Margin="0,0,12,0">
+            <TextBlock
+                DockPanel.Dock="Top"
+                Margin="2,0,0,6"
+                Style="{StaticResource FieldLabel}"
+                Text="计划（启用的才会执行）" />
+
+            <Button
+                DockPanel.Dock="Bottom"
+                Height="28"
+                Margin="0,8,0,0"
+                Click="OnAddSchedule"
+                Content="＋ 新建计划"
+                Cursor="Hand" />
+
+            <ListBox
+                x:Name="ScheduleList"
+                ItemTemplate="{StaticResource ScheduleItem}"
+                ItemsSource="{Binding Schedules, ElementName=Root}"
+                SelectionChanged="OnScheduleSelected" />
+        </DockPanel>
+
+        <!--  ====================  右列：编辑区  ====================  -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                <StackPanel DataContext="{Binding SelectedSchedule, ElementName=Root}">
+
+                    <TextBlock
+                        Margin="0,0,0,6"
+                        Style="{StaticResource FieldLabel}"
+                        Text="名称" />
+                    <DockPanel Margin="0,0,0,12">
+                        <CheckBox
+                            DockPanel.Dock="Right"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            Content="启用"
+                            IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                        <TextBox Style="{StaticResource FieldBox}" Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                    </DockPanel>
+
+                    <TextBlock
+                        Margin="0,0,0,6"
+                        Style="{StaticResource FieldLabel}"
+                        Text="触发" />
+                    <ComboBox
+                        Margin="0,0,0,10"
+                        Style="{StaticResource FieldCombo}"
+                        SelectedValue="{Binding Kind, Mode=TwoWay}"
+                        SelectedValuePath="Tag"
+                        SelectionChanged="OnKindChanged">
+                        <ComboBoxItem Content="时间计划" Tag="Time" />
+                        <ComboBoxItem Content="事件计划" Tag="Event" />
+                    </ComboBox>
+
+                    <!--  时间计划字段  -->
+                    <StackPanel Visibility="{Binding TimePanelVisibility, ElementName=Root}">
+                        <TextBlock
+                            Margin="0,0,0,6"
+                            Style="{StaticResource FieldLabel}"
+                            Text="周期与时刻" />
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <ComboBox
+                                Width="110"
+                                Style="{StaticResource FieldCombo}"
+                                SelectedValue="{Binding Period, Mode=TwoWay}"
+                                SelectedValuePath="Tag">
+                                <ComboBoxItem Content="每天" Tag="Daily" />
+                                <ComboBoxItem Content="每周" Tag="Weekly" />
+                                <ComboBoxItem Content="指定日期" Tag="Date" />
+                            </ComboBox>
+                            <TextBox
+                                Width="80"
+                                Margin="8,0,0,0"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding TimeOfDay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="HH:mm，例如 08:00" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="时刻（HH:mm）" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <TextBox
+                                Width="200"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding Days, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="1=周一 … 7=周日，逗号分隔；只在「每周」下有效" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="每周几（1=周一 … 7=周日）" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <TextBox
+                                Width="120"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding DateText, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="yyyy-MM-dd；只在「指定日期」下有效" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="指定日期（yyyy-MM-dd，只触发一次）" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!--  事件计划字段  -->
+                    <StackPanel Visibility="{Binding EventPanelVisibility, ElementName=Root}">
+                        <TextBlock
+                            Margin="0,0,0,6"
+                            Style="{StaticResource FieldLabel}"
+                            Text="变量与条件" />
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <TextBox
+                                Width="200"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding VariableName, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="工程变量名（与变量表里的名字一致）" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="变量名" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <ComboBox
+                                Width="130"
+                                Style="{StaticResource FieldCombo}"
+                                SelectedValue="{Binding Condition, Mode=TwoWay}"
+                                SelectedValuePath="Tag"
+                                SelectionChanged="OnConditionChanged">
+                                <ComboBoxItem Content="为真" Tag="IsTrue" />
+                                <ComboBoxItem Content="为假" Tag="IsFalse" />
+                                <ComboBoxItem Content="值改变" Tag="Changed" />
+                                <ComboBoxItem Content="高于上限" Tag="AboveLimit" />
+                                <ComboBoxItem Content="低于下限" Tag="BelowLimit" />
+                            </ComboBox>
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="条件" />
+                        </StackPanel>
+
+                        <StackPanel
+                            Margin="0,0,0,10"
+                            Orientation="Horizontal"
+                            Visibility="{Binding LimitPanelVisibility, ElementName=Root}">
+                            <TextBox
+                                Width="80"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding UpperLimit, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="6,0,10,0" Style="{StaticResource FieldLabel}" Text="上限" />
+                            <TextBox
+                                Width="80"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding LowerLimit, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock Margin="6,0,0,0" Style="{StaticResource FieldLabel}" Text="下限" />
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,10" Orientation="Horizontal">
+                            <TextBox
+                                Width="80"
+                                Style="{StaticResource FieldBox}"
+                                Text="{Binding DurationSeconds, UpdateSourceTrigger=PropertyChanged}" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="持续秒数（条件一断就重新计时；「值改变」不看它）" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!--  动作表  -->
+                    <TextBlock
+                        Margin="0,6,0,6"
+                        Style="{StaticResource FieldLabel}"
+                        Text="动作（按顺序执行；按名字引用变量/画面/流程/配方）" />
+                    <ItemsControl ItemsSource="{Binding Actions, ElementName=Root}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <ComboBox
+                                        Grid.Column="0"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource FieldCombo}"
+                                        SelectedValue="{Binding Type, Mode=TwoWay}"
+                                        SelectedValuePath="Tag"
+                                        SelectionChanged="OnActionTypeChanged">
+                                        <ComboBoxItem Content="跳页" Tag="Navigate" />
+                                        <ComboBoxItem Content="写变量" Tag="WriteVariable" />
+                                        <ComboBoxItem Content="启动流程" Tag="StartFlow" />
+                                        <ComboBoxItem Content="停止流程" Tag="StopFlow" />
+                                        <ComboBoxItem Content="应用配方" Tag="ApplyRecipe" />
+                                        <ComboBoxItem Content="播放声音" Tag="PlaySound" />
+                                        <ComboBoxItem Content="语音播报" Tag="SpeakText" />
+                                        <ComboBoxItem Content="日志" Tag="Log" />
+                                    </ComboBox>
+
+                                    <TextBox
+                                        Grid.Column="1"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource FieldBox}"
+                                        Text="{Binding Primary, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="{Binding PrimaryHint}" />
+
+                                    <TextBox
+                                        Grid.Column="2"
+                                        Margin="0,0,6,0"
+                                        Style="{StaticResource FieldBox}"
+                                        Text="{Binding Secondary, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="{Binding SecondaryHint}" />
+
+                                    <StackPanel Grid.Column="3" Orientation="Horizontal">
+                                        <Button
+                                            Click="OnMoveActionUp"
+                                            Content="↑"
+                                            Style="{StaticResource RowButton}"
+                                            ToolTip="上移" />
+                                        <Button
+                                            Click="OnMoveActionDown"
+                                            Content="↓"
+                                            Style="{StaticResource RowButton}"
+                                            ToolTip="下移" />
+                                        <Button
+                                            Click="OnRemoveAction"
+                                            Content="✕"
+                                            Style="{StaticResource RowButton}"
+                                            ToolTip="删除" />
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button
+                        Height="28"
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Left"
+                        Click="OnAddAction"
+                        Content="＋ 添加动作"
+                        Cursor="Hand" />
+
+                    <TextBlock
+                        x:Name="ErrorText"
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaDangerBrush}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <StackPanel
+                Grid.Row="1"
+                Margin="0,8,0,0"
+                HorizontalAlignment="Right"
+                Orientation="Horizontal">
+                <Button
+                    Height="28"
+                    Padding="12,0"
+                    Click="OnDeleteSchedule"
+                    Content="删除这条"
+                    Cursor="Hand" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

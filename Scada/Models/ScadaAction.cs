@@ -336,12 +336,7 @@ namespace VisionMaster.Scada
         /// 就要记得补第九行）又看不出意图。判断"哪些类型算运动动作"这份知识留在领域层一处，
         /// 模板只问"是不是"。执行侧的 switch 与这里是同一份清单——那边少一条会走进 default 被如实跳过。
         /// </summary>
-        public bool IsMotionAction => Type is
-            ScadaActionType.MotionEnable or ScadaActionType.MotionDisable
-            or ScadaActionType.MotionMoveAbsolute or ScadaActionType.MotionMoveRelative
-            or ScadaActionType.MotionHome or ScadaActionType.MotionStop
-            or ScadaActionType.MotionClearAlarm
-            or ScadaActionType.MotionJogStart or ScadaActionType.MotionJogStop;
+        public bool IsMotionAction => ScadaActionTaxonomy.IsMotion(Type);
 
         /// <summary>
         /// 这条动作是不是位操作族（置位 / 复位 / 取反）。给动作行模板一个布尔位去切
@@ -479,6 +474,8 @@ namespace VisionMaster.Scada
             ScadaActionType.ResetBit => BitDetail("0"),
             ScadaActionType.ToggleBit => BitDetail("取反"),
             ScadaActionType.PlaySound => _soundKind,
+            // 语音播报：行内只放模板原文（含 {变量}），面板窄、念出来是运行期的事
+            ScadaActionType.SpeakText => _text ?? string.Empty,
             ScadaActionType.Navigate => _targetPageName ?? string.Empty,
             ScadaActionType.NavigateBack => string.Empty,
             ScadaActionType.OpenPopup => _targetPageName ?? string.Empty,
@@ -640,6 +637,9 @@ namespace VisionMaster.Scada
             ScadaActionType.ResetBit => DescribeBit("复位", "0"),
             ScadaActionType.ToggleBit => DescribeBit("取反", "取反"),
             ScadaActionType.PlaySound => $"播放声音（{_soundKind}）",
+            ScadaActionType.SpeakText => string.IsNullOrWhiteSpace(_text)
+                ? "语音播报（内容未填）"
+                : $"语音播报「{_text}」（{_soundKind}）",
             ScadaActionType.Navigate => _targetPageId == Guid.Empty && string.IsNullOrEmpty(_targetPageName)
                 ? "切换画面（未选画面）"
                 : $"切换画面 → {_targetPageName}",

@@ -47,10 +47,21 @@ namespace VisionMaster.Views
             // 且后续拖拽的胶囊内容也不刷新）。
             GongDragDrop.SetDropHandler(Editor, new CanvasDropTarget(this));
 
+            // 自绘层也是工具箱的放置端（同一份 CanvasDropTarget）。
+            // R171：拖影 Popup 只由 gong 自己的放置端关闭，裸 Drop 会把它永久留在落点。
+            GongDragDrop.SetDropHandler(SurfacePreview, new CanvasDropTarget(this));
+            GongDragDrop.SetIsDropTarget(SurfacePreview, true);
+
             // 入树/离树成对挂摘订阅：AvalonDock 切换标签页、隐藏面板都会触发 Unloaded，
             // 所以清理必须可逆（离树摘干净让旧 VM 可 GC，入树重新挂上），不能用一次性 Dispose。
             Loaded += OnViewLoaded;
             Unloaded += OnViewUnloaded;
+
+            // 自绘画布**默认开启**（2026-10-25 上线）：日常走自绘渲染，Nodify 编辑器收起。
+            // 取消勾选即回到可编辑画布（拖动改序 / 框选 / 工具箱拖入 / 容器折叠）。
+            // 放在构造函数里而不是 XAML 的 IsChecked="True"：勾选要触发 OnSurfacePreviewChanged，
+            // 那时 Editor 已经构造好，可以立刻收起它并摘掉数据源。
+            ChkSurfacePreview.IsChecked = true;
 
             // 粘贴落点来源：指针在编辑器内移动即回报图坐标（Ctrl+V 直按也取"最后一次悬停位置"）
             Editor.PreviewMouseMove += OnEditorPointerMoved;
@@ -111,6 +122,16 @@ namespace VisionMaster.Views
             // 视图模型在构造里就渲染过一次，那时还没有订阅者，首次的"适应画布"请求等于丢了。
             // 补一次，否则首次打开面板停在默认视口，节点可能整片在视野外。
             OnViewportActionRequested(null);
+
+            // 自绘画布默认开启：VM 到位后补订阅 + 首帧（构造期 _viewModel 还是 null，
+            // 那一次 SyncSurface 直接返回了，不补就是"画布空白"）。
+            if (ChkSurfacePreview?.IsChecked == true)
+            {
+                SubscribeSurface();
+                Dispatcher.BeginInvoke(
+                    DispatcherPriority.Loaded,
+                    new Action(() => SyncSurface(zoomToFit: true)));
+            }
         }
 
         // ==================================================================
@@ -127,6 +148,9 @@ namespace VisionMaster.Views
             Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
+                    // 启动期视图模型先发视口请求、Nodify 编辑器尚未装配：没有画布可操作，直接忽略。
+                    if (Editor == null) return;
+
                     if (node == null)
                     {
                         Editor.FitToScreen(null);
@@ -276,6 +300,17 @@ namespace VisionMaster.Views
         /// </summary>
         private Point ToGraphPosition(Point positionInEditor)
         {
+            // 自绘模式：编辑器收起后 ViewportZoom/Location 不再更新，必须改读自绘层的 Zoom/Pan
+            if (SurfacePreview.Visibility == Visibility.Visible)
+            {
+                double surfaceZoom = SurfacePreview.Zoom;
+                if (surfaceZoom <= 0) surfaceZoom = 1.0;
+
+                return new Point(
+                    (positionInEditor.X - SurfacePreview.Pan.X) / surfaceZoom,
+                    (positionInEditor.Y - SurfacePreview.Pan.Y) / surfaceZoom);
+            }
+
             double zoom = Editor.ViewportZoom;
             if (zoom <= 0) zoom = 1.0;
 
@@ -414,6 +449,13 @@ namespace VisionMaster.Views
                 _guidesAdorner?.InvalidateVisual();
             }
 
+            // 小地图开关：自绘模式下由自绘层自己画，跟着同一个开关走
+            if (e.PropertyName == nameof(FlowCanvasViewModel.ShowMinimap)
+                && SurfacePreview.Visibility == Visibility.Visible)
+            {
+                SurfacePreview.ShowMiniMap = _viewModel?.ShowMinimap ?? false;
+            }
+
             // 浮层刚打开时鼠标未必移动过：用当前指针位置补一次，避免从 (0,0) 弹出来
             if (e.PropertyName == nameof(FlowCanvasViewModel.IsDragGhostVisible)
                 && _viewModel?.IsDragGhostVisible == true)
@@ -490,10 +532,8 @@ namespace VisionMaster.Views
 
         private bool _surfaceSubscribed;
         private bool _surfaceSyncPending;
-        private bool _surfacePanning;
         private bool _surfaceUserAdjusted;
-        private Point _surfacePanAnchor;
-        private Vector _surfacePanOrigin;
+        private bool _minimapDetached;
 
         /// <summary>
         /// 探针/自动化入口：等价于勾选工具条「自绘预览」。
@@ -515,6 +555,10 @@ namespace VisionMaster.Views
 
             Editor.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
             SurfacePreview.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
+
+            // 背景跟着一起显隐：它承载底色 + 点阵，拖动时不能跟着位移
+            if (on) SurfaceBackdrop.Background ??= FlowCanvasSurface.CanvasBackdropBrush;
+            SurfaceBackdrop.Visibility = on ? Visibility.Visible : Visibility.Collapsed;
 
             if (on)
             {
@@ -548,11 +592,31 @@ namespace VisionMaster.Views
                 SubscribeSurface();
                 // 首次显示要等布局拿到实际尺寸，否则 ActualWidth 还是 0。
                 // 继承成功时**不许再适配**（zoomToFit=true 会把继承来的视口覆盖掉）。
+                DetachMinimapBindings();
+
+                // 自绘模式下小地图由**自绘层自己画**（Nodify 的 Minimap 在折叠的编辑器上不生成 item），
+                // 所以这里只把原来那个宿主 Border 收起来，开关本身照常可用。
+                MiniMapHost.Visibility = Visibility.Collapsed;
+                SurfacePreview.ShowMiniMap = _viewModel?.ShowMinimap ?? false;
+                ChkMinimap.ToolTip = "显示/隐藏右下角小地图（自绘模式下由画布自己绘制）";
+
+                // 自绘层不做自由摆放：撤销/重做改了顺序之后必须按顺序重排坐标，
+                // 否则"顺序回去了、位置还停在原处"（图上看着还是旧顺序）。
+                if (_viewModel != null) _viewModel.AutoReflowOnStructureChange = true;
+
                 Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() => SyncSurface(zoomToFit: !inherited)));
             }
             else
             {
                 UnsubscribeSurface();
+                AttachMinimapBindings();
+                ChkMinimap.IsEnabled = true;
+                ChkMinimap.ToolTip = "显示/隐藏右下角小地图（默认关闭，避免遮挡输出节点）";
+                // 恢复 Nodify 的宿主 Border（清掉本地值，让 Style 里的 ShowMinimap 触发器重新接管）
+                MiniMapHost.ClearValue(VisibilityProperty);
+                SurfacePreview.ShowMiniMap = false;
+                // Nodify 是自由摆放，坐标由用户拖出来——绝不能跟着顺序重排
+                if (_viewModel != null) _viewModel.AutoReflowOnStructureChange = false;
                 // 恢复：直接给集合引用（原先的 XAML 绑定被上面覆盖了；诊断开关不追求可反复切换的完美）
                 Editor.ItemsSource = _viewModel?.Nodes;
                 Editor.Connections = _viewModel?.Links;
@@ -564,6 +628,7 @@ namespace VisionMaster.Views
             if (_surfaceSubscribed || _viewModel == null) return;
             _viewModel.Nodes.CollectionChanged += OnSurfaceSourceChanged;
             _viewModel.Links.CollectionChanged += OnSurfaceSourceChanged;
+            _viewModel.DataLinkScopeChanged += OnSurfaceScopeChanged;
             _surfaceSubscribed = true;
         }
 
@@ -572,8 +637,12 @@ namespace VisionMaster.Views
             if (!_surfaceSubscribed || _viewModel == null) return;
             _viewModel.Nodes.CollectionChanged -= OnSurfaceSourceChanged;
             _viewModel.Links.CollectionChanged -= OnSurfaceSourceChanged;
+            _viewModel.DataLinkScopeChanged -= OnSurfaceScopeChanged;
             _surfaceSubscribed = false;
         }
+
+        /// <summary>选中变了 → 数据线作用域变了 → 自绘层要重拍快照（合并到一次，和集合变化同一防抖）。</summary>
+        private void OnSurfaceScopeChanged() => OnSurfaceSourceChanged(null, null!);
 
         /// <summary>
         /// 集合变化 → 合并成一次重拍快照。**必须防抖**：一次重建会先 Clear 再逐个 Add，
@@ -596,6 +665,11 @@ namespace VisionMaster.Views
         private void SyncSurface(bool zoomToFit)
         {
             if (_viewModel == null) return;
+
+            // 自绘层不做自由摆放：撤销/重做改了顺序之后必须按顺序重排坐标。
+            // 放在这里而不是只在开关分支里——启动时开关先于 DataContext 置位，
+            // 那条路径上的 _viewModel 还是 null，只在开关分支里设会漏掉默认开启的场景。
+            _viewModel.AutoReflowOnStructureChange = true;
 
             SurfacePreview.SetModel(_viewModel);
 
@@ -645,9 +719,11 @@ namespace VisionMaster.Views
 
         /// <summary>
         /// 自绘模式下把视口喂给小地图。
-        /// 小地图的 `ItemsSource` 本来就绑 `Nodes`（不依赖编辑器），但 ViewportLocation/ViewportSize
-        /// 是从 NodifyEditor 来的；编辑器一收起就不再更新，小地图会停在一个旧视口上（表现为一个蓝方块）。
-        /// 用 SetCurrentValue 改值**不打断原绑定**，切回编辑器后自动恢复跟随。
+        /// 小地图的 `ItemsSource` 本来就绑 `Nodes`（不依赖编辑器），坏的是
+        /// `ViewportLocation`/`ViewportSize`——它们是 **TwoWay 绑到 NodifyEditor** 的，
+        /// 编辑器一收起就恒为 0，`SetCurrentValue` 写进去立刻被绑定的 0 覆盖回来，
+        /// 小地图据此算出的缩放是无穷，结果一片空白（2026-10-25 实拍）。
+        /// 所以必须**先解绑再赋值**，切回编辑器时把绑定原样装回去。
         /// </summary>
         private void UpdateMinimapViewport()
         {
@@ -656,10 +732,54 @@ namespace VisionMaster.Views
             double zoom = SurfacePreview.Zoom;
             if (!(zoom > 0.0001) || SurfacePreview.ActualWidth < 1) return;
 
-            MiniMap.SetCurrentValue(Nodify.Minimap.ViewportLocationProperty,
-                new Point(-SurfacePreview.Pan.X / zoom, -SurfacePreview.Pan.Y / zoom));
-            MiniMap.SetCurrentValue(Nodify.Minimap.ViewportSizeProperty,
-                new Size(SurfacePreview.ActualWidth / zoom, SurfacePreview.ActualHeight / zoom));
+            double vx = -SurfacePreview.Pan.X / zoom;
+            double vy = -SurfacePreview.Pan.Y / zoom;
+            double vw = SurfacePreview.ActualWidth / zoom;
+            double vh = SurfacePreview.ActualHeight / zoom;
+
+            // 视口可能比内容还宽（单列流程横向放大后就是这样），原样喂进去小地图会把矩形画得比整张图还大、
+            // 把小地图铺成一块纯色。夹到内容范围内：矩形才代表"我在这张图的哪个位置"。
+            var content = SurfacePreview.ContentBounds;
+            if (!content.IsEmpty && content.Width > 1 && content.Height > 1)
+            {
+                vw = Math.Min(vw, content.Width);
+                vh = Math.Min(vh, content.Height);
+                vx = Math.Clamp(vx, content.X, Math.Max(content.X, content.Right - vw));
+                vy = Math.Clamp(vy, content.Y, Math.Max(content.Y, content.Bottom - vh));
+            }
+
+            MiniMap.SetValue(Nodify.Minimap.ViewportLocationProperty, new Point(vx, vy));
+            MiniMap.SetValue(Nodify.Minimap.ViewportSizeProperty, new Size(vw, vh));
+        }
+
+        /// <summary>断开小地图与编辑器的视口绑定（自绘接管时调用，幂等）。</summary>
+        private void DetachMinimapBindings()
+        {
+            if (_minimapDetached) return;
+            System.Windows.Data.BindingOperations.ClearBinding(MiniMap, Nodify.Minimap.ViewportLocationProperty);
+            System.Windows.Data.BindingOperations.ClearBinding(MiniMap, Nodify.Minimap.ViewportSizeProperty);
+            _minimapDetached = true;
+        }
+
+        /// <summary>把视口绑定装回编辑器（切回 Nodify 时调用）。</summary>
+        private void AttachMinimapBindings()
+        {
+            if (!_minimapDetached) return;
+
+            MiniMap.SetBinding(Nodify.Minimap.ViewportLocationProperty,
+                new System.Windows.Data.Binding(nameof(NodifyEditor.ViewportLocation))
+                {
+                    ElementName = "Editor",
+                    Mode = System.Windows.Data.BindingMode.TwoWay,
+                });
+            MiniMap.SetBinding(Nodify.Minimap.ViewportSizeProperty,
+                new System.Windows.Data.Binding(nameof(NodifyEditor.ViewportSize))
+                {
+                    ElementName = "Editor",
+                    Mode = System.Windows.Data.BindingMode.TwoWay,
+                });
+
+            _minimapDetached = false;
         }
 
         private void OnSurfaceMouseWheel(object sender, MouseWheelEventArgs e)
@@ -676,43 +796,270 @@ namespace VisionMaster.Views
             e.Handled = true;
         }
 
+        // ==================================================================
+        //  自绘层交互：拖动改序 / 框选多选 / 中键平移 / 容器折叠 / 双击 / 右键
+        // ==================================================================
+
+        private enum SurfaceGesture { None, Pan, Marquee, NodeDrag, MiniMap }
+
+        private SurfaceGesture _gesture;
+        private Point _gestureAnchor;                    // UserControl 坐标（不受 RenderTransform 影响）
+        private Vector _panOrigin;
+        private Point _marqueeStart;                     // SurfacePreview 坐标
+        private bool _marqueeAdditive;
+        private Vector _dragOffset;                      // 拖动中的渲染偏移（图坐标）
+        private readonly List<(CanvasNodeViewModel Node, Point Origin)> _dragOrigins = new();
+
+        private Point ToSurfaceGraph(Point p) => new(
+            (p.X - SurfacePreview.Pan.X) / SurfacePreview.Zoom,
+            (p.Y - SurfacePreview.Pan.Y) / SurfacePreview.Zoom);
+
         private void OnSurfaceMouseDown(object sender, MouseButtonEventArgs e)
         {
             var p = e.GetPosition(SurfacePreview);
-            double wx = (p.X - SurfacePreview.Pan.X) / SurfacePreview.Zoom;
-            double wy = (p.Y - SurfacePreview.Pan.Y) / SurfacePreview.Zoom;
 
-            var hit = SurfacePreview.HitTest(new Point(wx, wy));
-            if (hit?.Model is CanvasNodeViewModel node)
+            // 小地图优先：点它就跳转视口，按住拖动可以**连续**扫视
+            if (SurfacePreview.TryMiniMapJump(p))
             {
-                // 走 VM 既有的选中链路（属性栏跟随），不自建第二套选中
-                node.IsSelected = true;
+                _gesture = SurfaceGesture.MiniMap;
+                _surfaceUserAdjusted = true;
+                SurfacePreview.CaptureMouse();
+                UpdateMinimapViewport();
+                e.Handled = true;
                 return;
             }
 
-            // 空白处拖动 = 平移（只读预览没有框选语义）
-            _surfacePanning = true;
-            _surfaceUserAdjusted = true;
-            _surfacePanAnchor = p;
-            _surfacePanOrigin = SurfacePreview.Pan;
+            var graph = ToSurfaceGraph(p);
+            var hit = SurfacePreview.HitTest(graph);
+
+            if (hit is { Model: CanvasNodeViewModel node })
+            {
+                // 折叠钮优先：容器组头右上角 18×18（与绘制同源，别改这里不改绘制）
+                if (node.Kind == CanvasNodeKind.Container
+                    && FlowCanvasSurface.CollapseButtonRect(hit.Value.Bounds).Contains(graph))
+                {
+                    _viewModel?.ToggleCollapseCommand.Execute(node);
+                    e.Handled = true;
+                    return;
+                }
+
+                // 走 VM 既有的选中链路（属性栏跟随），不自建第二套选中。
+                // **必须先清掉其它节点的选中**：只置 true 不清旧的，点几下就变成多选了。
+                // Shift 按住才追加。
+                bool additive = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+                if (!additive && _viewModel != null)
+                {
+                    foreach (var other in _viewModel.Nodes)
+                    {
+                        if (!ReferenceEquals(other, node) && other.IsSelected) other.IsSelected = false;
+                    }
+                }
+
+                node.IsSelected = true;
+
+                // 双击 = 模块参数（与 Nodify 画布、流程栏右键同一入口，分派在 StepParameterDialog）
+                if (e.ClickCount == 2)
+                {
+                    _viewModel?.OpenModuleParameters(node);
+                    return;
+                }
+
+                // 拖动改序：**只做渲染偏移**，不碰模型坐标（见 BeginNodeDrag 注释）
+                BeginNodeDrag(e.GetPosition(this));
+                return;
+            }
+
+            // 空白处左键拖 = 框选（与 Nodify 一致）；平移改中键
+            _gesture = SurfaceGesture.Marquee;
+            _marqueeAdditive = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
+            _marqueeStart = p;
+            _gestureAnchor = e.GetPosition(this);
             SurfacePreview.CaptureMouse();
+        }
+
+        /// <summary>中键平移（与 Nodify 一致：空白处左键让给框选）。</summary>
+        private void OnSurfaceMouseDownAny(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ChangedButton != MouseButton.Middle) return;
+
+            _gesture = SurfaceGesture.Pan;
+            _gestureAnchor = e.GetPosition(this);
+            _panOrigin = SurfacePreview.Pan;
+            _surfaceUserAdjusted = true;
+            SurfacePreview.CaptureMouse();
+            e.Handled = true;
+        }
+
+        /// <summary>
+        /// 抬起选中集开始拖动。**拖动期不改模型坐标**（画布位置是布局器算的，写回会让图散架）；
+        /// 只记录起点，移动时给自绘层喂"渲染偏移"，落定时再交给 VM 提交顺序并重排。
+        /// 不走 `ItemsDragStartedCommand`：那条链路会拉起拖动浮层与对齐参考线，
+        /// 它们挂在已收起的 Nodify 编辑器上，位置全是错的。
+        /// </summary>
+        private void BeginNodeDrag(Point anchorInHost)
+        {
+            _dragOrigins.Clear();
+
+            if (_viewModel != null)
+            {
+                foreach (var n in _viewModel.Nodes)
+                {
+                    if (n.IsSelected && n.IsDraggable) _dragOrigins.Add((n, n.Location));
+                }
+            }
+
+            if (_dragOrigins.Count == 0) return;
+
+            _gesture = SurfaceGesture.NodeDrag;
+            _gestureAnchor = anchorInHost;
+            _surfaceUserAdjusted = true;
+            SurfacePreview.CaptureMouse();
+        }
+
+        /// <summary>
+        /// 自绘层右键 = 与 Nodify 画布同一份节点菜单（A1：StepNodeContextMenu / ContainerNodeContextMenu
+        /// 是 UserControl.Resources 里的**单实例**，这里只换 DataContext 与放置点，不另建菜单）。
+        /// 命中不到节点时不开菜单（与 Nodify 一致：空白处右键无动作）。
+        /// </summary>
+        private void OnSurfaceMouseRightDown(object sender, MouseButtonEventArgs e)
+        {
+            var p = e.GetPosition(SurfacePreview);
+            var graph = ToSurfaceGraph(p);
+
+            if (SurfacePreview.HitTest(graph)?.Model is not CanvasNodeViewModel node) return;
+
+            node.IsSelected = true;
+
+            string key = node.Kind == CanvasNodeKind.Container ? "ContainerNodeContextMenu" : "StepNodeContextMenu";
+            if (TryFindResource(key) is not ContextMenu menu) return;
+
+            menu.DataContext = node;
+            menu.PlacementTarget = SurfacePreview;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
+            menu.IsOpen = true;
+            e.Handled = true;
         }
 
         private void OnSurfaceMouseMove(object sender, MouseEventArgs e)
         {
-            if (!_surfacePanning) return;
-            var p = e.GetPosition(SurfacePreview);
-            SurfacePreview.Pan = new Vector(
-                _surfacePanOrigin.X + (p.X - _surfacePanAnchor.X),
-                _surfacePanOrigin.Y + (p.Y - _surfacePanAnchor.Y));
-            UpdateMinimapViewport();
+            if (_gesture == SurfaceGesture.None) return;
+
+            var host = e.GetPosition(this);
+            double zoom = SurfacePreview.Zoom <= 0 ? 1 : SurfacePreview.Zoom;
+
+            switch (_gesture)
+            {
+                case SurfaceGesture.Pan:
+                    // 拖动必须**真的重绘**：只做位图位移的话，新拖进视口的那部分没有节点
+                    SurfacePreview.Pan = new Vector(
+                        _panOrigin.X + (host.X - _gestureAnchor.X),
+                        _panOrigin.Y + (host.Y - _gestureAnchor.Y));
+                    break;
+
+                case SurfaceGesture.NodeDrag:
+                    {
+                        double dx = (host.X - _gestureAnchor.X) / zoom;
+                        double dy = (host.Y - _gestureAnchor.Y) / zoom;
+
+                        // 只喂渲染偏移：模型坐标不动，落定后由布局器重排
+                        _dragOffset = new Vector(dx, dy);
+                        SurfacePreview.SetDragOffsets(
+                            _dragOrigins.Select(o => (o.Node, _dragOffset)));
+                        break;
+                    }
+
+                case SurfaceGesture.MiniMap:
+                    // 按住小地图连续拖动：每一帧都把视口中心对到指针所指的图坐标
+                    SurfacePreview.TryMiniMapJump(e.GetPosition(SurfacePreview));
+                    UpdateMinimapViewport();
+                    break;
+
+                case SurfaceGesture.Marquee:
+                    {
+                        var p = e.GetPosition(SurfacePreview);
+                        SurfacePreview.MarqueeScreenRect = new Rect(
+                            Math.Min(_marqueeStart.X, p.X),
+                            Math.Min(_marqueeStart.Y, p.Y),
+                            Math.Abs(p.X - _marqueeStart.X),
+                            Math.Abs(p.Y - _marqueeStart.Y));
+                        break;
+                    }
+            }
         }
 
         private void OnSurfaceMouseUp(object sender, MouseButtonEventArgs e)
         {
-            if (!_surfacePanning) return;
-            _surfacePanning = false;
+            var gesture = _gesture;
+            if (gesture == SurfaceGesture.None) return;
+
+            _gesture = SurfaceGesture.None;
             SurfacePreview.ReleaseMouseCapture();
+
+            switch (gesture)
+            {
+                case SurfaceGesture.NodeDrag:
+                    {
+                        SurfacePreview.ClearDragOffsets();
+
+                        var dragged = _dragOrigins.Select(o => o.Node).ToList();
+                        if (dragged.Count > 0 && _viewModel != null)
+                        {
+                            // 落点按**视觉**中心算（模型坐标 + 拖动偏移）
+                            var origin = _dragOrigins[0].Origin;
+                            var center = new Point(
+                                origin.X + _dragOffset.X + FlowCanvasViewModel.NodeWidth / 2,
+                                origin.Y + _dragOffset.Y + FlowCanvasViewModel.NodeHeight / 2);
+
+                            _viewModel.CompleteSurfaceNodeDrag(dragged, center);
+                        }
+
+                        _dragOrigins.Clear();
+                        _dragOffset = default;
+                        break;
+                    }
+
+                case SurfaceGesture.Marquee:
+                    ApplyMarqueeSelection();
+                    SurfacePreview.MarqueeScreenRect = null;
+                    break;
+
+                case SurfaceGesture.Pan:
+                    UpdateMinimapViewport();
+                    break;
+            }
+        }
+
+        /// <summary>框选落定：按屏幕矩形反变换到图坐标，选中与之相交的节点（泳道不参与）。</summary>
+        private void ApplyMarqueeSelection()
+        {
+            if (_viewModel == null) return;
+
+            var box = SurfacePreview.MarqueeScreenRect;
+            if (box is not { } screen || screen.Width < 3 || screen.Height < 3)
+            {
+                // 空白处单击（没拖出面积）= 清空选中
+                if (!_marqueeAdditive)
+                {
+                    foreach (var n in _viewModel.Nodes) n.IsSelected = false;
+                }
+                return;
+            }
+
+            double zoom = SurfacePreview.Zoom <= 0 ? 1 : SurfacePreview.Zoom;
+            var graph = new Rect(
+                (screen.X - SurfacePreview.Pan.X) / zoom,
+                (screen.Y - SurfacePreview.Pan.Y) / zoom,
+                screen.Width / zoom,
+                screen.Height / zoom);
+
+            var hits = SurfacePreview.HitTestRect(graph);
+
+            if (!_marqueeAdditive)
+            {
+                foreach (var n in _viewModel.Nodes) n.IsSelected = false;
+            }
+
+            foreach (var n in hits) n.IsSelected = true;
         }
 
         // ==================================================================

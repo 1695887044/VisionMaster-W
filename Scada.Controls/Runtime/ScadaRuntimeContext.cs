@@ -79,7 +79,11 @@ namespace VisionMaster.Scada.Controls
             IReadOnlyList<ScadaAlarmRecord>? priorAlarms = null,
             IScadaHistorySource? history = null,
             IReadOnlyList<ScadaStateList>? stateLists = null,
-            IScadaSubPageHost? subPages = null)
+            IScadaSubPageHost? subPages = null,
+            IScadaReportSource? reports = null,
+            IScadaReportExporter? reportExporter = null,
+            IScadaAuditSink? audit = null,
+            Func<string, bool>? accessLoginPrompt = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -93,6 +97,10 @@ namespace VisionMaster.Scada.Controls
             History = history;
             StateLists = stateLists ?? Array.Empty<ScadaStateList>();
             SubPages = subPages;
+            Reports = reports;
+            ReportExporter = reportExporter;
+            Audit = audit;
+            AccessLoginPrompt = accessLoginPrompt;
         }
 
         /// <summary>
@@ -202,5 +210,59 @@ namespace VisionMaster.Scada.Controls
         /// 活跃子页宿主（SubPage 用）。<b>可为 null</b>：断言/无会话宿主只显示不登记事件。
         /// </summary>
         public IScadaSubPageHost? SubPages { get; }
+
+        /// <summary>
+        /// 报表数据源（<c>Hmi.Report</c> 用）。<b>可为 null</b>：没有历史目录时报表显示"未接入"。
+        ///
+        /// 与 <see cref="History"/> 分开：历史查询给"当前页的字符串行"，报表要"整段范围聚合"，
+        /// 两者的入参和返回都不同（见 <see cref="IScadaReportSource"/> 的类注释）。
+        /// </summary>
+        public IScadaReportSource? Reports { get; }
+
+        /// <summary>
+        /// 报表导出出口（xlsx / csv）。<b>可为 null</b>：此时导出按钮整体置灰，
+        /// 而不是按下去弹一个"导出失败"——控件库不引表格库，导出能力只能由宿主给。
+        /// </summary>
+        public IScadaReportExporter? ReportExporter { get; }
+
+        /// <summary>
+        /// 操作审计出口（导出/打印这类"把数据带出画面"的动作要留痕）。<b>可为 null</b>：
+        /// 没有审计时动作照做、只记日志——审计是合规要求，不是功能前提。
+        /// </summary>
+        public IScadaAuditSink? Audit { get; }
+
+        /// <summary>
+        /// 未授权点击的登录回调（B3）：参数是要求的权限 Key；true = 登录后重判通过。
+        /// <b>可为 null</b>：断言宿主/无界面宿主没有登录弹窗，此时按"直接拒绝"处理。
+        /// </summary>
+        public Func<string, bool>? AccessLoginPrompt { get; }
+
+        /// <summary>
+        /// 交互式授权：缺权限时先给宿主一次登录机会，登录成功后按最新权限重判一次。
+        ///
+        /// <b>只给"用户点了某个控件"这条路径用</b>。自动收手（权限撤销后的 JogStop）、
+        /// 脚本派发都不该弹登录——那些路径要么没有人可问，要么正在处理安全动作。
+        /// </summary>
+        public bool TryAuthorize(string? permission, out string? reason)
+        {
+            if (string.IsNullOrWhiteSpace(permission))
+            {
+                reason = null;
+                return true;
+            }
+
+            if (AccessPolicy.Can(permission!, out reason))
+                return true;
+
+            var deniedReason = reason;
+
+            if (AccessLoginPrompt?.Invoke(permission!) != true)
+            {
+                reason = deniedReason;
+                return false;
+            }
+
+            return AccessPolicy.Can(permission!, out reason);
+        }
     }
 }

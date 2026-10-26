@@ -26,6 +26,9 @@
         绑定也一样走不通，所以填充块在这里连 Width/Height/对齐都不写，全部交给代码摆。
     -->
     <Style TargetType="{x:Type local:ProgressBarElement}">
+        <!--  状态色默认取令牌（2026-10-26）  -->
+        <Setter Property="HighColor" Value="{StaticResource HmiStateFaultBrush}" />
+        <Setter Property="LowColor" Value="{StaticResource HmiStateWarningBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
 

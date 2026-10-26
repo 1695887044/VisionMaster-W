@@ -1,0 +1,1225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>用户管理 · 设计基线 v3.1（B3 补充态）</title>
+<style>
+  /* 设计令牌：值只用于本原型的渲染；WPF 侧一律引用 Colors.xaml 的 Dialog* 键。
+     本文件不出现任何十六进制颜色，颜色只用 rgb()/rgba() 与令牌变量名。 */
+  :root{
+    --dialog-accent: rgb(14,165,233);
+    --dialog-accent-dark: rgb(2,132,199);
+    --dialog-accent-light: rgb(224,242,254);
+    --dialog-accent-soft: rgb(240,249,255);
+    --dialog-accent-border: rgb(186,230,253);
+    --dialog-accent-text: rgb(3,105,161);
+    --dialog-bg: rgb(238,242,247);
+    --dialog-surface: rgb(255,255,255);
+    --dialog-scrim: rgba(0,0,0,0.6);
+    --dialog-card-border: rgb(227,233,242);
+    --dialog-input-bg: rgb(248,250,252);
+    --dialog-border: rgb(226,232,240);
+    --dialog-border-light: rgb(238,242,247);
+    --dialog-border-strong: rgb(203,213,225);
+    --dialog-text-primary: rgb(15,23,42);
+    --dialog-text-secondary: rgb(71,85,105);
+    --dialog-text-tertiary: rgb(100,116,139);
+    --dialog-text-muted: rgb(148,163,184);
+    --dialog-success: rgb(34,197,94);
+    --dialog-danger: rgb(239,68,68);
+    --dialog-warning: rgb(245,158,11);
+    --dialog-warning-text: rgb(180,83,9);
+    --dialog-danger-subtle: rgb(254,242,242);
+    --dialog-danger-text: rgb(185,28,28);
+    --dialog-danger-border: rgb(254,202,202);
+    --dialog-warning-subtle: rgb(255,244,229);
+    --dialog-warning-border: rgb(253,230,138);
+    --dialog-success-subtle: rgb(240,253,244);
+    --dialog-success-text: rgb(21,128,61);
+    --dialog-success-border: rgb(187,247,208);
+    --dialog-row-hover: rgb(241,245,249);
+    --dialog-row-alt: rgb(248,250,252);
+    --dialog-shadow: rgba(15,23,42,0.18);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--dialog-bg);
+    color:var(--dialog-text-primary);
+    font-family:"Segoe UI","Microsoft YaHei","PingFang SC",sans-serif;
+    font-size:12.5px;
+    -webkit-font-smoothing:antialiased;
+  }
+  body.shot{background:var(--dialog-surface);overflow:hidden}
+  .review{
+    max-width:1160px;margin:18px auto 10px;padding:12px 16px;
+    background:var(--dialog-surface);border:1px solid var(--dialog-card-border);
+    border-radius:10px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;
+  }
+  body.shot .review{display:none}
+  .review-title{font-size:13px;font-weight:600;color:var(--dialog-text-primary)}
+  .review-title span{font-weight:400;color:var(--dialog-text-tertiary);margin-left:8px}
+  .review-group{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .review-group b{font-size:11px;color:var(--dialog-text-tertiary);font-weight:500}
+  .review button{
+    font:inherit;font-size:11px;padding:5px 9px;border-radius:6px;cursor:pointer;
+    background:var(--dialog-surface);color:var(--dialog-text-secondary);
+    border:1px solid var(--dialog-border);
+  }
+  .review button:hover{background:var(--dialog-row-hover)}
+  .review button.on{background:var(--dialog-accent-light);border-color:var(--dialog-accent-border);color:var(--dialog-accent-text);font-weight:600}
+  .review-note{font-size:11px;color:var(--dialog-text-muted);flex-basis:100%}
+  .stage{display:flex;justify-content:center;padding:0 20px 24px}
+  body.shot .stage{padding:0}
+  .window{
+    position:relative;width:1100px;height:820px;flex:none;overflow:hidden;
+    background:var(--dialog-surface);border:1px solid var(--dialog-card-border);
+    border-radius:12px;box-shadow:0 18px 48px var(--dialog-shadow);
+    display:flex;flex-direction:column;
+  }
+  body.shot .window{border-radius:0;border:0;box-shadow:none}
+  /* 标题栏 52 */
+  .titlebar{
+    height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;
+    background:var(--dialog-row-alt);border-bottom:1px solid var(--dialog-border-light);
+  }
+  .title-icon{
+    width:28px;height:28px;border-radius:8px;flex:none;
+    background:var(--dialog-accent-light);color:var(--dialog-accent-text);
+    display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;
+  }
+  .title-text{min-width:0;flex:1}
+  .title-text h1{margin:0;font-size:15px;font-weight:600;line-height:18px;color:var(--dialog-text-primary)}
+  .title-text p{margin:2px 0 0;font-size:11px;line-height:14px;color:var(--dialog-text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .state-badge{
+    flex:none;padding:4px 8px;border-radius:6px;font-size:10.5px;font-weight:500;
+    background:var(--dialog-row-alt);color:var(--dialog-text-tertiary);
+    border:1px dashed var(--dialog-border-strong);
+  }
+  .icon-btn{
+    width:30px;height:30px;flex:none;border:0;border-radius:8px;cursor:pointer;
+    background:transparent;color:var(--dialog-text-secondary);font-size:14px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn:hover{background:var(--dialog-row-hover)}
+  /* 页签 44 */
+  .tabs{
+    height:44px;flex:none;display:flex;align-items:stretch;gap:2px;padding:0 20px;
+    background:var(--dialog-surface);border-bottom:1px solid var(--dialog-border-light);
+  }
+  .tab{
+    position:relative;border:0;background:transparent;cursor:pointer;font:inherit;
+    font-size:12.5px;color:var(--dialog-text-secondary);padding:0 16px;
+    display:flex;align-items:center;gap:7px;
+  }
+  .tab:hover{color:var(--dialog-text-primary);background:var(--dialog-row-hover)}
+  .tab.active{color:var(--dialog-accent-text);font-weight:600}
+  .tab.active::after{
+    content:"";position:absolute;left:12px;right:12px;bottom:0;height:2px;
+    background:var(--dialog-accent);border-radius:2px 2px 0 0;
+  }
+  .tab .count{
+    min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10px;
+    background:var(--dialog-accent-light);color:var(--dialog-accent-text);
+    display:inline-flex;align-items:center;justify-content:center;font-weight:600;
+  }
+  .window[data-state="NoSolution"] .tab,
+  .window[data-state="NotAdministrator"] .tab{opacity:.45;pointer-events:none}
+  /* 内容 672 */
+  .content{position:relative;flex:1;min-height:0;padding:16px 20px 0}
+  .panel{display:none;height:100%;min-height:0}
+  .panel.active{display:block}
+  /* 卡片 */
+  .card{
+    background:var(--dialog-surface);border:1px solid var(--dialog-card-border);
+    border-radius:10px;overflow:hidden;
+  }
+  .accounts-layout{height:100%;display:grid;grid-template-columns:300px 1fr;gap:16px}
+  .list-card{display:flex;flex-direction:column;min-height:0}
+  .card-head{
+    flex:none;display:flex;align-items:center;gap:8px;padding:12px 14px 10px;
+    border-bottom:1px solid var(--dialog-border-light);
+  }
+  .card-head h2{margin:0;font-size:13px;font-weight:600;flex:1}
+  .card-head .chip{
+    padding:2px 7px;border-radius:9px;font-size:10px;
+    background:var(--dialog-row-alt);color:var(--dialog-text-tertiary);
+    border:1px solid var(--dialog-border-light);
+  }
+  .btn{
+    font:inherit;font-size:11.5px;border-radius:7px;padding:7px 12px;cursor:pointer;
+    border:1px solid var(--dialog-border);background:var(--dialog-surface);
+    color:var(--dialog-text-secondary);display:inline-flex;align-items:center;gap:6px;
+  }
+  .btn:hover{background:var(--dialog-row-hover)}
+  .btn:disabled{opacity:.45;pointer-events:none;cursor:not-allowed}
+  .btn.primary{background:var(--dialog-accent);border-color:var(--dialog-accent);color:rgb(255,255,255);font-weight:600}
+  .btn.primary:hover{background:var(--dialog-accent-dark);border-color:var(--dialog-accent-dark)}
+  .btn.danger{background:var(--dialog-danger);border-color:var(--dialog-danger);color:rgb(255,255,255);font-weight:600}
+  .btn.danger:hover{background:var(--dialog-danger-text);border-color:var(--dialog-danger-text)}
+  .btn.danger-ghost{background:var(--dialog-surface);border-color:var(--dialog-danger-border);color:var(--dialog-danger-text)}
+  .btn.danger-ghost:hover{background:var(--dialog-danger-subtle)}
+  .btn.secondary{background:var(--dialog-surface)}
+  .btn.small{padding:5px 9px;font-size:11px}
+  .search{
+    flex:none;display:flex;align-items:center;gap:7px;margin:10px 12px 8px;
+    padding:7px 9px;border:1px solid var(--dialog-border);border-radius:7px;
+    background:var(--dialog-input-bg);color:var(--dialog-text-muted);
+  }
+  .search input{flex:1;border:0;outline:0;background:transparent;font:inherit;font-size:12px;color:var(--dialog-text-primary)}
+  .account-list{flex:1;min-height:0;overflow:auto;padding:0 8px 6px}
+  .account-row{
+    display:flex;align-items:center;gap:9px;padding:8px;border-radius:7px;cursor:pointer;
+    border:1px solid transparent;
+  }
+  .account-row:hover{background:var(--dialog-row-hover)}
+  .account-row.selected{background:var(--dialog-accent-soft);border-color:var(--dialog-accent-border)}
+  .avatar{
+    width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    background:var(--dialog-row-alt);border:1px solid var(--dialog-border-light);
+    color:var(--dialog-text-secondary);font-size:11px;font-weight:700;
+  }
+  .account-row.selected .avatar{background:var(--dialog-accent-light);color:var(--dialog-accent-text);border-color:var(--dialog-accent-border)}
+  .account-main{min-width:0;flex:1}
+  .account-main b{display:block;font-size:12px;font-weight:600;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .account-main small{display:block;font-size:10.5px;line-height:13px;color:var(--dialog-text-tertiary);margin-top:1px}
+  .role-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dialog-text-muted)}
+  .role-dot.admin{background:var(--dialog-danger)}
+  .role-dot.engineer{background:var(--dialog-warning)}
+  .role-dot.operator{background:var(--dialog-success)}
+  .store-path{
+    flex:none;padding:8px 12px 10px;border-top:1px solid var(--dialog-border-light);
+    font-size:10.5px;color:var(--dialog-text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .form-card{display:flex;flex-direction:column;min-height:0;padding:16px 18px}
+  .form-head{flex:none;display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+  .form-head h2{margin:0;font-size:14px;font-weight:600;line-height:18px}
+  .form-head p{margin:3px 0 0;font-size:11px;line-height:15px;color:var(--dialog-text-tertiary)}
+  .form-head .tag{
+    flex:none;padding:3px 8px;border-radius:9px;font-size:10.5px;font-weight:600;
+    background:var(--dialog-accent-soft);color:var(--dialog-accent-text);
+    border:1px solid var(--dialog-accent-border);
+  }
+  .readonly-flag{display:none;flex:none;padding:3px 8px;border-radius:9px;font-size:10.5px;
+    background:var(--dialog-row-alt);color:var(--dialog-text-tertiary);border:1px solid var(--dialog-border-light)}
+  .window[data-state="UnsavedSolution"] .readonly-flag{display:inline-flex}
+  .banner{
+    display:none;align-items:flex-start;gap:8px;padding:9px 11px;margin-bottom:10px;
+    border:1px solid var(--dialog-border);border-radius:8px;font-size:11.5px;line-height:16px;
+  }
+  .banner b{font-weight:600}
+  .banner .banner-icon{flex:none;font-weight:700}
+  .banner-warn{background:var(--dialog-warning-subtle);border-color:var(--dialog-warning-border);color:var(--dialog-warning-text)}
+  .banner-error{background:var(--dialog-danger-subtle);border-color:var(--dialog-danger-border);color:var(--dialog-danger-text)}
+  .banner-info{background:var(--dialog-accent-soft);border-color:var(--dialog-accent-border);color:var(--dialog-accent-text)}
+  .window[data-state="UnsavedSolution"] .banner-unsaved,
+  .window[data-state="FactoryFallback"] .banner-factory,
+  .window[data-state="WriteFailed"] .banner-writefailed,
+  .window[data-state="LoadingOrFailed"] .banner-loading,
+  .window[data-state="EmptyAccounts"] .banner-emptyaccounts{display:flex}
+  .banner .banner-actions{margin-left:auto;flex:none;display:flex;gap:6px}
+  .account-form{flex:1;min-height:0;overflow:auto;padding-right:2px}
+  .window[data-state="UnsavedSolution"] .account-form,
+  .window[data-state="EmptyAccounts"] .account-form{opacity:.55;pointer-events:none}
+  .window[data-state="UnsavedSolution"] .account-row{opacity:.65;pointer-events:none}
+  .window[data-state="UnsavedSolution"] .card-head .btn.small,
+  .window[data-state="LoadingOrFailed"] .card-head .btn.small{opacity:.45;pointer-events:none}
+  .window[data-state="FactoryFallback"] .btn.danger-ghost{opacity:.45;pointer-events:none}
+  .window[data-state="WebUnavailable"] .toolbar .btn.danger{opacity:.45;pointer-events:none}
+  .window[data-state="EmptyAccounts"] .form-head,
+  .window[data-state="EmptyAccounts"] .account-form{display:none}
+  .delete-hint{display:none;font-size:10.5px;color:var(--dialog-warning-text);margin-left:4px}
+  .window[data-state="FactoryFallback"] .delete-hint{display:inline}
+  .form-empty{display:none;flex:1;align-items:center;justify-content:center;flex-direction:column;gap:8px;text-align:center;padding:24px}
+  .window[data-state="EmptyAccounts"] .form-empty{display:flex}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:11.5px;color:var(--dialog-text-secondary);margin-bottom:5px}
+  .field input,.field select{
+    width:100%;height:34px;padding:0 10px;border:1px solid var(--dialog-border);
+    border-radius:7px;background:var(--dialog-input-bg);font:inherit;font-size:12.5px;
+    color:var(--dialog-text-primary);outline:none;
+  }
+  .field input:focus,.field select:focus{border-color:var(--dialog-accent);background:var(--dialog-surface);box-shadow:0 0 0 2px var(--dialog-accent-light)}
+  .field input[readonly]{background:var(--dialog-row-alt);color:var(--dialog-text-tertiary);border-color:var(--dialog-border-light)}
+  .field .hint{margin:5px 0 0;font-size:10.5px;color:var(--dialog-text-muted)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .form-actions{display:flex;align-items:center;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--dialog-border-light)}
+  .form-actions .right{margin-left:auto;display:flex;gap:8px}
+  .policy{
+    flex:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--dialog-border-light);
+    font-size:10.5px;line-height:16px;color:var(--dialog-text-tertiary);
+  }
+  .policy a{color:var(--dialog-accent-text);text-decoration:none;font-weight:600;cursor:pointer}
+  .policy a:hover{text-decoration:underline}
+  /* 在线会话 / 审计 */
+  .stack-panel{height:100%;display:flex;flex-direction:column;min-height:0}
+  .toolbar{flex:none;display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
+  .toolbar h2{margin:0;font-size:14px;font-weight:600;line-height:18px}
+  .toolbar p{margin:3px 0 0;font-size:11px;line-height:15px;color:var(--dialog-text-tertiary)}
+  .toolbar .actions{margin-left:auto;display:flex;gap:8px;flex:none}
+  .table-card{flex:1;min-height:0;overflow:auto}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th{
+    position:sticky;top:0;z-index:1;text-align:left;font-size:10.5px;font-weight:600;
+    color:var(--dialog-text-tertiary);background:var(--dialog-row-alt);
+    padding:8px 10px;border-bottom:1px solid var(--dialog-border);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  td{
+    font-size:11.5px;color:var(--dialog-text-secondary);padding:8px 10px;
+    border-bottom:1px solid var(--dialog-border-light);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  tbody tr:hover td{background:var(--dialog-row-hover)}
+  td.mono{font-family:"Cascadia Mono","Consolas",monospace;font-size:10.5px;color:var(--dialog-text-tertiary)}
+  td.strong{font-weight:600;color:var(--dialog-text-primary)}
+  .pill{display:inline-flex;align-items:center;padding:2px 7px;border-radius:9px;font-size:10px;font-weight:600}
+  .pill.ok{background:var(--dialog-success-subtle);color:var(--dialog-success-text);border:1px solid var(--dialog-success-border)}
+  .pill.warn{background:var(--dialog-warning-subtle);color:var(--dialog-warning-text);border:1px solid var(--dialog-warning-border)}
+  .pill.danger{background:var(--dialog-danger-subtle);color:var(--dialog-danger-text);border:1px solid var(--dialog-danger-border)}
+  .pill.muted{background:var(--dialog-row-alt);color:var(--dialog-text-tertiary);border:1px solid var(--dialog-border-light)}
+  .link-btn{border:0;background:transparent;font:inherit;font-size:11px;color:var(--dialog-danger-text);cursor:pointer;padding:0;font-weight:600}
+  .link-btn:hover{text-decoration:underline}
+  .meta{flex:none;padding:8px 2px 0;font-size:10.5px;color:var(--dialog-text-muted)}
+  .filters{
+    flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;
+    padding:9px 11px;border:1px solid var(--dialog-border-light);border-radius:8px;background:var(--dialog-row-alt);
+  }
+  .filters label{font-size:10.5px;color:var(--dialog-text-tertiary)}
+  .filters input[type="text"]{
+    height:28px;padding:0 8px;border:1px solid var(--dialog-border);border-radius:6px;
+    background:var(--dialog-surface);font:inherit;font-size:11px;color:var(--dialog-text-primary);outline:none;
+  }
+  .filters select{
+    height:28px;padding:0 6px;border:1px solid var(--dialog-border);border-radius:6px;
+    background:var(--dialog-surface);font:inherit;font-size:11px;color:var(--dialog-text-primary);outline:none;
+  }
+  .filters .check{display:inline-flex;align-items:center;gap:5px;color:var(--dialog-text-secondary)}
+  .filters .check input{accent-color:var(--dialog-accent)}
+  .empty-web,.empty-accounts{display:none;flex:1;min-height:0;align-items:center;justify-content:center;flex-direction:column;gap:8px;padding:24px;text-align:center}
+  .window[data-state="WebUnavailable"] .empty-web{display:flex}
+  .window[data-state="WebUnavailable"] .sessions-table{display:none}
+  .window[data-state="EmptyAccounts"] .empty-accounts{display:flex}
+  .window[data-state="EmptyAccounts"] .account-row{display:none}
+  .window[data-state="FactoryFallback"] .account-row:not(.factory){display:none}
+  .empty-icon{
+    width:44px;height:44px;border-radius:12px;background:var(--dialog-row-alt);
+    border:1px solid var(--dialog-border-light);display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:var(--dialog-text-muted);
+  }
+  .empty-title{font-size:13px;font-weight:600;color:var(--dialog-text-secondary)}
+  .empty-hint{font-size:11px;line-height:16px;color:var(--dialog-text-muted);max-width:420px}
+  /* 骨架 */
+  .skeleton-list,.skeleton-form{display:none}
+  .window[data-state="LoadingOrFailed"] .skeleton-list{display:block}
+  .window[data-state="LoadingOrFailed"] .skeleton-form{display:block}
+  .window[data-state="LoadingOrFailed"] .account-row{display:none}
+  .window[data-state="LoadingOrFailed"] .account-form > :not(.skeleton-form){display:none}
+  .window[data-state="WebUnavailable"] .table-card{display:flex;align-items:center;justify-content:center}
+  .window[data-state="EmptyAccounts"] .account-list{display:flex;flex-direction:column;justify-content:center}
+  .sk-row{display:flex;gap:8px;align-items:center;padding:9px 8px}
+  .sk{height:10px;border-radius:5px;background:var(--dialog-row-hover);overflow:hidden;position:relative}
+  .sk::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,var(--dialog-surface),transparent);opacity:.7}
+  .sk.avatar{width:28px;height:28px;border-radius:8px;flex:none}
+  .sk.w40{width:40%}.sk.w60{width:60%}.sk.w80{width:80%}.sk.w100{width:100%}
+  .sk-block{height:34px;margin-bottom:11px}
+  /* 覆盖层 */
+  .overlay{
+    position:absolute;inset:0;z-index:6;display:none;align-items:center;justify-content:center;
+    padding:24px;background:var(--dialog-row-alt);
+  }
+  .window[data-state="NoSolution"] .empty-nosolution{display:flex}
+  .window[data-state="NotAdministrator"] .modal-notadmin{display:flex}
+  .modal-notadmin{background:var(--dialog-scrim)}
+  .modal-card{
+    width:420px;max-width:100%;background:var(--dialog-surface);border:1px solid var(--dialog-card-border);
+    border-radius:12px;padding:20px;box-shadow:0 18px 48px var(--dialog-shadow);
+  }
+  .modal-card h3{margin:0 0 8px;font-size:15px;font-weight:600}
+  .modal-card p{margin:0 0 16px;font-size:12px;line-height:18px;color:var(--dialog-text-secondary)}
+  .modal-card .actions{display:flex;justify-content:flex-end;gap:8px}
+  /* 用户组编辑弹窗 */
+  .inline-row{display:flex;gap:8px;align-items:center}
+  .inline-row select{flex:1;min-width:0}
+  .group-editor{display:none;background:var(--dialog-scrim);z-index:8}
+  .group-editor.open{display:flex}
+  .group-card{width:780px;max-width:100%;max-height:100%;padding:0;overflow:auto;display:flex;flex-direction:column}
+  .group-head{display:flex;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--dialog-border-light)}
+  .group-head h3{margin:0;flex:1;font-size:15px;font-weight:600}
+  .group-layout{display:grid;grid-template-columns:230px 1fr;min-height:420px}
+  .group-list{padding:8px;border-right:1px solid var(--dialog-border-light);background:var(--dialog-row-alt)}
+  .group-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:7px;font-size:12px;color:var(--dialog-text-secondary);cursor:pointer;border:1px solid transparent}
+  .group-item:hover{background:var(--dialog-row-hover)}
+  .group-item.active{background:var(--dialog-accent-soft);border-color:var(--dialog-accent-border);color:var(--dialog-accent-text);font-weight:600}
+  .group-item .builtin{margin-left:auto;font-size:9.5px;color:var(--dialog-text-muted);font-weight:400}
+  .group-detail{padding:16px 18px;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px}
+  .perm-grid label{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--dialog-text-secondary)}
+  .perm-grid input{accent-color:var(--dialog-accent)}
+  .perm-grid label.disabled{opacity:.55}
+  .group-actions{display:flex;align-items:center;gap:8px;margin-top:auto;padding-top:12px;border-top:1px solid var(--dialog-border-light)}
+  .group-actions .right{margin-left:auto;display:flex;gap:8px}
+  .safety-note{font-size:10.5px;line-height:16px;color:var(--dialog-text-muted)}
+  /* 取消 Stop 的红字警告：常态是一行红字；勾掉「停止」后加框强调（保存前二次确认）。
+     选择器必须带 .group-detail —— .modal-card p 的优先级更高，裸 .stop-warning 会被压掉。 */
+  .group-detail .stop-warning{margin:10px 0 4px;font-size:10.5px;line-height:15px;color:var(--dialog-danger-text)}
+  .group-detail .stop-warning b{font-weight:700;margin-right:4px}
+  .group-detail.stop-off .stop-warning{
+    padding:7px 9px;border:1px solid var(--dialog-danger-border);
+    border-radius:7px;background:var(--dialog-danger-subtle);
+  }
+  .perm-title{font-size:11.5px;color:var(--dialog-text-secondary);margin-bottom:6px}
+  .group-detail.readonly .field input{opacity:.55;pointer-events:none}
+  /* 只读模板的权限仍要看得清“全勾”：只降到 .82，不跟输入框一样压到 .55 */
+  .group-detail.readonly .perm-grid{opacity:.82;pointer-events:none}
+  .group-detail.readonly .group-actions .btn.primary{opacity:.45;pointer-events:none}
+  .permission-editor{display:none;background:var(--dialog-scrim);z-index:9}
+  .permission-editor.open{display:flex}
+  .permission-card{width:820px;max-width:100%;max-height:100%;padding:0;overflow:hidden;display:flex;flex-direction:column}
+  .permission-body{flex:1;min-height:0;overflow:auto}
+  .permission-body th{padding:6px 10px}
+  .permission-body td{padding:4px 10px}
+  .permission-foot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px;border-top:1px solid var(--dialog-border-light)}
+  .permission-foot .safety-note{flex:1;min-width:0}
+  .permission-foot .btn{margin-left:auto;flex:none;white-space:nowrap}
+  /* 满额态才展开的 16 条自定义示例行（默认隐藏，不影响 16/32 常态） */
+  .perm-extra{display:none}
+  .permission-card.full .perm-extra{display:table-row}
+  .count-badge{padding:2px 8px;border-radius:9px;font-size:10.5px;font-weight:600;background:var(--dialog-accent-light);color:var(--dialog-accent-text);border:1px solid var(--dialog-accent-border)}
+  .link-btn:disabled{color:var(--dialog-text-muted);opacity:.45;pointer-events:none}
+  /* ===== v3.1 补充态（主结构不变） ===== */
+  .btn.active{background:var(--dialog-accent-light);border-color:var(--dialog-accent-border);color:var(--dialog-accent-text);font-weight:600}
+  .count-badge.full{background:var(--dialog-warning-subtle);color:var(--dialog-warning-text);border-color:var(--dialog-warning-border)}
+  /* 新建权限的行内表单：显示名 + 自动生成 Key 预览 + 取消/创建 */
+  .perm-newform{display:none;flex-wrap:wrap;align-items:flex-end;gap:10px;padding:11px 18px;border-bottom:1px solid var(--dialog-border-light);background:var(--dialog-row-alt)}
+  .perm-newform.open{display:flex}
+  .perm-newform .nf-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .perm-newform .nf-field.name{flex:1;min-width:230px}
+  .perm-newform .nf-field label{font-size:10.5px;color:var(--dialog-text-tertiary)}
+  .perm-newform input{height:30px;padding:0 9px;border:1px solid var(--dialog-accent);border-radius:6px;background:var(--dialog-surface);font:inherit;font-size:11.5px;color:var(--dialog-text-primary);outline:none;box-shadow:0 0 0 2px var(--dialog-accent-light)}
+  .perm-newform .key-preview{height:30px;display:flex;align-items:center;padding:0 10px;border:1px dashed var(--dialog-border-strong);border-radius:6px;background:var(--dialog-surface);font-family:"Cascadia Mono","Consolas",monospace;font-size:11px;color:var(--dialog-text-tertiary)}
+  .perm-newform .nf-actions{display:flex;gap:6px;margin-left:auto}
+  .perm-newform .nf-hint{flex-basis:100%;margin:0;font-size:10.5px;line-height:15px;color:var(--dialog-text-muted)}
+  .perm-limit{display:none;flex-basis:100%;margin-top:4px;font-size:10.5px;line-height:15px;font-weight:600;color:var(--dialog-warning-text)}
+  .perm-limit.show{display:block}
+  /* 运行态：鉴权失败与取消回执 */
+  .runtime-error{display:none;align-items:flex-start;gap:7px;margin:0 0 12px;padding:8px 10px;border:1px solid var(--dialog-danger-border);border-radius:7px;background:var(--dialog-danger-subtle);color:var(--dialog-danger-text);font-size:11.5px;line-height:16px}
+  .runtime-error.show{display:flex}
+  .runtime-error b{font-weight:700}
+  .runtime-result.cancel{background:var(--dialog-warning-subtle);border-color:var(--dialog-warning-border);color:var(--dialog-warning-text)}
+  /* 运行态未授权登录 */
+  .runtime-stage{display:none;width:1100px;height:820px;margin:0 auto;position:relative;overflow:hidden;background:rgb(15,23,42);border-radius:12px;box-shadow:0 18px 48px var(--dialog-shadow)}
+  body.runtime .stage{display:none}
+  body.runtime .runtime-stage{display:block}
+  body.shot .runtime-stage{border-radius:0;box-shadow:none}
+  .runtime-top{height:56px;display:flex;align-items:center;gap:12px;padding:0 20px;background:rgb(30,41,59);border-bottom:1px solid rgba(255,255,255,0.08);color:rgb(226,232,240)}
+  .runtime-top .dot{width:8px;height:8px;border-radius:50%;background:rgb(34,197,94)}
+  .runtime-top .name{font-size:14px;font-weight:600}
+  .runtime-top .sub{font-size:11px;color:rgb(148,163,184)}
+  .runtime-top .right{margin-left:auto;font-size:11px;color:rgb(148,163,184)}
+  .runtime-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:20px}
+  .runtime-card{background:rgb(30,41,59);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;color:rgb(226,232,240)}
+  .runtime-card h3{margin:0 0 4px;font-size:13px;font-weight:600}
+  .runtime-card p{margin:0;font-size:11px;line-height:16px;color:rgb(148,163,184)}
+  .runtime-kpi{display:flex;gap:10px;margin-top:14px}
+  .runtime-kpi .k{flex:1;padding:10px;border-radius:8px;background:rgb(15,23,42);border:1px solid rgba(255,255,255,0.06)}
+  .runtime-kpi .k b{display:block;font-size:20px;font-weight:600;color:rgb(226,232,240)}
+  .runtime-kpi .k small{font-size:10px;color:rgb(148,163,184)}
+  .runtime-actions{display:flex;gap:8px;margin-top:14px}
+  .runtime-btn{padding:8px 12px;border-radius:7px;border:1px solid rgba(255,255,255,0.14);background:rgb(51,65,85);color:rgb(226,232,240);font:inherit;font-size:11.5px;cursor:pointer}
+  .runtime-btn.primary{background:rgb(14,165,233);border-color:rgb(14,165,233);color:rgb(255,255,255);font-weight:600}
+  .runtime-btn.stop{background:rgb(239,68,68);border-color:rgb(239,68,68);color:rgb(255,255,255);font-weight:600}
+  .runtime-login{position:absolute;inset:0;background:var(--dialog-scrim);display:flex;align-items:center;justify-content:center;padding:24px}
+  .runtime-login .modal-card{width:460px}
+  .runtime-login .who{font-size:11px;line-height:16px;color:var(--dialog-text-tertiary);margin:0 0 12px}
+  .runtime-login .req{display:inline-flex;align-items:center;padding:2px 7px;border-radius:9px;font-size:10px;font-weight:600;background:var(--dialog-warning-subtle);color:var(--dialog-warning-text);border:1px solid var(--dialog-warning-border)}
+  .runtime-result{display:none;position:absolute;left:20px;right:20px;bottom:20px;padding:10px 12px;border-radius:8px;background:var(--dialog-success-subtle);border:1px solid var(--dialog-success-border);color:var(--dialog-success-text);font-size:11.5px}
+  .runtime-result.show{display:block}
+  .nosolution-card{max-width:520px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px}
+  /* footer 52 */
+  .footer{
+    height:52px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;
+    background:var(--dialog-row-alt);border-top:1px solid var(--dialog-border-light);
+  }
+  .footer .hint{flex:1;font-size:11px;color:var(--dialog-text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .token-legend{
+    max-width:1160px;margin:10px auto 30px;padding:10px 14px;border:1px dashed var(--dialog-border-strong);
+    border-radius:8px;background:var(--dialog-surface);font-size:10.5px;line-height:18px;color:var(--dialog-text-tertiary);
+  }
+  body.shot .token-legend{display:none}
+  .token-legend b{color:var(--dialog-text-secondary)}
+  .token-legend code{font-family:"Cascadia Mono","Consolas",monospace;font-size:10px;color:var(--dialog-accent-text)}
+</style>
+</head>
+<body>
+  <div class="review">
+    <div class="review-title">用户管理 · 设计基线 v3.1 <span>1100×820 / Min 980×700 · B3（用户组 + 命名权限集合 ≤32；Stop 可配置）+ 5 个补充态</span></div>
+    <div class="review-group"><b>状态</b>
+      <button data-state="Normal" class="on">Normal</button>
+      <button data-state="NoSolution">NoSolution</button>
+      <button data-state="UnsavedSolution">UnsavedSolution</button>
+      <button data-state="NotAdministrator">NotAdministrator</button>
+      <button data-state="LoadingOrFailed">LoadingOrFailed</button>
+      <button data-state="EmptyAccounts">EmptyAccounts</button>
+      <button data-state="WebUnavailable">WebUnavailable</button>
+      <button data-state="WriteFailed">WriteFailed</button>
+      <button data-state="FactoryFallback">FactoryFallback</button>
+    </div>
+    <div class="review-group"><b>页签</b>
+      <button data-tab="accounts">账号与用户组</button>
+      <button data-tab="sessions">在线会话</button>
+      <button data-tab="audit">审计记录</button>
+    </div>
+    <div class="review-group"><b>视图</b>
+      <button data-groups="1">组编辑</button>
+      <button data-permissions="1">权限目录</button>
+      <button data-screen="runtime">运行态登录</button>
+      <button data-screen="user">用户管理页</button>
+    </div>
+    <div class="review-group"><b>补充态 v3.1</b>
+      <button data-sup="new-perm">新建权限</button>
+      <button data-sup="catalog-full">32/32 满额</button>
+      <button data-sup="tpl-admin">模板·管理员</button>
+      <button data-sup="runtime-denied">运行态拒绝</button>
+      <button data-sup="runtime-cancelled">运行态取消</button>
+    </div>
+    <div class="review-note">UM5 的 8 个状态按名字标注；颜色只引用 Dialog* 令牌（完整映射见 README.md）。截图用 <code>?state=...&amp;tab=...&amp;shot=1</code>；组编辑 <code>?groups=1</code>（<code>&amp;group=tpl-admin</code> 选模板·管理员），权限目录 <code>?groups=1&amp;permissions=1</code>（<code>&amp;mode=new</code> 行内新建表单，<code>&amp;mode=full</code> 32/32 满额），运行态 <code>?screen=runtime</code>（<code>&amp;mode=denied</code> 鉴权失败，<code>&amp;mode=cancelled</code> 取消回执）。</div>
+  </div>
+
+  <div class="stage">
+    <div class="window" data-state="Normal" data-tab="accounts">
+      <header class="titlebar">
+        <div class="title-icon">U</div>
+        <div class="title-text">
+          <h1>用户管理</h1>
+          <p>账号与用户组 / 在线会话 / 审计记录 · 账号本属于当前方案</p>
+        </div>
+        <div class="state-badge">状态：<span data-state-label>Normal</span></div>
+        <button class="icon-btn" title="关闭" aria-label="关闭">✕</button>
+      </header>
+
+      <nav class="tabs" role="tablist" aria-label="用户管理页签">
+        <button class="tab active" data-tab="accounts" role="tab">账号与用户组</button>
+        <button class="tab" data-tab="sessions" role="tab">在线会话 <span class="count" data-session-count>3</span></button>
+        <button class="tab" data-tab="audit" role="tab">审计记录</button>
+      </nav>
+
+      <main class="content">
+        <!-- ================= 账号与用户组 ================= -->
+        <section class="panel active" data-panel="accounts" role="tabpanel">
+          <div class="accounts-layout">
+            <aside class="card list-card">
+              <div class="card-head">
+                <h2>账号</h2>
+                <span class="chip" data-account-count>4 个</span>
+                <button class="btn small">＋ 新建</button>
+              </div>
+              <div class="search"><span>⌕</span><input placeholder="搜索账号名" aria-label="搜索账号名"></div>
+              <div class="account-list">
+                <div class="account-row selected">
+                  <span class="avatar">O</span>
+                  <div class="account-main"><b>operator1</b><small>产线操作员</small></div>
+                  <span class="role-dot operator"></span>
+                </div>
+                <div class="account-row">
+                  <span class="avatar">E</span>
+                  <div class="account-main"><b>engineer1</b><small>厂家</small></div>
+                  <span class="role-dot engineer"></span>
+                </div>
+                <div class="account-row factory">
+                  <span class="avatar">A</span>
+                  <div class="account-main"><b>admin</b><small>模板·管理员</small></div>
+                  <span class="role-dot admin"></span>
+                </div>
+                <div class="account-row">
+                  <span class="avatar">V</span>
+                  <div class="account-main"><b>viewer</b><small>普工</small></div>
+                  <span class="role-dot"></span>
+                </div>
+                <div class="empty-accounts">
+                  <div class="empty-icon">∅</div>
+                  <div class="empty-title">账号清单为空</div>
+                  <div class="empty-hint">理论上不可达：没有账号文件时会种下出厂管理员。若看到此态，请检查账号文件是否被清空或读坏。</div>
+                </div>
+                <div class="skeleton-list">
+                  <div class="sk-row"><span class="sk avatar"></span><span class="sk w60"></span></div>
+                  <div class="sk-row"><span class="sk avatar"></span><span class="sk w40"></span></div>
+                  <div class="sk-row"><span class="sk avatar"></span><span class="sk w80"></span></div>
+                </div>
+              </div>
+              <div class="store-path">账号文件：Users/ScadaUsers.json</div>
+            </aside>
+
+            <section class="card form-card">
+              <div class="form-head">
+                <div>
+                  <h2>编辑账号：<span data-selected-name>operator1</span></h2>
+                  <p>账号名不可修改；改名请先删除该账号，再新建一个。</p>
+                </div>
+                <span class="readonly-flag">只读</span>
+                <span class="tag" data-selected-group>产线操作员</span>
+              </div>
+
+              <div class="banner banner-unsaved"><span class="banner-icon">!</span><span><b>方案尚未保存。</b>账号修改将在保存后可用；当前列表只读。</span></div>
+              <div class="banner banner-factory"><span class="banner-icon">i</span><span><b>本方案没有账号文件，当前使用出厂管理员。</b>若这是从另一份方案复制来的，请手动复制其 Users 目录；改密后本提示消失。</span><span class="banner-actions"><button class="btn small secondary">知道了</button></span></div>
+              <div class="banner banner-writefailed"><span class="banner-icon">!</span><span><b>保存失败：目标目录只读（UnauthorizedAccessException）。</b>已回滚到修改前状态，未写入任何账号文件。</span><span class="banner-actions"><button class="btn small secondary">重试</button></span></div>
+              <div class="banner banner-loading"><span class="banner-icon">!</span><span><b>加载失败：</b>Users/ScadaUsers.json（UnauthorizedAccessException：拒绝访问）。</span><span class="banner-actions"><button class="btn small secondary">重新加载</button></span></div>
+              <div class="banner banner-emptyaccounts"><span class="banner-icon">i</span><span><b>账号本为空。</b>理论上不可达（出厂管理员兜底）；页面仍保留空态，不白屏。</span></div>
+
+              <div class="account-form">
+                <div class="field">
+                  <label>用户名</label>
+                  <input readonly value="operator1" data-selected-name-input>
+                  <p class="hint">账号名不可修改。要改名请先删除该账号，再新建一个。</p>
+                </div>
+                <div class="field">
+                  <label>用户组</label>
+                  <div class="inline-row">
+                    <select data-group-select>
+                      <option>普工</option>
+                      <option selected>产线操作员</option>
+                      <option>厂家</option>
+                      <option>模板·操作员</option>
+                      <option>模板·工程师</option>
+                      <option>模板·管理员</option>
+                    </select>
+                    <button class="btn secondary small" data-open-groups>管理用户组…</button>
+                  </div>
+                  <p class="hint">权限按组分配；组内勾选的权限位决定该组用户能做什么。</p>
+                </div>
+                <div class="two-col">
+                  <div class="field">
+                    <label>新密码</label>
+                    <input type="password" value="password" placeholder="留空表示不修改">
+                  </div>
+                  <div class="field">
+                    <label>确认密码</label>
+                    <input type="password" value="password" placeholder="再输一次">
+                  </div>
+                </div>
+                <p class="hint">密码最短 8 位；留空表示不修改。界面不提供“显示密码”。</p>
+                <p class="hint">当前登录账号不可删除；最后一个管理员不可删除。删除需二次确认，失败会回滚并给出原因。</p>
+                <div class="form-actions">
+                  <button class="btn danger-ghost">删除账号</button>
+                  <span class="delete-hint">最后一个管理员不可删除</span>
+                  <div class="right">
+                    <button class="btn secondary">重置密码</button>
+                    <button class="btn primary">保存用户组</button>
+                  </div>
+                </div>
+                <div class="skeleton-form">
+                  <div class="sk sk-block w60"></div>
+                  <div class="sk sk-block w100"></div>
+                  <div class="sk sk-block w80"></div>
+                </div>
+              </div>
+
+              <div class="form-empty">
+                <div class="empty-icon">∅</div>
+                <div class="empty-title">没有可编辑的账号</div>
+                <div class="empty-hint">账号本为空。请先新建一个账号；若这是异常空态，请检查账号文件是否被清空或读坏。</div>
+              </div>
+
+              <div class="policy">安全策略：密码最短 8 位 · 空闲 30 分钟自动登出 · 审计保留 90 天 <a>在系统设置中修改</a></div>
+            </section>
+          </div>
+        </section>
+
+        <!-- ================= 在线会话 ================= -->
+        <section class="panel" data-panel="sessions" role="tabpanel">
+          <div class="stack-panel">
+            <div class="toolbar">
+              <div>
+                <h2>在线会话</h2>
+                <p>仅显示当前方案的 Web 会话；踢下线立即生效，SessionId 不出服务端。</p>
+              </div>
+              <div class="actions">
+                <button class="btn secondary">⟳ 刷新</button>
+                <button class="btn danger">全部踢下线</button>
+              </div>
+            </div>
+            <div class="card table-card">
+              <table class="sessions-table">
+                <colgroup>
+                  <col style="width:17%"><col style="width:12%"><col style="width:10%"><col style="width:14%">
+                  <col style="width:13%"><col style="width:13%"><col style="width:8%"><col style="width:13%">
+                </colgroup>
+                <thead><tr><th>会话</th><th>用户</th><th>用户组</th><th>来源 IP</th><th>建立时间</th><th>最近活动</th><th>只读</th><th>操作</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">a1b2c3d4e5f60718</td><td class="strong">operator1</td><td>产线操作员</td><td class="mono">192.168.1.42</td><td class="mono">10:21:04</td><td class="mono">10:26:31</td><td><span class="pill muted">否</span></td><td><button class="link-btn">踢下线</button></td></tr>
+                  <tr><td class="mono">0f1e2d3c4b5a6978</td><td class="strong">engineer1</td><td>厂家</td><td class="mono">192.168.1.77</td><td class="mono">09:58:12</td><td class="mono">10:24:08</td><td><span class="pill muted">否</span></td><td><button class="link-btn">踢下线</button></td></tr>
+                  <tr><td class="mono">778899aabbccddee</td><td class="strong">viewer</td><td>普工</td><td class="mono">10.0.0.15</td><td class="mono">10:02:45</td><td class="mono">10:25:52</td><td><span class="pill ok">是</span></td><td><button class="link-btn">踢下线</button></td></tr>
+                </tbody>
+              </table>
+              <div class="empty-web">
+                <div class="empty-icon">◌</div>
+                <div class="empty-title">未安装或未启用 SCADA Web 客户端</div>
+                <div class="empty-hint">在线会话页签不可用；账号与审计功能不受影响。安装并启用 Web 客户端后刷新本页。</div>
+              </div>
+            </div>
+            <div class="meta" data-sessions-meta>共 3 个在线会话 · SessionRef 为 16 位对外标识 · 只读会话不能下发命令</div>
+          </div>
+        </section>
+
+        <!-- ================= 审计记录 ================= -->
+        <section class="panel" data-panel="audit" role="tabpanel">
+          <div class="stack-panel">
+            <div class="toolbar">
+              <div>
+                <h2>审计记录</h2>
+                <p>只读；默认只显示当前方案标签的行。CSV 仍是 7 列，外部脚本不受影响。</p>
+              </div>
+              <div class="actions"><button class="btn secondary">⟳ 刷新</button></div>
+            </div>
+            <div class="filters">
+              <label>日期范围</label>
+              <input type="text" value="2026-10-01" aria-label="开始日期">
+              <span style="color:var(--dialog-text-muted)">至</span>
+              <input type="text" value="2026-10-24" aria-label="结束日期">
+              <label>操作者</label><input type="text" placeholder="全部" aria-label="操作者">
+              <label>结果</label><select aria-label="结果"><option>全部</option><option>成功</option><option>失败</option></select>
+              <label class="check"><input type="checkbox"> 显示未归属（历史记录）</label>
+              <button class="btn primary small">查询</button>
+            </div>
+            <div class="card table-card">
+              <table class="audit-table">
+                <colgroup>
+                  <col style="width:14%"><col style="width:10%"><col style="width:12%"><col style="width:14%">
+                  <col style="width:10%"><col style="width:8%"><col style="width:32%">
+                </colgroup>
+                <thead><tr><th>时间</th><th>操作者</th><th>对象</th><th>事件</th><th>动作</th><th>结果</th><th>说明</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">10:26:31</td><td class="strong">admin</td><td>operator1</td><td>账号管理</td><td>改用户组</td><td><span class="pill ok">成功</span></td><td>[sol=unsaved 包装线] 操作员 → 工程师</td></tr>
+                  <tr><td class="mono">10:24:08</td><td class="strong">engineer1</td><td>ScadaUsers.json</td><td>账号管理</td><td>重置密码</td><td><span class="pill ok">成功</span></td><td>[sol=unsaved 包装线] 目标账号 operator1</td></tr>
+                  <tr><td class="mono">10:19:52</td><td class="strong">admin</td><td>viewer</td><td>在线会话</td><td>踢下线</td><td><span class="pill danger">失败</span></td><td>[sol=unsaved 包装线] Web 客户端未启用</td></tr>
+                  <tr><td class="mono">09:58:12</td><td class="strong">admin</td><td>operator1</td><td>登录</td><td>登录</td><td><span class="pill ok">成功</span></td><td>未归属历史行（打开“显示未归属”后可见）</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="meta">显示 4 条 / 共 128 行 / 已跳过 2 行（格式异常）</div>
+          </div>
+        </section>
+
+        <!-- NoSolution 覆盖层 -->
+        <div class="overlay empty-nosolution">
+          <div class="nosolution-card">
+            <div class="empty-icon">◌</div>
+            <div class="empty-title">尚未打开方案</div>
+            <div class="empty-hint">用户管理页依赖当前方案的账号本。请先在「文件」菜单打开或新建一个解决方案；所有账号操作在此之前不可用。</div>
+          </div>
+        </div>
+
+        <!-- NotAdministrator 覆盖层 -->
+        <div class="overlay modal-notadmin">
+          <div class="modal-card">
+            <h3>需要管理员权限</h3>
+            <p>当前账号不是管理员，用户管理页不可用。若打开后用户组权限被收回（缺 UserAdministration），页面会立即提示并关闭。</p>
+            <div class="actions"><button class="btn secondary">关闭</button></div>
+          </div>
+        </div>
+
+        <!-- 用户组编辑弹窗 -->
+        <div class="overlay group-editor" data-group-editor>
+          <div class="modal-card group-card">
+            <div class="group-head">
+              <h3>用户组管理</h3>
+              <button class="btn small secondary">＋ 新建组</button>
+              <button class="btn small secondary" data-open-permissions>管理权限目录…</button>
+              <button class="btn small secondary" data-close-groups>关闭</button>
+            </div>
+            <div class="group-layout">
+              <aside class="group-list">
+                <div class="group-item" data-key="worker" data-name="普工">普工 <span class="builtin">自定义</span></div>
+                <div class="group-item active" data-key="line-op" data-name="产线操作员">产线操作员 <span class="builtin">自定义</span></div>
+                <div class="group-item" data-key="vendor" data-name="厂家">厂家 <span class="builtin">自定义</span></div>
+                <div class="group-item" data-key="tpl-operator" data-name="模板·操作员" data-template="1">模板·操作员 <span class="builtin">模板</span></div>
+                <div class="group-item" data-key="tpl-engineer" data-name="模板·工程师" data-template="1">模板·工程师 <span class="builtin">模板</span></div>
+                <div class="group-item" data-key="tpl-admin" data-name="模板·管理员" data-template="1">模板·管理员 <span class="builtin">模板 · 全选</span></div>
+              </aside>
+              <section class="group-detail">
+                <div class="field">
+                  <label>组名</label>
+                  <input value="产线操作员">
+                </div>
+                <div>
+                  <div class="perm-title">权限（组内勾选）</div>
+                  <div class="perm-grid">
+                    <label><input type="checkbox" data-perm="ViewRuntime" checked> 看运行画面</label>
+                    <label><input type="checkbox" data-perm="ControlRun" checked> 运行控制</label>
+                    <label><input type="checkbox" data-perm="Start" checked> 启动</label>
+                    <label><input type="checkbox" data-perm="Initialize" checked> 初始化</label>
+                    <label><input type="checkbox" data-perm="Stop" checked> 停止</label>
+                    <label><input type="checkbox" data-perm="ReportQuery" checked> 报表查询</label>
+                    <label><input type="checkbox" data-perm="AxisJog" checked> 轴点动</label>
+                    <label><input type="checkbox" data-perm="AxisSpeedConfig"> 定位速度配置</label>
+                    <label><input type="checkbox" data-perm="EditStructure"> 改结构</label>
+                    <label><input type="checkbox" data-perm="Compile"> 编译</label>
+                    <label><input type="checkbox" data-perm="SaveSolution"> 保存方案</label>
+                    <label><input type="checkbox" data-perm="HardwareRuntime"> 硬件运行态</label>
+                    <label><input type="checkbox" data-perm="HardwareConfig"> 硬件配置</label>
+                    <label><input type="checkbox" data-perm="SystemConfig"> 系统配置</label>
+                    <label><input type="checkbox" data-perm="UserAdministration"> 用户管理</label>
+                    <label><input type="checkbox" data-perm="RecipePublish"> 配方下发（自定义）</label>
+                  </div>
+                  <p class="stop-warning"><b>!</b>取消「停止（Stop）」后该组将无法停止设备；若含「轴点动（AxisJog）」，点动中只能靠系统自动 JogStop。保存前需二次确认。</p>
+                  <p class="safety-note" data-group-note>内置「模板·…」只读；普工 / 产线操作员 / 厂家为自定义组。权限目录共 16/32 条（15 内置 + 1 自定义示例）；「停止」与其它权限一样是普通复选。</p>
+                </div>
+                <div class="group-actions">
+                  <button class="btn danger-ghost" data-delete-group disabled>删除组</button>
+                  <span class="safety-note" data-delete-hint>有 1 个用户引用，先迁移后再删</span>
+                  <div class="right">
+                    <button class="btn secondary" data-close-groups>取消</button>
+                    <button class="btn primary" data-save-group>保存</button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <!-- 权限目录管理弹窗 -->
+        <div class="overlay permission-editor" data-permission-editor>
+          <div class="modal-card permission-card">
+            <div class="group-head">
+              <h3>权限目录 <span class="count-badge" data-perm-count>16/32</span></h3>
+              <button class="btn small secondary" data-perm-new>＋ 新建权限</button>
+              <button class="btn small secondary" data-close-permissions>关闭</button>
+            </div>
+            <div class="perm-newform" data-perm-newform>
+              <div class="nf-field name">
+                <label>显示名</label>
+                <input value="报警确认" data-perm-name aria-label="新权限显示名">
+              </div>
+              <div class="nf-field">
+                <label>Key（自动生成，创建后不可改）</label>
+                <span class="key-preview" data-perm-key>AlarmAck</span>
+              </div>
+              <div class="nf-actions">
+                <button class="btn small secondary" data-perm-cancel>取消</button>
+                <button class="btn small primary" data-perm-confirm>创建</button>
+              </div>
+              <p class="nf-hint">Key 由显示名生成、创建后不可改；上限 32 条，当前 16/32。被组或按钮引用后不可删除。</p>
+            </div>
+            <div class="permission-body">
+              <table class="permission-table">
+                <colgroup>
+                  <col style="width:26%"><col style="width:24%"><col style="width:14%"><col style="width:16%"><col style="width:20%">
+                </colgroup>
+                <thead><tr><th>名称</th><th>Key</th><th>使用组</th><th>类型</th><th>操作</th></tr></thead>
+                <tbody data-perm-rows>
+                  <tr><td class="strong">启动</td><td class="mono">Start</td><td>6</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">初始化</td><td class="mono">Initialize</td><td>5</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">轴点动</td><td class="mono">AxisJog</td><td>5</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">定位速度配置</td><td class="mono">AxisSpeedConfig</td><td>3</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">看运行画面</td><td class="mono">ViewRuntime</td><td>6</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">运行控制</td><td class="mono">ControlRun</td><td>5</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">停止</td><td class="mono">Stop</td><td>6</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">报表查询</td><td class="mono">ReportQuery</td><td>5</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">配方下发</td><td class="mono">RecipePublish</td><td>1</td><td><span class="pill ok">自定义</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">改结构</td><td class="mono">EditStructure</td><td>3</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">编译</td><td class="mono">Compile</td><td>3</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">保存方案</td><td class="mono">SaveSolution</td><td>3</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">硬件运行态</td><td class="mono">HardwareRuntime</td><td>3</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">硬件配置</td><td class="mono">HardwareConfig</td><td>2</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">系统配置</td><td class="mono">SystemConfig</td><td>2</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                  <tr><td class="strong">用户管理</td><td class="mono">UserAdministration</td><td>2</td><td><span class="pill muted">内置</span></td><td><button class="link-btn">改名</button> <button class="link-btn" disabled>删除</button></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="permission-foot">
+              <span class="safety-note">删除前扫描所有组权限与全方案页面/图元的 RequiredPermission：任一引用即拒绝，并提示「N 个组 / M 个按钮引用」。内置不可删；改名只改显示名；上限 32 条，到 32 禁止新建。</span>
+              <button class="btn secondary" data-close-permissions>关闭</button>
+              <div class="perm-limit" data-perm-limit>已达上限 32 条，删除或合并后再建。</div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="footer">
+        <span class="hint" data-footer-hint>账号本属于当前方案；修改在保存方案后生效。</span>
+        <button class="btn secondary">关闭</button>
+      </footer>
+    </div>
+  </div>
+
+  <div class="runtime-stage">
+    <div class="runtime-top">
+      <span class="dot"></span>
+      <span class="name">SCADA 运行态</span>
+      <span class="sub">包装线 · 页面 3/8</span>
+      <span class="right">操作员：viewer · 普工</span>
+    </div>
+    <div class="runtime-grid">
+      <div class="runtime-card">
+        <h3>流程控制</h3>
+        <p>运行中的流程与手动操作；权限不足时点击会弹出登录框。</p>
+        <div class="runtime-actions">
+          <button class="runtime-btn primary">启动</button>
+          <button class="runtime-btn">暂停</button>
+          <button class="runtime-btn stop">停止</button>
+        </div>
+      </div>
+      <div class="runtime-card">
+        <h3>当前状态</h3>
+        <p>运行 / 报警 / 节拍</p>
+        <div class="runtime-kpi">
+          <div class="k"><b>RUN</b><small>运行状态</small></div>
+          <div class="k"><b>0</b><small>未确认报警</small></div>
+          <div class="k"><b>2.4s</b><small>节拍</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="runtime-login" data-runtime-login>
+      <div class="modal-card">
+        <h3>需要「轴点动」权限 <span class="req">轴点动</span></h3>
+        <p class="who">当前用户：viewer（普工）。该操作需要「轴点动」权限；登录成功后会重新判定并继续原操作。</p>
+        <div class="field"><label>用户名</label><input value="operator1" data-runtime-user></div>
+        <div class="field"><label>密码</label><input type="password" value="password" data-runtime-pass></div>
+        <div class="runtime-error" data-runtime-error><span>!</span><span><b>用户名或密码错误（剩余尝试 4 次）。</b>动作未下发：轴点动未执行，可修正后重试或取消。</span></div>
+        <p class="safety-note">「停止（Stop）」也按组权限判定：默认模板均含 Stop；点动中权限被收回或登出时，由系统自动补发 JogStop（系统安全动作，不是用户按钮）。</p>
+        <div class="actions">
+          <button class="btn secondary" data-cancel-runtime>取消</button>
+          <button class="btn primary" data-login-runtime>登录并继续</button>
+        </div>
+      </div>
+    </div>
+    <div class="runtime-result" data-runtime-result>已登录 operator1（产线操作员），操作已继续：轴点动已下发。</div>
+  </div>
+
+  <div class="token-legend">
+    <b>令牌映射（节选，完整表见 README.md）</b><br>
+    窗口/卡片表面 <code>--dialog-surface → DialogSurfaceBrush</code> ·
+    页面底色 <code>--dialog-bg → DialogBackgroundBrush</code> ·
+    浅底行 <code>--dialog-row-alt → DialogRowAlternateBrush</code> ·
+    边框 <code>--dialog-border → DialogBorderBrush</code> / <code>--dialog-border-light → DialogBorderLightBrush</code> ·
+    主色 <code>--dialog-accent → DialogAccentBrush</code> ·
+    危险 <code>--dialog-danger → DialogDangerBrush</code> ·
+    警告 <code>--dialog-warning → DialogWarningBrush</code> ·
+    成功 <code>--dialog-success → DialogSuccessBrush</code> ·
+    主文字 <code>--dialog-text-primary → DialogTextPrimaryBrush</code> ·
+    次文字 <code>--dialog-text-secondary → DialogTextSecondaryBrush</code> ·
+    提示文字 <code>--dialog-text-tertiary → DialogTextTertiaryBrush</code>
+  </div>
+
+<script>
+(function(){
+  var win = document.querySelector('.window');
+  var stateLabel = document.querySelector('[data-state-label]');
+  var footerHint = document.querySelector('[data-footer-hint]');
+  var nameEls = document.querySelectorAll('[data-selected-name]');
+  var groupEl = document.querySelector('[data-selected-group]');
+  var nameInput = document.querySelector('[data-selected-name-input]');
+  var accountCount = document.querySelector('[data-account-count]');
+  var groupSelect = document.querySelector('[data-group-select]');
+  var groupEditor = document.querySelector('[data-group-editor]');
+  var permissionEditor = document.querySelector('[data-permission-editor]');
+  var permRows = document.querySelector('[data-perm-rows]');
+  var permCount = document.querySelector('[data-perm-count]');
+  var permNewBtn = document.querySelector('[data-perm-new]');
+  var permNewForm = document.querySelector('[data-perm-newform]');
+  var permLimit = document.querySelector('[data-perm-limit]');
+  var groupDetailEl = document.querySelector('.group-detail');
+  var groupNameInput = document.querySelector('.group-detail .field input');
+  var groupNote = document.querySelector('[data-group-note]');
+  var groupSaveBtn = document.querySelector('[data-save-group]');
+  var groupDeleteBtn = document.querySelector('[data-delete-group]');
+  var groupDeleteHint = document.querySelector('[data-delete-hint]');
+  var permInputs = document.querySelectorAll('.perm-grid input[data-perm]');
+  var sessionCount = document.querySelector('[data-session-count]');
+  var sessionsMeta = document.querySelector('[data-sessions-meta]');
+  var runtimeLogin = document.querySelector('[data-runtime-login]');
+  var runtimeResult = document.querySelector('[data-runtime-result]');
+  var runtimeUser = document.querySelector('[data-runtime-user]');
+  var runtimePass = document.querySelector('[data-runtime-pass]');
+  var runtimeError = document.querySelector('[data-runtime-error]');
+  var stateButtons = document.querySelectorAll('.review [data-state]');
+  var tabButtons = document.querySelectorAll('.review [data-tab]');
+  var tabs = document.querySelectorAll('.tab');
+  var panels = document.querySelectorAll('.panel');
+
+  var hints = {
+    Normal:'账号本属于当前方案；修改在保存方案后生效。',
+    NoSolution:'尚未打开方案；所有账号操作不可用。',
+    UnsavedSolution:'方案尚未保存；账号修改将在保存后可用。',
+    NotAdministrator:'需要管理员权限；页面不可打开。',
+    LoadingOrFailed:'加载失败；可重新加载。',
+    EmptyAccounts:'账号本为空；出厂管理员兜底应保证不可达。',
+    WebUnavailable:'Web 客户端未安装或未启用；账号与审计不受影响。',
+    WriteFailed:'写失败已回滚；未写入任何账号文件。',
+    FactoryFallback:'当前使用出厂管理员；改密后提示消失。'
+  };
+
+  function setTab(name){
+    win.dataset.tab = name;
+    tabs.forEach(function(t){ t.classList.toggle('active', t.dataset.tab === name); });
+    panels.forEach(function(p){ p.classList.toggle('active', p.dataset.panel === name); });
+    tabButtons.forEach(function(b){ b.classList.toggle('on', b.dataset.tab === name); });
+  }
+
+  function setSelection(state){
+    var name = 'operator1';
+    var group = '产线操作员';
+    if (state === 'FactoryFallback') { name = 'admin'; group = '模板·管理员'; }
+    if (state === 'EmptyAccounts') { name = '—'; group = '—'; }
+    nameEls.forEach(function(el){ el.textContent = name; });
+    if (nameInput) { nameInput.value = name; }
+    if (groupEl) { groupEl.textContent = group; }
+    if (groupSelect) { groupSelect.value = group; }
+    if (accountCount) {
+      accountCount.textContent = state === 'EmptyAccounts' ? '0 个' : (state === 'FactoryFallback' ? '1 个' : '4 个');
+    }
+    if (sessionCount) { sessionCount.textContent = state === 'WebUnavailable' ? '—' : '3'; }
+    if (sessionsMeta) {
+      sessionsMeta.textContent = state === 'WebUnavailable'
+        ? 'Web 客户端未安装或未启用 · 在线会话不可用'
+        : '共 3 个在线会话 · SessionRef 为 16 位对外标识 · 只读会话不能下发命令';
+    }
+    var rows = document.querySelectorAll('.account-row');
+    rows.forEach(function(r){ r.classList.remove('selected'); });
+    if (state !== 'EmptyAccounts') {
+      var target = state === 'FactoryFallback'
+        ? document.querySelector('.account-row.factory')
+        : document.querySelector('.account-row:not(.factory)');
+      if (target) { target.classList.add('selected'); }
+    }
+  }
+
+  function apply(state, tab){
+    win.dataset.state = state;
+    stateLabel.textContent = state;
+    footerHint.textContent = hints[state] || hints.Normal;
+    stateButtons.forEach(function(b){ b.classList.toggle('on', b.dataset.state === state); });
+    setSelection(state);
+    var nextTab = tab;
+    if (state === 'WebUnavailable') { nextTab = 'sessions'; }
+    if (!nextTab) { nextTab = win.dataset.tab || 'accounts'; }
+    setTab(nextTab);
+  }
+
+  var params = new URLSearchParams(location.search);
+  if (params.get('shot') === '1') { document.body.classList.add('shot'); }
+  var initialTab = params.get('tab') || 'accounts';
+  var initialState = params.get('state') || 'Normal';
+  apply(initialState, initialTab);
+
+  stateButtons.forEach(function(b){
+    b.addEventListener('click', function(){
+      apply(b.dataset.state, null);
+    });
+  });
+  tabButtons.forEach(function(b){
+    b.addEventListener('click', function(){
+      if (win.dataset.state === 'NoSolution' || win.dataset.state === 'NotAdministrator') { return; }
+      setTab(b.dataset.tab);
+    });
+  });
+  tabs.forEach(function(t){
+    t.addEventListener('click', function(){
+      if (win.dataset.state === 'NoSolution' || win.dataset.state === 'NotAdministrator') { return; }
+      setTab(t.dataset.tab);
+    });
+  });
+
+  function openGroupEditor(key){
+    if (groupEditor) { groupEditor.classList.add('open'); }
+    if (key) {
+      var target = null;
+      groupItems.forEach(function(x){ if (x.dataset.key === key) { target = x; } });
+      if (target) { applyGroup(target); }
+    }
+  }
+  document.querySelectorAll('[data-open-groups], .review [data-groups]').forEach(function(b){
+    b.addEventListener('click', function(){ openGroupEditor(); });
+  });
+  document.querySelectorAll('[data-close-groups]').forEach(function(b){
+    b.addEventListener('click', function(){ if (groupEditor) { groupEditor.classList.remove('open'); } });
+  });
+  document.querySelectorAll('[data-open-permissions], .review [data-permissions]').forEach(function(b){
+    b.addEventListener('click', function(){ openPermissions(); });
+  });
+  document.querySelectorAll('[data-close-permissions]').forEach(function(b){
+    b.addEventListener('click', function(){ if (permissionEditor) { permissionEditor.classList.remove('open'); } });
+  });
+  /* 评审条「补充态 v3.1」五个入口 */
+  document.querySelectorAll('.review [data-sup]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var k = b.dataset.sup;
+      if (k === 'new-perm') { openGroupEditor(); openPermissions('new'); }
+      if (k === 'catalog-full') { openGroupEditor(); openPermissions('full'); }
+      if (k === 'tpl-admin') { openGroupEditor('tpl-admin'); }
+      if (k === 'runtime-denied') { showScreen('runtime', 'denied'); }
+      if (k === 'runtime-cancelled') { showScreen('runtime', 'cancelled'); }
+    });
+  });
+  /* 组权限集：与 B3 定稿「三、默认模板与示例组」一致。
+     模板·管理员 = 15 条内置全选；配方下发是自定义示例，只给厂家。 */
+  var groupPerms = {
+    worker: ['ViewRuntime','Start','Stop'],
+    'line-op': ['ViewRuntime','ControlRun','Start','Initialize','Stop','ReportQuery','AxisJog'],
+    vendor: ['ViewRuntime','ControlRun','Start','Initialize','Stop','ReportQuery','AxisJog','AxisSpeedConfig','EditStructure','Compile','SaveSolution','HardwareRuntime','HardwareConfig','SystemConfig','UserAdministration','RecipePublish'],
+    'tpl-operator': ['ViewRuntime','ControlRun','Start','Initialize','Stop','ReportQuery','AxisJog'],
+    'tpl-engineer': ['ViewRuntime','ControlRun','Start','Initialize','Stop','ReportQuery','AxisJog','AxisSpeedConfig','EditStructure','Compile','SaveSolution','HardwareRuntime'],
+    'tpl-admin': ['ViewRuntime','ControlRun','Start','Initialize','Stop','ReportQuery','AxisJog','AxisSpeedConfig','EditStructure','Compile','SaveSolution','HardwareRuntime','HardwareConfig','SystemConfig','UserAdministration']
+  };
+  var defaultGroupNote = groupNote ? groupNote.textContent : '';
+  var groupItems = document.querySelectorAll('.group-item');
+
+  function applyGroup(item){
+    if (!item) { return; }
+    var isTemplate = item.dataset.template === '1';
+    var perms = groupPerms[item.dataset.key] || [];
+    groupItems.forEach(function(x){ x.classList.toggle('active', x === item); });
+    if (groupDetailEl) { groupDetailEl.classList.toggle('readonly', isTemplate); }
+    if (groupNameInput) {
+      groupNameInput.value = item.dataset.name || '';
+      groupNameInput.readOnly = isTemplate;
+    }
+    permInputs.forEach(function(cb){
+      cb.checked = perms.indexOf(cb.dataset.perm) >= 0;
+      cb.disabled = isTemplate;
+    });
+    if (groupSaveBtn) { groupSaveBtn.disabled = isTemplate; }
+    /* 自定义组有 1 个用户引用、模板是内置：两种都不可删，所以示例里删除恒禁用 */
+    if (groupDeleteBtn) { groupDeleteBtn.disabled = true; }
+    if (groupDeleteHint) {
+      groupDeleteHint.textContent = isTemplate ? '内置模板不可改名 / 改权限 / 删除' : '有 1 个用户引用，先迁移后再删';
+    }
+    if (groupNote) {
+      groupNote.textContent = isTemplate
+        ? '内置「模板·…」只读：名称与权限不可改、不可删除；模板·管理员固定全选 15 条内置权限（配方下发是自定义示例，只给厂家）。「停止」与其它权限一样是普通复选。'
+        : defaultGroupNote;
+    }
+    syncStopWarning();
+  }
+
+  groupItems.forEach(function(item){
+    item.addEventListener('click', function(){ applyGroup(item); });
+  });
+
+  var stopBox = document.querySelector('[data-perm="Stop"]');
+  var groupDetail = document.querySelector('.group-detail');
+  function syncStopWarning(){
+    if (groupDetail && stopBox) { groupDetail.classList.toggle('stop-off', !stopBox.checked); }
+  }
+  if (stopBox) { stopBox.addEventListener('change', syncStopWarning); }
+  /* 初始按「产线操作员」7 项上屏，与静态标记一致 */
+  applyGroup(document.querySelector('.group-item.active'));
+  syncStopWarning();
+
+  /* ===== 权限目录补充态：行内新建表单 / 32 满额 ===== */
+  var fullCatalogRows = [
+    ['报警确认','AlarmAck'],['报警屏蔽','AlarmShelve'],['趋势查看','TrendView'],['历史回放','HistoryReplay'],
+    ['报表导出','ReportExport'],['配方编辑','RecipeEdit'],['配方切换','RecipeSwitch'],['参数微调','ParamTune'],
+    ['手动阀控','ManualValve'],['清零计数','CounterReset'],['批次切换','BatchSwitch'],['设备点检','DeviceInspect'],
+    ['相机标定','CameraCalibrate'],['视觉模板管理','VisionTemplateManage'],['数据补录','DataBackfill'],['远程协助','RemoteAssist']
+  ];
+  var fullCatalogRowsAdded = false;
+
+  function appendFullCatalog(){
+    if (!permRows || fullCatalogRowsAdded) { return; }
+    fullCatalogRows.forEach(function(p){
+      var tr = document.createElement('tr');
+      tr.className = 'perm-extra';
+      tr.innerHTML = '<td class="strong">' + p[0] + '</td><td class="mono">' + p[1] + '</td><td>0</td>'
+        + '<td><span class="pill ok">自定义</span></td>'
+        + '<td><button class="link-btn">改名</button> <button class="link-btn">删除</button></td>';
+      permRows.appendChild(tr);
+    });
+    fullCatalogRowsAdded = true;
+  }
+
+  function setCatalogMode(mode){
+    var isFull = mode === 'full';
+    if (isFull) { appendFullCatalog(); }
+    var card = permissionEditor ? permissionEditor.querySelector('.permission-card') : null;
+    if (card) { card.classList.toggle('full', isFull); }
+    if (permCount) {
+      permCount.textContent = isFull ? '32/32' : '16/32';
+      permCount.classList.toggle('full', isFull);
+    }
+    if (permNewBtn) {
+      permNewBtn.disabled = isFull;
+      permNewBtn.classList.toggle('active', mode === 'new');
+    }
+    if (permNewForm) { permNewForm.classList.toggle('open', mode === 'new'); }
+    if (permLimit) { permLimit.classList.toggle('show', isFull); }
+    /* 满额态把列表滚到底：让新增的自定义行与底部上限提示同屏，32 条有实物证据。
+       必须放在上限提示显形之后量高度，否则底部提示占掉的高度会把最后一行挤出视口。 */
+    var body = permissionEditor ? permissionEditor.querySelector('.permission-body') : null;
+    if (body) { body.scrollTop = isFull ? body.scrollHeight : 0; }
+  }
+
+  function openPermissions(mode){
+    if (permissionEditor) { permissionEditor.classList.add('open'); }
+    setCatalogMode(mode || 'normal');
+  }
+
+  /* ===== 运行态：登录 / 鉴权失败 / 取消回执 ===== */
+  function setRuntimeMode(mode){
+    var denied = mode === 'denied';
+    var cancelled = mode === 'cancelled';
+    if (runtimeLogin) { runtimeLogin.style.display = cancelled ? 'none' : 'flex'; }
+    if (runtimeError) { runtimeError.classList.toggle('show', denied); }
+    if (runtimeUser) { runtimeUser.value = denied ? 'operator9' : 'operator1'; }
+    if (runtimePass) { runtimePass.value = denied ? 'passw0rd!' : 'password'; }
+    if (runtimeResult) {
+      runtimeResult.classList.toggle('cancel', cancelled);
+      if (cancelled) {
+        runtimeResult.textContent = '已取消：未登录，轴点动未执行（动作未下发）。';
+        runtimeResult.classList.add('show');
+      } else {
+        runtimeResult.classList.remove('show');
+      }
+    }
+  }
+
+  function showScreen(name, mode){
+    if (name === 'runtime') {
+      document.body.classList.add('runtime');
+      setRuntimeMode(mode || 'login');
+    } else {
+      document.body.classList.remove('runtime');
+    }
+  }
+  document.querySelectorAll('[data-screen]').forEach(function(b){
+    b.addEventListener('click', function(){ showScreen(b.dataset.screen); });
+  });
+  var loginBtn = document.querySelector('[data-login-runtime]');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', function(){
+      if (runtimeLogin) { runtimeLogin.style.display = 'none'; }
+      if (runtimeError) { runtimeError.classList.remove('show'); }
+      if (runtimeResult) {
+        runtimeResult.classList.remove('cancel');
+        runtimeResult.textContent = '已登录 operator1（产线操作员），操作已继续：轴点动已下发。';
+        runtimeResult.classList.add('show');
+      }
+    });
+  }
+  var cancelBtn = document.querySelector('[data-cancel-runtime]');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', function(){
+      if (runtimeLogin) { runtimeLogin.style.display = 'none'; }
+      if (runtimeError) { runtimeError.classList.remove('show'); }
+      if (runtimeResult) {
+        runtimeResult.classList.add('cancel', 'show');
+        runtimeResult.textContent = '已取消：未登录，轴点动未执行（动作未下发）。';
+      }
+    });
+  }
+  if (permNewBtn) {
+    permNewBtn.addEventListener('click', function(){ setCatalogMode('new'); });
+  }
+  document.querySelectorAll('[data-perm-cancel], [data-perm-confirm]').forEach(function(b){
+    b.addEventListener('click', function(){ setCatalogMode('normal'); });
+  });
+
+  /* URL 参数：groups / group / permissions / mode / screen；不带 mode 时保持 v3 的 14 张证据行为 */
+  if (params.get('groups') === '1') { openGroupEditor(params.get('group')); }
+  if (params.get('permissions') === '1') { openPermissions(params.get('mode')); }
+  if (params.get('screen') === 'runtime') { showScreen('runtime', params.get('mode')); }
+})();
+</script>
+</body>
+</html>

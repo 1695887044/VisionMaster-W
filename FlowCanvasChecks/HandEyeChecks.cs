@@ -134,11 +134,13 @@ namespace FlowCanvasChecks
 
             MathLayer();
             EulerLayer();
+            NonFiniteLayer();
             PluginLayer();
             ZBLayer();
             CsvLayer();
             PasteLayer();
             ProgressLayer();
+            ViewTemplateLayer();
             PersistLayer();
         }
 
@@ -265,18 +267,111 @@ namespace FlowCanvasChecks
             Check("[HE] 欧拉③：位姿 → 六个数 → 位姿 往返一致（CSV 写回的正确性）",
                 maxDiff < 1e-12, $"最大元素偏差 {maxDiff:0.###e+0}");
 
-            // 万向锁（ry = 90°）也必须往返一致：角度不唯一，但矩阵必须回来
-            Mat4 gimbal = HandEyeMath.PoseFromXyzEulerZyxDeg(10.0, 20.0, 30.0, 0.0, 90.0, 0.0);
-            HandEyeMath.Mat4ToXyzEulerZyxDeg(gimbal, out _, out _, out _,
-                out double grx, out double gry, out double grz);
-            Mat4 gimbalBack = HandEyeMath.PoseFromXyzEulerZyxDeg(10.0, 20.0, 30.0, grx, gry, grz);
-            double gimbalDiff = 0.0;
+            // 万向锁（ry = ±90°）也必须往返一致：角度不唯一，但矩阵必须回来。
+            // rz 必须非 0：rz=0 时 Atan2(0,1)=0，符号错正好不可见（旧断言就是这么漏掉的）。
+            double GimbalRoundTripDiff(double ryDeg)
+            {
+                Mat4 gimbal = HandEyeMath.PoseFromXyzEulerZyxDeg(10.0, 20.0, 30.0, 0.0, ryDeg, 30.0);
+                HandEyeMath.Mat4ToXyzEulerZyxDeg(gimbal, out _, out _, out _,
+                    out double grx, out double gry, out double grz);
+                Mat4 gimbalBack = HandEyeMath.PoseFromXyzEulerZyxDeg(10.0, 20.0, 30.0, grx, gry, grz);
+                double diff = 0.0;
+                for (int r = 0; r < 3; r++)
+                    for (int c = 0; c < 3; c++)
+                        diff = Math.Max(diff, Math.Abs(gimbal.Rotation[r, c] - gimbalBack.Rotation[r, c]));
+                return diff;
+            }
+
+            double gimbalDiff = GimbalRoundTripDiff(90.0);
+            Check("[HE] 欧拉④：万向锁（ry=90°、rz≠0）往返矩阵一致（角度不唯一，矩阵必须一致）",
+                gimbalDiff < 1e-12, $"最大元素偏差 {gimbalDiff:0.###e+0}");
+
+            double gimbalNegDiff = GimbalRoundTripDiff(-90.0);
+            Check("[HE] 欧拉④b：万向锁（ry=-90°、rz≠0）往返矩阵一致",
+                gimbalNegDiff < 1e-12, $"最大元素偏差 {gimbalNegDiff:0.###e+0}");
+        }
+
+        #endregion
+
+        #region 非有限数（NaN / Infinity）
+
+        /// <summary>
+        /// NaN / Infinity 的防线：入表处拒绝、构建样本时点名、数学层返回 false、
+        /// 配置界面「求解」不抛异常。现场粘贴/CSV 是这些值的实际入口；
+        /// `Math.Sign(NaN)` 会抛 `ArithmeticException`，不能让它穿到 UI 线程。
+        /// </summary>
+        private static void NonFiniteLayer()
+        {
+            // ① CSV：第 4 列写 NaN → 失败并点名行列，不把 NaN 读进样本
+            bool csvOk = HandEyeCsv.TryParse(
+                new[] { "1,2,3,NaN,5,6,7,8,9,10,11,12" }, out _, out string? csvErr);
+            Check("[HE] 非有限①：CSV 第 4 列写 NaN → 失败并点名「第 1 行第 4 列」",
+                !csvOk && csvErr != null && csvErr.Contains("第 1 行") && csvErr.Contains("第 4 列")
+                && csvErr.Contains("NaN"),
+                csvErr ?? "居然通过了");
+
+            // ② 粘贴：整片拒绝，一个格子都不写
+            var pastePlugin = NewPlugin(Array.Empty<HandEyeSample>());
+            bool pasteOk = HandEyePaste.TryApply(
+                pastePlugin, "1\t2\n3\tNaN", 0, 0, out _, out string? pasteErr);
+            Check("[HE] 非有限②：粘贴第 2 行第 2 列写 NaN → 整片拒绝、一个字都没写",
+                !pasteOk && pastePlugin.Samples.Count == 0
+                && pasteErr != null && pasteErr.Contains("第 2 行") && pasteErr.Contains("第 2 列")
+                && pasteErr.Contains("NaN"),
+                (pasteOk ? "居然通过了" : pasteErr ?? "失败但没给原因") + $"，行数 {pastePlugin.Samples.Count}");
+
+            // ③ 数学层：全 NaN 旋转矩阵 → TryRotationLog 返回 false，不抛 ArithmeticException
+            //    只把 [0,0] 设 NaN 不够：RotationAngle 走 NaN 后进 π 分支，但 Math.Sign 的入参
+            //    是矩阵元素之差，仍是 0；必须让整个矩阵非有限，才会命中 Math.Sign(NaN)。
+            var nanRotation = new Mat3();
             for (int r = 0; r < 3; r++)
                 for (int c = 0; c < 3; c++)
-                    gimbalDiff = Math.Max(gimbalDiff, Math.Abs(gimbal.Rotation[r, c] - gimbalBack.Rotation[r, c]));
+                    nanRotation[r, c] = double.NaN;
+            bool logThrew = false;
+            bool logOk = false;
+            string? logErr = null;
+            try { logOk = HandEyeMath.TryRotationLog(nanRotation, out _, out logErr); }
+            catch (Exception) { logThrew = true; }
+            Check("[HE] 非有限③：旋转矩阵含 NaN → TryRotationLog 返回 false + 中文原因，不抛异常",
+                !logThrew && !logOk && logErr != null && logErr.Contains("非法"),
+                logThrew ? "抛异常" : (logOk ? "居然通过了" : logErr ?? "失败但没给原因"));
 
-            Check("[HE] 欧拉④：万向锁（ry=90°）往返矩阵一致（角度不唯一，矩阵必须一致）",
-                gimbalDiff < 1e-12, $"最大元素偏差 {gimbalDiff:0.###e+0}");
+            // ④ 插件运行：一行**旋转**含 NaN → 明确失败并点名行，不抛异常
+            var ctx = new ExecutionContext(
+                new StubLog(), new FlowSession { FlowName = "手眼标定断言" },
+                new WorkspaceContext(), CancellationToken.None);
+            var nanRows = RowsFrom(MakeSamples(TrueX1(), RobotPoses));
+            nanRows[1].RobotRx = double.NaN;
+            var pRun = NewPlugin(nanRows);
+            bool runThrew = false;
+            try { pRun.RunAlgorithm(ctx); }
+            catch (Exception) { runThrew = true; }
+            Check("[HE] 非有限④：运行期一行旋转含 NaN → 失败并点名「第 2 行含非法数值」，不抛异常",
+                !runThrew && pRun.Success.Value is false
+                && Err(pRun).Contains("第 2 行") && Err(pRun).Contains("非法"),
+                runThrew ? "抛异常" : Err(pRun));
+
+            // ⑤ 配置界面「求解」：同一份旋转 NaN 数据 → 不抛异常，进入 Failed 态并给出中文原因
+            var pPreview = NewPlugin(nanRows);
+            bool previewThrew = false;
+            try { pPreview.SolveForPreview(); }
+            catch (Exception) { previewThrew = true; }
+            Check("[HE] 非有限⑤：配置界面「求解」遇旋转 NaN → 不抛异常，失败态 + 中文原因",
+                !previewThrew && pPreview.IsPreviewFailed && pPreview.PreviewError.Contains("非法"),
+                previewThrew ? "抛异常" : $"状态={pPreview.PreviewStatusText} 错误={pPreview.PreviewError}");
+
+            // ⑥ 平移含 NaN：不会抛异常，但当前会落到"平移堆叠矩阵奇异"这种误导文案；
+            //    必须在构建样本时就点名 NaN 行（与旋转 NaN 同一道闸）。
+            var nanTransRows = RowsFrom(MakeSamples(TrueX1(), RobotPoses));
+            nanTransRows[1].RobotX = double.NaN;
+            var pTrans = NewPlugin(nanTransRows);
+            bool transThrew = false;
+            try { pTrans.RunAlgorithm(ctx); }
+            catch (Exception) { transThrew = true; }
+            Check("[HE] 非有限⑥：运行期一行平移含 NaN → 失败并点名「第 2 行含非法数值」，不落成「矩阵奇异」",
+                !transThrew && pTrans.Success.Value is false
+                && Err(pTrans).Contains("第 2 行") && Err(pTrans).Contains("非法"),
+                transThrew ? "抛异常" : Err(pTrans));
         }
 
         #endregion
@@ -785,6 +880,47 @@ namespace FlowCanvasChecks
                 $"删前={progressBefore2:0.###} 删后={half.SampleProgress:0.###} 有效={half.ValidSampleCount}");
         }
 
+        /// <summary>
+        /// 进度条模板的静态闸（gate 覆盖）：`SampleProgressStyle` 的 ControlTemplate 必须同时有
+        /// `PART_Track`（轨道）与 `PART_Indicator`（填充），且 Track 在前。
+        /// 渲染级证据在 `UIThemeSmokeTest --plugin-views Plugin.HandEye`；这里防的是 gate 跑不到那个模式时的回归。
+        /// </summary>
+        private static void ViewTemplateLayer()
+        {
+            string? root = RepoRoot();
+            string path = root == null ? "" : Path.Combine(root, @"Plugins\Plugin.HandEye\HandEyeView.xaml");
+            if (!File.Exists(path))
+            {
+                Check("[HE] 进度条模板：能找到 HandEyeView.xaml", false,
+                    path.Length == 0 ? "(未找到仓库根)" : path);
+                return;
+            }
+
+            string text = File.ReadAllText(path);
+            int style = text.IndexOf("x:Key=\"SampleProgressStyle\"", StringComparison.Ordinal);
+            int tpl = style < 0 ? -1 : text.IndexOf("<ControlTemplate", style, StringComparison.Ordinal);
+            int end = tpl < 0 ? -1 : text.IndexOf("</ControlTemplate>", tpl, StringComparison.Ordinal);
+            string block = tpl >= 0 && end > tpl ? text.Substring(tpl, end - tpl) : "";
+            int track = block.IndexOf("x:Name=\"PART_Track\"", StringComparison.Ordinal);
+            int indicator = block.IndexOf("x:Name=\"PART_Indicator\"", StringComparison.Ordinal);
+
+            Check("[HE] 进度条模板：PART_Track（轨道）在 PART_Indicator（填充）之前",
+                track >= 0 && indicator > track,
+                $"track={track} indicator={indicator} block={block.Length}");
+        }
+
+        /// <summary>仓库根（以 VisionMaster.sln 为锚；范式与各断言文件的 RepoRoot 一致）。</summary>
+        private static string? RepoRoot()
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (dir != null)
+            {
+                if (File.Exists(Path.Combine(dir.FullName, "VisionMaster.sln"))) return dir.FullName;
+                dir = dir.Parent;
+            }
+            return null;
+        }
+
         private static void PersistLayer()
         {
             var step = new CheckStepData();
@@ -824,6 +960,24 @@ namespace FlowCanvasChecks
             Check("[HE] 持久化②：16 格与关前逐格一致",
                 okMatrix,
                 $"重开 [{string.Join(" ", reopened.PreviewMatrixCells)}] / 关前 [{string.Join(" ", p1.PreviewMatrixCells)}]");
+
+            // 方案里存的应是完整精度矩阵，而不是 3 位小数显示串：
+            // 显示串每"打开→确定"都会再舍入一次，旋转矩阵会逐渐失去正交性。
+            var payload = Newtonsoft.Json.Linq.JObject.Parse(savedObj is string savedJson ? savedJson : "{}");
+            double[] storedMatrix = payload["Matrix"]?.ToObject<double[]>() ?? Array.Empty<double>();
+            bool solvedTrue = HandEyeMath.SolveAXEqualsXB(
+                MakeSamples(TrueX1(), RobotPoses), out Mat4 xTrue, out _, out _);
+            double storedDiff = double.NaN;
+            if (solvedTrue && storedMatrix.Length == 16)
+            {
+                double[] trueFlat = xTrue.ToArray();
+                storedDiff = 0;
+                for (int i = 0; i < 16; i++)
+                    storedDiff = Math.Max(storedDiff, Math.Abs(storedMatrix[i] - trueFlat[i]));
+            }
+            Check("[HE] 持久化⑦：方案里存的是完整精度矩阵（不是 3 位小数显示串）",
+                solvedTrue && storedMatrix.Length == 16 && storedDiff < 1e-12,
+                $"maxDiff={storedDiff:0.###e+0}");
 
             Check("[HE] 持久化②：数据表也回来了（8 行）",
                 reopened.Samples.Count == rows.Count, $"重开 {reopened.Samples.Count} 行 / 原 {rows.Count} 行");
@@ -884,6 +1038,28 @@ namespace FlowCanvasChecks
             Check("[HE] 持久化⑥：过期后重算再确认 → 重开又回到「完成」",
                 resolvOk && reopened6.IsPreviewOk && reopened6.PreviewMatrixCells[0] != "—",
                 $"重算={resolvOk} / 重开状态={reopened6.PreviewStatusText} / 首格={reopened6.PreviewMatrixCells[0]}");
+
+            // ---- ⑧ de-DE 区域：显示/解析统一 Invariant，不能因小数点变逗号而失效 ----
+            var oldCulture = CultureInfo.CurrentCulture;
+            try
+            {
+                CultureInfo.CurrentCulture = new CultureInfo("de-DE");
+                var stepDe = new CheckStepData();
+                var pDe = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)));
+                pDe.SolveForPreview();
+                bool solvedDe = pDe.IsPreviewOk;
+                pDe.OnConfirm(stepDe);
+
+                var reopenedDe = new HandEyePlugin();
+                reopenedDe.ApplyConfigValues(stepDe);
+                Check("[HE] 持久化⑧：de-DE 区域下求解→确认→重开仍为「完成」（显示/解析统一 Invariant）",
+                    solvedDe && reopenedDe.IsPreviewOk,
+                    $"求解={solvedDe} 重开={reopenedDe.PreviewStatusText}");
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = oldCulture;
+            }
         }
 
         #endregion

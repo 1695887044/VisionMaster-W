@@ -24,6 +24,9 @@ namespace VisionMaster.Services
         /// </summary>
         SolutionModel CurrentSolution { get; }
 
+        /// <summary>当前方案切换完成（参数为新方案；关闭/清空为 null）。</summary>
+        event Action<SolutionModel?>? SolutionSwitched;
+
         /// <summary>
         /// 当前流程
         /// </summary>
@@ -145,6 +148,9 @@ namespace VisionMaster.Services
         /// </summary>
         public SolutionModel CurrentSolution => _currentSolution;
 
+        /// <inheritdoc/>
+        public event Action<SolutionModel?>? SolutionSwitched;
+
         private FlowModel _currentFlow;
         /// <summary>
         /// 当前流程（只读）
@@ -197,6 +203,7 @@ namespace VisionMaster.Services
 
             SetProperty(ref _currentSolution, solution, nameof(CurrentSolution));
             SwitchFlow(null);
+            SolutionSwitched?.Invoke(solution);
         }
 
         /// <summary>

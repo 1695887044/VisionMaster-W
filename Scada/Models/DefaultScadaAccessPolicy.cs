@@ -33,8 +33,15 @@ namespace VisionMaster.Scada
         {
         }
 
-        /// <summary>未登录 = 操作员（理由见 <see cref="IScadaAccessPolicy.CurrentRole"/>）</summary>
-        public ScadaRole CurrentRole => ScadaRole.Operator;
+        /// <summary>未登录 = 没有组（空串）。</summary>
+        public string CurrentGroupId => string.Empty;
+
+        /// <summary>未登录的组显示名。</summary>
+        public string CurrentGroupName => "未登录";
+
+        /// <summary>未登录没有任何权限快照。</summary>
+        public System.Collections.Generic.IReadOnlyList<string> Permissions
+            => System.Array.Empty<string>();
 
         /// <summary>永远是 false：这个实现的存在前提就是"没有登录这回事"</summary>
         public bool IsLoggedIn => false;
@@ -46,10 +53,21 @@ namespace VisionMaster.Scada
         public string CurrentUserName => "未登录";
 
         /// <inheritdoc/>
-        public string LoginStateText => $"{CurrentUserName}（{CurrentRole.DisplayName()}）";
+        public string LoginStateText => CurrentUserName;
 
         /// <inheritdoc/>
-        public bool CanOperate(ScadaRole? required, out string? reason)
-            => CurrentRole.Allows(required, out reason);
+        public bool Can(string requiredKey, out string? reason)
+        {
+            if (string.Equals(requiredKey, ScadaPermissionKeys.Always, System.StringComparison.Ordinal))
+            {
+                reason = null;
+                return true;
+            }
+
+            reason = string.IsNullOrWhiteSpace(requiredKey)
+                ? "未声明权限 Key，已按安全策略拒绝"
+                : $"需要「{ScadaPermissionKeys.DisplayName(requiredKey)}」权限，当前未登录";
+            return false;
+        }
     }
 }

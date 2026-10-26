@@ -49,6 +49,18 @@
 检查存图算子接的是不是 `AnnotatedImage`，**而不是原始 `OutputImage`**（那是没烧过的底图）。
 导出图目前只支持 **PNG**（无损，字不会被压糊）。
 
+## SCADA 上看不到标注
+
+SCADA 的「图像显示」图元只认 **HImage 像素**，没有覆盖层通道。按顺序查：
+
+1. 「图像赋值」的 `InputImage` 接的是不是本算子的 `AnnotatedImage`——不是原始图。
+2. 全局图像变量是不是**每个工位一个**（`Img_ST1`…）；四个页面共用一个 `LastImage` 会互相覆盖。
+3. 组态页面的 `Hmi.ImageView.Source` 绑的是不是该工位变量。
+4. 如果本算子 `DisplayViewIndex=0` 且 `BakeWhenNotDisplayed=false`，`AnnotatedImage` 是空的——要上 SCADA 就保持 `BakeWhenNotDisplayed=true`。
+5. A 类插件（颜色检查/颜色区域/几何查找/几何计算/C# 脚本）的彩色标记：把它们的 `Annotations` 接到本算子的结果项，本算子会把标记一起烧进 `AnnotatedImage`。
+
+图元太小也会让字"看起来没有"：默认 200×160 的框缩 5MP 图约 12 倍，20px 字只剩 1.6px。把图元放大到至少 640×480，或按最终显示尺寸调 `TextScale`。
+
 ## 位置与大小
 
 **文字压住要看的工件了** → 把「文字位置」九宫格换成不挡的角落（例如右下）。

@@ -1,0 +1,103 @@
+[
+  {
+    "Id": "tpl-operator",
+    "Name": "模板·操作员",
+    "Permissions": [
+      "ViewRuntime",
+      "ControlRun",
+      "Start",
+      "Initialize",
+      "Stop",
+      "ReportQuery",
+      "AxisJog"
+    ],
+    "IsBuiltIn": true
+  },
+  {
+    "Id": "tpl-engineer",
+    "Name": "模板·工程师",
+    "Permissions": [
+      "ViewRuntime",
+      "ControlRun",
+      "Start",
+      "Initialize",
+      "Stop",
+      "ReportQuery",
+      "AxisJog",
+      "EditStructure",
+      "Compile",
+      "SaveSolution",
+      "HardwareRuntime",
+      "AxisSpeedConfig"
+    ],
+    "IsBuiltIn": true
+  },
+  {
+    "Id": "tpl-admin",
+    "Name": "模板·管理员",
+    "Permissions": [
+      "ViewRuntime",
+      "ControlRun",
+      "Start",
+      "Initialize",
+      "Stop",
+      "ReportQuery",
+      "AxisJog",
+      "AxisSpeedConfig",
+      "EditStructure",
+      "Compile",
+      "SaveSolution",
+      "HardwareRuntime",
+      "HardwareConfig",
+      "SystemConfig",
+      "UserAdministration"
+    ],
+    "IsBuiltIn": true
+  },
+  {
+    "Id": "G-general",
+    "Name": "普工",
+    "Permissions": [
+      "ViewRuntime",
+      "Start",
+      "Stop"
+    ],
+    "IsBuiltIn": false
+  },
+  {
+    "Id": "G-lineop",
+    "Name": "产线操作员",
+    "Permissions": [
+      "ViewRuntime",
+      "ControlRun",
+      "Start",
+      "Initialize",
+      "Stop",
+      "ReportQuery",
+      "AxisJog"
+    ],
+    "IsBuiltIn": false
+  },
+  {
+    "Id": "G-vendor",
+    "Name": "厂家",
+    "Permissions": [
+      "ViewRuntime",
+      "ControlRun",
+      "Start",
+      "Initialize",
+      "Stop",
+      "ReportQuery",
+      "AxisJog",
+      "AxisSpeedConfig",
+      "EditStructure",
+      "Compile",
+      "SaveSolution",
+      "HardwareRuntime",
+      "HardwareConfig",
+      "SystemConfig",
+      "UserAdministration"
+    ],
+    "IsBuiltIn": false
+  }
+]

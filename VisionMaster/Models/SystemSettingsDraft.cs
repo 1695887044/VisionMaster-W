@@ -64,6 +64,7 @@ namespace VisionMaster.Models
         public const string GroupLog = "日志";
         public const string GroupServices = "服务与启动";
         public const string GroupParallel = "并行执行";
+        public const string GroupSpeech = "语音播报";
 
         // 二级分组（卡片式的 Expander）。同一页签里要么都有第二段、要么都没有——
         // 混着写会让没写第二段的那几个落进一个叫"默认分组"的折叠头里。
@@ -658,6 +659,75 @@ namespace VisionMaster.Models
         {
             get => _parallelForceSequential;
             set => SetProperty(ref _parallelForceSequential, value);
+        }
+
+        // ------------------------------------------------------------------
+        //  7. 语音播报（TTS）
+        // ------------------------------------------------------------------
+
+        private bool _speechEnabled = true;
+        private string _speechRateText = "0";
+        private string _speechVoice = string.Empty;
+        private string _speechMinSeverityLabel = "警告";
+
+        /// <summary>级别下拉的候选文案（与 <see cref="SpeechMinSeverityLabel"/> 同一个字符串，写回时反查）</summary>
+        public IReadOnlyList<string> SpeechSeverityLabels { get; } = new[] { "提示", "警告", "严重" };
+
+        /// <summary>语音播报总开关（顶栏静音仍然独立生效）</summary>
+        [SuperDisplay(
+            Name = "启用语音播报",
+            Group = new[] { GroupSpeech },
+            GroupOrder = "7",
+            Order = 0,
+            Description = "报警与组态动作里配置的「语音播报」是否念出来。关掉后提示音照常；"
+                        + "顶栏「静音 N 分钟」期间播报也会一起停（紧急级报警不受静音约束）")]
+        public bool SpeechEnabled
+        {
+            get => _speechEnabled;
+            set => SetProperty(ref _speechEnabled, value);
+        }
+
+        /// <summary>语速（-10~10，0 = 系统默认）</summary>
+        [SuperDisplay(
+            Name = "语速",
+            Group = new[] { GroupSpeech },
+            GroupOrder = "7",
+            Order = 1,
+            Description = "范围 -10 ~ 10，0 = 系统默认。负数更慢、正数更快；现场听不清报警名时先往负数调")]
+        [RegexValidation(@"^-?\d+$", "请填 -10 ~ 10 的整数（0 = 系统默认）")]
+        public string SpeechRateText
+        {
+            get => _speechRateText;
+            set => SetProperty(ref _speechRateText, value);
+        }
+
+        /// <summary>音色（系统语音名）。空 = 系统默认语音</summary>
+        [SuperDisplay(
+            Name = "音色",
+            Group = new[] { GroupSpeech },
+            GroupOrder = "7",
+            Order = 2,
+            Description = "系统里已安装的语音名（如 Microsoft Huihui Desktop）。留空 = 系统默认语音。"
+                        + "填了本机没有的名字会被忽略并落一条 Warn，不会静默变成别的音色")]
+        public string SpeechVoice
+        {
+            get => _speechVoice;
+            set => SetProperty(ref _speechVoice, value);
+        }
+
+        /// <summary>报警播报的最低级别（组态动作触发的播报不受此限）</summary>
+        [SuperDisplay(
+            Name = "报警播报最低级别",
+            Group = new[] { GroupSpeech },
+            GroupOrder = "7",
+            Order = 3,
+            Description = "只影响「报警自动播报」：低于这一级的不念，避免提示级刷屏。"
+                        + "组态动作里的「语音播报」不受此门槛限制（那是操作员主动触发的）")]
+        [ComboSource(nameof(SpeechSeverityLabels))]
+        public string SpeechMinSeverityLabel
+        {
+            get => _speechMinSeverityLabel;
+            set => SetProperty(ref _speechMinSeverityLabel, value);
         }
     }
 }

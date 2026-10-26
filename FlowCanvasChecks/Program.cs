@@ -146,6 +146,7 @@ namespace FlowCanvasChecks
             LayoutWriteBackDiscipline();
             OutsideSelectionDrivesCanvas();
             DragReorderAndVersion();
+            SurfaceDragReorderAndRelayout();
             DragGhostChecks();
             CrossBranchMoveAndUndo();
             UnbindUndoRedo();
@@ -1410,6 +1411,120 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  [M3] 自绘层拖拽改序：整表重排（2026-10-25）
+        //
+        //  自绘层**不做自由摆放**：拖动期只喂渲染偏移（SetDragOffsets），抬手把落点交给布局器。
+        //  这里钉四件最容易回归的事：
+        //    ① 改序真的发生（Steps 顺序 + Version + 撤销栈）；
+        //    ② **整表重排**——每个节点的坐标必须与"按新顺序重新 AutoLayout"逐项相等
+        //       （只重排被拖节点会在图里留空洞，历史缺陷就是 1、2、4、5 的跳号）；
+        //    ③ 折叠标记在重排后仍在（AutoLayout 只给新条目设默认值）；
+        //    ④ 渲染偏移不漏进模型（节点 Location 必须等于坐标表）；
+        //    ⑤ 撤销之后坐标跟着重排（否则顺序回去了、位置还停在原处）。
+        // ==================================================================
+        private static void SurfaceDragReorderAndRelayout()
+        {
+            Section("[M3] 自绘层拖拽改序（整表重排）");
+
+            var h = new Harness();
+            var a = h.Leaf("A");
+            var b = h.Leaf("B");
+            var c = h.Leaf("C");
+            var d = h.Leaf("D");
+            h.Add(a); h.Add(b); h.Add(c); h.Add(d);
+            var cv = h.Canvas;
+            cv.AutoReflowOnStructureChange = true;   // 视图在切自绘时置位，这里手工置位
+
+            Check("M3 初始主列 4 节点", h.MainSteps().Count == 4, $"count={h.MainSteps().Count}");
+            Check("M3 初始序号 1..4 连续",
+                string.Join(",", h.MainSteps().Select(n => n.OrderIndex)) == "1,2,3,4",
+                string.Join(",", h.MainSteps().Select(n => n.OrderIndex)));
+
+            // D 先折叠：整表重排必须保留它（AutoLayout 只给新条目设默认折叠）
+            h.Flow.Layout.SetCollapsed(d.StepID, true);
+            Check("M3 前置：D 已折叠", h.Flow.Layout.Find(d.StepID)?.Collapsed == true, "");
+
+            var nodeA = h.Node(a)!;
+            var nodeC = h.Node(c)!;
+            var version0 = h.Flow.Version;
+
+            // 落点取 C 卡片下沿再往下一点 → 恰好落在 C 与 D 之间 → A 插到下标 2
+            var drop = new Point(
+                nodeC.Location.X + 10,
+                nodeC.Location.Y + FlowCanvasViewModel.NodeHeight + 6);
+            bool changed = cv.CompleteSurfaceNodeDrag(new[] { nodeA }, drop);
+
+            Check("M3 提交返回 true", changed, "");
+            Check("★M3 改序生效：Steps = [B,C,A,D]",
+                h.Flow.Steps.Count == 4 && h.Flow.Steps[0] == b && h.Flow.Steps[1] == c
+                && h.Flow.Steps[2] == a && h.Flow.Steps[3] == d,
+                string.Join(",", h.Flow.Steps.Select(s => s.StepName)));
+            Check("M3 Version 递增 1 次", h.Flow.Version == version0 + 1, $"{version0} → {h.Flow.Version}");
+            Check("M3 撤销栈 = 1", cv.UndoStackSize == 1, $"size={cv.UndoStackSize}");
+
+            // ① 序号无空洞（历史缺陷：1,2,4,5）
+            var badges = string.Join(",", h.MainSteps().Select(n => n.OrderIndex));
+            Check("★M3 序号连续 1..4（无跳号）", badges == "1,2,3,4", badges);
+
+            // ② 坐标 == 按新顺序重新排一遍
+            var expected = new FlowLayoutStore();
+            expected.AutoLayout(h.Flow.Steps);
+            var drift = new List<string>();
+            foreach (var step in h.Flow.Steps)
+            {
+                var got = h.Flow.Layout.Find(step.StepID);
+                var want = expected.Find(step.StepID);
+                if (got == null || want == null
+                    || Math.Abs(got.X - want.X) > 0.5 || Math.Abs(got.Y - want.Y) > 0.5)
+                {
+                    drift.Add($"{step.StepName}:({got?.X},{got?.Y})≠({want?.X},{want?.Y})");
+                }
+            }
+            Check("★M3 整表重排：全部坐标与重新 AutoLayout 一致", drift.Count == 0, string.Join(" ", drift));
+
+            // ③ 折叠标记保留
+            Check("★M3 整表重排后 D 仍是折叠", h.Flow.Layout.Find(d.StepID)?.Collapsed == true, "");
+
+            // ④ 渲染偏移不漏进模型
+            var leaked = h.MainSteps()
+                .Where(n => h.Flow.Layout.Find(n.StepId) is not { } l
+                    || Math.Abs(n.Location.X - l.X) > 0.5 || Math.Abs(n.Location.Y - l.Y) > 0.5)
+                .Select(n => n.Header)
+                .ToList();
+            Check("M3 拖动偏移未漏进模型（Location == 坐标表）", leaked.Count == 0, string.Join(",", leaked));
+
+            // ⑤ 撤销：顺序回去，坐标也要跟着重排
+            cv.UndoCommand.Execute();
+            Check("M3 撤销后 Steps 回到 [A,B,C,D]",
+                h.Flow.Steps[0] == a && h.Flow.Steps[1] == b && h.Flow.Steps[2] == c && h.Flow.Steps[3] == d,
+                string.Join(",", h.Flow.Steps.Select(s => s.StepName)));
+            Check("★M3 撤销后序号仍是 1..4",
+                string.Join(",", h.MainSteps().Select(n => n.OrderIndex)) == "1,2,3,4",
+                string.Join(",", h.MainSteps().Select(n => n.OrderIndex)));
+
+            var nodeA2 = h.Node(a)!;
+            var nodeB2 = h.Node(b)!;
+            Check("★M3 撤销后 A 回到 B 上方（坐标随顺序重排）",
+                nodeA2.Location.Y < nodeB2.Location.Y,
+                $"A.y={nodeA2.Location.Y} B.y={nodeB2.Location.Y}");
+
+            // 反向：Nodify 路径（开关关掉）撤销不重排——自由摆放的坐标是用户拖出来的
+            var h2 = new Harness();
+            var x = h2.Leaf("X");
+            var y = h2.Leaf("Y");
+            h2.Add(x); h2.Add(y);
+            var cv2 = h2.Canvas;   // 默认 false
+            var xY0 = h2.Node(x)!.Location.Y;
+            var reorder = FlowCanvasExtensions.CreateReorderCommand(h2.Flow.Steps, 0, 1);
+            FlowCanvasExtensions.InvokeRedo(reorder);
+            cv2.PushUndoReflection(reorder);
+            cv2.UndoCommand.Execute();
+            Check("M3 反向：AutoReflow=false 时撤销不动坐标（Nodify 自由摆放）",
+                Math.Abs(h2.Node(x)!.Location.Y - xY0) < 0.5,
+                $"{xY0} → {h2.Node(x)!.Location.Y}");
+        }
+
+        // ==================================================================
         //  [M2] 画布内拖动浮层（纯视觉）：内容取主拖动节点，抬手即收
         //
         //  与工具箱 / 流程栏共用 DragGhostCard（设计基线 v2）。Nodify 没有公开的拖动开始
@@ -2171,7 +2286,7 @@ namespace FlowCanvasChecks
 
             Check("混合图式：数据线关闭时普通线隐藏、非法链仍在（红虚线例外）",
                 !c2.ShowDataLinks && c2.IllegalLinkCount == 1
-                && c2.DataLinkCount == 1 && c2.Links.Single(l => !l.IsOrderLink).IsIllegal
+                && c2.DataLinkCount == 1 && c2.Links.Single(l => !l.IsOrderLink && !l.IsScopeHidden).IsIllegal
                 && c2.WarningVisibility == Visibility.Visible,
                 $"数据线={c2.DataLinkCount} 非法={c2.IllegalLinkCount}");
             c2.ShowDataLinks = true;

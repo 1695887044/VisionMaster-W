@@ -79,6 +79,14 @@ namespace Plugin.HandEye
                         error = $"第 {lineNo} 行第 {c + 1} 列不是数字：「{cells[c].Trim()}」";
                         return false;
                     }
+
+                    // "NaN"/"Infinity" 能被 TryParse 接受，但不是合法位姿：
+                    // 放进去会在求解时抛 ArithmeticException 或落成误导性的"矩阵奇异"。
+                    if (!double.IsFinite(v[c]))
+                    {
+                        error = $"第 {lineNo} 行第 {c + 1} 列不是有限数：「{cells[c].Trim()}」（NaN/Infinity 不能作为位姿）";
+                        return false;
+                    }
                 }
 
                 if (rows.Count == 0 && skipped < 3 && !LooksNumeric(cells[0]))

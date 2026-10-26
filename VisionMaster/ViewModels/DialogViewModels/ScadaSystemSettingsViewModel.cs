@@ -234,6 +234,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
                 CommunicationStartupCheck = config.EnableCommunicationStartupCheck,
 
+                SpeechEnabled = config.SpeechEnabled,
+                SpeechRateText = config.SpeechRate.ToString(CultureInfo.InvariantCulture),
+                SpeechVoice = config.SpeechVoice ?? "",
+                SpeechMinSeverityLabel = config.SpeechMinSeverity switch
+                {
+                    "Info" => "提示",
+                    "Critical" => "严重",
+                    _ => "警告",
+                },
+
                 ParallelFailFastByDefault = parallel.FailFastByDefault,
                 ParallelForceSequential = parallel.ForceSequential,
             };
@@ -348,6 +358,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var newLogDirectory = (Draft.LogDirectory ?? string.Empty).Trim();
             var newPasswordLength = minPassword > 0 ? minPassword : AppConfigModel.DefaultMinPasswordLength;
 
+            if (!TryParseField(Draft.SpeechRateText, "语速", out var speechRate, out var speechRateError))
+            {
+                ErrorMessage = speechRateError;
+                return;
+            }
+
+            speechRate = Math.Clamp(speechRate, -10, 10);
+
             // 日志目录改了才试写：没改的时候不该因为"网络盘刚好断线"把无关的保存也拦下来。
             // 不试写的话，指到不可写目录的表现是"日志面板照常、文件一条没有"——最阴的一类静默故障。
             if (!string.Equals(newLogDirectory, config.LogDirectory ?? string.Empty, StringComparison.OrdinalIgnoreCase)
@@ -380,6 +398,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var oldLogLevel = config.LogFileLevel;
             var oldLogPanelRows = config.LogPanelMaxRows;
             var oldCommCheck = config.EnableCommunicationStartupCheck;
+            var oldSpeech = (config.SpeechEnabled, config.SpeechRate, config.SpeechVoice ?? "", config.SpeechMinSeverity ?? "Warning");
             var oldHttp = (http.Enabled, http.Host ?? "", http.Port, http.Token ?? "", http.RequestTimeoutMs);
             var oldCamera = (camera.Enabled, camera.Host ?? "", camera.Port, camera.Token ?? "");
             var oldParallel = (parallel.FailFastByDefault, parallel.ForceSequential);
@@ -491,6 +510,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (Draft.CommunicationStartupCheck != oldCommCheck)
                 parameterChanges.Add($"启动时通讯自检：{(oldCommCheck ? "开" : "关")} → {(Draft.CommunicationStartupCheck ? "开" : "关")}");
 
+            var newSpeechVoice = (Draft.SpeechVoice ?? string.Empty).Trim();
+            var newSpeechSeverity = Draft.SpeechMinSeverityLabel switch
+            {
+                "提示" => "Info",
+                "严重" => "Critical",
+                _ => "Warning",
+            };
+            if (Draft.SpeechEnabled != oldSpeech.Item1)
+                parameterChanges.Add($"语音播报：{(oldSpeech.Item1 ? "开" : "关")} → {(Draft.SpeechEnabled ? "开" : "关")}");
+            if (speechRate != oldSpeech.Item2)
+                parameterChanges.Add($"语音语速：{oldSpeech.Item2} → {speechRate}");
+            if (!string.Equals(newSpeechVoice, oldSpeech.Item3, StringComparison.Ordinal))
+                parameterChanges.Add($"语音音色：{(oldSpeech.Item3.Length == 0 ? "（系统默认）" : oldSpeech.Item3)}"
+                                     + $" → {(newSpeechVoice.Length == 0 ? "（系统默认）" : newSpeechVoice)}");
+            if (!string.Equals(newSpeechSeverity, oldSpeech.Item4, StringComparison.Ordinal))
+                parameterChanges.Add($"报警播报最低级别：{oldSpeech.Item4} → {newSpeechSeverity}");
+
             if (Draft.ParallelFailFastByDefault != oldParallel.Item1)
                 parameterChanges.Add($"并行失败聚合默认：{(oldParallel.Item1 ? "开" : "关")} → {(Draft.ParallelFailFastByDefault ? "开" : "关")}");
             if (Draft.ParallelForceSequential != oldParallel.Item2)
@@ -527,6 +563,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             config.LogFileLevel = Draft.LogFileLevel;
             config.LogPanelMaxRows = logPanelRows;
             config.EnableCommunicationStartupCheck = Draft.CommunicationStartupCheck;
+
+            config.SpeechEnabled = Draft.SpeechEnabled;
+            config.SpeechRate = speechRate;
+            config.SpeechVoice = newSpeechVoice;
+            config.SpeechMinSeverity = newSpeechSeverity;
 
             config.ImageGallery = gallery;
             gallery.Enabled = Draft.GalleryEnabled;

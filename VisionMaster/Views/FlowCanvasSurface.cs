@@ -143,6 +143,11 @@ namespace VisionMaster.Views
         {
             ClipToBounds = true;
             Focusable = false;
+
+            // 位图缓存：内容只在数据变化/缩放/平移落定时才变，窗口拖动、滚动这类"只是重新呈现"
+            // 的场景直接复用缓存位图，不再每次走一遍 OnRender（用户反馈"拖窗体很滞后"）。
+            CacheMode = new BitmapCache();
+
             UpdateTransform();
         }
 
@@ -310,9 +315,14 @@ namespace VisionMaster.Views
                 return;
             }
 
-            // 画布底：与 NodifyEditor.Background 同一个 DrawingBrush——#F7F8FA 底 + 24×24 一个圆点（R:12,12）。
-            // 点阵是**屏幕空间**的（Nodify 的 Background 画在控件上，不跟视口平移），所以画在 PushTransform 之前。
-            dc.DrawRectangle(GridBackground, null, new Rect(size));
+            // 底色 + 点阵由**背后的独立元素**负责（见 FlowCanvasView.xaml 的 SurfaceBackdrop）：
+            // 拖动期间本元素走 RenderTransform 位移，背景必须留在原地，否则拖出来的那块就是白屏。
+            // 这里只铺一层透明底，保证空白区也能收鼠标。
+            dc.DrawRectangle(Brushes.Transparent, null, new Rect(size));
+
+            // 框选框：屏幕坐标、画在变换之前（不随缩放变粗变细）
+            if (_marquee is { } marquee && marquee.Width > 0.5 && marquee.Height > 0.5)
+                dc.DrawRectangle(Palette.MarqueeFill, Palette.MarqueePen, marquee);
 
             if (_drawNodes.Length == 0 && _drawLinks.Length == 0)
             {
@@ -401,7 +411,13 @@ namespace VisionMaster.Views
                     if (!visible.IntersectsWith(item.Rect.Bounds)) continue;
 
                     drawnNodes++;
-                    DrawStep(dc, item.Node, item.Rect.Bounds);
+
+                    // 拖动期的渲染偏移（不改模型坐标）
+                    var stepBounds = item.Rect.Bounds;
+                    if (_dragOffsets.TryGetValue(item.Node, out var dragOffset))
+                        stepBounds.Offset(dragOffset);
+
+                    DrawStep(dc, item.Node, stepBounds);
                 }
 
                 // 第 4 层：连线标签。必须压在卡片之上，否则会被卡片切掉半截。
@@ -414,10 +430,187 @@ namespace VisionMaster.Views
             {
                 dc.Pop();
             }
+
+            // 小地图画在变换之外（屏幕空间，右下角常驻）
+            DrawMiniMap(dc, size);
         }
 
         /// <summary>最近一帧实际绘制的节点数（探针/诊断用：证明裁剪真的生效）</summary>
         public int LastDrawnNodeCount => _lastDrawnNodes;
+
+        /// <summary>
+        /// 框选矩形（**屏幕坐标**，不是图坐标）。null = 不画。
+        /// 画在 PushTransform 之前——选框是屏幕装饰，不该跟着缩放变大变小。
+        /// </summary>
+        public Rect? MarqueeScreenRect
+        {
+            get => _marquee;
+            set
+            {
+                if (_marquee == value) return;
+                _marquee = value;
+                InvalidateVisual();
+            }
+        }
+
+        private Rect? _marquee;
+
+        /// <summary>图坐标矩形命中的可选中节点（框选）。泳道不参与——它是装饰，不是步骤。</summary>
+        public List<CanvasNodeViewModel> HitTestRect(Rect graphRect)
+        {
+            var result = new List<CanvasNodeViewModel>();
+            for (int i = 0; i < _nodes.Length; i++)
+            {
+                var item = _nodes[i];
+                if (item.Kind == FlowSurfaceKind.Lane) continue;
+                if (item.Model is not CanvasNodeViewModel node) continue;
+                if (graphRect.IntersectsWith(item.Bounds)) result.Add(node);
+            }
+            return result;
+        }
+
+        /// <summary>容器折叠钮的图坐标矩形（与绘制位置同源：右缘内 6、顶部下 14、18×18）。</summary>
+        public static Rect CollapseButtonRect(Rect containerBounds)
+            => new(containerBounds.Right - 24, containerBounds.Y + 14, 18, 18);
+
+        /// <summary>
+        /// 拖动期的**渲染偏移**（图坐标）。拖动改序时**不改模型坐标**——画布位置是布局器算的，
+        /// 写回模型会让节点停在拖动位置、整张图散架（2026-10-25 实测）。
+        /// 这里只让被拖的节点在绘制时偏一段，落定时交给 VM 提交顺序并重排。
+        /// </summary>
+        public void SetDragOffsets(IEnumerable<(CanvasNodeViewModel Node, Vector GraphOffset)> offsets)
+        {
+            _dragOffsets.Clear();
+            foreach (var (node, offset) in offsets) _dragOffsets[node] = offset;
+            InvalidateVisual();
+        }
+
+        public void ClearDragOffsets()
+        {
+            if (_dragOffsets.Count == 0) return;
+            _dragOffsets.Clear();
+            InvalidateVisual();
+        }
+
+        private readonly Dictionary<CanvasNodeViewModel, Vector> _dragOffsets = new();
+
+        // ------------------------------------------------------------------
+        //  小地图（自绘）：Nodify 的 Minimap 在自绘模式下不生成 item，只能自己画
+        // ------------------------------------------------------------------
+
+        private const double MiniMapWidth = 180;
+        private const double MiniMapHeight = 118;
+        private const double MiniMapMargin = 10;
+
+        private Rect MiniMapBox(Size size) => new(
+            size.Width - MiniMapWidth - MiniMapMargin,
+            size.Height - MiniMapHeight - MiniMapMargin,
+            MiniMapWidth,
+            MiniMapHeight);
+
+        /// <summary>内容 → 小地图的缩放与平移（等比、居中）。</summary>
+        private (double Scale, Vector Offset) MiniMapTransform(Rect box)
+        {
+            var content = _contentBounds;
+            if (content.IsEmpty || content.Width < 1 || content.Height < 1) return (0, default);
+
+            double scale = Math.Min(
+                (box.Width - 8) / content.Width,
+                (box.Height - 8) / content.Height);
+
+            return (scale, new Vector(
+                box.X + (box.Width - content.Width * scale) / 2 - content.X * scale,
+                box.Y + (box.Height - content.Height * scale) / 2 - content.Y * scale));
+        }
+
+        /// <summary>是否画小地图（跟随工具条「小地图」开关）。</summary>
+        public bool ShowMiniMap
+        {
+            get => _showMiniMap;
+            set
+            {
+                if (_showMiniMap == value) return;
+                _showMiniMap = value;
+                InvalidateVisual();
+            }
+        }
+
+        private bool _showMiniMap;
+
+        private void DrawMiniMap(DrawingContext dc, Size size)
+        {
+            if (!_showMiniMap) return;
+            if (_contentBounds.IsEmpty) return;
+
+            var box = MiniMapBox(size);
+            if (box.Width < 20 || box.Height < 20) return;
+
+            dc.DrawRoundedRectangle(Palette.MiniMapFill, Palette.MiniMapBorderPen, box, 6, 6);
+
+            var (scale, offset) = MiniMapTransform(box);
+            if (scale <= 0) return;
+
+            dc.PushClip(new RectangleGeometry(box));
+            try
+            {
+                // 节点：步骤画实心小块、容器画空心框（与主画布的层级语义一致）
+                for (int i = 0; i < _drawNodes.Length; i++)
+                {
+                    var item = _drawNodes[i];
+                    if (item.Rect.Kind == FlowSurfaceKind.Lane) continue;
+
+                    var r = item.Rect.Bounds;
+                    var rr = new Rect(
+                        r.X * scale + offset.X,
+                        r.Y * scale + offset.Y,
+                        Math.Max(1.5, r.Width * scale),
+                        Math.Max(1.5, r.Height * scale));
+
+                    if (item.Rect.Kind == FlowSurfaceKind.Container)
+                        dc.DrawRectangle(null, Palette.MiniMapContainerPen, rr);
+                    else
+                        dc.DrawRectangle(Palette.MiniMapNodeFill, null, rr);
+                }
+
+                // 当前视口矩形
+                var viewport = new Rect(
+                    (0 - _pan.X) / _zoom * scale + offset.X,
+                    (0 - _pan.Y) / _zoom * scale + offset.Y,
+                    size.Width / _zoom * scale,
+                    size.Height / _zoom * scale);
+
+                dc.DrawRectangle(Palette.MiniMapViewportFill, Palette.MiniMapViewportPen, viewport);
+            }
+            finally
+            {
+                dc.Pop();
+            }
+        }
+
+        /// <summary>
+        /// 点小地图跳转：把点击位置当作"想让视口中心落到的图坐标"。
+        /// 返回 true = 点在面板内，调用方应吃掉这次点击。
+        /// </summary>
+        public bool TryMiniMapJump(Point screenPoint)
+        {
+            if (!_showMiniMap) return false;
+            if (_contentBounds.IsEmpty) return false;
+
+            var box = MiniMapBox(RenderSize);
+            if (box.Width < 20 || !box.Contains(screenPoint)) return false;
+
+            var (scale, offset) = MiniMapTransform(box);
+            if (scale <= 0) return false;
+
+            // 屏幕点 → 图坐标，再把视口中心对到那里
+            double graphX = (screenPoint.X - offset.X) / scale;
+            double graphY = (screenPoint.Y - offset.Y) / scale;
+
+            Pan = new Vector(
+                RenderSize.Width / 2 - graphX * _zoom,
+                RenderSize.Height / 2 - graphY * _zoom);
+            return true;
+        }
 
         /// <summary>诊断：图标字体解析出多少个字形面。0 = 字体没加载，FA 字形会退化成豆腐块。</summary>
         public static int IconFontTypefaceCount => IconFontFamily.GetTypefaces().Count();
@@ -1505,6 +1698,9 @@ namespace VisionMaster.Views
                 var link = vm.Links[i];
                 if (link is null) continue;
 
+                // 「只显示选中算子的数据线」：不在作用域内的线不进快照
+                if (link.IsScopeHidden) continue;
+
                 var line = new FlowLinkLine(
                     link.SourceAnchor,
                     link.TargetAnchor,
@@ -1571,8 +1767,10 @@ namespace VisionMaster.Views
             }
             geometry.Freeze();
 
-            // 标签落在折线"按弧长一半"的位置：直角走线的几何中点经常落在拐角外的空白处
-            var mid = MidpointAlong(points);
+            // 标签锚点：沿折线采样，取"离卡片最远"的那个点。
+            // 用弧长中点不够——绕行走线会把中点推到两张卡之间的窄缝里，正好压住备注行
+            //（2026-10-25 用户截图："还是被遮挡了"）。
+            var labelAnchor = FindLabelAnchor(points, obstacles);
 
             var bounds = new Rect(points[0], points[0]);
             foreach (var p in points) bounds.Union(p);
@@ -1585,7 +1783,7 @@ namespace VisionMaster.Views
                 pen,
                 FrozenPenCached(Palette.LinkOutline, pen.Thickness + 1.6 * 2),
                 BuildArrow(line.Target, line.TargetSide),
-                mid,
+                labelAnchor,
                 link.LinkLabel ?? string.Empty,
                 line.IsIllegal ? Palette.FailedText : line.IsOrder ? Palette.OrderLinkLabelText : Palette.LinkLabelText,
                 !line.IsOrder,
@@ -1689,22 +1887,68 @@ namespace VisionMaster.Views
                 && point.Y >= rect.Y - tolerance && point.Y <= rect.Bottom + tolerance;
         }
 
-        /// <summary>按弧长取折线中点（标签锚点）。</summary>
-        private static Point MidpointAlong(List<Point> points)
+        /// <summary>
+        /// 标签锚点：沿折线等距采样，取"离步骤卡片最远"的那个点。
+        /// 只避卡片，不避容器——标签落在容器内部的泳道上完全正常，把容器也算进去会把标签赶出框外。
+        /// </summary>
+        private static Point FindLabelAnchor(List<Point> points, IReadOnlyList<(Rect Bounds, bool IsContainer)> obstacles)
         {
+            if (points.Count == 0) return default;
+            if (points.Count == 1) return points[0];
+
             double total = 0;
             for (int i = 1; i < points.Count; i++) total += (points[i] - points[i - 1]).Length;
-            if (total < 0.01) return points[0];
+            if (total < 1) return points[0];
 
-            double half = total / 2;
+            const int samples = 16;
+            var best = points[0];
+            double bestClearance = double.NegativeInfinity;
+
+            for (int i = 0; i <= samples; i++)
+            {
+                var p = PointAt(points, total * i / samples);
+                double clearance = MinCardClearance(p, obstacles);
+                if (clearance > bestClearance)
+                {
+                    bestClearance = clearance;
+                    best = p;
+                }
+            }
+
+            return best;
+        }
+
+        private static double MinCardClearance(Point point, IReadOnlyList<(Rect Bounds, bool IsContainer)> obstacles)
+        {
+            double min = double.MaxValue;
+
+            for (int i = 0; i < obstacles.Count; i++)
+            {
+                if (obstacles[i].IsContainer) continue;
+
+                var rect = obstacles[i].Bounds;
+                if (rect.IsEmpty) continue;
+
+                double dx = Math.Max(0, Math.Max(rect.X - point.X, point.X - rect.Right));
+                double dy = Math.Max(0, Math.Max(rect.Y - point.Y, point.Y - rect.Bottom));
+                double distance = Math.Sqrt(dx * dx + dy * dy);
+                if (distance < min) min = distance;
+            }
+
+            return min == double.MaxValue ? 1e6 : min;
+        }
+
+        /// <summary>按弧长取折线上的点（标签锚点用）。</summary>
+        private static Point PointAt(List<Point> points, double distance)
+        {
             double walked = 0;
             for (int i = 1; i < points.Count; i++)
             {
                 var segment = points[i] - points[i - 1];
                 double length = segment.Length;
-                if (walked + length >= half)
+                if (walked + length >= distance)
                 {
-                    double t = (half - walked) / Math.Max(0.0001, length);
+                    double t = (distance - walked) / Math.Max(0.0001, length);
                     return points[i - 1] + segment * t;
                 }
                 walked += length;
@@ -1972,6 +2216,17 @@ namespace VisionMaster.Views
             public static readonly Brush ParallelHeader = HeaderGradient(0xF0, 0xF9, 0xFF);
 
             public static readonly Pen LinkOutlinePen = FrozenPen(LinkOutline, 1.5 + 1.6 * 2);
+            /// <summary>框选框：与选中色同源的半透明填充 + 1px 描边</summary>
+            public static readonly SolidColorBrush MarqueeFill = Frozen(0x1A, 0x3B, 0x82, 0xF6);
+            public static readonly Pen MarqueePen = FrozenPen(StateRunning, 1);
+
+            // 小地图（自绘缩略图）
+            public static readonly SolidColorBrush MiniMapFill = Frozen(0xF2, 0xFF, 0xFF, 0xFF);
+            public static readonly SolidColorBrush MiniMapNodeFill = Frozen(0xFF, 0xC9, 0xD2, 0xDE);
+            public static readonly Pen MiniMapBorderPen = FrozenPen(NodeBorder, 1);
+            public static readonly Pen MiniMapContainerPen = FrozenPen(LaneBorder, 1);
+            public static readonly SolidColorBrush MiniMapViewportFill = Frozen(0x22, 0x3B, 0x82, 0xF6);
+            public static readonly Pen MiniMapViewportPen = FrozenPen(StateRunning, 1);
             public static readonly Pen BreakpointPen = FrozenPen(Canceled, 1.2);
             public static readonly Pen BreakpointOnPen = FrozenPen(Breakpoint, 1.2);
             public static readonly Pen ExtBadgePen = FrozenPen(ExtBadgeBorder, 1);
@@ -2035,6 +2290,12 @@ namespace VisionMaster.Views
         /// 用 DrawingBrush 让 WPF 自己平铺，比每帧画几百条零长度线段省得多。
         /// </summary>
         private static readonly Brush GridBackground = BuildGridBackground();
+
+        /// <summary>
+        /// 画布底色 + 24×24 点阵的画刷（与 NodifyEditor.Background 逐字一致）。
+        /// 自绘层自己不再画它——拖动时整块元素会位移，背景必须由背后不动的元素承担。
+        /// </summary>
+        public static Brush CanvasBackdropBrush => GridBackground;
 
         private static Brush BuildGridBackground()
         {

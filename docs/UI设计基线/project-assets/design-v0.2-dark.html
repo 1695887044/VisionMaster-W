@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>项目资产管理 · 设计稿</title>
+<style>
+:root {
+  --bg: #070d16;
+  --bg-2: #0b1220;
+  --surface: #101821;
+  --surface-2: #151c23;
+  --surface-3: #1b2530;
+  --stroke: #263447;
+  --stroke-soft: #1e2a38;
+  --text: #f8fafc;
+  --text-2: #e2e8f0;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
+  --cyan: #22d3ee;
+  --cyan-soft: rgba(34, 211, 238, .12);
+  --green: #22c55e;
+  --green-soft: rgba(34, 197, 94, .12);
+  --amber: #f59e0b;
+  --amber-soft: rgba(245, 158, 11, .12);
+  --red: #ef4444;
+  --red-soft: rgba(239, 68, 68, .12);
+  --purple: #a855f7;
+  --purple-soft: rgba(168, 85, 247, .12);
+  --radius: 12px;
+  --radius-s: 8px;
+  --shadow: 0 18px 60px rgba(0, 0, 0, .34);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+body {
+  font-family: "Microsoft YaHei UI", "Segoe UI", "PingFang SC", system-ui, sans-serif;
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+button, input { font: inherit; }
+button { cursor: pointer; }
+.app { height: 100vh; display: grid; grid-template-columns: 76px 1fr; }
+.rail {
+  background: #080e17;
+  border-right: 1px solid #141e2a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 0 14px;
+}
+.logo {
+  width: 42px; height: 42px; border-radius: 12px;
+  background: linear-gradient(145deg, #22d3ee 0%, #0ea5e9 55%, #6366f1 100%);
+  display: grid; place-items: center; color: #041016;
+  font-weight: 900; font-size: 15px; letter-spacing: -.5px;
+  box-shadow: 0 8px 26px rgba(34, 211, 238, .24);
+}
+.rail-nav { display: flex; flex-direction: column; gap: 7px; margin-top: 30px; }
+.rail-btn {
+  width: 46px; height: 46px; border: 0; border-radius: 12px;
+  background: transparent; color: #64748b; display: grid; place-items: center;
+  position: relative; transition: .16s ease;
+}
+.rail-btn:hover { background: #111b26; color: #cbd5e1; }
+.rail-btn.active { background: var(--cyan-soft); color: var(--cyan); }
+.rail-btn.active::before {
+  content: ""; position: absolute; left: -15px; top: 13px; bottom: 13px;
+  width: 3px; border-radius: 0 3px 3px 0; background: var(--cyan);
+}
+.rail-btn svg { width: 19px; height: 19px; }
+.rail-spacer { flex: 1; }
+.rail-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #1e293b; border: 1px solid #334155;
+  display: grid; place-items: center; color: #cbd5e1; font-size: 12px; font-weight: 700;
+}
+.content { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.topbar {
+  height: 62px; flex: 0 0 62px; border-bottom: 1px solid #141e2a;
+  display: flex; align-items: center; gap: 18px; padding: 0 28px;
+  background: rgba(7, 13, 22, .72);
+}
+.crumb { color: var(--muted-2); font-size: 12px; display: flex; align-items: center; gap: 8px; }
+.crumb b { color: var(--text-2); font-weight: 600; }
+.crumb i { font-style: normal; color: #334155; }
+.search {
+  margin-left: auto; width: 310px; height: 36px; border-radius: 9px;
+  border: 1px solid var(--stroke-soft); background: #0c141e;
+  display: flex; align-items: center; gap: 9px; padding: 0 11px;
+  color: var(--muted-2);
+}
+.search svg { width: 15px; height: 15px; }
+.search span { font-size: 12px; }
+.search kbd {
+  margin-left: auto; font-family: inherit; font-size: 10px; color: #64748b;
+  border: 1px solid #263447; border-radius: 5px; padding: 2px 5px; background: #0a111a;
+}
+.top-status { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 4px rgba(34, 197, 94, .1); }
+.top-user { display: flex; align-items: center; gap: 9px; padding-left: 16px; border-left: 1px solid #1e2a38; }
+.top-user .name { font-size: 12px; color: var(--text-2); }
+.top-user .role { font-size: 10px; color: var(--muted-2); }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%; background: #1d2a3a;
+  border: 1px solid #3b4b5f; display: grid; place-items: center;
+  color: #dbeafe; font-size: 11px; font-weight: 700;
+}
+main { padding: 20px 28px 0; display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.title-row { display: flex; align-items: flex-end; gap: 18px; flex: 0 0 auto; }
+.eyebrow { color: var(--cyan); font-size: 10px; font-weight: 700; letter-spacing: .18em; margin-bottom: 6px; }
+h1 { margin: 0; font-size: 28px; line-height: 1.1; letter-spacing: -.4px; font-weight: 750; }
+.subtitle { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
+.title-actions { margin-left: auto; display: flex; gap: 10px; padding-bottom: 2px; }
+.btn {
+  height: 38px; padding: 0 15px; border-radius: 9px; border: 1px solid var(--stroke);
+  background: #111a24; color: var(--text-2); display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12.5px; font-weight: 600; transition: .16s ease;
+}
+.btn:hover { border-color: #3b4b5f; background: #162230; }
+.btn.primary { background: linear-gradient(180deg, #22d3ee, #0ea5e9); border-color: #22d3ee; color: #041016; box-shadow: 0 8px 20px rgba(14, 165, 233, .18); }
+.btn.primary:hover { filter: brightness(1.04); }
+.btn.ghost { background: transparent; }
+.btn svg { width: 15px; height: 15px; }
+.tabs {
+  margin-top: 18px; display: flex; align-items: center; gap: 4px; border-bottom: 1px solid #1d2837;
+  flex: 0 0 44px;
+}
+.tab {
+  height: 44px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent;
+  background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600;
+  display: flex; align-items: center; gap: 8px; margin-bottom: -1px;
+}
+.tab .count {
+  min-width: 20px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #182331; color: #94a3b8; font-size: 10px; display: grid; place-items: center;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--cyan); }
+.tab.active .count { background: var(--cyan-soft); color: var(--cyan); }
+.tab:hover { color: var(--text-2); }
+.workspace {
+  flex: 1; min-height: 0; display: grid;
+  grid-template-columns: 254px minmax(0, 1fr) 478px;
+  gap: 16px; padding: 16px 0 12px;
+}
+.panel {
+  background: linear-gradient(180deg, rgba(21, 28, 35, .92), rgba(15, 23, 32, .96));
+  border: 1px solid var(--stroke-soft); border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .1);
+  min-height: 0;
+}
+.filters { padding: 15px 14px 10px; display: flex; flex-direction: column; gap: 9px; overflow-y: auto; scrollbar-width: none; }
+.filters::-webkit-scrollbar { width: 0; }
+.filter-search { height: 34px; border-radius: 8px; border: 1px solid #243244; background: #0c141e; display: flex; align-items: center; gap: 8px; padding: 0 10px; color: #64748b; }
+.filter-search svg { width: 14px; height: 14px; }
+.filter-search input { border: 0; outline: 0; background: transparent; color: var(--text); width: 100%; font-size: 12px; }
+.filter-search input::placeholder { color: #56657a; }
+.filter-group { display: flex; flex-direction: column; gap: 9px; }
+.filter-title { display: flex; align-items: center; justify-content: space-between; color: #8fa0b5; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.filter-title button { border: 0; background: transparent; color: #526176; font-size: 10px; padding: 0; }
+.filter-item { display: flex; align-items: center; gap: 9px; height: 26px; color: var(--text-2); font-size: 12px; border-radius: 6px; padding: 0 6px; cursor: pointer; }
+.filter-item:hover { background: #111b26; }
+.check {
+  width: 14px; height: 14px; border-radius: 4px; border: 1px solid #3a4a5e; background: #0b121c;
+  display: grid; place-items: center; flex: 0 0 14px;
+}
+.check.on { background: var(--cyan); border-color: var(--cyan); }
+.check.on::after { content: ""; width: 7px; height: 4px; border-left: 2px solid #041016; border-bottom: 2px solid #041016; transform: rotate(-45deg) translate(1px, -1px); }
+.filter-item .n { margin-left: auto; color: #526176; font-size: 10.5px; }
+.filter-item .typedot { width: 8px; height: 8px; border-radius: 50%; }
+.filter-item .typedot.cal { background: var(--cyan); }
+.filter-item .typedot.tpl { background: var(--purple); }
+.filter-item .typedot.model { background: var(--amber); }
+.filter-item .typedot.recipe { background: var(--green); }
+.filter-item .typedot.image { background: #f472b6; }
+.filter-item .statusdot { width: 7px; height: 7px; border-radius: 50%; }
+.filter-item .statusdot.ok { background: var(--green); }
+.filter-item .statusdot.check { background: var(--amber); }
+.filter-item .statusdot.lock { background: #94a3b8; }
+.filter-item .statusdot.arch { background: #64748b; }
+.filter-item .camera { color: #64748b; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { height: 23px; padding: 0 8px; border-radius: 6px; border: 1px solid #253447; background: #0f1822; color: #8193a8; font-size: 10.5px; display: inline-flex; align-items: center; }
+.chip.active { border-color: rgba(34, 211, 238, .5); background: var(--cyan-soft); color: var(--cyan); }
+.health {
+  margin-top: auto; border-top: 1px solid #1e2a38; padding-top: 13px;
+  display: flex; align-items: center; gap: 13px;
+}
+.donut {
+  width: 62px; height: 62px; border-radius: 50%;
+  background: conic-gradient(var(--green) 0 67%, var(--amber) 67% 84%, #334155 84% 100%);
+  display: grid; place-items: center; position: relative; flex: 0 0 62px;
+}
+.donut::after { content: ""; position: absolute; inset: 8px; border-radius: 50%; background: #101821; }
+.donut b { position: relative; z-index: 1; font-size: 15px; font-weight: 750; }
+.health-info { display: flex; flex-direction: column; gap: 4px; }
+.health-info .h { font-size: 11px; font-weight: 700; color: var(--text-2); }
+.health-info .s { font-size: 10px; color: #64748b; line-height: 1.5; }
+.health-info .legend { display: flex; gap: 8px; font-size: 9.5px; color: #8193a8; }
+.legend i { width: 5px; height: 5px; border-radius: 50%; display: inline-block; margin-right: 3px; }
+.list-panel { display: flex; flex-direction: column; overflow: hidden; }
+.list-toolbar { height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #1d2837; }
+.list-title { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.list-title span { margin-left: 7px; color: #526176; font-size: 10.5px; font-weight: 500; }
+.toolbar-spacer { flex: 1; }
+.small-btn { height: 29px; padding: 0 9px; border-radius: 6px; border: 1px solid #253447; background: #0f1822; color: #8ea1b6; font-size: 11px; display: inline-flex; align-items: center; gap: 6px; }
+.small-btn:hover { border-color: #40536a; color: var(--text-2); }
+.small-btn svg { width: 13px; height: 13px; }
+.asset-table { flex: 1; min-height: 0; overflow: auto; }
+.table-head, .asset-row { display: grid; grid-template-columns: minmax(200px, 1.45fr) 138px 118px 56px 112px 98px 88px; align-items: center; gap: 9px; padding: 0 15px; }
+.table-head { height: 34px; color: #5f7188; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; border-bottom: 1px solid #1a2532; position: sticky; top: 0; background: #111a24; z-index: 2; }
+.asset-row { height: 66px; border-bottom: 1px solid #192330; color: var(--text-2); position: relative; cursor: pointer; }
+.asset-row:hover { background: rgba(34, 211, 238, .035); }
+.asset-row.selected { background: linear-gradient(90deg, rgba(34, 211, 238, .10), rgba(34, 211, 238, .025)); }
+.asset-row.selected::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--cyan); }
+.asset-main { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.asset-icon { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; flex: 0 0 34px; }
+.asset-icon svg { width: 17px; height: 17px; }
+.asset-icon.cal { background: var(--cyan-soft); color: var(--cyan); }
+.asset-icon.tpl { background: var(--purple-soft); color: var(--purple); }
+.asset-icon.model { background: var(--amber-soft); color: var(--amber); }
+.asset-icon.recipe { background: var(--green-soft); color: var(--green); }
+.asset-icon.image { background: rgba(244, 114, 182, .11); color: #f472b6; }
+.asset-name { min-width: 0; }
+.asset-name b { display: block; font-size: 12.5px; font-weight: 650; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.asset-name span { display: block; margin-top: 4px; font-size: 10px; color: #5f7188; font-family: Consolas, "SFMono-Regular", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.type-pill, .status-pill { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 10.5px; white-space: nowrap; }
+.type-pill { background: #172230; color: #a8b8ca; border: 1px solid #263447; }
+.status-pill.ok { background: var(--green-soft); color: #4ade80; }
+.status-pill.check { background: var(--amber-soft); color: #fbbf24; }
+.status-pill.lock { background: #263447; color: #a8b8ca; }
+.status-pill.arch { background: #1e293b; color: #94a3b8; }
+.lock-badge { display: inline-flex; align-items: center; height: 19px; padding: 0 5px; border-radius: 5px; background: #243244; color: #b6c4d5; font-size: 9.5px; margin-left: 4px; }
+.scope { display: flex; flex-direction: column; gap: 3px; font-size: 10.5px; color: #94a3b8; min-width: 0; }
+.scope b { color: #cbd5e1; font-weight: 600; font-size: 11px; }
+.scope i { font-style: normal; color: #64748b; font-size: 9.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acceptance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.acceptance .ok { color: #4ade80; }
+.acceptance .sep { color: #334155; }
+.acceptance small { color: #7b8da2; font-size: 9.5px; }
+.form-field input[readonly] { color: #8193a8; background: #0a1119; }
+.field-note { color: #5f7188; font-size: 9.5px; line-height: 1.4; }
+.choice-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.choice { min-width: 0; padding: 9px 8px; }
+.choice b { font-size: 10.5px; }
+.form-section-title { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; color: #8fa0b5; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-top: 1px; }
+.form-section-title span { color: var(--cyan); font-family: Consolas, monospace; letter-spacing: 0; }
+.form-section-title::after { content: ""; height: 1px; flex: 1; background: #1e2a38; }
+.version { font-family: Consolas, "SFMono-Regular", monospace; font-size: 11px; color: #b6c4d5; }
+.camera-cell { font-size: 10.5px; color: #8193a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.refs { font-size: 11px; color: #8193a8; }
+.refs b { color: var(--text-2); font-weight: 600; }
+.updated { font-size: 10px; color: #5f7188; line-height: 1.45; }
+.updated b { display: block; color: #93a4b8; font-weight: 500; }
+.list-footer { height: 42px; border-top: 1px solid #1d2837; display: flex; align-items: center; padding: 0 15px; color: #607187; font-size: 10.5px; gap: 12px; }
+.list-footer .spacer { flex: 1; }
+.page-btn { width: 23px; height: 23px; border-radius: 5px; border: 1px solid #253447; background: #0f1822; color: #7e8fa3; display: grid; place-items: center; font-size: 10px; }
+.page-btn.active { border-color: var(--cyan); background: var(--cyan-soft); color: var(--cyan); }
+.detail { display: flex; flex-direction: column; overflow: hidden; }
+.detail-head { padding: 16px 17px 14px; border-bottom: 1px solid #1d2837; display: flex; gap: 12px; align-items: flex-start; }
+.detail-icon { width: 44px; height: 44px; border-radius: 11px; background: var(--cyan-soft); color: var(--cyan); display: grid; place-items: center; flex: 0 0 44px; }
+.detail-icon svg { width: 23px; height: 23px; }
+.detail-title { min-width: 0; flex: 1; }
+.detail-title h2 { margin: 0; font-size: 18px; font-weight: 750; letter-spacing: -.2px; }
+.detail-title .sub { margin-top: 4px; font-size: 10.5px; color: #64748b; font-family: Consolas, monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.badge-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.mini-badge { height: 19px; padding: 0 6px; border-radius: 5px; background: #1b2634; border: 1px solid #2a3a4e; color: #9db0c3; font-size: 9.5px; display: inline-flex; align-items: center; }
+.mini-badge.ver { color: var(--cyan); border-color: rgba(34, 211, 238, .25); background: var(--cyan-soft); }
+.detail-actions { display: flex; gap: 4px; }
+.icon-btn { width: 27px; height: 27px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: #7b8da2; display: grid; place-items: center; }
+.icon-btn:hover { background: #172230; border-color: #263447; color: var(--text-2); }
+.icon-btn svg { width: 14px; height: 14px; }
+.detail-scroll { flex: 1; min-height: 0; overflow: auto; padding: 9px 17px 8px; display: flex; flex-direction: column; gap: 5px; scrollbar-width: thin; scrollbar-color: #2a3a4e transparent; }
+.detail-scroll::-webkit-scrollbar { width: 5px; }
+.detail-scroll::-webkit-scrollbar-thumb { background: #2a3a4e; border-radius: 3px; }
+.card-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+.card-label .l { color: #8fa0b5; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.card-label .r { color: #526176; font-size: 10px; }
+.preview-card { border: 1px solid #243244; background: #0a121b; border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
+.preview-top { height: 28px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; border-bottom: 1px solid #1b2837; color: #65778c; font-size: 10px; }
+.preview-top .live { color: var(--cyan); display: flex; align-items: center; gap: 5px; }
+.preview-top .live i { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.12); }
+.calib-visual { height: 126px; position: relative; overflow: hidden; background: radial-gradient(circle at 50% 45%, #122331 0, #0a121b 66%); }
+.calib-visual::before {
+  content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(rgba(45, 212, 191, .11) 1px, transparent 1px), linear-gradient(90deg, rgba(45, 212, 191, .11) 1px, transparent 1px);
+  background-size: 22px 22px; mask-image: linear-gradient(to bottom, rgba(0,0,0,.7), #000);
+}
+.axis-x, .axis-y { position: absolute; background: rgba(148, 163, 184, .35); }
+.axis-x { left: 28px; right: 28px; bottom: 25px; height: 1px; }
+.axis-y { bottom: 25px; top: 18px; left: 28px; width: 1px; }
+.axis-x::after { content: "C →"; position: absolute; right: -4px; top: -15px; color: #64748b; font-size: 9px; }
+.axis-y::after { content: "R ↓"; position: absolute; left: -14px; top: -2px; color: #64748b; font-size: 9px; }
+.point { position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 0 4px rgba(34,211,238,.14); }
+.point.a { left: 25%; top: 48%; }
+.point.b { left: 55.5%; top: 48%; }
+.point-line { position: absolute; left: 28%; right: 42.5%; top: 51.7%; height: 1px; border-top: 1px dashed rgba(34, 211, 238, .6); }
+.point-label { position: absolute; color: #9fb3c8; font-size: 9px; font-family: Consolas, monospace; background: rgba(10,18,27,.72); padding: 2px 4px; border-radius: 3px; }
+.point-label.a { left: 13%; top: 57%; }
+.point-label.b { left: 44%; top: 57%; }
+.visual-note { position: absolute; left: 10px; bottom: 9px; color: #5f7188; font-size: 9px; }
+.visual-value { position: absolute; right: 10px; bottom: 9px; color: var(--cyan); font-size: 10px; font-weight: 700; font-family: Consolas, monospace; }
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 16px; padding: 8px 12px; border: 1px solid #243244; border-radius: 9px; background: #0e1721; flex: 0 0 auto; }
+.meta-cell .k { color: #5f7188; font-size: 9.5px; margin-bottom: 4px; }
+.meta-cell .v { color: #c9d5e2; font-size: 11.5px; font-weight: 550; font-family: Consolas, "Microsoft YaHei UI", sans-serif; }
+.meta-cell .v.cyan { color: var(--cyan); }
+.ref-list { display: flex; flex-direction: column; gap: 7px; }
+.ref-item { display: flex; align-items: center; gap: 9px; padding: 4px 8px; background: #0e1721; border: 1px solid #1e2b3a; border-radius: 7px; }
+.ref-icon { width: 22px; height: 22px; border-radius: 6px; background: var(--cyan-soft); color: var(--cyan); display: grid; place-items: center; flex: 0 0 22px; }
+.ref-icon svg { width: 12px; height: 12px; }
+.ref-text { flex: 1; min-width: 0; }
+.ref-text b { display: block; color: #c8d5e3; font-size: 10.5px; font-weight: 600; }
+.ref-text span { display: block; margin-top: 2px; color: #5f7188; font-size: 9.5px; }
+.ref-type { color: #6f8298; font-size: 9px; border: 1px solid #263447; border-radius: 4px; padding: 3px 5px; }
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-item { display: flex; gap: 9px; position: relative; padding-bottom: 11px; }
+.tl-item:last-child { padding-bottom: 0; }
+.tl-item::before { content: ""; position: absolute; left: 4px; top: 10px; bottom: 0; width: 1px; background: #223043; }
+.tl-item:last-child::before { display: none; }
+.tl-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--cyan); margin-top: 2px; flex: 0 0 9px; box-shadow: 0 0 0 3px rgba(34,211,238,.1); }
+.tl-dot.old { background: #334155; box-shadow: none; }
+.tl-body b { display: block; color: #c4d2e1; font-size: 10.5px; font-weight: 600; }
+.tl-body span { display: block; margin-top: 3px; color: #5f7188; font-size: 9.5px; line-height: 1.45; }
+.detail-actions-bottom { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px 17px 12px; border-top: 1px solid #1d2837; background: #101821; flex: 0 0 auto; }
+.action-btn { height: 32px; border-radius: 7px; border: 1px solid #2a3a4e; background: #111b26; color: #a4b5c8; font-size: 10.5px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.action-btn:hover { border-color: #40536a; color: var(--text-2); }
+.action-btn.primary { background: var(--cyan-soft); color: var(--cyan); border-color: rgba(34,211,238,.35); }
+.action-btn.danger { color: #f87171; border-color: rgba(239,68,68,.28); background: var(--red-soft); }
+.action-btn svg { width: 13px; height: 13px; }
+.statusbar { height: 31px; flex: 0 0 31px; border-top: 1px solid #141e2a; display: flex; align-items: center; gap: 14px; padding: 0 28px; color: #526176; font-size: 10px; }
+.statusbar .sep { color: #1f2c3b; }
+.statusbar b { color: #7d90a5; font-weight: 500; }
+.statusbar .right { margin-left: auto; display: flex; gap: 16px; }
+.statusbar .green { color: var(--green); }
+/* modal */
+.modal-mask { position: fixed; inset: 0; background: rgba(2, 6, 12, .72); backdrop-filter: blur(5px); display: none; align-items: center; justify-content: center; z-index: 50; }
+.modal-mask.show { display: flex; }
+.modal {
+  width: 760px; background: linear-gradient(180deg, #151f2b, #0e1721); border: 1px solid #2a3a4e;
+  border-radius: 16px; box-shadow: 0 30px 100px rgba(0,0,0,.6); overflow: hidden;
+  transform: translateY(8px); animation: pop .18s ease forwards;
+}
+@keyframes pop { to { transform: translateY(0); } }
+.modal-head { padding: 20px 22px 16px; border-bottom: 1px solid #243244; display: flex; gap: 13px; align-items: flex-start; }
+.modal-head .mi { width: 38px; height: 38px; border-radius: 10px; background: var(--cyan-soft); color: var(--cyan); display: grid; place-items: center; flex: 0 0 38px; }
+.modal-head .mi svg { width: 20px; height: 20px; }
+.modal-head h3 { margin: 0; font-size: 18px; font-weight: 750; }
+.modal-head p { margin: 6px 0 0; color: #7b8da2; font-size: 11px; line-height: 1.5; }
+.modal-close { margin-left: auto; width: 28px; height: 28px; border: 0; background: transparent; color: #64748b; font-size: 20px; line-height: 1; }
+.modal-body { padding: 18px 22px 20px; display: flex; flex-direction: column; gap: 16px; }
+.steps { display: flex; align-items: center; gap: 8px; color: #64748b; font-size: 10px; }
+.step { display: flex; align-items: center; gap: 6px; }
+.step i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #3a4a5e; display: grid; place-items: center; font-style: normal; font-size: 9px; color: #8fa0b5; }
+.step.active { color: var(--cyan); }
+.step.active i { border-color: var(--cyan); background: var(--cyan-soft); color: var(--cyan); }
+.step-line { flex: 1; height: 1px; background: #263447; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 16px; }
+.form-field { display: flex; flex-direction: column; gap: 6px; }
+.form-field.full { grid-column: 1 / -1; }
+.form-field label { color: #8fa0b5; font-size: 10.5px; }
+.form-field input, .form-field select {
+  height: 36px; border-radius: 8px; border: 1px solid #2a3a4e; background: #0b131c;
+  color: #dbe7f4; padding: 0 10px; outline: 0; font-size: 12px;
+}
+.form-field input:focus, .form-field select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,.08); }
+.choice-row { display: flex; gap: 8px; }
+.choice { flex: 1; height: 58px; border-radius: 9px; border: 1px solid #2a3a4e; background: #0d1620; padding: 9px 10px; text-align: left; color: #8294a9; }
+.choice b { display: block; font-size: 11px; color: #c7d4e2; margin-bottom: 4px; }
+.choice span { font-size: 9.5px; color: #5f7188; }
+.choice.active { border-color: var(--cyan); background: var(--cyan-soft); }
+.choice.active b { color: var(--cyan); }
+.hint { color: #5f7188; font-size: 10px; line-height: 1.5; }
+.modal-foot { padding: 14px 22px; border-top: 1px solid #243244; display: flex; align-items: center; justify-content: flex-end; gap: 9px; background: #0b131c; }
+.modal-foot .left { margin-right: auto; color: #5f7188; font-size: 10px; display: flex; gap: 7px; align-items: center; }
+
+/* 1366 / 1280 重排：1920 是设计基准，不把桌面稿等比缩成小屏 */
+@media (max-width: 1500px) {
+  main { padding: 16px 20px 0; }
+  .workspace { grid-template-columns: 210px minmax(0, 1fr) 380px; gap: 12px; }
+  .search { width: 250px; }
+  .table-head, .asset-row { grid-template-columns: minmax(180px, 1fr) 140px 100px 90px; gap: 8px; padding: 0 12px; }
+  .table-head span:nth-child(3), .table-head span:nth-child(4), .table-head span:nth-child(7),
+  .asset-row > :nth-child(3), .asset-row > :nth-child(4), .asset-row > :nth-child(7) { display: none; }
+  .asset-row { height: 62px; }
+  .detail-head { padding: 14px 14px 12px; }
+  .detail-scroll { padding: 8px 14px; }
+  .meta-grid { gap: 6px 10px; padding: 8px 10px; }
+  .ref-text b { font-size: 10px; }
+  .ref-text span { font-size: 9px; }
+  .detail-actions-bottom { padding: 9px 14px 11px; }
+}
+
+@media (max-width: 1280px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) 360px; }
+  .filters { display: none; }
+  h1 { font-size: 24px; }
+  .search { width: 220px; }
+  .detail-head { padding: 12px 12px 10px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-flow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6h4a5 5 0 0 1 5 5v4.5"/><path d="M10 18h5.5"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><ellipse cx="12" cy="5.5" rx="7" ry="3"/><path d="M5 5.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/><path d="M5 11.5v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 19V5"/><path d="M4 19h16"/><path d="M7 15l3-4 3 2 4-6"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1L14.5 3h-4l-.4 2.6a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.4 2.6h4l.4-2.6a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1Z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 16v3h14v-3"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/><path d="M7 14h2M11 14h2M15 14h2M7 17h2M11 17h2"/></symbol>
+  <symbol id="i-template" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/><circle cx="15" cy="15" r="2.5"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></symbol>
+  <symbol id="i-recipe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 3h6M10 3v6l-5 8a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-8V3"/><path d="M7 15h10"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m4 18 5-5 4 3 3-3 4 4"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M6.2 9a7 7 0 0 1 11.5-2L20 9M4 15l2.3 2a7 7 0 0 0 11.5-2"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 10 4 4 4-4"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 7h11M8 12h8M8 17h5"/><path d="m4 8 2-2 2 2M4 16l2 2 2-2"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17.2v.2"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="rail">
+    <div class="logo">VM</div>
+    <nav class="rail-nav">
+      <button class="rail-btn" title="项目总览"><svg><use href="#i-grid"/></svg></button>
+      <button class="rail-btn" title="流程设计"><svg><use href="#i-flow"/></svg></button>
+      <button class="rail-btn" title="视觉工具"><svg><use href="#i-eye"/></svg></button>
+      <button class="rail-btn active" title="项目资产"><svg><use href="#i-db"/></svg></button>
+      <button class="rail-btn" title="数据报表"><svg><use href="#i-chart"/></svg></button>
+    </nav>
+    <div class="rail-spacer"></div>
+    <button class="rail-btn" title="系统设置"><svg><use href="#i-gear"/></svg></button>
+    <div class="rail-avatar">王</div>
+  </aside>
+
+  <div class="content">
+    <header class="topbar">
+      <div class="crumb"><span>项目</span><i>/</i><span>智能装配检测线</span><i>/</i><b>资产</b></div>
+      <div class="search"><svg><use href="#i-search"/></svg><span>搜索资产、Id、引用工位…</span><kbd>Ctrl K</kbd></div>
+      <div class="top-status"><i class="dot"></i>自动保存 <span id="saveTime">09:41:23</span></div>
+      <div class="top-user"><div><div class="name">王工</div><div class="role">工程师 · 本机</div></div><div class="avatar">王</div></div>
+    </header>
+
+    <main>
+      <div class="title-row">
+        <div>
+          <div class="eyebrow">PROJECT ASSETS</div>
+          <h1>项目资产管理</h1>
+          <p class="subtitle">统一管理标定 / 模板 / 模型 / 配方 / 图像资产；生产流程按 Id 引用，不重复计算。</p>
+        </div>
+        <div class="title-actions">
+          <button class="btn ghost"><svg><use href="#i-upload"/></svg>导入资产</button>
+          <button class="btn primary" onclick="openModal()"><svg><use href="#i-plus"/></svg>新建标定资产</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab">资产总览 <span class="count">24</span></button>
+        <button class="tab active">标定资产 <span class="count">6</span></button>
+        <button class="tab">模板资产 <span class="count">5</span></button>
+        <button class="tab">模型资产 <span class="count">8</span></button>
+        <button class="tab">配方资产 <span class="count">4</span></button>
+        <button class="tab">图像资产 <span class="count">1</span></button>
+      </div>
+
+      <div class="workspace">
+        <section class="panel filters">
+          <div class="filter-search"><svg><use href="#i-search"/></svg><input placeholder="筛选当前资产…" /></div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>资产类型</span><button>全部</button></div>
+            <div class="filter-item"><i class="check on"></i><i class="typedot cal"></i>标定资产<span class="n">6</span></div>
+            <div class="filter-item"><i class="check"></i><i class="typedot tpl"></i>模板资产<span class="n">5</span></div>
+            <div class="filter-item"><i class="check"></i><i class="typedot model"></i>模型资产<span class="n">8</span></div>
+            <div class="filter-item"><i class="check"></i><i class="typedot recipe"></i>配方资产<span class="n">4</span></div>
+            <div class="filter-item"><i class="check"></i><i class="typedot image"></i>图像资产<span class="n">1</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>生命周期</span><button>清除</button></div>
+            <div class="filter-item"><i class="statusdot ok"></i>有效<span class="n">4</span></div>
+            <div class="filter-item"><i class="statusdot check"></i>待复核<span class="n">1</span></div>
+            <div class="filter-item"><i class="statusdot arch"></i>已归档<span class="n">1</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>保护</span><button>全部</button></div>
+            <div class="filter-item"><i class="statusdot lock"></i>已冻结<span class="n">1</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>相机</span><button>全部</button></div>
+            <div class="filter-item"><i class="check on"></i><span class="camera">全部相机</span></div>
+            <div class="filter-item"><i class="check"></i><span class="camera">NET-STATION-02</span></div>
+            <div class="filter-item"><i class="check"></i><span class="camera">SIM-LINE-01</span></div>
+            <div class="filter-item"><i class="check"></i><span class="camera">HK-STATION-03</span></div>
+          </div>
+
+          <div class="filter-group">
+            <div class="filter-title"><span>标签</span><button>管理</button></div>
+            <div class="chip-row">
+              <span class="chip active">产线</span>
+              <span class="chip">换型</span>
+              <span class="chip">已发布</span>
+              <span class="chip">待复核</span>
+            </div>
+          </div>
+
+          <div class="health">
+            <div class="donut"><b>67%</b></div>
+            <div class="health-info">
+              <div class="h">当前页签健康度</div>
+              <div class="s">4 有效 / 6 · 1 待复核<br/>1 归档 · 1 已冻结</div>
+              <div class="legend"><span><i style="background:var(--green)"></i>有效</span><span><i style="background:var(--amber)"></i>待复核</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel list-panel">
+          <div class="list-toolbar">
+            <div class="list-title">标定资产 <span>6 项</span></div>
+            <div class="toolbar-spacer"></div>
+            <button class="small-btn"><svg><use href="#i-sort"/></svg>最近更新<svg style="width:11px"><use href="#i-chevron"/></svg></button>
+            <button class="small-btn"><svg><use href="#i-filter"/></svg>筛选</button>
+            <button class="small-btn"><svg><use href="#i-more"/></svg></button>
+          </div>
+
+          <div class="asset-table">
+            <div class="table-head">
+              <span>资产</span><span>工位 · 相机</span><span>类型</span><span>版本</span><span>状态</span><span>引用</span><span>最近更新</span>
+            </div>
+
+            <div class="asset-row selected" onclick="selectRow(this,'LineCalib','像素当量','ST3 · 精密测量','2aa0b611-342b-7f1b-ba74-11cbd48ddf26','v2','有效','读1 · 写1 · 调试1')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>LineCalib</b><span>2aa0b611…ddf26</span></div>
+              </div>
+              <span class="scope"><b>ST3 · 精密测量</b><i>NET-STATION-02</i></span>
+              <span class="type-pill">像素当量</span>
+              <span class="version">v2</span>
+              <span><span class="status-pill ok">有效</span></span>
+              <span class="refs"><b>读1 · 写1</b><br>调试 1</span>
+              <span class="updated"><b>今天 09:41</b>Calib 写入</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'BoardAlign','九点标定','ST2 · 视觉定位','9f3c72aa-1d44-4ce0-9b5a-2e2a8bbd0b61','v4','有效','读2 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>BoardAlign</b><span>9f3c72aa…0b61</span></div>
+              </div>
+              <span class="scope"><b>ST2 · 视觉定位</b><i>SIM-LINE-01</i></span>
+              <span class="type-pill">九点标定</span>
+              <span class="version">v4</span>
+              <span><span class="status-pill ok">有效</span></span>
+              <span class="refs"><b>读2</b><br>写 0</span>
+              <span class="updated"><b>10-24 16:20</b>导入复核</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'CaliperScale','像素当量','ST3 · 精密测量','47b6810e-82ef-4d2a-a6db-31f41e6f9c02','v1','待复核','读1 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>CaliperScale</b><span>47b6810e…9c02</span></div>
+              </div>
+              <span class="scope"><b>ST3 · 精密测量</b><i>NET-STATION-02</i></span>
+              <span class="type-pill">像素当量</span>
+              <span class="version">v1</span>
+              <span><span class="status-pill check">待复核</span></span>
+              <span class="refs"><b>读1</b><br>写 0</span>
+              <span class="updated"><b>10-23 14:02</b>残差偏高</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'BeadPlanarCalib','网格 · 含内参','ST5 · 装配压装','6d09bb1c-4e11-4d7d-9d25-6f58a5e94aa7','v3','有效','读2 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>BeadPlanarCalib</b><span>6d09bb1c…4aa7</span></div>
+              </div>
+              <span class="scope"><b>ST5 · 装配压装</b><i>SIM-LINE-01</i></span>
+              <span class="type-pill">网格 · 含内参</span>
+              <span class="version">v3</span>
+              <span><span class="status-pill ok">有效</span><span class="lock-badge">冻结</span></span>
+              <span class="refs"><b>读2</b><br>写 0</span>
+              <span class="updated"><b>10-21 09:10</b>现场冻结</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'CameraIntrinsics','内参标定','ST2 / ST3 共享','a19e0d77-5c51-4a97-89ff-0af8f82ce315','v2','有效','读3 · 写0')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>CameraIntrinsics</b><span>a19e0d77…e315</span></div>
+              </div>
+              <span class="scope"><b>ST2 / ST3 共享</b><i>HK-STATION-03</i></span>
+              <span class="type-pill">内参标定</span>
+              <span class="version">v2</span>
+              <span><span class="status-pill ok">有效</span></span>
+              <span class="refs"><b>读3</b><br>写 0</span>
+              <span class="updated"><b>10-20 18:35</b>标定板导入</span>
+            </div>
+
+            <div class="asset-row" onclick="selectRow(this,'RobotHandEye','手眼标定','ST5 · 装配压装','0c84be31-8f3f-4f7a-aeb4-97e5de4e7f10','v1','已归档','—')">
+              <div class="asset-main">
+                <div class="asset-icon cal"><svg><use href="#i-cal"/></svg></div>
+                <div class="asset-name"><b>RobotHandEye</b><span>0c84be31…7f10</span></div>
+              </div>
+              <span class="scope"><b>ST5 · 装配压装</b><i>HK-STATION-03</i></span>
+              <span class="type-pill">手眼标定</span>
+              <span class="version">v1</span>
+              <span><span class="status-pill arch">已归档</span></span>
+              <span class="refs">—</span>
+              <span class="updated"><b>10-18 11:08</b>换型归档</span>
+            </div>
+          </div>
+
+          <div class="list-footer">
+            <span>显示 6 / 6 项（方案共 24 项）</span>
+            <span class="spacer"></span>
+            <span>列表按最近更新排序</span>
+          </div>
+        </section>
+
+        <aside class="panel detail">
+          <div class="detail-head">
+            <div class="detail-icon"><svg><use href="#i-cal"/></svg></div>
+            <div class="detail-title">
+              <h2 id="detailName">LineCalib</h2>
+              <div class="sub" id="detailId">2aa0b611-342b-7f1b-ba74-11cbd48ddf26</div>
+              <div class="badge-row">
+                <span class="mini-badge ver" id="detailVersion">v2</span>
+                <span class="mini-badge" id="detailType">像素当量</span>
+                <span class="status-pill ok" id="detailStatus">有效</span>
+                <span class="mini-badge" id="detailLock">未冻结</span>
+              </div>
+              <div class="acceptance">
+                <small>作用域</small><small class="ok" id="detailScope">ST3 · 精密测量</small>
+                <span class="sep">/</span>
+                <small>验收合格</small><span class="sep">·</span>
+                <small>复核 李工 · 有效至 2026-11-25</small>
+              </div>
+            </div>
+            <div class="detail-actions">
+              <button class="icon-btn" title="复制资产 Id"><svg><use href="#i-copy"/></svg></button>
+              <button class="icon-btn" title="更多"><svg><use href="#i-more"/></svg></button>
+            </div>
+          </div>
+
+          <div class="detail-scroll">
+            <div class="preview-card">
+              <div class="preview-top"><span>标定图预览 · 只读</span><span class="live"><i></i><span id="previewSub">静态图 1-宽度40px.png</span></span></div>
+              <div class="calib-visual">
+                <span class="axis-x"></span><span class="axis-y"></span>
+                <span class="point a"></span><span class="point b"></span>
+                <span class="point-line"></span>
+                <span class="point-label a">A (R240, C100) px</span>
+                <span class="point-label b">B (R240, C300) px</span>
+                <span class="visual-note" id="previewNote">图像坐标：原点左上 · Row 向下 · 640×480 px</span>
+                <span class="visual-value" id="previewValue">基线 200.00 px ↔ 10.000 mm</span>
+              </div>
+            </div>
+
+            <div class="meta-grid">
+              <div class="meta-cell"><div class="k">标定方式</div><div class="v" id="metaMode">像素当量 / PixelScale</div></div>
+              <div class="meta-cell"><div class="k">工位 / 作用域</div><div class="v" id="metaScope">ST3 · 精密测量</div></div>
+              <div class="meta-cell"><div class="k">相机 / 分辨率</div><div class="v" id="metaCamera">NET-STATION-02 · 640 × 480 px</div></div>
+              <div class="meta-cell"><div class="k">像素当量</div><div class="v cyan" id="metaMpp">0.0500 mm/px</div></div>
+              <div class="meta-cell"><div class="k">标定基准</div><div class="v" id="metaBase">CB-200-10 · 10.000 mm</div></div>
+              <div class="meta-cell"><div class="k">物距 WD</div><div class="v" id="metaWd">300 ± 2 mm</div></div>
+              <div class="meta-cell"><div class="k">残差</div><div class="v" id="metaResidual">不适用（2 点 / 1 参数）</div></div>
+              <div class="meta-cell"><div class="k">不确定度 U (k=2)</div><div class="v cyan" id="metaU">±0.0008 mm/px</div></div>
+            </div>
+
+            <div>
+              <div class="card-label"><span class="l">使用与写入关系</span><span class="r">读1 · 写1 · 调试1</span></div>
+              <div class="ref-list">
+                <div class="ref-item">
+                  <span class="ref-icon"><svg><use href="#i-flow"/></svg></span>
+                  <span class="ref-text"><b>ST3_Measure · 第 12 步 · 加载方案标定资产</b><span>生产读取 · 按 Id 固定 v2 · 上次 09:41:23</span></span>
+                  <span class="ref-type">读</span>
+                </div>
+                <div class="ref-item">
+                  <span class="ref-icon"><svg><use href="#i-flow"/></svg></span>
+                  <span class="ref-text"><b>Recipe · 换型分支 · 执行标定并写入</b><span>标定写入 · 按资产 Id · 失败即停线</span></span>
+                  <span class="ref-type">写</span>
+                </div>
+                <div class="ref-item">
+                  <span class="ref-icon"><svg><use href="#i-grid"/></svg></span>
+                  <span class="ref-text"><b>设备诊断 · 执行标定按钮</b><span>调试入口 · 工程师权限 · 不参与生产节拍</span></span>
+                  <span class="ref-type">调试</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div class="card-label"><span class="l">版本历史</span><span class="r">2 个版本</span></div>
+              <div class="timeline">
+                <div class="tl-item"><span class="tl-dot"></span><div class="tl-body"><b>v2 · 今天 09:41</b><span>Calib 流程写入 · 当量 0.0500 · 基线 200.00 px · 操作者 王工</span></div></div>
+                <div class="tl-item"><span class="tl-dot old"></span><div class="tl-body"><b>v1 · 10-25 23:06</b><span>预置基线 · 方案初次保存 · 审核 李工</span></div></div>
+              </div>
+            </div>
+
+          </div>
+          <div class="detail-actions-bottom">
+            <button class="action-btn primary"><svg><use href="#i-check"/></svg>设为 ST3 默认</button>
+            <button class="action-btn"><svg><use href="#i-lock"/></svg>冻结版本</button>
+            <button class="action-btn"><svg><use href="#i-download"/></svg>导出资产包</button>
+            <button class="action-btn"><svg><use href="#i-copy"/></svg>复制 Id</button>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <footer class="statusbar">
+      <span>项目资产</span><span class="sep">·</span><span><b>D:\C#\VM\解决方案\智能装配检测线</b></span>
+      <span class="sep">·</span><span>资产目录 <b>Calibrations / Templates / Models</b></span>
+      <span class="right"><span class="green">●</span> 自动保存 <b>已开启</b><span>CPU 2.4%</span><span>MEM 466 MB</span><span>09:41:23</span></span>
+    </footer>
+  </div>
+</div>
+
+<div class="modal-mask" id="createModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="mi"><svg><use href="#i-cal"/></svg></div>
+      <div>
+        <h3>新建标定资产</h3>
+        <p>创建一份可被生产流程按 Id 引用的标定资产。计算只在 Calib / 换型流程执行，生产节拍只读资产。</p>
+      </div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-section-title"><span>01</span>相机与工位</div>
+        <div class="form-field">
+          <label>工位 / 作用域</label>
+          <select><option>ST3 · 精密测量</option><option>ST2 · 视觉定位</option><option>ST5 · 装配压装</option><option>整线共享</option></select>
+        </div>
+        <div class="form-field">
+          <label>相机</label>
+          <select><option>NET-STATION-02 · 网络相机</option><option>SIM-LINE-01 · 产线仿真相机</option><option>HK-STATION-03 · 海康相机</option></select>
+        </div>
+        <div class="form-field full">
+          <label>相机序列号 / 标定基准</label>
+          <input value="NET-STATION-02 · SN 2408-0172" readonly />
+        </div>
+
+        <div class="form-section-title"><span>02</span>标定依据</div>
+        <div class="form-field full">
+          <label>标定方式</label>
+          <div class="choice-row">
+            <button class="choice active"><b>像素当量</b><span>A/B 点 + 已知长度</span></button>
+            <button class="choice"><b>九点标定</b><span>N×N 点 → 仿射矩阵</span></button>
+            <button class="choice"><b>透视标定</b><span>大视场平面校正</span></button>
+            <button class="choice"><b>网格标定</b><span>畸变 / 内参联合</span></button>
+            <button class="choice"><b>手眼标定</b><span>机器人 · 多姿态</span></button>
+          </div>
+        </div>
+        <div class="form-field">
+          <label>标定图</label>
+          <input value="Image\1-宽度40px.png" />
+        </div>
+        <div class="form-field">
+          <label>标定板 / 已知长度</label>
+          <input value="CB-200-10 · 10.000 mm" />
+        </div>
+        <div class="form-field">
+          <label>物距 WD (mm)</label>
+          <input value="300 ± 2" />
+        </div>
+        <div class="form-field">
+          <label>环境温度 (℃)</label>
+          <input value="23.4" />
+        </div>
+
+        <div class="form-section-title"><span>03</span>资产信息</div>
+        <div class="form-field">
+          <label>资产名称</label>
+          <input value="LineCalib_ST3" />
+        </div>
+        <div class="form-field">
+          <label>资产 Id（自动生成，只读）</label>
+          <input value="2aa0b611-…-ddf26" readonly />
+        </div>
+        <div class="form-field full">
+          <label>说明</label>
+          <input value="ST3 精密测量 · 640×480 · 0.0500 mm/px" />
+        </div>
+      </div>
+      <div class="hint">创建后状态为「草稿」，在「Calib」流程计算并由复核人确认后才转为「有效」；生产流程只按 Id 读取有效版本，不因新建/改名而重算。</div>
+    </div>
+    <div class="modal-foot">
+      <div class="left"><svg style="width:13px;height:13px"><use href="#i-alert"/></svg>生产读取与标定写入分离 · 变更需复核</div>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn primary" onclick="closeModal()"><svg><use href="#i-check"/></svg>创建草稿并开始标定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openModal() { document.getElementById('createModal').classList.add('show'); }
+  function closeModal() { document.getElementById('createModal').classList.remove('show'); }
+  document.getElementById('createModal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+  window.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeModal(); });
+
+  var assetData = {
+    LineCalib: {
+      type: '像素当量', scope: 'ST3 · 精密测量', id: '2aa0b611-342b-7f1b-ba74-11cbd48ddf26', version: 'v2', status: '有效', lock: '未冻结',
+      mode: '像素当量 / PixelScale', camera: 'NET-STATION-02', resolution: '640 × 480 px', mpp: '0.0500 mm/px',
+      known: '10.000 mm', board: 'CB-200-10 · 2026-017', wd: '300 ± 2 mm',
+      residual: '不适用（2 点 / 1 参数）', u: '±0.0008 mm/px',
+      previewSub: '静态图 1-宽度40px.png', previewNote: '图像坐标：原点左上 · Row 向下 · 640×480 px',
+      previewValue: '基线 200.00 px ↔ 10.000 mm', points: true
+    },
+    BoardAlign: {
+      type: '九点标定', scope: 'ST2 · 视觉定位', id: '9f3c72aa-1d44-4ce0-9b5a-2e2a8bbd0b61', version: 'v4', status: '有效', lock: '未冻结',
+      mode: '九点标定 / NinePoint', camera: 'SIM-LINE-01', resolution: '1280 × 960 px', mpp: '0.0350 mm/px',
+      known: '九点棋盘 9×7', board: 'CB-9P-2026-006', wd: '420 ± 3 mm',
+      residual: 'RMS 0.18 px · Max 0.31 px', u: '±0.0012 mm/px',
+      previewSub: '九点标定图 · 1280×960', previewNote: '九点标定 · 原点左上 · Row 向下',
+      previewValue: 'RMS 0.18 px · Max 0.31 px', points: false
+    },
+    CaliperScale: {
+      type: '像素当量', scope: 'ST3 · 精密测量', id: '47b6810e-82ef-4d2a-a6db-31f41e6f9c02', version: 'v1', status: '待复核', lock: '未冻结',
+      mode: '像素当量 / PixelScale', camera: 'NET-STATION-02', resolution: '640 × 480 px', mpp: '0.0500 mm/px',
+      known: '10.000 mm', board: 'CB-200-10 · 2026-019', wd: '300 ± 2 mm',
+      residual: '不适用（2 点 / 1 参数）', u: '±0.0011 mm/px',
+      previewSub: '待复核样本 · 640×480', previewNote: '图像坐标：原点左上 · Row 向下 · 640×480 px',
+      previewValue: '待复核 · 基线 199.8 px', points: false
+    },
+    BeadPlanarCalib: {
+      type: '网格 · 含内参', scope: 'ST5 · 装配压装', id: '6d09bb1c-4e11-4d7d-9d25-6f58a5e94aa7', version: 'v3', status: '有效', lock: '已冻结',
+      mode: '网格标定 / Mesh', camera: 'SIM-LINE-01', resolution: '1280 × 960 px', mpp: '0.0400 mm/px',
+      known: '网格 12×9', board: 'GB-12-2025-004', wd: '350 ± 2 mm',
+      residual: 'RMS 0.22 px · Max 0.48 px', u: '±0.0015 mm/px',
+      previewSub: '网格标定图 · 1280×960', previewNote: '网格标定 · 已冻结 v3',
+      previewValue: 'RMS 0.22 px · 冻结', points: false
+    },
+    CameraIntrinsics: {
+      type: '内参标定', scope: 'ST2 / ST3 共享', id: 'a19e0d77-5c51-4a97-89ff-0af8f82ce315', version: 'v2', status: '有效', lock: '未冻结',
+      mode: '相机内参 / Intrinsics', camera: 'HK-STATION-03', resolution: '2448 × 2048 px', mpp: '—',
+      known: '焦距 / 畸变', board: '标定板 2026-003', wd: '—',
+      residual: 'RMS 0.09 px', u: '±0.02 px',
+      previewSub: '内参标定图 · 2448×2048', previewNote: '相机内参 · 未参与像素当量',
+      previewValue: 'f 16.02 mm · k1 −0.082', points: false
+    },
+    RobotHandEye: {
+      type: '手眼标定', scope: 'ST5 · 装配压装', id: '0c84be31-8f3f-4f7a-aeb4-97e5de4e7f10', version: 'v1', status: '已归档', lock: '只读',
+      mode: '手眼标定 / HandEye', camera: 'HK-STATION-03', resolution: '2448 × 2048 px', mpp: '—',
+      known: '多姿态 12 组', board: '—', wd: '—',
+      residual: '旋转 0.08° / 平移 0.12 mm', u: '—',
+      previewSub: '手眼标定记录 · 已归档', previewNote: '手眼标定 · 归档只读',
+      previewValue: '旋转 0.08° / 平移 0.12 mm', points: false
+    }
+  };
+
+  function selectRow(el, name) {
+    document.querySelectorAll('.asset-row').forEach(function (row) { row.classList.remove('selected'); });
+    el.classList.add('selected');
+    var d = assetData[name] || assetData.LineCalib;
+    document.getElementById('detailName').textContent = name;
+    document.getElementById('detailId').textContent = d.id;
+    document.getElementById('detailType').textContent = d.type;
+    document.getElementById('detailScope').textContent = d.scope;
+    document.getElementById('detailVersion').textContent = d.version;
+    var st = document.getElementById('detailStatus');
+    st.textContent = d.status;
+    st.className = 'status-pill ' + (d.status === '有效' ? 'ok' : d.status === '待复核' ? 'check' : 'arch');
+    document.getElementById('detailLock').textContent = d.lock;
+    document.getElementById('metaMode').textContent = d.mode;
+    document.getElementById('metaScope').textContent = d.scope;
+    document.getElementById('metaCamera').textContent = d.camera + ' · ' + d.resolution;
+    document.getElementById('metaMpp').textContent = d.mpp;
+    document.getElementById('metaBase').textContent = d.board + ' · ' + d.known;
+    document.getElementById('metaWd').textContent = d.wd;
+    document.getElementById('metaResidual').textContent = d.residual;
+    document.getElementById('metaU').textContent = d.u;
+    document.getElementById('previewSub').textContent = d.previewSub;
+    document.getElementById('previewNote').textContent = d.previewNote;
+    document.getElementById('previewValue').textContent = d.previewValue;
+    document.querySelectorAll('.point, .point-line, .point-label.a, .point-label.b').forEach(function (n) {
+      n.style.display = d.points ? '' : 'none';
+    });
+  }
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('modal') === '1') openModal();
+  if (params.get('t') === '1') {
+    document.getElementById('saveTime').textContent = '09:41:23';
+  }
+</script>
+</body>
+</html>

@@ -31,6 +31,10 @@ namespace ScadaChecks
     /// </summary>
     internal partial class Program
     {
+        /// <summary>B3 轴面板夹具：管理员组含全部 15 个 Key，避免默认策略把命令全拒。</summary>
+        private static FakeAccessPolicy AxisAdminPolicy()
+            => new() { CurrentRole = ScadaRole.Administrator };
+
         private static void AxisPanelChecks()
         {
             Section("[AX] 轴身份 / 轴面板 / 轴状态发布器");
@@ -256,7 +260,8 @@ namespace ScadaChecks
             var doc = new ScadaDocument();
             var engine = new ScadaAlarmEngine(doc, new FakeValueSource());
             var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
-            var context = new ScadaRuntimeContext(engine, beat, axisSource: source);
+            var context = new ScadaRuntimeContext(engine, beat, axisSource: source,
+                accessPolicy: AxisAdminPolicy());
 
             int beatBefore = SubscriberCount(beat, nameof(ScadaBeatSource.Beat));
             panel.RuntimeContext = context;
@@ -1051,7 +1056,8 @@ namespace ScadaChecks
 
             // ① 没有命令出口：按钮不可用，但提示要诚实
             panel.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, axisSource: source, axisCommands: null);
+                engine, beat, axisSource: source, axisCommands: null,
+                accessPolicy: AxisAdminPolicy());
 
             Check("[AX9] 没有命令出口时按钮不可用（不给出一个按不动的按钮）",
                 !panel.CanOperate, $"canOperate={panel.CanOperate}");
@@ -1062,7 +1068,8 @@ namespace ScadaChecks
 
             // ② 接上出口：默认角色=操作员、RequiredRole=null → 放行
             panel.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, axisSource: source, axisCommands: commands);
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: AxisAdminPolicy());
 
             Check("[AX9] 有出口且有选中轴时按钮可用",
                 panel.CanOperate, $"canOperate={panel.CanOperate}");
@@ -1083,18 +1090,72 @@ namespace ScadaChecks
                 ok && commands.LastCommand == ScadaAxisCommandKind.Stop,
                 $"{commands.LastCommand}");
 
-            // ③ 权限：RequiredRole 抬到工程师，而当前角色是操作员 → 拒绝且不调出口
+            // ③ 权限：显式 RequiredPermission 收紧到 UserAdministration，当前组是工程师 → 拒绝且不调出口
             int before = commands.CallCount;
-            element.RequiredRole = ScadaRole.Engineer;
+            panel.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: new FakeAccessPolicy { CurrentRole = ScadaRole.Engineer });
+            element.RequiredPermission = ScadaPermissionKeys.UserAdministration;
             panel.Refresh();
 
-            Check("[AX9] RequiredRole 抬到工程师后按钮变灰（操作员不够格）",
+            Check("[AX9] RequiredPermission 收紧后按钮变灰（工程师组没有用户管理权限）",
                 !panel.CanOperate, $"canOperate={panel.CanOperate}");
 
             ok = panel.TryExecuteCommand(ScadaAxisCommandKind.Stop);
             Check("[AX9] 权限不足时命令不落到出口，并给出中文原因",
                 !ok && commands.CallCount == before && panel.CommandMessage.Contains("权限"),
                 $"calls={commands.CallCount - before} / msg={panel.CommandMessage}");
+
+            // ③b B3：无 Stop 权限时按钮仍可点（CanAttemptStop），点击弹登录；登录后继续原操作
+            var stopPolicy = new FakeAccessPolicy { CurrentRole = ScadaRole.Engineer }; // 工程师组没有 Stop
+            var stopPrompts = new List<string>();
+            panel.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: stopPolicy,
+                accessLoginPrompt: key =>
+                {
+                    stopPrompts.Add(key);
+                    stopPolicy.Grant(ScadaPermissionKeys.ControlRun, ScadaPermissionKeys.Stop);
+                    return true;
+                });
+            element.RequiredPermission = null;
+            panel.Refresh();
+
+            Check("[AX9-b] 无 Stop 权限时按钮仍可点（置灰就弹不出登录）",
+                !panel.CanStop && panel.CanAttemptStop,
+                $"canStop={panel.CanStop} attempt={panel.CanAttemptStop}");
+
+            int stopBefore = commands.CallCount;
+            bool stopOk = panel.TryExecuteCommand(ScadaAxisCommandKind.Stop);
+            Check("[AX9-b] 点停止先弹登录，登录后重判并继续下发停止",
+                stopOk && commands.CallCount == stopBefore + 1
+                && commands.LastCommand == ScadaAxisCommandKind.Stop
+                && stopPrompts.Count == 1 && stopPrompts[0] == ScadaPermissionKeys.Stop,
+                $"ok={stopOk} calls={commands.CallCount - stopBefore} prompts={stopPrompts.Count} key={stopPrompts.FirstOrDefault()}");
+
+            // ③c 非交互命令（松手补发 JogStop）不弹登录：安全收手不该打扰人
+            stopPolicy.CurrentRole = ScadaRole.Engineer; // 重置回无 Stop
+            int nonInteractivePrompts = 0;
+            panel.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: stopPolicy,
+                accessLoginPrompt: _ => { nonInteractivePrompts++; return true; });
+            panel.Refresh();
+            int nonInteractiveBefore = commands.CallCount;
+            bool nonInteractiveOk = panel.TryExecuteCommand(
+                ScadaAxisCommandKind.Stop, null, interactive: false);
+
+            Check("[AX9-c] 非交互命令不弹登录（自动收手不打扰人）",
+                !nonInteractiveOk && nonInteractivePrompts == 0
+                && commands.CallCount == nonInteractiveBefore,
+                $"ok={nonInteractiveOk} prompts={nonInteractivePrompts} calls={commands.CallCount - nonInteractiveBefore}");
+
+            // 恢复显式配置，后续 ShowCommands 用例按管理员组跑
+            element.RequiredPermission = null;
+            panel.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: AxisAdminPolicy());
+            panel.Refresh();
 
             // ④ ShowCommands=false：操作区整体收起（纯监视面板）
             element.SetProperty("ShowCommands", "False");
@@ -1132,7 +1193,8 @@ namespace ScadaChecks
             var engine = new ScadaAlarmEngine(doc, new FakeValueSource());
             var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
             panel.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, axisSource: source, axisCommands: commands);
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: AxisAdminPolicy());
 
             int before = commands.CallCount;
 
@@ -1315,7 +1377,8 @@ namespace ScadaChecks
             var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
 
             table.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, axisSource: source, axisCommands: commands, confirmations: confirmations);
+                engine, beat, axisSource: source, axisCommands: commands, confirmations: confirmations,
+                accessPolicy: AxisAdminPolicy());
 
             Check("[AX10] 选中轴后列出全部 16 行点位",
                 table.Rows.Count == 16, $"{table.Rows.Count} 行");
@@ -1419,24 +1482,53 @@ namespace ScadaChecks
 
             beat.Stop();
 
-            // 权限：抬到工程师后，示教/定位不可用且不落出口
+            // 权限：显式收紧到 UserAdministration，当前组是工程师 → 示教/定位不可用且不落出口
             int before = commands.CallCount;
             int confirmBeforeDenied = confirmations.Calls;
-            element.RequiredRole = ScadaRole.Engineer;
+            table.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands, confirmations: confirmations,
+                accessPolicy: new FakeAccessPolicy { CurrentRole = ScadaRole.Engineer });
+            element.RequiredPermission = ScadaPermissionKeys.UserAdministration;
             table.Refresh();
 
-            Check("[AX10] 权限不足时示教/定位命令不可用（按钮灰掉）",
+            Check("[AX10] 权限不足时 CanOperate 为假，但命令仍可尝试（B3：点击后弹登录，不把按钮灰死）",
                 !table.CanOperate
-                && !table.TeachCommand.CanExecute(table.Rows[0])
-                && !table.LocateCommand.CanExecute(table.Rows[0]),
-                $"canOperate={table.CanOperate}");
+                && table.CanAttemptOperate
+                && table.TeachCommand.CanExecute(table.Rows[0])
+                && table.LocateCommand.CanExecute(table.Rows[0]),
+                $"canOperate={table.CanOperate} attempt={table.CanAttemptOperate}");
 
             table.TeachCommand.Execute(table.Rows[0]);
-            Check("[AX10] 权限不足时命令不落到出口，且不会先弹确认框（先判权限、再谈确认）",
+            Check("[AX10] 权限不足且没有登录弹窗时命令不落到出口，且不会先弹确认框（先判权限、再谈确认）",
                 commands.CallCount == before
                 && confirmations.Calls == confirmBeforeDenied
                 && table.CommandMessage.Contains("权限"),
                 $"calls={commands.CallCount - before} / popups={confirmations.Calls - confirmBeforeDenied} / msg={table.CommandMessage}");
+
+            // B3：有登录弹窗时，缺权限 → 弹登录 → 登录后继续原操作
+            var teachPolicy = new FakeAccessPolicy { CurrentRole = ScadaRole.Engineer };
+            int teachPrompts = 0;
+            table.RuntimeContext = new ScadaRuntimeContext(
+                engine, beat, axisSource: source, axisCommands: commands, confirmations: confirmations,
+                accessPolicy: teachPolicy,
+                accessLoginPrompt: key =>
+                {
+                    teachPrompts++;
+                    teachPolicy.Grant(ScadaPermissionKeys.UserAdministration);
+                    return true;
+                });
+            element.RequiredPermission = ScadaPermissionKeys.UserAdministration;
+            table.Refresh();
+
+            int teachBefore = commands.CallCount;
+            int teachConfirmBefore = confirmations.Calls;
+            table.TeachCommand.Execute(table.Rows[0]);
+
+            Check("[AX10] 示教缺权限时先弹登录，登录后继续执行并落出口",
+                teachPrompts == 1
+                && commands.CallCount == teachBefore + 1
+                && confirmations.Calls == teachConfirmBefore + 1,
+                $"prompts={teachPrompts} calls={commands.CallCount - teachBefore} popups={confirmations.Calls - teachConfirmBefore}");
 
             // 关掉操作入口：按钮收起、速度框只读
             element.SetProperty("ShowCommands", "False");
@@ -1498,7 +1590,8 @@ namespace ScadaChecks
             var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
 
             console.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, axisSource: source, axisCommands: commands);
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: AxisAdminPolicy());
 
             Check("[AX11] 默认选中第一根轴，监控与点位同时就位",
                 console.SelectedAxisId == x
@@ -1643,29 +1736,14 @@ namespace ScadaChecks
 
             dispatcher.Dispatch(moveHook, "测试按钮", "操作员");
 
-            Check("[AX13] 分发器把运动动作整链送到执行器（真的下发了命令，且日志说「已下发」）",
-                device.LastCommand?.Kind == MotionCommandKind.MoveAbsolute
-                && Math.Abs(device.LastCommand.TargetMm - 25) < 1e-9
-                && logger.Lines.Any(l => l.Contains("已下发")),
+            // 2026-10-25 纠偏：事件动作表不再下发轴控（按钮事件没有轴面板那套闸门）。
+            // 老 .vms 里配着的运动动作必须"如实拒绝并说明去哪做"，既不执行也不静默消失。
+            Check("[AX13] 分发器不再下发事件里的轴控动作（老配置如实拒绝并说明去哪做）",
+                device.LastCommand == null
+                && logger.Lines.Any(l => l.Contains("不允许从事件动作表下发")),
                 string.Join(" | ", logger.Lines));
 
-            // 未注入执行器：如实记"未接入"，不能静默
-            var noExecutorLogger = new FaultyLogger("__never__");
-            var noExecutor = new ScadaActionDispatcher(
-                noExecutorLogger, new FakeValueSource(), new FakeNavigator());
-
-            device.LastCommand = null;
-            noExecutor.Dispatch(moveHook, "测试按钮", "操作员");
-
-            Check("[AX13] 未注入执行器时分发器如实记「运动模块未接入」，不静默空跑",
-                device.LastCommand == null
-                && noExecutorLogger.Lines.Any(l => l.Contains("运动模块未接入")),
-                string.Join(" | ", noExecutorLogger.Lines));
-
-            // 静默档：点动时轴正忙 → 执行器返回 false + 空 message，分发器不记日志
-            device.Status = new AxisStatus { PhysicalIndex = 0, Enabled = true, Moving = true };
-            device.Capabilities = new MotionCapabilities { AxisCount = 1, SupportsJog = true };
-
+            // 运动族整体生效：点动与清报警同样被拒，不是只挡绝对定位
             var jogHook = new ScadaEventHook { Event = ScadaEventType.Pressed };
             var jog = new ScadaAction { Type = ScadaActionType.MotionJogStart, TargetMm = 1 };
             jog.BindAxis(axisId, "X");
@@ -1674,9 +1752,9 @@ namespace ScadaChecks
             int before = logger.Lines.Count;
             dispatcher.Dispatch(jogHook, "测试按钮", "操作员");
 
-            Check("[AX13] 点动遇轴忙时整链静默（分发器不写日志、不落审计）",
-                logger.Lines.Count == before,
-                $"新增 {logger.Lines.Count - before} 行");
+            Check("[AX13] 运动族整体被拒（点动/清报警与定位同一道闸），且每次都留一行说明",
+                device.LastCommand == null && logger.Lines.Count > before,
+                $"新增 {logger.Lines.Count - before} 行 / {string.Join(" | ", logger.Lines.Skip(before))}");
 
             executor.Dispose();
         }
@@ -1720,7 +1798,8 @@ namespace ScadaChecks
             var engine = new ScadaAlarmEngine(doc, new FakeValueSource());
             var beat = new ScadaBeatSource(Dispatcher.CurrentDispatcher, TimeSpan.FromMilliseconds(20));
             panel.RuntimeContext = new ScadaRuntimeContext(
-                engine, beat, axisSource: source, axisCommands: commands);
+                engine, beat, axisSource: source, axisCommands: commands,
+                accessPolicy: AxisAdminPolicy());
 
             var combo = panel.Template?.FindName("AxisCombo", panel) as ComboBox;
             Check("[AX14] 轴选择器显示当前轴名（不是空框）",

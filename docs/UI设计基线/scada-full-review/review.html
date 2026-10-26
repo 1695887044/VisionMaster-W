@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>全量控件审查（剩余 42 个）· SCADA 应用工程师 × 前端工程师</title>
+<style>
+  :root{--bg:#f5f7fb;--panel:#fff;--line:#e4e9f2;--text:#1e293b;--text2:#5b667a;--text3:#8a94a6;
+        --brand:#2563eb;--p1:#dc2626;--p1bg:#fdeaea;--p2:#d97706;--p2bg:#fdf3e3;--p3:#475569;--p3bg:#eef1f6;
+        --ok:#15803d;--okbg:#e9f7ee;--radius:12px;--mono:"Cascadia Mono","Consolas",monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  header{padding:26px 40px 6px;max-width:1280px}
+  h1{font-size:25px;margin:0 0 6px}
+  .sub{color:var(--text2);margin:0}
+  .legend{margin:12px 0 0;font-size:13px;color:var(--text3)}
+  .tabs{display:flex;gap:6px;padding:14px 40px 0;max-width:1280px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .tabs button{border:1px solid var(--line);border-bottom:0;background:#eef1f6;color:var(--text2);
+    padding:8px 15px;border-radius:9px 9px 0 0;font:inherit;font-size:13.5px;cursor:pointer}
+  .tabs button.on{background:#fff;color:var(--text);font-weight:600;box-shadow:0 -2px 0 var(--brand) inset}
+  main{max-width:1280px;padding:22px 40px 90px}
+  .pane{display:none}.pane.on{display:block}
+  h2{font-size:19px;margin:18px 0 6px}
+  h3{font-size:15px;margin:20px 0 6px}
+  table{border-collapse:collapse;width:100%;background:#fff;font-size:13.5px}
+  th,td{border-bottom:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-size:12.5px;position:sticky;top:0}
+  td code{font-family:var(--mono);font-size:12.5px}
+  .chip{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:700;white-space:nowrap}
+  .chip.p1{background:var(--p1bg);color:var(--p1)}
+  .chip.p2{background:var(--p2bg);color:var(--p2)}
+  .chip.p3{background:var(--p3bg);color:var(--p3)}
+  .chip.ok{background:var(--okbg);color:var(--ok)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:12px 0}
+  .callout{border-left:4px solid var(--brand);background:#f2f7ff;border-radius:0 10px 10px 0;padding:12px 14px;margin:12px 0;font-size:14px}
+  .callout.warn{border-left-color:#d97706;background:#fffaf1}
+  .muted{color:var(--text3);font-size:13px}
+  .role{display:inline-block;background:#eef4ff;color:#1d4ed8;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600;margin-right:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>全量控件审查（剩余 42 个）</h1>
+  <p class="sub">SCADA 组态应用工程师（工艺 / 电气·运动）× 前端工程师（交互 / 视觉）联合审查 · 2026-10-26</p>
+  <p class="legend">级别：<span class="chip p1">P1</span> 本轮应改（安全 / 误导）　<span class="chip p2">P2</span> 下一批　<span class="chip p3">P3</span> 记录　<span class="chip ok">通过</span> 无问题</p>
+</header>
+
+<div class="tabs">
+  <button class="on" data-tab="t1">文本与显示</button>
+  <button data-tab="t2">数值与仪表</button>
+  <button data-tab="t3">状态与操作</button>
+  <button data-tab="t4">容器与导航</button>
+  <button data-tab="t5">图形与装饰</button>
+  <button data-tab="t6">工艺与设备</button>
+  <button data-tab="t7">数据与配方</button>
+  <button data-tab="t8">媒体与码</button>
+  <button data-tab="t9">共性结论</button>
+</div>
+
+<main>
+  <!-- 1 文本与显示 -->
+  <section class="pane on" id="t1">
+    <h2>文本与显示</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现（应用工程师）</th><th>UI 发现（前端工程师）</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.Text</code></td>
+        <td>长文案溢出策略（换行 / 截断）靠属性各自配，工程里常出现"半句话"</td>
+        <td>截断后没有 ToolTip 兜底，现场看不到全文</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.TextField</code></td>
+        <td>输入类控件，与软键盘目标对接；空值与"未填"在业务上不可分</td>
+        <td>占位符与禁用态外形接近；焦点环存在但只在键盘时可见</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Clock</code></td>
+        <td>只读时间源，格式固定；跨时区/夏令时未定义（现场一般单时区，可接受）</td>
+        <td>数字用等宽字体、不跳动（做对了）</td><td><span class="chip ok">通过</span></td></tr>
+      <tr><td><code>Hmi.RunMeter</code></td>
+        <td>累计运行时长无"清零"入口，换班/换批次时无法归零</td>
+        <td>数值与单位同列，长时数（&gt;999h）会挤压标签</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Indicator</code></td>
+        <td>只有开/关两态，没有"未知/断线"第三态——通讯断了仍显示上一次状态</td>
+        <td>状态只靠颜色 + 形状，缺文字；色盲下形状差异很弱</td><td><span class="chip p1">P1</span></td></tr>
+      <tr><td><code>Hmi.Lamp</code></td>
+        <td>同上：断线无第三态</td>
+        <td>三色（正常/警告/报警）亮度接近，强光下难分</td><td><span class="chip p2">P2</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 2 数值与仪表 -->
+  <section class="pane" id="t2">
+    <h2>数值与仪表</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.Gauge</code></td>
+        <td>量程可配，但"越限区间"没有在表盘上标出来，只能靠指针位置猜</td>
+        <td>刻度密度随尺寸变，小尺寸时刻度挤成一团</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.ProgressBar</code></td>
+        <td>无阈值色（到 80% 该变黄没有表达）</td>
+        <td>填充与轨道对比度在深色底上偏弱</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.KpiBoard</code></td>
+        <td><b>固定 4 格</b>（Label1..4 / Value1..4），想看 6 个指标得摆两块</td>
+        <td>四格等分，长标签会截断；数字字号与标签差距大，扫读时标签像噪音</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.MultiTrend</code></td>
+        <td>无游标读数（"这一拍是多少"要目测）；无历史回放</td>
+        <td>多曲线颜色区分依赖调色板，超过 6 条后难分；无图例</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.ChartTrend</code></td>
+        <td>单曲线，够用</td>
+        <td>时间窗标注缺失（看不出跨度）</td><td><span class="chip p3">P3</span></td></tr>
+      <tr><td><code>Hmi.BitTable</code></td>
+        <td>16/32 位可切，但每一位没有名字（只显示 bit0..bit15）</td>
+        <td>位格密度高，触摸下几乎点不中单格</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.IoMonitor</code> / <code>Hmi.VariableMonitor</code></td>
+        <td>预设好的监视表，列固定</td>
+        <td>行高与表格一致（做对了）；无分组</td><td><span class="chip p3">P3</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 3 状态与操作 -->
+  <section class="pane" id="t3">
+    <h2>状态与操作</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.BitButton</code></td>
+        <td>位写按钮，开/关文案不可配（显示的是值）</td>
+        <td>双态外观差异靠填充色，禁用时无额外提示</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.SelectorSwitch</code></td>
+        <td>档位数可配，但"当前档"没有回读失败提示（写失败静默回弹）</td>
+        <td>档位命中区随宽度均分，档多时偏窄</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.StateView</code></td>
+        <td>一个 TypeKey 三预设（图形开关 / 图形 IO 域 / 字指示灯），<b>互斥字段同时出现在属性面板</b>的风险（撞 R107）</td>
+        <td>三种预设外观差异大，切预设时用户容易以为是另一个控件</td><td><span class="chip p1">P1</span></td></tr>
+      <tr><td><code>Hmi.AckButton</code></td>
+        <td>确认范围（本页 / 全部）在按钮上看不出来</td>
+        <td>与普通按钮同款，缺"确认"语义的视觉重量</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.ComboBox</code></td>
+        <td>选项来自方案级文本列表；列表为空时没有提示</td>
+        <td>下拉展开层在窄控件上会被裁剪</td><td><span class="chip p3">P3</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 4 容器与导航 -->
+  <section class="pane" id="t4">
+    <h2>容器与导航</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.Panel</code></td>
+        <td>分组容器，无"折叠"（面板一多只能靠位置区分）</td>
+        <td>容器边框与背景对比弱，边界不清</td><td><span class="chip p3">P3</span></td></tr>
+      <tr><td><code>Hmi.SubPage</code></td>
+        <td>P1a 只读固定页；子页未配置时无明确空态</td>
+        <td>嵌入页与原页视觉层级相同，容易误以为是一张图</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Picture</code> / <code>Hmi.ImageView</code></td>
+        <td>图片加载失败只显示空白，没有占位/原因</td>
+        <td>等比/拉伸模式不可见（配置错会导致变形且看不出来）</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Gif</code></td>
+        <td>帧数/延迟有上限，超大 GIF 会被截断</td>
+        <td>停帧后与静态图无区别，看不出"这是动图"</td><td><span class="chip p3">P3</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 5 图形与装饰 -->
+  <section class="pane" id="t5">
+    <h2>图形与装饰</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.Rectangle</code> / <code>Hmi.Ellipse</code></td>
+        <td>描边内/外对齐未定义（放大后与标注尺寸差 1~2px）</td>
+        <td>细描边（1px）在缩放画布上会"消失"</td><td><span class="chip p3">P3</span></td></tr>
+      <tr><td><code>Hmi.Line</code></td>
+        <td>直线命中区 = 几何本身，1px 线几乎点不中</td>
+        <td>选中框比线粗，视觉上像"多了一条"</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Pipe</code></td>
+        <td>固定管身 + 流向箭头，方向不可自动反转</td>
+        <td>箭头与管身比例固定，短管上箭头过大</td><td><span class="chip p3">P3</span></td></tr>
+      <tr><td><code>Hmi.Polygon</code> / <code>Hmi.Bezier</code></td>
+        <td>顶点不可编辑（只能整体缩放）</td>
+        <td>无顶点手柄，改形状必须重画</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.DynamicLine</code></td>
+        <td>长度/角度双变量驱动，已实现</td>
+        <td>无线宽/端点样式配置（料流用箭头不够）</td><td><span class="chip p3">P3</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 6 工艺与设备 -->
+  <section class="pane" id="t6">
+    <h2>工艺与设备</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.Tank</code></td>
+        <td>液位/容量换算已实现；无"低液位/高液位"报警区着色</td>
+        <td>窄尺寸下位号与读数挤压</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Pump</code> / <code>Hmi.Valve</code> / <code>Hmi.Motor</code></td>
+        <td>状态三态（停/运行/故障），与符号库重复但外观不同——同一工程里混用会出现两种画法</td>
+        <td>三者的"运行"色不一致（分别取自各自令牌）</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.Symbol</code></td>
+        <td>30 种几何共用 100×100 设计空间，细长符号（换热器/过滤器）留白大</td>
+        <td>位号三档位置可用；读数叠加时与符号轮廓打架</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.PipeRun</code></td>
+        <td><b>可拖动、可旋转、X/Y/W/H 可编辑</b>，但改完会被路由器立刻改写回去——用户以为改了、实际没改</td>
+        <td>选中框贴着折线，手柄在折点上，拖动即误改端点</td><td><span class="chip p1">P1</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 7 数据与配方 -->
+  <section class="pane" id="t7">
+    <h2>数据与配方</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.RecipePanel</code></td>
+        <td>只读展示，没有"应用配方"入口（走动作表）；分工可接受但界面上看不出来</td>
+        <td>参数表与数据表格视觉一致，容易被当成可编辑表</td><td><span class="chip p2">P2</span></td></tr>
+      <tr><td><code>Hmi.AxisPointTable</code></td>
+        <td>点位表每拍重读 + 指纹短路（R138）已实现；空态文案未区分"没轴"与"没点位"</td>
+        <td>行内按钮 22px 偏小（与轴面板 44 不一致）</td><td><span class="chip p2">P2</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 8 媒体与码 -->
+  <section class="pane" id="t8">
+    <h2>媒体与码</h2>
+    <table>
+      <tr><th style="width:130px">控件</th><th style="width:46%">功能发现</th><th>UI 发现</th><th style="width:76px">级别</th></tr>
+      <tr><td><code>Hmi.QRCode</code></td>
+        <td>内容为空时不报错，画一个空框</td>
+        <td>码与静区（quiet zone）比例固定，小尺寸扫不出来</td><td><span class="chip p3">P3</span></td></tr>
+      <tr><td><code>Hmi.Barcode</code></td>
+        <td>同上；条码类型固定</td>
+        <td>窄尺寸下条宽被压缩，扫码率下降</td><td><span class="chip p3">P3</span></td></tr>
+    </table>
+  </section>
+
+  <!-- 9 共性 -->
+  <section class="pane" id="t9">
+    <h2>共性结论（比单个控件更重要）</h2>
+    <div class="card">
+      <h3>① 触摸目标尺寸没有统一口径</h3>
+      <p>轴面板命令键刚改成 44，但<b>点位表行内按钮 22px</b>、位表单格、选择器档位都远小于 44。
+        建议把"可操作控件命中区 ≥ 44px"写成全局令牌（`HmiTouchTarget`），所有可点图元引用它，而不是各自写死。</p>
+
+      <h3>② "断线 / 未知"缺第三态</h3>
+      <p>指示类（<code>Indicator</code> / <code>Lamp</code> / 部分设备符号）只有开/关或三态（停/运行/故障），
+        但通讯中断时显示的是"上一次的值"——<b>假状态比无状态更危险</b>。建议统一加 `Unknown` 态（灰 + 斜纹）。</p>
+
+      <h3>③ 同一语义两套画法</h3>
+      <p><code>Pump</code>/<code>Valve</code>/<code>Motor</code> 与 <code>Symbol</code> 的同类设备外观不同、
+        运行色也不同。新工程应该只用 <code>Symbol</code>（30 种、状态一致）；老三个保留兼容但工具箱里该标注"旧"。</p>
+
+      <h3>④ 编辑期可改性没有统一规则</h3>
+      <p><code>PipeRun</code> 是典型：看起来可拖、可改尺寸，实际被路由器改写。建议给图元加一个统一的
+        `IsLayoutLockedByCode` 语义，属性面板据此把几何项置灰并提示"由系统计算"。</p>
+
+      <div class="callout warn" style="margin-bottom:0">
+        <b>本轮只有 3 条 P1</b>（<code>Indicator</code> 缺断线态、<code>StateView</code> 互斥字段风险、<code>PipeRun</code> 可改却无效）。
+        其余 20 余条是 P2/P3——<b>不建议一次性全改</b>：这些控件大多数现场没在用，
+        先把 P1 三条和共性①（触摸令牌）做掉，比铺开改 20 个控件更划算。
+      </div>
+    </div>
+
+    <h2>下一步建议（按性价比排序）</h2>
+    <table>
+      <tr><th style="width:60px">顺序</th><th>做什么</th><th>为什么先做</th></tr>
+      <tr><td>1</td><td><code>HmiTouchTarget</code> 令牌 + 全仓可点图元引用</td><td>一次解决"22 / 29 / 32 / 44 混用"，且能加静态闸</td></tr>
+      <tr><td>2</td><td><code>PipeRun</code> 锁定几何（不可拖 / 不可旋转 / X-Y-W-H 只读）</td><td>当前是"改了没用"的误导，属 P1</td></tr>
+      <tr><td>3</td><td>指示类加 <code>Unknown</code> 断线态</td><td>假状态是安全事故的常见根因</td></tr>
+      <tr><td>4</td><td><code>StateView</code> 互斥字段拆成切换字段 + 嵌套子对象（R107）</td><td>属性面板同现两套参数，配错率高</td></tr>
+      <tr><td>5</td><td>P2 清单按"现场是否在用"逐个排期</td><td>避免为没人用的控件铺开改</td></tr>
+    </table>
+  </section>
+</main>
+
+<script>
+(function(){
+  var buttons = document.querySelectorAll(".tabs button");
+  var panes = document.querySelectorAll(".pane");
+  buttons.forEach(function(b){
+    b.addEventListener("click", function(){
+      buttons.forEach(function(x){ x.classList.toggle("on", x === b); });
+      panes.forEach(function(p){ p.classList.toggle("on", p.id === b.dataset.tab); });
+    });
+  });
+})();
+</script>
+</body>
+</html>

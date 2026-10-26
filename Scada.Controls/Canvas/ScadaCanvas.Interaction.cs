@@ -149,6 +149,10 @@ namespace VisionMaster.Scada.Controls
             var source = e.OriginalSource as DependencyObject;
             var point = e.GetPosition(this);
 
+            // 连线手势优先于选中/拖动：按在连接口上就该开始拉线，而不是把设备拖走
+            if (TryBeginWire(e, point))
+                return;
+
             // 手柄优先：选中框叠在图元之上，先判是不是按在了角上
             if (HitTestThumb(source) is { } thumb && SelectedElement is { } selected && CanEditElement(selected))
             {
@@ -235,6 +239,14 @@ namespace VisionMaster.Scada.Controls
         protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
         {
             base.OnPreviewMouseLeftButtonUp(e);
+
+            // 连线手势收尾（设计期）：松手时若命中了目标口就连上，否则取消
+            if (IsWiring)
+            {
+                EndWire();
+                e.Handled = true;
+                return;
+            }
 
             if (!IsReadOnly)
                 return;
@@ -333,6 +345,12 @@ namespace VisionMaster.Scada.Controls
 
         private void BeginDrag(DragMode mode, ScadaElement? element, Point viewportPoint)
         {
+            // 管线（Hmi.PipeRun）的几何由路由器现算：拖动/缩放/旋转都会在下一拍被写回，
+            // 用户会以为改了、实际没改（2026-10-26 会审 P1）。这里直接拒绝进入拖动，
+            // 属性面板那边也把 X/Y/宽高/旋转从可配项里摘掉了——两处口径一致。
+            if (element != null && string.Equals(element.TypeKey, PipeRunTypeKey, StringComparison.OrdinalIgnoreCase))
+                return;
+
             _dragMode = mode;
             _dragElement = element;
             _dragStartViewport = viewportPoint;
@@ -426,6 +444,14 @@ namespace VisionMaster.Scada.Controls
         protected override void OnMouseMove(MouseEventArgs e)
         {
             base.OnMouseMove(e);
+
+            // 拖线中：只更新预览与吸附目标，不参与平移/拖动
+            if (IsWiring)
+            {
+                UpdateWire();
+                e.Handled = true;
+                return;
+            }
 
             if (_dragMode == DragMode.None)
                 return;
@@ -883,6 +909,299 @@ namespace VisionMaster.Scada.Controls
                 // 真拖起来了，OnMouseMove 会升级成 RubberBand 并重新调这里换光标。
                 _ => Cursors.Arrow,
             };
+        }
+
+        #endregion
+
+        #region 管道连线（连接口 → 管道图元）
+
+        /// <summary>管道连线图元的类型键（与 <c>BuiltInElements</c> 里那一条同名）</summary>
+        public const string PipeRunTypeKey = "Hmi.PipeRun";
+
+        /// <summary>连接口命中半径（屏幕像素；换算成设计坐标时除以 Zoom）</summary>
+        public const double PortHitRadius = 12d;
+
+        /// <summary>吸附半径（屏幕像素）</summary>
+        public const double PortSnapRadius = 20d;
+
+        private ScadaElement? _wireSource;
+        private ScadaPipePort _wireSourcePort;
+        private ScadaElement? _wireTarget;
+        private ScadaPipePort _wireTargetPort;
+        private Point _wireCursor;
+        private Path? _wirePreview;
+
+        /// <summary>正在拖线（设计期连线手势进行中）</summary>
+        public bool IsWiring => _wireSource != null;
+
+        /// <summary>
+        /// 两个连接口之间连一根管道。由连线手势调用；断言也直接调它（不必模拟鼠标）。
+        /// 失败原因写进 <paramref name="error"/>：同一个口只接一根、两端不能是同一个图元、
+        /// 图元必须在本页且没有装进底板（父子偏移会让走线算错，v1 明确不支持）。
+        /// </summary>
+        public ScadaElement? TryConnect(Guid fromId, string fromPort, Guid toId, string toPort, out string? error)
+        {
+            error = null;
+
+            if (Page == null)
+            {
+                error = "还没有画面。";
+                return null;
+            }
+
+            if (fromId == Guid.Empty || toId == Guid.Empty)
+            {
+                error = "两端都要选图元。";
+                return null;
+            }
+
+            if (fromId == toId)
+            {
+                error = "不能把管道连回同一个图元。";
+                return null;
+            }
+
+            var from = FindTopLevelElement(fromId);
+            var to = FindTopLevelElement(toId);
+
+            if (from == null || to == null)
+            {
+                error = "端点图元不在本页（或装进了底板：v1 只支持顶层图元之间连线）。";
+                return null;
+            }
+
+            if (IsPortTaken(fromId, fromPort) || IsPortTaken(toId, toPort))
+            {
+                error = "这个连接口已经接了管线（每个口只接一根，先删掉旧的）。";
+                return null;
+            }
+
+            ScadaElement? pipe = null;
+
+            using (ScadaChangeScope.Begin("连线"))
+            {
+                pipe = ElementRegistry.CreateElement(PipeRunTypeKey);
+                pipe.Name = $"管线 {Page.Elements.Count + 1}";
+                pipe.SetProperty("FromId", fromId.ToString());
+                pipe.SetProperty("FromPort", fromPort);
+                pipe.SetProperty("ToId", toId.ToString());
+                pipe.SetProperty("ToPort", toPort);
+                pipe.SetProperty("Text", string.Empty);
+
+                Page.Elements.Add(pipe);
+            }
+
+            return pipe;
+        }
+
+        /// <summary>本页顶层图元（不进底板）：管道走线按绝对坐标算，父子偏移会算错</summary>
+        private ScadaElement? FindTopLevelElement(Guid id)
+        {
+            if (Page == null)
+                return null;
+
+            foreach (var element in Page.Elements)
+            {
+                if (element != null && element.ElementId == id && element.ParentId == Guid.Empty)
+                    return element;
+            }
+
+            return null;
+        }
+
+        /// <summary>这个连接口是否已被某根管线占用</summary>
+        private bool IsPortTaken(Guid elementId, string port)
+        {
+            if (Page == null)
+                return false;
+
+            var idText = elementId.ToString();
+            var portText = (port ?? string.Empty).Trim();
+
+            foreach (var element in Page.Elements)
+            {
+                if (element == null || !string.Equals(element.TypeKey, PipeRunTypeKey, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (Matches(element, "FromId", "FromPort") || Matches(element, "ToId", "ToPort"))
+                    return true;
+            }
+
+            return false;
+
+            bool Matches(ScadaElement pipe, string idKey, string portKey)
+                => string.Equals(pipe.GetProperty(idKey), idText, StringComparison.OrdinalIgnoreCase)
+                   && string.Equals(pipe.GetProperty(portKey).Trim(), portText, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // ---- 连线手势 ----
+
+        /// <summary>
+        /// 设计期：按在某个连接口附近就开始拖线。
+        /// 返回 true 表示这一下被连线吃掉了（不要再走选中/拖动）。
+        /// </summary>
+        private bool TryBeginWire(MouseButtonEventArgs e, Point viewportPoint)
+        {
+            if (Page == null || IsReadOnly)
+                return false;
+
+            if (!TryHitPortAt(viewportPoint, PortHitRadius, out var element, out var port))
+                return false;
+
+            if (IsPortTaken(element.ElementId, port.ToString()))
+                return false;
+
+            _wireSource = element;
+            _wireSourcePort = port;
+            _wireTarget = null;
+            _wireCursor = ToModelPoint(viewportPoint);
+
+            CaptureMouse();
+            UpdateWirePreview();
+            e.Handled = true;
+            return true;
+        }
+
+        private void UpdateWire()
+        {
+            if (_wireSource == null)
+                return;
+
+            _wireCursor = ToModelPoint(Mouse.GetPosition(this));
+
+            _wireTarget = TryHitPortAt(Mouse.GetPosition(this), PortSnapRadius, out var element, out var port)
+                          && !ReferenceEquals(element, _wireSource)
+                          && !IsPortTaken(element.ElementId, port.ToString())
+                ? element
+                : null;
+
+            if (_wireTarget != null)
+                _wireTargetPort = port;
+
+            UpdateWirePreview();
+        }
+
+        private void EndWire()
+        {
+            if (_wireSource == null)
+                return;
+
+            var source = _wireSource;
+            var target = _wireTarget;
+
+            ClearWirePreview();
+
+            _wireSource = null;
+            _wireTarget = null;
+
+            if (IsMouseCaptured)
+                ReleaseMouseCapture();
+
+            if (target != null)
+            {
+                TryConnect(source.ElementId, _wireSourcePort.ToString(),
+                    target.ElementId, _wireTargetPort.ToString(), out _);
+            }
+        }
+
+        /// <summary>
+        /// 命中最近的连接口（只看顶层图元：底板里的子图元 v1 不参与连线）。
+        /// <paramref name="screenRadius"/> 是屏幕像素，内部按 Zoom 换算成设计坐标；
+        /// 断言直接用它（不必模拟鼠标）。
+        /// </summary>
+        public bool TryHitPortAt(Point viewportPoint, double screenRadius, out ScadaElement? element, out ScadaPipePort port)
+        {
+            element = null;
+            port = ScadaPipePort.Right;
+
+            if (Page == null)
+                return false;
+
+            var model = ToModelPoint(viewportPoint);
+            var radius = screenRadius / Math.Max(0.1, Zoom);
+            var best = double.MaxValue;
+
+            foreach (var candidate in Page.Elements)
+            {
+                if (candidate == null || candidate.ParentId != Guid.Empty)
+                    continue;
+
+                if (candidate.Width <= 0 || candidate.Height <= 0)
+                    continue;
+
+                var rect = new ScadaPipeRect(candidate.X, candidate.Y, candidate.Width, candidate.Height);
+
+                foreach (ScadaPipePort candidatePort in Enum.GetValues<ScadaPipePort>())
+                {
+                    var point = ScadaPipeRouter.PortPoint(rect, candidatePort);
+                    var distance = Math.Sqrt(Math.Pow(point.X - model.X, 2) + Math.Pow(point.Y - model.Y, 2));
+
+                    if (distance <= radius && distance < best)
+                    {
+                        best = distance;
+                        element = candidate;
+                        port = candidatePort;
+                    }
+                }
+            }
+
+            return element != null;
+        }
+
+        private void UpdateWirePreview()
+        {
+            if (_wireSource == null || _elementLayer == null)
+                return;
+
+            if (_wirePreview == null || !_elementLayer.Children.Contains(_wirePreview))
+            {
+                _wirePreview = new Path
+                {
+                    Stroke = ScadaBrushes.Frozen("#FF38BDF8"),
+                    StrokeThickness = 1.6,
+                    StrokeDashArray = new DoubleCollection { 4, 3 },
+                    IsHitTestVisible = false,
+                };
+                Panel.SetZIndex(_wirePreview, 10000);
+                _elementLayer.Children.Add(_wirePreview);
+            }
+
+            var from = ScadaPipeRouter.PortPoint(
+                new ScadaPipeRect(_wireSource.X, _wireSource.Y, _wireSource.Width, _wireSource.Height),
+                _wireSourcePort);
+
+            ScadaPipePoint to;
+            if (_wireTarget != null)
+            {
+                to = ScadaPipeRouter.PortPoint(
+                    new ScadaPipeRect(_wireTarget.X, _wireTarget.Y, _wireTarget.Width, _wireTarget.Height),
+                    _wireTargetPort);
+            }
+            else
+            {
+                to = new ScadaPipePoint(_wireCursor.X, _wireCursor.Y);
+            }
+
+            var figure = new PathFigure
+            {
+                StartPoint = new Point(from.X, from.Y),
+                IsClosed = false,
+                IsFilled = false,
+            };
+            figure.Segments.Add(new LineSegment(new Point(to.X, to.Y), true));
+
+            var geometry = new PathGeometry();
+            geometry.Figures.Add(figure);
+            _wirePreview.Data = geometry;
+        }
+
+        private void ClearWirePreview()
+        {
+            if (_wirePreview == null)
+                return;
+
+            _elementLayer?.Children.Remove(_wirePreview);
+            _wirePreview = null;
         }
 
         #endregion

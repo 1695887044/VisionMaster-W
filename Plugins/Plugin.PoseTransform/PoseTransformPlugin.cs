@@ -1,3 +1,4 @@
+using Core.Halcon.Helpers;
 using Core.Interfaces;
 using HalconDotNet;
 using Microsoft.Win32;
@@ -258,6 +259,13 @@ namespace Plugin.PoseTransform
         /// <summary>配置实例是否已释放</summary>
         private volatile bool _disposed;
 
+        /// <summary>
+        /// 离屏烘焙件（R36：全仓唯一允许 `OpenWindow` 的地方）。
+        /// 叠加预览不能再用 3 通道 + 3 元组的 `PaintXld`——HALCON 23.05 实测静默不上色。
+        /// </summary>
+        private AnnotationBaker? _baker;
+        private AnnotationBaker Baker => _baker ??= new AnnotationBaker();
+
         #endregion
 
         public PoseTransformPlugin()
@@ -322,6 +330,8 @@ namespace Plugin.PoseTransform
 
             DisplayImage = null;      // setter 释放旧叠加图
             SetPreviewImage(null);    // 释放预览底图
+            _baker?.Dispose();
+            _baker = null;
 
             base.Dispose();
         }
@@ -366,7 +376,7 @@ namespace Plugin.PoseTransform
 
             // 配置对话框开着时（试运行走的同一个实例）：叠加图跟着刷新
             if (_viewAttached)
-                PostToUI(RefreshOverlay);
+                PostToUIAsync(RefreshOverlay);
         }
 
         /// <summary>位姿跟随：基准 ROI × 当前位姿 → 跟随 ROI（可选输出对齐图）。</summary>
@@ -601,10 +611,13 @@ namespace Plugin.PoseTransform
         /// <summary>配置态三联刷新（状态栏 + 标定信息 + 叠加图）；可从任意线程调用。</summary>
         private void RefreshConfigState()
         {
-            if (_disposed) return;
-            PostToUI(() =>
+            // 配置视图没挂接时不做任何刷新：运行期端口每轮都会变，
+            // 旧实现会让执行实例也往 UI 线程投递叠加重算（Dispatcher.Invoke 还会阻塞流程线程）。
+            if (_disposed || !_viewAttached) return;
+
+            PostToUIAsync(() =>
             {
-                if (_disposed) return;
+                if (_disposed || !_viewAttached) return;
                 RefreshStatus();
                 RefreshCalibrationInfo();
                 RefreshOverlay();
@@ -732,18 +745,21 @@ namespace Plugin.PoseTransform
             var temp = new List<IDisposable>();
             try
             {
-                // 1) 底图 → RGB（彩色叠加必须画在 3 通道图上；不动来源图，先拷/合一份）
+                // 2 通道底图先合成 3 通道：AnnotationBaker 内部归一化 1/3/4 通道，
+                // 2 通道不在其覆盖内（HALCON 的 DispObj 对 2 通道行为不确定）。
+                HObject baseForBake = src;
                 HOperatorSet.CountChannels(src, out HTuple channelTuple);
                 int channels = channelTuple.Length > 0 ? channelTuple[0].I : 1;
+                if (channels == 2)
+                {
+                    HOperatorSet.Compose3(src, src, src, out HObject twoChannelRgb);
+                    temp.Add(twoChannelRgb);
+                    baseForBake = twoChannelRgb;
+                }
 
-                HObject current;
-                if (channels >= 3)
-                    HOperatorSet.CopyImage(src, out current);
-                else
-                    HOperatorSet.Compose3(src, src, src, out current);
-                temp.Add(current);
+                var plan = new BakePlan();
 
-                // 2) 基准 ROI（绿轮廓）+ 模板参考点（黄十字）
+                // 1) 基准 ROI（绿轮廓）+ 模板参考点（黄十字）
                 var region = BaseRegion.ActualValue;
                 bool hasRegion = region != null && region.IsInitialized()
                                  && TryRegionArea(region, out double baseArea, out _, out _) && baseArea > 0;
@@ -755,10 +771,10 @@ namespace Plugin.PoseTransform
                 {
                     HOperatorSet.GenContourRegionXld(region!, out HObject baseContour, "border");
                     temp.Add(baseContour);
-                    current = PaintXldOn(current, baseContour, 0, 255, 0, temp);
+                    plan.Objects.Add(new BakeObj(baseContour, "green", 1, "margin"));
                 }
 
-                // 3) 跟随 ROI（橙轮廓）：位姿 + 参考点都有效才画
+                // 2) 跟随 ROI（橙轮廓）：位姿 + 参考点都有效才画
                 bool hasFollowed = false;
                 if (hasRef
                     && PoseTransformMath.IsValidPose(PoseRow.ActualValue, PoseCol.ActualValue, PoseAngle.ActualValue, out _))
@@ -771,7 +787,7 @@ namespace Plugin.PoseTransform
 
                         HOperatorSet.GenContourRegionXld(followed, out HObject followedContour, "border");
                         temp.Add(followedContour);
-                        current = PaintXldOn(current, followedContour, 255, 128, 0, temp);
+                        plan.Objects.Add(new BakeObj(followedContour, "orange", 1, "margin"));
                         hasFollowed = true;
 
                         TryRegionArea(followed, out double followedArea, out _, out _);
@@ -791,16 +807,26 @@ namespace Plugin.PoseTransform
                         : string.Empty;
                 }
 
-                // 4) 参考点十字（黄）画在最上层
+                // 3) 参考点十字（黄）画在最上层（plan 顺序 = 绘制顺序）
                 if (hasRef)
                 {
                     HOperatorSet.GenCrossContourXld(out HObject cross, refRow, refCol, 24, 0);
                     temp.Add(cross);
-                    current = PaintXldOn(current, cross, 255, 255, 0, temp);
+                    plan.Objects.Add(new BakeObj(cross, "yellow", 1, "margin"));
                 }
 
-                // 5) 交给显示（DisplayImage 持有副本，temp 里的中间对象统一释放）
-                DisplayImage = new HImage(current);
+                // 4) 走共享离屏烘焙件（R36）。3 通道 + 3 元组的 PaintXld 在 HALCON 23.05
+                //    上静默不上色，叠加预览会只剩底图——这是实测，不是猜测。
+                var baked = Baker.Bake(baseForBake, plan,
+                    msg => SetStatus($"叠加预览：{msg}", StatusLevel.Warning));
+                if (baked == null)
+                {
+                    DisplayImage = null;
+                    FollowedInfoText = string.Empty;
+                    return;
+                }
+
+                DisplayImage = baked;
 
                 if (!hasFollowed && !hasRegion)
                     SetStatus("预览已载入，但基准 ROI 未接：叠加图只有底图", StatusLevel.Warning);
@@ -854,14 +880,6 @@ namespace Plugin.PoseTransform
             {
                 return false;
             }
-        }
-
-        /// <summary>把 XLD 画到图上（RGB 彩色），返回新图并登记中间对象。</summary>
-        private static HObject PaintXldOn(HObject image, HObject xld, double r, double g, double b, List<IDisposable> temp)
-        {
-            HOperatorSet.PaintXld(xld, image, out HObject painted, new HTuple(r, g, b));
-            temp.Add(painted);
-            return painted;
         }
 
         /// <summary>标定类型的人话名（状态栏/信息块共用；未知类型原样显示）。</summary>
@@ -1009,6 +1027,20 @@ namespace Plugin.PoseTransform
                 action();
             else
                 dispatcher.Invoke(action);
+        }
+
+        /// <summary>异步切回 UI 线程：端口事件/运行期叠加刷新用，流程线程不等 UI。</summary>
+        private static void PostToUIAsync(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess())
+            {
+                action();
+                return;
+            }
+
+            try { dispatcher.BeginInvoke(action); }
+            catch { /* 关闭中：丢弃这次 UI 刷新 */ }
         }
     }
 }

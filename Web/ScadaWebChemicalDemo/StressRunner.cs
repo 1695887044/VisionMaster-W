@@ -87,7 +87,7 @@ namespace ScadaWebChemicalDemo
                 BindAddress = "127.0.0.1",
                 AllowAnonymousView = false,
                 AllowCommands = true,
-                ClickPolicy = ScadaWebClickPolicy.AllOperators,
+                // B3：判权按权限 Key（StressAuthenticator 给全 Key），不再有 ClickPolicy。
                 RequireConfirmForDangerous = true,
                 OperationLeaseEnabled = false,
                 MaxSessions = Math.Max(64, clients + 8),
@@ -402,12 +402,22 @@ namespace ScadaWebChemicalDemo
 
         private sealed class StressAuthenticator : IScadaUserAuthenticator
         {
-            public bool TryValidate(string? userName, string? password, out ScadaRole role, out string? error)
+            // 压测账号拿全部内置 Key：要让每个图元都可点，靠的是 Key 集合（B3），不是角色。
+            private static readonly string[] AllPerms = ScadaPermissionKeys.BuiltInKeys.ToArray();
+
+            public bool TryValidate(string? userName, string? password, out ScadaUserInfo? user, out string? error)
             {
-                role = ScadaRole.Operator;
+                user = null;
                 error = null;
-                return string.Equals(userName?.Trim(), "stress", StringComparison.OrdinalIgnoreCase)
-                       && password == "pw";
+
+                if (!string.Equals(userName?.Trim(), "stress", StringComparison.OrdinalIgnoreCase)
+                    || password != "pw")
+                {
+                    return false;
+                }
+
+                user = new ScadaUserInfo("stress", "G-stress", AllPerms, "压测组");
+                return true;
             }
 
             public bool IsUsingDefaultPassword(string? userName) => false;

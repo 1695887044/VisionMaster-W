@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\perf\run_switch_perf.p
 
 ```powershell
 FlowCanvasChecks\bin\Debug\net9.0-windows\FlowCanvasChecks.exe `
-    --switch-perf "D:\C#\VM\解决方案\压测-3000节点.vms" 1 canvas
+    --switch-perf "D:\C#\VM\解决方案\压测方案-3000节点\压测方案-3000节点.vms" 1 canvas
 ```
 
 压测方案由生成器造，见下节。
@@ -59,9 +59,11 @@ tools\vms-generator\bin\Debug\net9.0\GenSolution.exe --stress          # 3000 �
 tools\vms-generator\bin\Debug\net9.0\GenSolution.exe --stress --giant  # 3000 节点 / 单流程
 ```
 
-其它参数：`--nodes N`、`--flows N`、`--seed N`、`--layout none`（不预填坐标，专测 `AutoLayout`）、`--out <path>`。
+其它参数：`--nodes N`、`--flows N`、`--seed N`、`--layout none`（不预填坐标，专测 `AutoLayout`）。
 
-产物落在 `解决方案\压测-3000节点.vms` / `压测-3000节点-单流程.vms`。
+产物落在「一个方案一个文件夹」布局（文件夹名 = `SolutionName`）：
+`解决方案\压测方案-3000节点\压测方案-3000节点.vms` /
+`解决方案\压测方案-3000节点-单流程\压测方案-3000节点-单流程.vms`。
 
 **全部步骤 `IsDisEnable=true`**（编译期跳过，见 `Engine\FlowCompiler.cs:303`），
 所以不依赖图片/设备/通讯就能打开——它只压画布，不压算法。

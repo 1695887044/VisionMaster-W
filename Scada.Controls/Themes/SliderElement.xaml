@@ -18,6 +18,8 @@
         <Setter Property="IsTabStop" Value="True" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
         <Setter Property="Cursor" Value="Hand" />
+        <!--  触摸命中区下限（2026-10-25 评审 Q4）：视觉拇指 20px，控件本身至少 44px 高才好按  -->
+        <Setter Property="MinHeight" Value="44" />
         <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
         <Setter Property="FontSize" Value="12" />
         <Setter Property="Fill" Value="{StaticResource HmiAccentStrongBrush}" />
@@ -32,18 +34,31 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
 
-                        <TextBlock
-                            x:Name="PART_ValueText"
+                        <!--
+                            数值气泡（2026-10-25 评审 Q3）：跟手走——贴到拇指正上方。
+                            位置由 SliderElement.UpdateVisuals 按拇指偏移算（模板里写不出比例）。
+                            纵向时退回右上角：轨道跨两行，没有"拇指上方"可以跟。
+                        -->
+                        <Border
+                            x:Name="PART_ValuePlate"
                             Grid.Row="0"
-                            HorizontalAlignment="Right"
                             Margin="0,0,0,2"
-                            FontFamily="{TemplateBinding FontFamily}"
-                            FontSize="{TemplateBinding FontSize}"
-                            FontWeight="{TemplateBinding FontWeight}"
-                            Foreground="{TemplateBinding Foreground}"
-                            TextTrimming="CharacterEllipsis" />
+                            Padding="6,1"
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource HmiSurfaceRaisedBrush}"
+                            CornerRadius="6">
+                            <TextBlock
+                                x:Name="PART_ValueText"
+                                FontFamily="{TemplateBinding FontFamily}"
+                                FontSize="{TemplateBinding FontSize}"
+                                FontWeight="{TemplateBinding FontWeight}"
+                                Foreground="{TemplateBinding Foreground}"
+                                TextTrimming="CharacterEllipsis" />
+                        </Border>
 
                         <Grid x:Name="PART_TrackHost" Grid.Row="1" Margin="10,0">
                             <Border
@@ -63,7 +78,33 @@
                                 BorderThickness="1"
                                 CornerRadius="10" />
                         </Grid>
+
+                        <!--
+                            量程标注（2026-10-25 评审 §5）：两端小字给下限/上限。
+                            没有它，操作员不知道这条轨道是 0~100 还是 0~250。
+                        -->
+                        <Grid Grid.Row="2" Margin="10,2,10,0">
+                            <TextBlock
+                                HorizontalAlignment="Left"
+                                FontSize="10"
+                                Foreground="{StaticResource HmiTextMutedBrush}"
+                                Text="{TemplateBinding Minimum}" />
+                            <TextBlock
+                                HorizontalAlignment="Right"
+                                FontSize="10"
+                                Foreground="{StaticResource HmiTextMutedBrush}"
+                                Text="{TemplateBinding Maximum}" />
+                        </Grid>
                     </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <!--  禁用态：轨道/填充/拇指一起降饱和（否则看起来照样能拖）  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PART_Track" Property="Background" Value="{StaticResource ScadaSliderDisabledTrackBrush}" />
+                            <Setter TargetName="PART_Fill" Property="Background" Value="{StaticResource ScadaSliderDisabledFillBrush}" />
+                            <Setter TargetName="PART_Thumb" Property="Background" Value="{StaticResource ScadaSliderDisabledThumbBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>

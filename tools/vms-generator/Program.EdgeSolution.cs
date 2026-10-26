@@ -104,14 +104,14 @@ internal static partial class Program
             VarAssign("tve:init", "初始化视觉边界", "EdgeVisionOk", null, "Global", new JValue(true)),
 
             // 目录当图片：读取失败
-            ImgFile("tve:corrupt", "读目录当图片(应失败)", @"D:\C#\VM\Image\test", 0),
+            ImgFile("tve:corrupt", "读目录当图片(应失败)", @"Image", 0),
             IfStep("tve:corruptCheck", "损坏图判定", "!Ok", G("tve:var:corruptOk"), "Ok", "System.Boolean",
                 L("tve:corrupt", "Success", "读目录当图片(应失败)"),
                 new JArray { VarAssign("tve:corruptPass", "损坏图通过", "VisionCorruptOk", null, "Global", new JValue(true)) },
                 new JArray { VarAssign("tve:corruptFail", "损坏图异常", "VisionCorruptOk", null, "Global", new JValue(false)) }),
 
             // 卡尺期望值故意写错：实测 40，期望 100
-            ImgFile("tve:calAcq", "采集宽度图", DIR_CALIPER + @"\1-宽度40px.png", 0),
+            ImgFile("tve:calAcq", "采集宽度图", IMG_CALIPER_1, 0),
             Caliper("tve:badCal", "卡尺期望错误(应NG)", "tve:calAcq", "采集宽度图", "Width",
                 new[] { Reg("宽度区", "Rectangle", 240, 300, 0, 80, 100) }, 5, 30, 100, 0.5, -0.5, 1),
             IfStep("tve:badCalCheck", "卡尺NG判定", "!Ok", G("tve:var:badCal"), "Ok", "System.Boolean",
@@ -246,8 +246,10 @@ internal static partial class Program
             ["B"] = 1e20,
         });
 
-        var csvBad = CsvRecord("tde:csvBad", "CSV坏路径(应失败)");
-        csvBad["InputValues"]["DirectoryTemplate"] = @"Z:\NoSuchDrive\{StepName}\";
+        var csvBad = CcgCsvRecord("tde:csvBad", "CSV坏路径(应失败)", DefaultCsvColumns());
+        // 负样本要的是"写盘必失败"，但不能用盘符绝对路径（方案内不许出现）：
+        // `?` 在 Windows 文件名里非法，展开后建目录/写文件必抛。
+        csvBad["InputValues"]["DirectoryTemplate"] = @"History\{StepName}\{yyyy-MM}\bad?path\";
         csvBad["InputValues"]["BlockOnFailure"] = true;
 
         var uploadBad = Upload("tde:uploadBad", "上报不可达(应失败)");
@@ -294,8 +296,7 @@ internal static partial class Program
     // ==================================================================
     static JObject TestReportFlow()
     {
-        var csv = CsvRecord("tr:csv", "测试结果汇总");
-        csv["InputValues"]["DirectoryTemplate"] = @"D:\C#\VM\artifacts\TestReport\{yyyy-MM}\";
+        var csv = CcgCsvRecord("tr:csv", "测试结果汇总", DefaultCsvColumns());
         csv["InputValues"]["FlushEveryRow"] = true;
         csv["InputValues"]["Columns"] = new JArray
         {

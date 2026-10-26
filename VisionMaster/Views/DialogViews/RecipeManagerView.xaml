@@ -1126,7 +1126,8 @@
                                 <ComboBox
                                     Grid.Column="0"
                                     Width="200"
-                                    Height="30"                                    DisplayMemberPath="DisplayName"
+                                    Height="30"
+                                    DisplayMemberPath="DisplayName"
                                     ItemsSource="{Binding Candidates}"
                                     SelectedItem="{Binding SelectedCandidate}"
                                     ToolTip="从当前可捕获的参数里挑一条加入配方">
@@ -2017,7 +2018,7 @@
                                         Margin="8,0,0,0"
                                         VerticalAlignment="Center"
                                         Orientation="Horizontal">
-                                        <ComboBox
+                                        <ComboBox Style="{StaticResource DialogComboCompact}"
                                             Width="104"
                                             Height="30"
                                             VerticalContentAlignment="Center"

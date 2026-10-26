@@ -304,8 +304,8 @@ namespace VisionMaster.ViewModels
         /// <summary>模块级聚合连线（数据依赖 + 执行顺序链，视觉与语义以 IsOrderLink 区分）</summary>
         public ObservableCollection<CanvasLinkViewModel> Links { get; } = new();
 
-        /// <summary>数据依赖线根数（不含执行顺序链）</summary>
-        public int DataLinkCount => Links.Count(l => !l.IsOrderLink);
+        /// <summary>当前可见的数据依赖线根数（不含执行顺序链；关闭总开关后只算选中算子相关的线）</summary>
+        public int DataLinkCount => Links.Count(l => !l.IsOrderLink && !l.IsScopeHidden);
 
         /// <summary>执行顺序链根数</summary>
         public int OrderLinkCount => Links.Count(l => l.IsOrderLink);
@@ -645,6 +645,8 @@ namespace VisionMaster.ViewModels
             try
             {
                 cmd.Undo();
+                // 自绘层：坐标是从顺序推出来的，顺序回退后必须重排（Nodify 路径不重排，见属性注释）
+                if (AutoReflowOnStructureChange) ReflowLayout();
                 // 改序/移分支的 Move 会触发集合重建；解绑只改 LinkedSources（属性），
                 // 不触发集合事件，这里统一显式重建一次（幂等）
                 RebuildInPlace();
@@ -665,6 +667,7 @@ namespace VisionMaster.ViewModels
             try
             {
                 cmd.Redo();
+                if (AutoReflowOnStructureChange) ReflowLayout();
                 RebuildInPlace();
             }
             finally
@@ -1504,6 +1507,9 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private bool _suppressAnchorUpdate;
 
+        /// <summary>「只显示选中算子的数据线」的作用域锚点：当前选中步骤（无选中则数据线全隐）。</summary>
+        private StepModel? _selectedStepForDataLinks;
+
         private void OnNodeSelectionChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName != nameof(CanvasNodeViewModel.IsSelected)) return;
@@ -1512,6 +1518,44 @@ namespace VisionMaster.ViewModels
 
             // 画布点选 → 工作区当前步骤（流程栏/属性栏跟随）。多选时以最后点到的为准
             SwitchCurrentStep(node.Model);
+
+            // 「只显示选中算子的数据线」：选中变化立刻重算数据线作用域（O(线数)，不重建）
+            _selectedStepForDataLinks = node.Model;
+            RefreshDataLinkScope();
+        }
+
+        /// <summary>
+        /// 数据线作用域：`ShowDataLinks` 关闭（默认）时，只显示与**当前选中算子**直接相连的数据线；
+        /// 打开时全显。非法线永不隐藏（红虚线是错误提示，不是噪声）。
+        /// 只改标记不重建集合——每次点选重建一遍 Links 在 353 步的流程上要 500ms 量级。
+        /// </summary>
+        /// <summary>数据线作用域变化（选中换了 / 开关切了）。自绘层订阅它做重拍快照。</summary>
+        public event Action? DataLinkScopeChanged;
+
+        private void RefreshDataLinkScope()
+        {
+            // 作用域按**全部选中节点**算，不是只认"最后点中的那个"——
+            // 框选之后多个节点同时选中，只显示其中一个的线会让另外几个"看着没有绑定"。
+            var selectedModels = new HashSet<StepModel>(ReferenceEqualityComparer.Instance);
+            foreach (var node in _nodeMap.Values)
+            {
+                if (node.IsSelected && node.Model != null) selectedModels.Add(node.Model);
+            }
+
+            if (selectedModels.Count == 0 && _selectedStepForDataLinks != null)
+                selectedModels.Add(_selectedStepForDataLinks);
+
+            for (int i = 0; i < Links.Count; i++)
+            {
+                var link = Links[i];
+                bool touchesSelected = selectedModels.Count > 0
+                    && (link.Source.Model is { } producer && selectedModels.Contains(producer)
+                        || link.Target.Model is { } consumer && selectedModels.Contains(consumer));
+
+                link.IsScopeHidden = !ShowDataLinks && !link.IsIllegal && !touchesSelected;
+            }
+
+            DataLinkScopeChanged?.Invoke();
         }
 
         /// <summary>
@@ -1546,6 +1590,8 @@ namespace VisionMaster.ViewModels
             if (step == null)
             {
                 // 外部清空当前步骤：清掉画布选中，保持两边一致
+                _selectedStepForDataLinks = null;
+                RefreshDataLinkScope();
                 _suppressStepSync = true;
                 try
                 {
@@ -1584,6 +1630,10 @@ namespace VisionMaster.ViewModels
             {
                 _suppressStepSync = false;
             }
+
+            // 外部（流程栏/属性栏）选步骤同样要刷新数据线作用域——这条路径绕过了 OnNodeSelectionChanged
+            _selectedStepForDataLinks = step;
+            RefreshDataLinkScope();
 
             ViewportActionRequested?.Invoke(node);
         }
@@ -1873,16 +1923,16 @@ namespace VisionMaster.ViewModels
             // 第二遍：只为"会显示的线"造 VM。判据与旧的"建完再删"完全一致——
             // 非法线在数据线关闭时也要画（红虚线是要用户去修的错误提示，不是噪声）。
             //
-            // 大流程降级：数据线全开时，3542 步的图有 3500+ 根数据线 = 3500 个 StepConnection 元素
-            // （每根还带一份菜单与一次文本排版）。超过阈值只保留非法线，工具栏给出提示。
-            // 这是**渲染降级**，不改任何数据；用户把「数据线」关掉再打开也不解除，
-            // 因为解除的唯一合理条件是"流程变小了"（此时 aggregate 数自然落回阈值内）。
-            bool reduceDataLinks = ShowDataLinks && aggregated.Count > DataLinkReduceThreshold;
+            // 大流程降级：超过阈值只保留非法线，工具栏给出提示。
+            // **判据不再看 ShowDataLinks**——数据线关着时也要建（"只显示选中算子相关的线"
+            // 需要这些 VM 存在，显隐交给 IsScopeHidden），所以阈值必须独立生效。
+            bool reduceDataLinks = aggregated.Count > DataLinkReduceThreshold;
             DataLinksReduced = reduceDataLinks;
 
             foreach (var agg in aggregated.Values)
             {
-                if (!ShowDataLinks && !agg.HasIllegal) continue;
+                // 数据线总开关不再决定"建不建"：关着时也建，靠 RefreshDataLinkScope 隐藏，
+                // 否则选中算子时没有线可显（2026-10-25 实测：勾掉数据线后选中节点一片空白）。
                 if (reduceDataLinks && !agg.HasIllegal) continue;
 
                 var producer = agg.Producer;
@@ -1916,6 +1966,9 @@ namespace VisionMaster.ViewModels
 
             // 顺序链在 Render 里于 BuildLinks 之后统一构建（需要全量集合清单）
             UpdateLinkAnchors();
+
+            // 新建出来的线也要按"选中作用域"标一遍，否则切流程后线全冒出来
+            RefreshDataLinkScope();
         }
 
         /// <summary>
@@ -3220,6 +3273,103 @@ namespace VisionMaster.ViewModels
             // 提交路径里集合变化已经触发过一次重建，这里幂等
             RebuildInPlace();
         }
+
+        /// <summary>
+        /// 自绘层的拖动收尾：按**视觉落点**提交改序 / 跨分支移动，然后**清掉被拖节点的布局记忆**
+        /// 让布局器重新排位。
+        ///
+        /// 与 <c>OnItemsDragCompleted</c>（Nodify 路径）的差别只有最后那一步：
+        /// Nodify 是自由摆放，拖到哪就停哪（位置持久化）；自绘层不做自由摆放，
+        /// 提交完必须把坐标交回布局器，否则节点停在拖动位置、整张图散架
+        ///（2026-10-25 实测：直接写回 Location 就是这个后果）。
+        /// </summary>
+        /// <param name="dragged">本次被拖的节点（首个为主节点，改序按它的落点算）</param>
+        /// <param name="dropCenterGraph">主节点的**视觉**中心（图坐标，已含拖动偏移）</param>
+        public bool CompleteSurfaceNodeDrag(IReadOnlyList<CanvasNodeViewModel> dragged, Point dropCenterGraph)
+        {
+            if (_attachedFlow == null || dragged.Count == 0) return false;
+
+            var primary = dragged[0];
+            if (primary.Model == null) return false;
+            if (!_topology.TryGet(primary.StepId, out var origin) || origin == null) return false;
+
+            // 运行锁：拖拽改序 / 跨分支移动是结构编辑
+            if (!EnsureEditable(ModuleEditAction.StructuralEdit)) return false;
+
+            bool changed = false;
+            _internalWriteback++;
+            try
+            {
+                var targetOwner = ResolveOwnerByPoint(dropCenterGraph.X, dropCenterGraph.Y);
+
+                if (targetOwner != null && !ReferenceEquals(targetOwner, origin.Owner))
+                {
+                    int toIndex = ComputeInsertIndexByY(targetOwner, dropCenterGraph.Y, primary.Model);
+                    var cmd = new MoveBranchCommand(
+                        primary.Model,
+                        origin.Owner, origin.IndexInOwner,
+                        targetOwner, Math.Min(toIndex, targetOwner.Count));
+                    cmd.Redo();
+                    PushUndo(cmd);
+                    changed = true;
+                }
+                else
+                {
+                    int newIndex = ComputeInsertIndexByY(origin.Owner, dropCenterGraph.Y, primary.Model);
+                    if (newIndex != origin.IndexInOwner && newIndex >= 0 && newIndex < origin.Owner.Count)
+                    {
+                        var cmd = new ReorderCommand(origin.Owner, origin.IndexInOwner, newIndex);
+                        cmd.Redo();
+                        PushUndo(cmd);
+                        changed = true;
+                    }
+                }
+            }
+            finally
+            {
+                _internalWriteback--;
+            }
+
+            ReflowLayout();
+            RebuildInPlace();
+
+            return changed;
+        }
+
+        /// <summary>
+        /// 按当前图纸顺序**整表重排**坐标（自绘层专用）。
+        ///
+        /// 为什么不能只重排被拖的那个：改序之后同组后续节点的位置全都变了，
+        /// 只清一个条目会在图里留下空洞（2026-10-25 实测：3 号拖走之后画布上出现 1、2、4、5 的跳号）。
+        /// <see cref="FlowLayoutStore.AutoLayout"/> 只补缺失项、不动已有条目，所以必须先清空。
+        ///
+        /// 折叠状态是用户显式设的，重排前后要保留——AutoLayout 只给新条目设默认折叠。
+        /// </summary>
+        private void ReflowLayout()
+        {
+            if (_attachedFlow == null) return;
+
+            var collapsed = _attachedFlow.Layout.Nodes
+                .Where(kv => kv.Value?.Collapsed == true)
+                .Select(kv => kv.Key)
+                .ToList();
+
+            _attachedFlow.Layout.Nodes.Clear();
+            _attachedFlow.Layout.AutoLayout(_attachedFlow.Steps);
+
+            foreach (var id in collapsed)
+                _attachedFlow.Layout.SetCollapsed(id, true);
+        }
+
+        /// <summary>
+        /// 自绘层是否正在接管渲染。
+        ///
+        /// 自绘层**不做自由摆放**：节点坐标一律由 <see cref="ReflowLayout"/> 从顺序推出来。
+        /// 因此撤销/重做改动了顺序之后必须重排一次，否则顺序回去了、位置还停在原处
+        ///（图上看着还是旧顺序）。Nodify 路径是自由摆放、坐标由用户拖出来，绝不能跟着重排，
+        /// 所以这里用显式开关而不是"看有没有坐标表"这类猜法。
+        /// </summary>
+        public bool AutoReflowOnStructureChange { get; set; }
 
         /// <summary>
         /// 拖拽落点提示（设计基线 docs/UI设计基线/drag-drop-hint v2）：只描述"会落到哪"，不改图纸。

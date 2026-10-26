@@ -27,6 +27,7 @@ namespace VisionMaster.Scada
             ScadaEventType.ObjectChanged => "对象状态改变",
             ScadaEventType.Opened => "打开",
             ScadaEventType.Closed => "关闭",
+            ScadaEventType.ScheduleFired => "计划表触发",
             _ => $"未知事件({(int)type})",
         };
     }

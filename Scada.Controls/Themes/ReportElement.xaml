@@ -1,0 +1,328 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <ResourceDictionary.MergedDictionaries>
+        <!--  R30：兄弟分册互相看不见，令牌必须就地合并  -->
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        报表图元（Hmi.Report）：标题条 30 / 列头 26 / 行区 * / 工具条 34 / 页脚 22。
+
+        与数据表格同一套版式与格子模型（列宽在控件里算好，模板只绑）。
+        显隐一律走 Visibility 属性而不是 ControlTemplate.Triggers 里的 DataTrigger——
+        本环境下 DataTrigger 不触发（见 PictureElement 的同一条注释）。
+    -->
+
+    <DataTemplate x:Key="ReportCell">
+        <TextBlock
+            Width="{Binding Width}"
+            Margin="0,0,6,0"
+            VerticalAlignment="Center"
+            FontSize="11.5"
+            Foreground="{StaticResource HmiTextSecondaryBrush}"
+            Text="{Binding Text}"
+            TextTrimming="CharacterEllipsis">
+            <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                    <Style.Triggers>
+                        <!--  数值列右对齐：一列数字扫起来才成一条竖线  -->
+                        <DataTrigger Binding="{Binding AlignRight}" Value="True">
+                            <Setter Property="TextAlignment" Value="Right" />
+                            <Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
+                            <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </TextBlock.Style>
+        </TextBlock>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ReportHeaderCell">
+        <TextBlock
+            Width="{Binding Width}"
+            Margin="0,0,6,0"
+            VerticalAlignment="Center"
+            FontSize="10.5"
+            FontWeight="SemiBold"
+            Foreground="{StaticResource HmiTextMutedBrush}"
+            Text="{Binding Text}"
+            TextAlignment="{Binding Alignment}"
+            TextTrimming="CharacterEllipsis" />
+    </DataTemplate>
+
+    <DataTemplate x:Key="ReportRow">
+        <Border x:Name="RowBorder" Background="Transparent">
+            <ItemsControl Margin="10,0" ItemTemplate="{StaticResource ReportCell}" ItemsSource="{Binding Cells}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </Border>
+        <DataTemplate.Triggers>
+            <MultiDataTrigger>
+                <MultiDataTrigger.Conditions>
+                    <Condition
+                        Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                        Value="1" />
+                    <Condition
+                        Binding="{Binding Zebra, RelativeSource={RelativeSource AncestorType=local:ReportElement}}"
+                        Value="True" />
+                </MultiDataTrigger.Conditions>
+                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource HmiZebraBrush}" />
+            </MultiDataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!--  R68：写了 Height 的按钮必须挂 Style 或显式 Padding  -->
+    <Style x:Key="ReportToolButton" TargetType="Button">
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Padding" Value="9,0" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderStrongBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="3"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="{x:Type local:ReportElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ReportElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--  标题条：标题 + 范围/行数摘要  -->
+                            <Border
+                                Grid.Row="0"
+                                Height="30"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,0,0,1">
+                                <Grid Margin="10,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11.5"
+                                        FontWeight="SemiBold"
+                                        Foreground="{TemplateBinding Foreground}"
+                                        Text="{TemplateBinding Text}"
+                                        TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Consolas, Microsoft YaHei UI"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding TitleMeta, RelativeSource={RelativeSource TemplatedParent}}"
+                                        TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </Border>
+
+                            <!--  列头  -->
+                            <Border
+                                Grid.Row="1"
+                                Height="26"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,0,0,1"
+                                Visibility="{Binding HeaderVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ItemsControl
+                                    Margin="10,0"
+                                    ItemTemplate="{StaticResource ReportHeaderCell}"
+                                    ItemsSource="{Binding HeaderCells, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                </ItemsControl>
+                            </Border>
+
+                            <!--  行区 + 状态提示 + 查询中骨架  -->
+                            <Grid Grid.Row="2">
+                                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl
+                                        AlternationCount="2"
+                                        ItemTemplate="{StaticResource ReportRow}"
+                                        ItemsSource="{Binding RowViews, RelativeSource={RelativeSource TemplatedParent}}" />
+                                </ScrollViewer>
+
+                                <TextBlock
+                                    Margin="12"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource HmiTextMutedBrush}"
+                                    Text="{Binding StatusText, RelativeSource={RelativeSource TemplatedParent}}"
+                                    TextAlignment="Center"
+                                    TextWrapping="Wrap"
+                                    Visibility="{Binding StatusVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                <Border
+                                    Background="{StaticResource HmiSurfaceBrush}"
+                                    IsHitTestVisible="False"
+                                    Visibility="{Binding BusyVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <StackPanel Margin="14,12" VerticalAlignment="Top">
+                                        <Border
+                                            Height="10"
+                                            Margin="0,0,60,12"
+                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            CornerRadius="3"
+                                            Opacity="0.45" />
+                                        <Border
+                                            Height="10"
+                                            Margin="0,0,30,12"
+                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            CornerRadius="3"
+                                            Opacity="0.35" />
+                                        <TextBlock
+                                            Margin="0,6,0,0"
+                                            FontSize="10"
+                                            Foreground="{StaticResource HmiTextMutedBrush}"
+                                            Text="正在生成报表…" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+
+                            <!--  工具条  -->
+                            <Border
+                                Grid.Row="3"
+                                Height="34"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,1,0,0"
+                                Visibility="{Binding ToolbarVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                <Grid Margin="8,0">
+                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                        <Button
+                                            Margin="0"
+                                            Command="{Binding QueryCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="查询"
+                                            Style="{StaticResource ReportToolButton}"
+                                            ToolTip="按当前范围与列配置取数" />
+
+                                        <Button
+                                            Margin="12,0,0,0"
+                                            Command="{Binding PreviousPageCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="上一页"
+                                            Style="{StaticResource ReportToolButton}" />
+
+                                        <TextBlock
+                                            Margin="8,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Consolas, Microsoft YaHei UI"
+                                            FontSize="10"
+                                            Foreground="{StaticResource HmiTextMutedBrush}"
+                                            Text="{Binding PageText, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                        <Button
+                                            Margin="0"
+                                            Command="{Binding NextPageCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="下一页"
+                                            Style="{StaticResource ReportToolButton}" />
+                                    </StackPanel>
+
+                                    <StackPanel
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+                                        <Button
+                                            Margin="0"
+                                            Command="{Binding ExportXlsxCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="导出 Excel"
+                                            Style="{StaticResource ReportToolButton}"
+                                            ToolTip="导出整份结果（不是当前页）到 xlsx" />
+
+                                        <Button
+                                            Command="{Binding ExportCsvCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="导出 CSV"
+                                            Style="{StaticResource ReportToolButton}"
+                                            ToolTip="UTF-8 带 BOM，Excel 双击可直接打开" />
+
+                                        <Button
+                                            Command="{Binding PrintCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Content="打印"
+                                            Style="{StaticResource ReportToolButton}"
+                                            ToolTip="A4 打印整份结果（纸张方向在属性面板里配）" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!--  页脚：来源 / 扫描行数 / 生成时间 / 备注  -->
+                            <Border
+                                Grid.Row="4"
+                                MinHeight="22"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="0,1,0,0">
+                                <TextBlock
+                                    Margin="10,3"
+                                    FontFamily="Consolas, Microsoft YaHei UI"
+                                    FontSize="9.5"
+                                    Foreground="{StaticResource HmiTextMutedBrush}"
+                                    Text="{Binding FooterText, RelativeSource={RelativeSource TemplatedParent}}"
+                                    TextTrimming="CharacterEllipsis" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

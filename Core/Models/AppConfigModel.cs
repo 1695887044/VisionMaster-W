@@ -275,23 +275,7 @@ namespace VisionMaster.Models
     }
 
     /// <summary>
-    /// SCADA 运行态 Web 客户端的点击策略（见 <see cref="ScadaWebSettings.ClickPolicy"/>）。
-    ///
-    /// 两个成员不是"好看不好看"的偏好，而是两种现场安全口径：
-    ///   <see cref="AllOperators"/>     = 所有已登录账号都能点（含操作员）；适合只给操作工看/操作的屏；
-    ///   <see cref="HighestRoleOnly"/>   = 只有当前登录账号里权限最高的那一档能点；默认值。
-    /// </summary>
-    public enum ScadaWebClickPolicy
-    {
-        /// <summary>所有已登录账号都可点击（不按角色再收窄）</summary>
-        AllOperators = 0,
-
-        /// <summary>只有最高权限档（管理员/工程师）可点击，其余账号只读——默认</summary>
-        HighestRoleOnly = 1
-    }
-
-    /// <summary>
-    /// SCADA 运行态 Web 客户端（可选模块）的配置节（见 <see cref="AppConfigModel.ScadaWeb"/>）。
+    /// SCADA 运行态 Web 客户端的配置节（见 <see cref="AppConfigModel.ScadaWeb"/>）。
     ///
     /// <b>默认口径（四条，缺一条都不是"安全默认"）</b>
     /// ---------
@@ -299,11 +283,18 @@ namespace VisionMaster.Models
     ///      程序目录里没有 <c>Web\VisionMaster.ScadaWeb.dll</c> 时启动链也不该报错；
     ///   2. <b>默认只读</b>（<see cref="RequireLogin"/> = true、<see cref="AllowAnonymousView"/> = false）：
     ///      打开网页先登录，未登录看不到任何画面内容；
-    ///   3. <b>默认只有最高权限可点</b>（<see cref="ClickPolicy"/> = <see cref="ScadaWebClickPolicy.HighestRoleOnly"/>）：
-    ///      普通操作员在浏览器里看得见画面、点不动图元；
+    ///   3. <b>默认命令面关闭</b>（<see cref="AllowCommands"/> = false）：
+    ///      打开之后能点哪些按钮完全由<b>权限 Key</b> 决定（见下）；
     ///   4. <b>默认禁用运动命令</b>（<see cref="AllowMotionCommands"/> = false）：
     ///      浏览器里点一下就让轴动起来，是这套功能里唯一"点错会撞机"的入口，
     ///      必须由现场显式打开（还叠加了 <see cref="OperationLeaseEnabled"/> 的操作权租约）。
+    ///
+    /// <b>「谁能点」没有角色档位这回事</b>
+    /// ---------
+    /// B3 起账号本是「用户组 + 权限 Key 集合」，权限之间不存在高低：
+    /// 「能点停止」与「能点启动」是两件独立的事。所以这里<b>没有</b> <c>ClickPolicy</c>
+    /// 那一类"只有最高档能操作"的开关——要限制谁能点，就把 Key 配到组上；
+    /// 要"同一时刻只有一个人能操作"，用操作权租约。
     ///
     /// <b>改配置需重启</b>（M1 口径）
     /// ---------
@@ -395,10 +386,10 @@ namespace VisionMaster.Models
         /// <summary>
         /// 是否允许浏览器下发命令（写变量 / 执行图元事件 / 确认报警）。<b>默认 false = 只读镜像</b>。
         ///
-        /// 这是 M2 的总闸，与 <see cref="ClickPolicy"/> 是两道独立的门：
+        /// 这是 M2 的总闸，与「权限 Key」是两道独立的门：
         ///   · 本项为 false → 所有 <c>cmd.*</c> 一律回 <c>E_POLICY</c>（"当前为只读模式"），
-        ///     <c>caps</c> 全 false——<b>即使角色与策略都允许</b>；
-        ///   · 本项为 true 才轮到 <see cref="ClickPolicy"/> 与角色判定。
+        ///     <c>caps</c> 全 false——<b>即使账号的权限 Key 都齐</b>；
+        ///   · 本项为 true 才轮到「这个图元要求的 Key 在不在账号的权限集合里」。
         /// 默认关的理由与 <see cref="AllowAnonymousView"/> 同一条：浏览器是远程入口，
         /// 一次升级不该让现场网页忽然获得写能力。运行期可改（改后推 caps + policyVersion++），
         /// 不需要重启。
@@ -447,12 +438,6 @@ namespace VisionMaster.Models
         public int SessionInboundQueueCapacity { get; set; } = DefaultSessionInboundQueueCapacity;
 
         /// <summary>
-        /// 点击策略。<b>默认 <see cref="ScadaWebClickPolicy.HighestRoleOnly"/></b>——
-        /// 只有最高权限档可点，其余账号只读。需要"操作员也能点"时改成 <see cref="ScadaWebClickPolicy.AllOperators"/>。
-        /// </summary>
-        public ScadaWebClickPolicy ClickPolicy { get; set; } = ScadaWebClickPolicy.HighestRoleOnly;
-
-        /// <summary>
         /// 是否允许从 Web 下发运动命令（点动/定位/回零）。<b>默认 false</b>。
         /// 这是"点错会撞机"的唯一入口，打开前请同时确认 <see cref="OperationLeaseEnabled"/>
         /// 与现场的安全回路（急停/限位）确实在位。
@@ -481,23 +466,21 @@ namespace VisionMaster.Models
         /// </summary>
         public int FrameBudgetBytes { get; set; } = DefaultFrameBudgetBytes;
 
-        // ===== 全操作员开放（AllOperators）时的监管闸门 =====
+        // ===== 监管项（各自独立生效，不再互相作为启用条件）=====
         //
-        // 背景：<see cref="ClickPolicy"/> = <see cref="ScadaWebClickPolicy.HighestRoleOnly"/> 时，
-        // 浏览器里的写入口本来就只对最高权限档开放；一旦改成 <see cref="ScadaWebClickPolicy.AllOperators"/>，
-        // 普通操作员也能在网页上按按钮、写变量、下运动命令——现场失去的正是"只有工程师能改"这层保护。
-        // 下面五项就是补回这层保护的替代手段（身份、留痕、限速、危险操作二次确认、操作权租约）。
+        // 背景（B3 起）：账号身份是「用户组 + 权限 Key」，判权只看"这个图元要求的 Key 在不在
+        // 这个账号的权限集合里"。所以**不存在"一个开关把所有人都放开"**这种事——
+        // 要给某个组开写入口，就把对应 Key 配到那个组上；旧的三档角色与 ClickPolicy 都已删除。
         //
-        // 口径（M2 实现）：<see cref="ClickPolicy"/> 切到 <see cref="ScadaWebClickPolicy.AllOperators"/> 时，
-        // 下面五项是**监管闸门**——缺项拒绝启用 AllOperators（配置校验失败、Web 模块按不可用处理并记 Warn），
-        // 不做"缺哪项就悄悄跳过哪项"。理由是这五项各自对应一种现场事故，
-        // 少一项就等于给操作员开一条没有护栏的通道，而这种"看起来开了、其实少一层"最难在事后发现。
-        // <see cref="AllOperatorsRequiresLease"/> 是其中"租约是否也计入必开清单"的那一项：
-        // 默认 false 保持历史行为，M2 校验时按它决定要不要把 <see cref="OperationLeaseEnabled"/> 一起要求上。
+        // 下面几项是**彼此独立**的现场开关：缺哪项就少哪层护栏，但不再有"配置看着放开了、
+        // 实际没有护栏"的组合失效（那种失效只在"一个策略统一放开所有人"的模型里存在）。
+        // 唯一例外是 <see cref="RequireAudit"/>：它是硬约束（只能是 true），
+        // 写 false 时加载期夹回 true 并记 Error——审计是"谁按的"唯一凭证，不许关。
+        // <see cref="AllOperatorsRequiresLease"/> 现在只表示"必须持租约才能点"，与 Key 判权正交。
 
         /// <summary>
         /// 是否要求登录用户在线（有活跃会话）才允许写操作。<b>默认 true</b>。
-        /// AllOperators 下的第一道闸门：写动作必须能对应到一个仍在线的账号，而不是一个已登出的残留令牌。
+        /// 写动作必须能对应到一个仍在线的账号，而不是一个已登出的残留令牌。
         /// </summary>
         public bool RequireOnlineUsers { get; set; } = true;
 
@@ -539,6 +522,46 @@ namespace VisionMaster.Models
         /// 避免"把浏览器里那张图的地址发出去"成为长期可用的旁路。
         /// </summary>
         public int ImageTokenSeconds { get; set; } = 45;
+    }
+
+    /// <summary>
+    /// 调试模式（AppConfig.json 的 <c>DebugMode</c> 节）。
+    ///
+    /// 三条口径（缺一条就不是"上线就是管理员"）
+    /// ---------
+    ///   1. <b>未上线</b>：任何身份都能开关，不需要登录；
+    ///   2. <b>已上线</b>：开关需要「用户管理」权限（<c>UserAdministration</c>），
+    ///      未登录 / 无权限一律拒绝；
+    ///   3. <b>不按时间失效</b>：本节点<b>没有</b>"到期时间"这类字段——<see cref="Enabled"/>
+    ///      一旦为 true 就一直有效，只有显式关闭（或手工改配置）才会失效。
+    ///      任何"看起来该过期了"的判据都不许加在这里：现场要的是"调完就一直在"。
+    ///
+    /// <see cref="ProjectReleased"/> 与构建常量的分工
+    /// ---------
+    /// 真正决定"是否已上线"的是构建常量 <c>DebugModeBuild.IsPreRelease</c>（发版时改 false 并重建）。
+    /// 本字段只用于<b>在开发构建里演练上线后的权限行为</b>（写成 true 即可按"已上线"判定）。
+    /// 构建常量说"已上线"时，本字段写 false 也翻不回去——否则改一行配置就能绕过上线后的管理员闸门。
+    ///
+    /// <see cref="EnabledBy"/> / <see cref="EnabledAt"/> 只是给人看的最近一次开启记录，
+    /// <b>不参与任何判定</b>；关掉时保留它们（"上次谁开的"仍是有效线索）。
+    /// </summary>
+    public class DebugModeSettings
+    {
+        /// <summary>
+        /// 调试模式是否开启。<b>落盘即生效、无期限</b>；只有显式关闭才会变回 false。
+        /// </summary>
+        public bool Enabled { get; set; } = false;
+
+        /// <summary>
+        /// 是否按"项目已上线"判定（仅开发构建里用于演练；发版后由构建常量说了算，见类注释）。
+        /// </summary>
+        public bool ProjectReleased { get; set; } = false;
+
+        /// <summary>最近一次开启时的操作者显示名（不参与判定）</summary>
+        public string EnabledBy { get; set; } = "";
+
+        /// <summary>最近一次开启的时间（<c>yyyy-MM-dd HH:mm:ss</c>，不参与判定）</summary>
+        public string EnabledAt { get; set; } = "";
     }
 
     /// <summary>
@@ -651,6 +674,25 @@ namespace VisionMaster.Models
         public int AlarmSoundMuteMinutes { get; set; } = DefaultAlarmSoundMuteMinutes;
 
         /// <summary>
+        /// 语音播报（TTS）总开关。<b>默认开启</b>：与报警声音不同，播报只在有报警/组态动作时说话，
+        /// 不会自己周期性响；而"该念没念"现场很难发现（听不见是常态），所以默认开着、
+        /// 由顶栏静音或本开关关掉。
+        /// </summary>
+        public bool SpeechEnabled { get; set; } = true;
+
+        /// <summary>语速（-10~10，0 = 系统默认）。负数更慢</summary>
+        public int SpeechRate { get; set; }
+
+        /// <summary>音色（系统语音名，如 <c>Microsoft Huihui Desktop</c>）。空 = 系统默认语音</summary>
+        public string? SpeechVoice { get; set; }
+
+        /// <summary>
+        /// 报警播报的最低级别（<c>Info</c> / <c>Warning</c> / <c>Critical</c>，默认 Warning）。
+        /// 只影响"报警自动播报"；组态动作触发的「语音播报」不受此门槛限制。
+        /// </summary>
+        public string SpeechMinSeverity { get; set; } = "Warning";
+
+        /// <summary>
         /// 把 <see cref="IdleTimeoutMinutes"/> 翻成会话超时口径
         /// （<see cref="TimeSpan.Zero"/> 或负值 = 不自动登出，这正是 <c>ScadaAccessPolicy</c> 认的语义）。
         ///
@@ -737,6 +779,16 @@ namespace VisionMaster.Models
         /// 初始化器让"文件里没有"与"文件里写了默认值"走同一条路。
         /// </summary>
         public HelpSettings Help { get; set; } = new();
+
+        /// <summary>
+        /// 调试模式（AppConfig.json 的 <c>DebugMode</c> 节），见 <see cref="DebugModeSettings"/>。
+        ///
+        /// <b>不能为 null</b>：与上面几节同一理由——宿主与调试面板都会直接点着用
+        /// （<c>Current.DebugMode.Enabled</c>），而老版本的 AppConfig.json 里没有这个节，
+        /// Newtonsoft 遇到缺失的引用类型只留 null 不会自动 new。初始化器让"文件里没有"
+        /// 与"文件里写了默认值"走同一条路。
+        /// </summary>
+        public DebugModeSettings DebugMode { get; set; } = new();
 
         /// <summary>
         /// SCADA 运行态 Web 客户端（可选模块）配置，见 <see cref="ScadaWebSettings"/>。

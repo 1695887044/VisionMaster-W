@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows.Threading;
 using Prism.Mvvm;
 using VisionMaster.Models;
@@ -67,6 +69,10 @@ namespace VisionMaster.Services
         /// <summary>登录者的角色。<b>只在 <see cref="_userName"/> 非 null 时有意义</b></summary>
         private ScadaRole _role = ScadaRole.Operator;
 
+        private string _groupId = string.Empty;
+        private string _groupName = "未登录";
+        private IReadOnlyList<string> _permissions = Array.Empty<string>();
+
         /// <summary>最近一次"有人在动"的时刻（UTC）。空闲判定只看它与现在的差值</summary>
         private DateTime _lastActivityUtc;
 
@@ -125,8 +131,16 @@ namespace VisionMaster.Services
         /// </summary>
         public event Action<string>? AutoLoggedOut;
 
-        /// <inheritdoc/>
-        public ScadaRole CurrentRole => IsLoggedIn ? _role : ScadaRole.Operator;
+        /// <summary>旧界面显示用：按组映射回三档（B3 判定不再使用它）。</summary>
+        public ScadaRole CurrentRole => IsLoggedIn
+            ? (_groupId == ScadaGroupDefaults.AdminTemplateId ? ScadaRole.Administrator
+               : _groupId == ScadaGroupDefaults.EngineerTemplateId ? ScadaRole.Engineer
+               : ScadaRole.Operator)
+            : ScadaRole.Operator;
+
+        public string CurrentGroupId => _groupId;
+        public string CurrentGroupName => _groupName;
+        public IReadOnlyList<string> Permissions => _permissions;
 
         /// <inheritdoc/>
         public bool IsLoggedIn => _userName != null;
@@ -134,18 +148,41 @@ namespace VisionMaster.Services
         /// <inheritdoc/>
         public string CurrentUserName => _userName ?? "未登录";
 
-        /// <summary>
-        /// 状态栏那一行要显示的文字："张三（工程师）" / "未登录（操作员）"。
-        ///
-        /// 为什么把两个信息合在一处显示而不是并排两个控件：现场看一眼就要知道
-        /// "现在是谁、他能干什么"，分成两栏反而要在两个地方各扫一眼。
-        /// 未登录也把"（操作员）"写出来，是为了让操作员明白<b>不是软件坏了，是权限就这么多</b>。
-        /// </summary>
-        public string LoginStateText => $"{CurrentUserName}（{CurrentRole.DisplayName()}）";
+        public string LoginStateText => IsLoggedIn
+            ? $"{CurrentUserName}（{CurrentGroupName}）"
+            : "未登录";
 
         /// <inheritdoc/>
+        public bool Can(string requiredKey, out string? reason)
+        {
+            if (string.Equals(requiredKey, ScadaPermissionKeys.Always, StringComparison.Ordinal))
+            {
+                reason = null;
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(requiredKey))
+            {
+                reason = "未声明权限 Key，已按安全策略拒绝";
+                return false;
+            }
+
+            if (_permissions.Contains(requiredKey, StringComparer.Ordinal))
+            {
+                reason = null;
+                return true;
+            }
+
+            reason = $"需要「{ScadaPermissionKeys.DisplayName(requiredKey)}」权限，当前组「{CurrentGroupName}」没有";
+            return false;
+        }
+
+        /// <summary>旧调用点兼容：把角色映射成一条权限后走同一个 <see cref="Can"/>。</summary>
         public bool CanOperate(ScadaRole? required, out string? reason)
-            => CurrentRole.Allows(required, out reason);
+        {
+            if (required == null) { reason = null; return true; }
+            return Can(ScadaPermissionKeys.LegacyRolePermission(required.Value), out reason);
+        }
 
         /// <summary>
         /// 让一个<b>已经通过验证</b>的身份进入会话（换用户直接再调一次即可）。
@@ -160,6 +197,27 @@ namespace VisionMaster.Services
         /// <param name="role">已验证的角色，必须是 <see cref="ScadaRoleExtensions.IsDefined"/> 的</param>
         /// <exception cref="ArgumentException">用户名为空白</exception>
         /// <exception cref="ArgumentOutOfRangeException">角色是非法值</exception>
+        public void Login(ScadaUserInfo user)
+        {
+            if (user == null) throw new ArgumentNullException(nameof(user));
+            if (string.IsNullOrWhiteSpace(user.Name))
+                throw new ArgumentException("登录名不能为空", nameof(user.Name));
+
+            _userName = user.Name.Trim();
+            _groupId = user.GroupId ?? string.Empty;
+            _groupName = string.IsNullOrWhiteSpace(_groupId)
+                ? "未登录"
+                : (ScadaGroupDefaults.CreateDefaultTemplates()
+                    .FirstOrDefault(g => string.Equals(g.Id, _groupId, StringComparison.Ordinal))?.Name
+                   ?? _groupId);
+            _permissions = (user.Permissions ?? Array.Empty<string>()).ToArray();
+            _role = CurrentRole;
+
+            _lastActivityUtc = DateTime.UtcNow;
+            _idleTimer.Start();
+            RaiseLoginStateChanged();
+        }
+
         public void Login(string userName, ScadaRole role)
         {
             if (string.IsNullOrWhiteSpace(userName))
@@ -168,13 +226,22 @@ namespace VisionMaster.Services
             if (!role.IsDefined())
                 throw new ArgumentOutOfRangeException(nameof(role), role, "登录角色必须是已定义的角色值");
 
-            _userName = userName.Trim();
-            _role = role;
+            Login(new ScadaUserInfo(
+                userName.Trim(),
+                role == ScadaRole.Administrator ? ScadaGroupDefaults.AdminTemplateId
+                    : role == ScadaRole.Engineer ? ScadaGroupDefaults.EngineerTemplateId
+                    : ScadaGroupDefaults.OperatorTemplateId,
+                new[] { ScadaPermissionKeys.LegacyRolePermission(role) }));
+        }
 
-            // 登录这一刻就算一次活动：否则"登录后一直没动"会立刻撞上超时。
-            _lastActivityUtc = DateTime.UtcNow;
-            _idleTimer.Start();
-
+        /// <summary>组权限被改后只换快照，不登出（B3：改组 = 重判）。</summary>
+        public void RefreshPermissions(string groupId, string groupName, IReadOnlyList<string> permissions)
+        {
+            if (!IsLoggedIn) return;
+            _groupId = groupId ?? string.Empty;
+            _groupName = string.IsNullOrWhiteSpace(groupName) ? "未登录" : groupName;
+            _permissions = (permissions ?? Array.Empty<string>()).ToArray();
+            _role = CurrentRole;
             RaiseLoginStateChanged();
         }
 
@@ -188,6 +255,9 @@ namespace VisionMaster.Services
 
             _userName = null;
             _role = ScadaRole.Operator;
+            _groupId = string.Empty;
+            _groupName = "未登录";
+            _permissions = Array.Empty<string>();
             _idleTimer.Stop();
 
             RaiseLoginStateChanged();
@@ -240,6 +310,9 @@ namespace VisionMaster.Services
             RaisePropertyChanged(nameof(IsLoggedIn));
             RaisePropertyChanged(nameof(CurrentUserName));
             RaisePropertyChanged(nameof(CurrentRole));
+            RaisePropertyChanged(nameof(CurrentGroupId));
+            RaisePropertyChanged(nameof(CurrentGroupName));
+            RaisePropertyChanged(nameof(Permissions));
             RaisePropertyChanged(nameof(LoginStateText));
         }
     }

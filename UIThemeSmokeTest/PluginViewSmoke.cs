@@ -107,6 +107,10 @@ namespace UIThemeSmokeTest
                         if (view == null)
                             continue;
 
+                        // HandEye 的进度条在空表时整块 Collapsed；冒烟里先补 3 行有效数据，
+                        // 让模板与绑定真的参与布局（否则 PART_Indicator.ActualWidth 恒 0，查不出问题）。
+                        EnsureHandEyeSamples(plugin);
+
                         var host = new Border
                         {
                             Width = 920,
@@ -118,6 +122,32 @@ namespace UIThemeSmokeTest
                         host.Arrange(new Rect(0, 0, 920, 520));
                         host.UpdateLayout();
                         host.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                        // ProgressBar 的模板契约：PART_Track 量宽度、PART_Indicator 被设宽度。
+                        // 缺 PART_Track 时 WPF 不设 Indicator.Width —— 条形值对但永远不显示
+                        // （HandEye 采集进度条就是这么坏的）。这里直接看渲染后的 ActualWidth。
+                        var progressBars = Descendants<ProgressBar>(view).ToList();
+                        foreach (var bar in progressBars)
+                        {
+                            bar.ApplyTemplate();
+                            if (bar.Visibility != Visibility.Visible || bar.ActualWidth <= 0 || bar.ActualHeight <= 0)
+                            {
+                                Check(label + " ProgressBar 参与布局", false,
+                                    $"visibility={bar.Visibility} actual={bar.ActualWidth:0.#}x{bar.ActualHeight:0.#}");
+                                continue;
+                            }
+
+                            double mid = bar.Minimum + (bar.Maximum - bar.Minimum) * 0.5;
+                            bar.SetCurrentValue(ProgressBar.ValueProperty, mid);
+                            bar.UpdateLayout();
+
+                            var track = bar.Template?.FindName("PART_Track", bar) as FrameworkElement;
+                            var indicator = bar.Template?.FindName("PART_Indicator", bar) as FrameworkElement;
+                            Check(label + " ProgressBar 指示条可见（PART_Track + PART_Indicator）",
+                                track != null && indicator != null && indicator.ActualWidth > 0,
+                                $"value={mid:0.##} PART_Track={(track == null ? "null" : track.ActualWidth.ToString("0.#"))} "
+                                + $"PART_Indicator={(indicator == null ? "null" : indicator.ActualWidth.ToString("0.#"))}");
+                        }
 
                         int elementCount = Descendants<FrameworkElement>(view).Count();
                         Check(label + " 视图实例化", elementCount > 10, $"elements={elementCount}");
@@ -227,6 +257,32 @@ namespace UIThemeSmokeTest
                 })
                 .OrderByDescending(d => Path.GetFileName(d).Length)
                 .FirstOrDefault();
+        }
+
+        /// <summary>
+        /// 冒烟专用：HandEye 的进度条在空表时整块 Collapsed，先补 3 行有效数据让它参与布局。
+        /// 用反射而不是引用 Plugin.HandEye（本宿主按 DLL 名加载插件，不编译期依赖插件工程）。
+        /// </summary>
+        private static void EnsureHandEyeSamples(object plugin)
+        {
+            var type = plugin.GetType();
+            if (type.FullName != "Plugin.HandEye.HandEyePlugin") return;
+
+            var samples = type.GetProperty("Samples")?.GetValue(plugin) as System.Collections.IList;
+            if (samples == null || samples.Count > 0) return;
+
+            var sampleType = type.Assembly.GetType("Plugin.HandEye.Models.HandEyeSample");
+            var setRow = sampleType?.GetMethod("SetRow");
+            if (sampleType == null || setRow == null) return;
+
+            for (int i = 0; i < 3; i++)
+            {
+                var row = Activator.CreateInstance(sampleType);
+                var values = new double[12];
+                for (int k = 0; k < 12; k++) values[k] = 1.0 + i + k * 0.1;
+                setRow.Invoke(row, new object[] { values });
+                samples.Add(row);
+            }
         }
 
         private static bool IsInsideLinkableEditor(DependencyObject node)

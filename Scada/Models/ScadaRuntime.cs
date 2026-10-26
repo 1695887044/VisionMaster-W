@@ -94,6 +94,78 @@ namespace VisionMaster.Scada
         public IScadaAccessPolicy AccessPolicy => _accessPolicy;
 
         /// <summary>
+        /// 未授权时的登录回调（B3）：参数是本次要求的权限 Key；返回 true = 已登录且重判通过。
+        /// 宿主接到登录弹窗；只重试一次，不递归。
+        /// </summary>
+        public Func<string, bool>? AccessLoginPrompt { get; set; }
+
+        /// <summary>
+        /// 交互式授权：没有权限时先给宿主一次登录机会，登录成功后按最新权限重判一次。
+        ///
+        /// <b>只给"用户点了某个控件"这条路径用</b>。脚本派发、自动停止、权限撤销后的
+        /// 收手动作都不该弹登录——那些路径要么没有人可问，要么正在处理安全动作。
+        /// 只重试一次，不递归：登录后仍无权限就是真没权限。
+        /// </summary>
+        /// <param name="permission">要求的权限 Key；空 = 不限制</param>
+        /// <param name="reason">拒绝原因（可直接上屏）</param>
+        public bool TryAuthorize(string? permission, out string? reason)
+        {
+            if (string.IsNullOrWhiteSpace(permission))
+            {
+                reason = null;
+                return true;
+            }
+
+            if (_accessPolicy.Can(permission!, out reason))
+                return true;
+
+            // 记下原始拒绝原因：用户取消登录时要说"缺什么"，而不是"没登录"。
+            var deniedReason = reason;
+
+            if (AccessLoginPrompt?.Invoke(permission!) != true)
+            {
+                reason = deniedReason;
+                return false;
+            }
+
+            return _accessPolicy.Can(permission!, out reason);
+        }
+
+        /// <summary>
+        /// 本次事件要求的权限 Key；null = 不限制。显式 <see cref="ScadaElement.RequiredPermission"/> 优先，
+        /// 其次是「当前事件有非停运动动作 → AxisJog」「有停止族动作 → Stop」。
+        /// </summary>
+        public static string? RequiredPermissionFor(ScadaElement? element, ScadaEventType eventType)
+        {
+            if (element == null) return null;
+
+            if (element.RequiredPermission is { Length: > 0 } configured)
+                return configured;
+
+            // 旧 .vms 只有 RequiredRole：先按同一张映射表折成 Key，再考虑运动/停止族兜底。
+            // 少了这一步，老方案里"工程师才能按"的按钮会在事件路径上对所有组敞开——
+            // 面板读得出旧值、运行态却不认，是最难查的那类"看起来配了、其实没生效"。
+            if (element.RequiredRole is { } legacyRole)
+                return ScadaPermissionKeys.LegacyRolePermission(legacyRole);
+
+            var actions = element.EventHooks?
+                .Where(h => h != null && h.Event == eventType)
+                .SelectMany(h => h.Actions ?? Enumerable.Empty<ScadaAction>())
+                .Where(a => a != null)
+                .ToArray();
+            if (actions == null || actions.Length == 0) return null;
+
+            if (actions.Any(a => ScadaActionTaxonomy.IsNonStopMotion(a.Type)))
+                return ScadaActionTaxonomy.MotionFallbackPermission;
+            if (actions.Any(a => ScadaActionTaxonomy.IsStopFamily(a.Type)))
+                return ScadaActionTaxonomy.StopPermission;
+            return null;
+        }
+
+        private static string LegacyRolePermission(ScadaRole role)
+            => ScadaPermissionKeys.LegacyRolePermission(role);
+
+        /// <summary>
         /// 当前登录角色能不能进入这一页（页面级 <see cref="ScadaPage.RequiredRole"/>；null = 不限制）。
         /// 与图元事件走同一个 <see cref="IScadaAccessPolicy"/>；拒绝原因可直接上屏/写日志。
         ///
@@ -108,7 +180,16 @@ namespace VisionMaster.Scada
                 return false;
             }
 
-            return _accessPolicy.CanOperate(page.RequiredRole, out reason);
+            var permission = page.RequiredPermission;
+            if (string.IsNullOrWhiteSpace(permission) && page.RequiredRole is { } legacy)
+                permission = LegacyRolePermission(legacy);
+            if (string.IsNullOrWhiteSpace(permission))
+            {
+                reason = null;
+                return true;
+            }
+
+            return _accessPolicy.Can(permission, out reason);
         }
 
         /// <summary>会话是否活着（决定"停止运行"该不该置灰，也挡住连点运行）</summary>
@@ -287,20 +368,13 @@ namespace VisionMaster.Scada
             if (!inPopup && _currentPopup is { PopupModal: true })
                 return 0;
 
-            // ④ 权限闸门（S12）。顺序上排在结构判断之后、扫钩子之前：
-            // 前三条都是"这个对象到底算不算数"的廉价判断，先做掉才不会为一次无效点击去问策略；
-            // 而排在扫钩子之前，是因为被拦下的这一次操作<b>一条动作都不许跑</b>——
-            // 让 RaiseHooks 先跑一遍再判权限，就成了"先干活再查证件"。
-            //
-            // 只有 RequiredRole 配过（非 null）才去问策略：绝大多数图元没配过，
-            // 热路径上不该为它们多做一次接口调用。
-            if (element.RequiredRole is { } required && !_accessPolicy.CanOperate(required, out var reason))
+            // ④ 权限闸门（B3）：显式 RequiredPermission 优先；未配的运动/停止族按 Key 兜底。
+            // 拒绝时先给宿主一次登录机会，登录后重判一次；仍不通过才记拒绝并中止。
+            var required = RequiredPermissionFor(element, eventType);
+            if (required != null && !TryAuthorize(required, out var reason))
             {
-                // 出声的条件是"这次事件本来真有条动作要跑"：没配过钩子的图元点了本来就没反应，
-                // 再弹一句"没权限"只会让人以为事件配错了（理由详见 ElementAccessDenied 的注释）。
                 if (HasHooks(element.EventHooks, eventType))
-                    ElementAccessDenied?.Invoke(element, reason ?? "当前角色没有操作权限");
-
+                    ElementAccessDenied?.Invoke(element, reason ?? "当前账号没有操作权限");
                 return 0;
             }
 

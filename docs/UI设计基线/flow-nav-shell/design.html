@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>顶栏样式 + 流程胶囊 · 设计稿 v2</title>
+<style>
+/* 令牌与 Colors.xaml 的 Dialog / Scada 键一一对应；本稿不新增颜色。 */
+:root{
+  --accent:#0EA5E9; --accent-dark:#0284C7; --accent-light:#E0F2FE; --accent-soft:#F0F9FF;
+  --accent-border:#BAE6FD; --accent-text:#0369A1;
+  --surface:#FFFFFF; --bg:#EEF2F7;
+  --border:#E2E8F0; --border-light:#EEF2F7; --border-strong:#CBD5E1;
+  --text-1:#0F172A; --text-2:#475569; --text-3:#64748B; --muted:#94A3B8;
+  --success:#22C55E; --danger:#EF4444; --warning:#F59E0B;
+  --success-text:#15803D; --success-subtle:#F0FDF4; --success-border:#BFF7D0;
+  --danger-text:#B91C1C; --danger-subtle:#FEF2F2; --danger-border:#FECACA;
+  --warning-text:#B45309; --warning-subtle:#FFF4E5; --warning-border:#FDE68A;
+  --row-hover:#F1F5F9; --row-alt:#F8FAFC;
+  --topbar-h:36px; --nav-w:340px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:#DDE3EC;font-family:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",sans-serif;color:var(--text-1);-webkit-font-smoothing:antialiased}
+body.shot{background:transparent}
+.ic{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.ic.sm{width:14px;height:14px}
+
+/* 评审条 */
+.reviewbar{display:flex;position:fixed;top:0;left:0;right:0;height:52px;z-index:200;align-items:center;gap:6px;padding:0 16px;background:#0F172A;color:#fff;font-size:12px}
+.reviewbar b{font-weight:600;margin-right:8px}
+.reviewbar button{height:28px;padding:0 10px;border:1px solid rgba(255,255,255,.22);border-radius:6px;background:transparent;color:#E2E8F0;font:inherit;cursor:pointer}
+.reviewbar button.on{background:#0EA5E9;border-color:#0EA5E9;color:#fff;font-weight:600}
+.reviewbar .tip{margin-left:auto;color:#94A3B8}
+body.shot .reviewbar{display:none}
+
+.page{display:none;background:var(--surface)}
+.page.active{display:block}
+body:not(.shot) .page.active{margin:52px auto 40px}
+body.shot{width:max-content}
+body.shot .page.active{margin:0}
+
+/* ================= 窗口壳 ================= */
+.app{width:1440px;height:900px;background:var(--surface);display:flex;flex-direction:column;overflow:hidden}
+.topbar{
+  position:relative;height:var(--topbar-h);flex:none;display:flex;align-items:center;
+  padding-left:12px;background:var(--surface);border-bottom:1px solid var(--border);
+}
+.tb-left{display:flex;align-items:center;gap:2px;height:100%}
+.tb-right{display:flex;align-items:stretch;height:100%;margin-left:auto}
+.tb-icon{width:32px;height:28px;border:0;border-radius:6px;background:transparent;color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0}
+.tb-icon:hover{background:var(--row-hover);color:var(--text-1)}
+.tb-icon:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tb-sep{width:1px;height:18px;background:var(--border);margin:0 6px;flex:none}
+.mode-seg{display:flex;align-items:center;height:24px;padding:2px;background:var(--row-hover);border-radius:6px;gap:2px;margin:0 2px}
+.mode{height:20px;min-width:50px;padding:0 9px;border:1px solid transparent;border-radius:4px;background:transparent;color:var(--text-2);font:inherit;font-size:12px;cursor:pointer}
+.mode:hover{color:var(--text-1)}
+.mode.on{background:var(--surface);border-color:var(--accent-border);color:var(--accent-text);font-weight:600}
+.mode:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.tb-center{position:absolute;left:50%;top:0;height:100%;transform:translateX(-50%);display:flex;align-items:center;pointer-events:none}
+.identity{display:flex;align-items:center;gap:8px;max-width:420px;height:26px;padding:0 10px;border-radius:6px;color:var(--text-2);pointer-events:auto;cursor:default}
+.identity:hover{background:var(--row-hover)}
+.identity .sol{font-size:12.5px;font-weight:600;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.win{width:46px;height:100%;border:0;background:transparent;color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0}
+.win:hover{background:var(--row-hover);color:var(--text-1)}
+.win.close:hover{background:var(--danger);color:#fff}
+.win:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+
+.shell-body{flex:1;display:flex;min-height:0}
+
+/* ================= 流程区：胶囊（本次唯一改动） ================= */
+.nav{width:var(--nav-w);flex:none;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+.flow-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px 6px 0}
+.pill{
+  height:24px;display:flex;align-items:center;gap:5px;padding:0 6px;
+  border:1px solid var(--border);border-radius:6px;background:var(--surface);
+  cursor:pointer;min-width:0;
+}
+.pill:hover{background:var(--row-hover);border-color:var(--border-strong)}
+.pill.sel{background:var(--accent-soft);border-color:var(--accent-border);box-shadow:inset 2px 0 0 var(--accent)}
+.pill.sel .name{font-weight:600}
+.pill.disabled{opacity:.55}
+.pill.disabled .name{text-decoration:line-through;color:var(--text-3)}
+.role{
+  min-width:16px;height:14px;padding:0 3px;border-radius:3px;display:inline-grid;place-items:center;
+  font-size:9px;font-weight:600;line-height:1;flex:none;white-space:nowrap;
+}
+.role.home{background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE}
+.role.main{background:var(--success-subtle);color:var(--success-text);border:1px solid var(--success-border)}
+.role.end{background:#FAF5FF;color:#7E22CE;border:1px solid #E9D5FF}
+.role.ext{background:var(--accent-light);color:var(--accent-text);border:1px solid var(--accent-border)}
+.role.sub{background:var(--warning-subtle);color:var(--warning-text);border:1px solid var(--warning-border)}
+.pill .name{flex:1;min-width:0;font-size:11.5px;color:var(--text-1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pill .count{font-family:Consolas,"Cascadia Mono",monospace;font-size:10px;color:var(--text-3);flex:none}
+.pill .dot{width:5px;height:5px;border-radius:50%;flex:none}
+.pill .dot.run{background:var(--success)}
+.pill .dot.fail{background:var(--danger)}
+.flow-foot{
+  height:26px;flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:0 8px;border-top:1px solid var(--border-light);background:var(--row-alt);
+  font-size:10.5px;color:var(--text-3);
+}
+.flow-foot a{color:var(--accent-text);text-decoration:none;margin-left:4px}
+.flow-foot a:hover{text-decoration:underline}
+.flow-foot .sel{color:var(--text-2);max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* 步骤树：本次不改，只做上下文占位 */
+.step-zone{flex:1;min-height:0;border-top:1px solid var(--border-light);padding:8px 8px 0;overflow:hidden}
+.zone-note{margin:0 4px 4px;font-size:10.5px;color:var(--muted)}
+.cur-step{height:46px;display:flex;align-items:center;gap:8px;padding:0 6px;border-radius:7px}
+.cur-step:hover{background:var(--row-hover)}
+.cur-dot{width:8px;height:8px;border-radius:50%;background:var(--success);flex:none}
+.cur-icon{width:24px;height:24px;border-radius:6px;background:var(--row-hover);flex:none}
+.cur-main{display:flex;flex-direction:column;gap:1px;min-width:0}
+.cur-name{font-size:11.5px;color:var(--text-1);line-height:16px}
+.cur-type{font-size:10.5px;color:var(--text-3);line-height:14px}
+
+/* 工作区 */
+.workspace{
+  flex:1;position:relative;overflow:hidden;background-color:#F8FAFC;
+  background-image:radial-gradient(#CBD5E1 1px,transparent 1px);background-size:24px 24px;
+}
+.workspace .hint{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--muted);
+  background:rgba(255,255,255,.86);padding:14px 20px;border:1px dashed var(--border-strong);border-radius:10px;
+}
+.workspace .hint b{font-size:13px;color:var(--text-3);font-weight:600}
+.workspace .hint span{font-size:11px}
+
+/* ================= 详情页 ================= */
+.detail{background:var(--surface);padding:20px}
+.detail h2{margin:0 0 4px;font-size:17px;font-weight:600}
+.detail .sub{margin:0 0 16px;font-size:11.5px;color:var(--text-3);line-height:17px}
+.bar-wrap{position:relative;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.bar-wrap .topbar{border-radius:10px}
+.marker{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;z-index:5;box-shadow:0 1px 3px rgba(15,23,42,.25)}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:10px 24px;margin-top:24px}
+.legend .item{display:flex;gap:10px;font-size:11.5px;line-height:17px;color:var(--text-2)}
+.legend .n{width:18px;height:18px;flex:none;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center;margin-top:1px}
+.legend b{color:var(--text-1);font-weight:600}
+
+.capsule-detail{display:flex;gap:24px;align-items:flex-start}
+.flow-panel{width:340px;flex:none;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 8px 24px rgba(15,23,42,.06)}
+.panel-cap{height:26px;display:flex;align-items:center;padding:0 10px;background:var(--row-alt);border-bottom:1px solid var(--border-light);font-size:10.5px;color:var(--text-3)}
+.capsule-legend{flex:1;min-width:0}
+.anatomy{position:relative;margin:6px 0 16px;padding:18px 14px 14px;border:1px solid var(--border-light);border-radius:8px;background:var(--row-alt)}
+.big-pill{
+  width:620px;height:48px;display:flex;align-items:center;gap:10px;padding:0 12px;
+  background:var(--accent-soft);border:1px solid var(--accent-border);border-radius:10px;
+  box-shadow:inset 3px 0 0 var(--accent);
+}
+.big-pill .role{min-width:28px;height:24px;font-size:13px;padding:0 6px;border-radius:5px}
+.big-pill .name{flex:1;font-size:20px;font-weight:600;color:var(--text-1)}
+.big-pill .dot{width:8px;height:8px}
+.big-pill .count{font-size:16px;color:var(--text-3)}
+.anatomy .m{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:700;display:grid;place-items:center}
+.anatomy .m1{left:30px;top:2px}
+.anatomy .m2{left:76px;top:2px}
+.anatomy .m3{left:505px;top:2px}
+.anatomy .m4{left:536px;top:2px}
+.anatomy .m5{left:8px;top:26px}
+.state-list{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;margin-top:6px}
+.state-row{display:flex;align-items:center;gap:10px}
+.state-row .cap{width:52px;flex:none;font-size:10.5px;color:var(--text-3)}
+.state-row .pill{width:270px;flex:none}
+.budget{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+.budget div{padding:8px 10px;border:1px solid var(--border-light);border-radius:6px;background:var(--row-alt);font-size:10.5px;color:var(--text-3);line-height:15px}
+.budget b{display:block;font-size:12px;color:var(--text-1);margin-bottom:2px}
+
+/* 范围页 */
+.plan{width:1200px;padding:24px;background:var(--surface)}
+.plan h2{margin:0 0 2px;font-size:18px;font-weight:600}
+.plan .sub{margin:0 0 16px;font-size:11.5px;color:var(--text-3)}
+.plan h3{margin:16px 0 8px;font-size:13px;font-weight:600}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.col{padding:12px;border:1px solid var(--border-light);border-radius:8px;background:var(--row-alt)}
+.col b{display:block;font-size:12px;margin-bottom:6px}
+.col p{margin:0;font-size:11px;line-height:17px;color:var(--text-2)}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th{text-align:left;font-weight:600;color:var(--text-3);background:var(--row-alt);border-bottom:1px solid var(--border);padding:7px 8px}
+td{padding:7px 8px;border-bottom:1px solid var(--border-light);color:var(--text-2);vertical-align:top;line-height:16px}
+td b{color:var(--text-1);font-weight:600}
+.decisions{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:6px}
+.dec{padding:10px;border:1px solid var(--border-light);border-radius:8px;font-size:10.5px;line-height:15px;color:var(--text-2)}
+.dec b{display:block;font-size:11px;color:var(--text-1);margin-bottom:4px}
+.rec{display:inline-block;margin-top:6px;padding:1px 6px;border-radius:9px;background:var(--accent-soft);border:1px solid var(--accent-border);color:var(--accent-text);font-size:10px;font-weight:600}
+.no{color:var(--danger-text)}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-menu" viewBox="0 0 20 20"><path d="M3 6h14M3 10h14M3 14h14"/></symbol>
+  <symbol id="i-file" viewBox="0 0 20 20"><path d="M5 2.5h6.5L16 7v10.5H5z"/><path d="M11.5 2.5V7H16"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 20 20"><path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h4l2 2h6a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 16 16H4a1.5 1.5 0 0 1-1.5-1.5z"/></symbol>
+  <symbol id="i-save" viewBox="0 0 20 20"><path d="M4 3h9l3 3v11H4z"/><path d="M7 3v4.5h6V3M7 12h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 20 20"><circle cx="9" cy="9" r="4.5"/><path d="M12.4 12.4L16.5 16.5"/></symbol>
+  <symbol id="i-vars" viewBox="0 0 20 20"><path d="M7.5 3H6v14h1.5M12.5 3H14v14h-1.5"/><circle cx="10" cy="10" r="1.2"/></symbol>
+  <symbol id="i-chip" viewBox="0 0 20 20"><rect x="5.5" y="5.5" width="9" height="9" rx="1.5"/><path d="M8 2.5v3M12 2.5v3M8 14.5v3M12 14.5v3M2.5 8h3M2.5 12h3M14.5 8h3M14.5 12h3"/></symbol>
+  <symbol id="i-list" viewBox="0 0 20 20"><path d="M7 5.5h10M7 10h10M7 14.5h10"/><circle cx="4" cy="5.5" r=".9"/><circle cx="4" cy="10" r=".9"/><circle cx="4" cy="14.5" r=".9"/></symbol>
+  <symbol id="i-min" viewBox="0 0 20 20"><path d="M5 10h10"/></symbol>
+  <symbol id="i-max" viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1"/></symbol>
+  <symbol id="i-close" viewBox="0 0 20 20"><path d="M5 5l10 10M15 5L5 15"/></symbol>
+</svg>
+
+<div class="reviewbar">
+  <b>顶栏样式 + 流程胶囊 · 设计稿 v2</b>
+  <button data-page="p-shell">工作区总览</button>
+  <button data-page="p-topbar">顶栏样式</button>
+  <button data-page="p-capsules">流程胶囊</button>
+  <button data-page="p-scope">范围与决定</button>
+  <span class="tip">评审条不属于产品界面；?shot=1 隐藏</span>
+</div>
+
+<!-- ================= 工作区总览 ================= -->
+<section class="page active" id="p-shell">
+  <div class="app">
+    <div class="topbar-slot"></div>
+    <div class="shell-body">
+      <aside class="nav" id="nav-shell"></aside>
+      <main class="workspace">
+        <div class="hint"><b>流程画布</b><span>本次只改顶栏样式与流程胶囊；步骤树 / 画布 / 停靠结构不动</span></div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 顶栏样式 ================= -->
+<section class="page" id="p-topbar">
+  <div class="detail" style="width:1440px;height:330px">
+    <h2>顶栏 · 只改样式</h2>
+    <p class="sub">白底 36px（高度不变）+ 底部 1px 边界；模式段改一个容器 + 单一强调色；文件三键与全局命令用 1px 分隔归组；图标统一 16px；方案名居中（folder + 名称）。命令集合、窗口控制顺序、36px 高度均不改。</p>
+    <div class="bar-wrap" style="height:36px">
+      <div class="topbar-slot"></div>
+      <span class="marker" style="left:18px;top:-9px">1</span>
+      <span class="marker" style="left:92px;top:-9px">2</span>
+      <span class="marker" style="left:300px;top:-9px">3</span>
+      <span class="marker" style="left:520px;top:-9px">4</span>
+      <span class="marker" style="left:700px;top:-9px">5</span>
+      <span class="marker" style="left:1358px;top:-9px">6</span>
+      <span class="marker" style="left:720px;top:30px">7</span>
+    </div>
+    <div class="legend">
+      <div class="item"><span class="n">1</span><span><b>菜单</b>：☰ 28×28，保留完整菜单树；hover 浅底。</span></div>
+      <div class="item"><span class="n">2</span><span><b>文件三键</b>：新建 / 打开 / 保存，32×28 命中区，1px 分隔归组（基线 v2 已定保留三键）。</span></div>
+      <div class="item"><span class="n">3</span><span><b>模式分段</b>：一个 24px 容器 + 4×50px 段；选中用主色浅底 + 主色字 + 1px 主色边。不再一模式一颜色，绿/红只留给运行条。</span></div>
+      <div class="item"><span class="n">4</span><span><b>全局命令</b>：搜索 / 全局变量 / 硬件 / 配方，32×28 命中区、16px 线性图标、颜色 #475569（不用截图里 1.63:1 的淡灰）。</span></div>
+      <div class="item"><span class="n">5</span><span><b>居中方案名</b>：folder + 名称，12.5px 半粗；不加路径尾段、不加未保存点（本次只要样式）。</span></div>
+      <div class="item"><span class="n">6</span><span><b>窗口按钮</b>：46×36，最小/最大/关闭；关闭 hover 红底白字。</span></div>
+      <div class="item"><span class="n">7</span><span><b>底部 1px 边界</b>：与 48px 运行条分开。现状两者同为白底且都只画底边，36+48 粘成 84px 无分界白块。</span></div>
+      <div class="item"><span class="n">!</span><span><b>不改</b>：36px 高度、命令集合、窗口控制顺序、深色主题、圆角窗口。</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 流程胶囊 ================= -->
+<section class="page" id="p-capsules">
+  <div class="detail" style="width:1100px;height:640px">
+    <div class="capsule-detail">
+      <div>
+        <div class="flow-panel" id="flow-panel"></div>
+        <p class="sub" style="margin-top:8px;width:340px">流程区按内容伸缩：h = clamp(6 + 行×24 + (行−1)×4 + 26, 112, 224)。6 条（3 行）=112，13 条（7 行）=224；本例 13 条=224，全部可见、无滚动。步骤树风格保持现状（46px 行高），13 条时可用高度由 752 降到 640（约 13.9 行）。</p>
+      </div>
+
+      <div class="capsule-legend">
+        <h2>流程胶囊 · 改后</h2>
+        <p class="sub">保留 2 列胶囊形态。只改胶囊内部：22→24px、角色与调用徽标合并为一枚、选中用左条+浅底、运行/失败点、禁用删除线；底栏加「全部」入口。</p>
+
+        <div class="anatomy">
+          <div class="big-pill">
+            <span class="role main">主</span>
+            <span class="name">Main</span>
+            <span class="dot run"></span>
+            <span class="count">14</span>
+          </div>
+          <span class="m m1">1</span>
+          <span class="m m2">2</span>
+          <span class="m m3">3</span>
+          <span class="m m4">4</span>
+          <span class="m m5">5</span>
+        </div>
+
+        <div class="legend" style="margin-top:0">
+          <div class="item"><span class="n">1</span><span><b>角色/调用徽标合一</b>：零 / 主 / 尾 / 外部 / 子，一枚 14px 高小签；不再同时挂两枚，名称回收约 25px。</span></div>
+          <div class="item"><span class="n">2</span><span><b>名称</b>：11.5px，单行省略；选中半粗。2 列下可用约 98px（≈8 汉字）。</span></div>
+          <div class="item"><span class="n">3</span><span><b>运行/失败点</b>：5px，只在有状态时出现；运行绿、失败红。待机不占位。</span></div>
+          <div class="item"><span class="n">4</span><span><b>步数</b>：10px 等宽、右对齐；与流程名之间留 5px。</span></div>
+          <div class="item"><span class="n">5</span><span><b>选中</b>：2px 主色左条 + 主色浅底 + 1px 主色边；与步骤树同一套"左条+浅底"语言。</span></div>
+          <div class="item"><span class="n">6</span><span><b>禁用</b>：整枚 55% 透明 + 名称删除线；不显示运行/失败点。</span></div>
+        </div>
+
+        <h3 style="margin:14px 0 6px;font-size:12px">状态</h3>
+        <div class="state-list">
+          <div class="state-row"><span class="cap">默认</span><div class="pill"><span class="role home">零</span><span class="name">Home</span><span class="count">20</span></div></div>
+          <div class="state-row"><span class="cap">选中</span><div class="pill sel"><span class="role main">主</span><span class="name">Main</span><span class="count">14</span></div></div>
+          <div class="state-row"><span class="cap">运行中</span><div class="pill"><span class="role ext">外部</span><span class="name">ST1_LoadC</span><span class="dot run"></span><span class="count">26</span></div></div>
+          <div class="state-row"><span class="cap">失败</span><div class="pill"><span class="role ext">外部</span><span class="name">ST2_Position</span><span class="dot fail"></span><span class="count">23</span></div></div>
+          <div class="state-row"><span class="cap">禁用</span><div class="pill disabled"><span class="role ext">外部</span><span class="name">ST3_Measure</span><span class="count">32</span></div></div>
+          <div class="state-row"><span class="cap">悬停</span><div class="pill" style="background:var(--row-hover);border-color:var(--border-strong)"><span class="role ext">外部</span><span class="name">ST4_Surface</span><span class="count">27</span></div></div>
+        </div>
+
+        <div class="budget">
+          <div><b>112 ~ 224</b>h = clamp(6 + 行×24 + (行−1)×4 + 26, 112, 224)；6 条=112，13 条=224</div>
+          <div><b>2 列 × 7 行</b>13 条；最后一行 1 枚；14 条以上锁 224 + 滚动</div>
+          <div><b>640px 步骤区</b>46px 行高约 13.9 行；比原 752 少 2.4 行，风格不变</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 范围与决定 ================= -->
+<section class="page" id="p-scope">
+  <div class="plan">
+    <h2>范围与决定 · v2</h2>
+    <p class="sub">按用户口径收窄：只要顶栏样式 + 流程胶囊重做；其余 v1 提案全部撤回。设计稿只作评审媒介，确认后才进 WPF 复刻（R126/R127）。</p>
+
+    <div class="cols">
+      <div class="col"><b>本次做</b><p>① 顶栏：白底 + 底部 1px、模式分段单一强调色、文件三键/全局命令分隔归组、16px 图标、居中方案名、窗口按钮 46×36。<br>② 流程胶囊：保留 2 列胶囊；22→24px、流程区 112~224 自适应（13 条=224）；角色/调用徽标合一、选中左条+浅底、运行/失败点、禁用删除线、底栏「全部」。</p></div>
+      <div class="col"><b>本次不做（v1 撤回）</b><p>步骤树行高 46→40、编号圆片、类型同名隐藏、筛选/折叠、运行跟随；v1 的 1 列 236px 方案（本稿改为 2 列 224px）；计数条移位到流程区标题；身份胶囊加未保存点/目录尾段；顶栏 36→40；深色顶栏；Chrome.xaml 新建（本稿只复用现有令牌与样式）。</p></div>
+    </div>
+
+    <h3>规格</h3>
+    <table>
+      <thead><tr><th style="width:120px">项</th><th>值</th><th style="width:300px">备注</th></tr></thead>
+      <tbody>
+        <tr><td>顶栏高度</td><td><b>36px</b>（不变）</td><td>不同步 CaptionHeight，不触发 R44/R47</td></tr>
+        <tr><td>模式段</td><td>容器 24px，4×50px 段</td><td>选中：主色浅底 + 主色字 + 1px 主色边</td></tr>
+        <tr><td>图标命中</td><td>32×28；图标 16px</td><td>显式 Padding=0（R68）</td></tr>
+        <tr><td>窗口按钮</td><td>46×36</td><td>顺序不变；关闭 hover 红底白字</td></tr>
+        <tr><td>流程区</td><td><b>112~224px 自适应</b></td><td>h=clamp(6+行×24+(行−1)×4+26, 112, 224)；6 条=112，13 条=224，14+ 条=224+滚动</td></tr>
+        <tr><td>胶囊</td><td>2 列、24px 高、6px 圆角、4px 间距</td><td>padding 0 6；徽标 14px 高</td></tr>
+        <tr><td>名称 / 步数</td><td>11.5px / 10px 等宽</td><td>2 列下名称约 98px</td></tr>
+        <tr><td>选中</td><td>2px 主色左条 + 主色浅底 + 1px 主色边</td><td>与步骤树同一语言</td></tr>
+      </tbody>
+    </table>
+
+    <h3>需要拍板</h3>
+    <div class="decisions">
+      <div class="dec"><b>Q1 胶囊形态</b>保留 2 列胶囊（用户已定）。<span class="rec">保留</span></div>
+      <div class="dec"><b>Q2 徽标</b>角色与调用合并为一枚？<span class="rec">建议合并</span></div>
+      <div class="dec"><b>Q3 胶囊高度</b>22 → 24px？<span class="rec">建议 24</span></div>
+      <div class="dec"><b>Q4 流程区高度</b>112~224 自适应（13 条=224）？<span class="rec">已定 自适应</span></div>
+      <div class="dec"><b>Q5 顶栏高度</b>保持 36px（只改样式）？<span class="rec">保持 36</span></div>
+    </div>
+
+    <h3>令牌</h3>
+    <table>
+      <thead><tr><th style="width:180px">用途</th><th>令牌</th><th style="width:280px">备注</th></tr></thead>
+      <tbody>
+        <tr><td>顶栏底 / 边界</td><td><b>DialogSurfaceBrush</b> / <b>DialogBorderBrush</b></td><td>不新增颜色</td></tr>
+        <tr><td>模式选中</td><td><b>DialogAccentSoftBrush</b> + <b>DialogAccentTextBrush</b> + <b>DialogAccentBorderBrush</b></td><td>单一强调</td></tr>
+        <tr><td>胶囊选中</td><td><b>DialogAccentSoftBrush</b> + <b>DialogAccentBrush</b> 左条 + <b>DialogAccentBorderBrush</b></td><td>与步骤树同语言</td></tr>
+        <tr><td>运行 / 失败 / 禁用</td><td><b>DialogSuccessBrush</b> / <b>DialogDangerBrush</b> / <b>ScadaDisabledTextBrush</b></td><td>点 + 删除线</td></tr>
+        <tr><td>角色徽标</td><td>沿用 <b>LogicCase* / DialogSuccess* / DialogAccent* / DialogWarning*</b></td><td>与 flow-list v2 现有配色一致</td></tr>
+      </tbody>
+    </table>
+
+    <h3>复刻与验证</h3>
+    <p class="sub" style="margin:0">顶栏：`Shell.xaml` Row0 只重排样式，不写 hex（R140）；同步 `ShellCopy.xaml`（R44/R70）；跑 `RunShellLayoutChecks` + `RunHardcodedColorChecks`（Shell.xaml hex ≤35）。流程胶囊：`FlowListView.xaml` 的 ItemTemplate/ItemContainerStyle 与 22→24、112~224 自适应（`ProcessView.xaml:300` 改 MinHeight/MaxHeight，去掉固定 Height）；跑 `ScadaUiProbe --flow-list` 出单徽标/运行/失败/禁用四态。收尾统一 `tools/run_gates.ps1`。</p>
+  </div>
+</section>
+
+<script>
+(function(){
+  const q = new URLSearchParams(location.search);
+  const shot = q.has('shot');
+  const screen = q.get('screen') || 'shell';
+  document.body.classList.toggle('shot', shot);
+
+  function svg(id, cls){
+    return '<svg class="ic ' + (cls||'') + '"><use href="#' + id + '"/></svg>';
+  }
+
+  function topbarHtml(){
+    return `
+      <header class="topbar">
+        <div class="tb-left">
+          <button class="tb-icon" title="菜单">${svg('i-menu')}</button>
+          <span class="tb-sep"></span>
+          <button class="tb-icon" title="新建方案">${svg('i-file')}</button>
+          <button class="tb-icon" title="打开方案">${svg('i-folder')}</button>
+          <button class="tb-icon" title="保存方案">${svg('i-save')}</button>
+          <span class="tb-sep"></span>
+          <div class="mode-seg">
+            <button class="mode on">调试</button>
+            <button class="mode">运行</button>
+            <button class="mode">组态</button>
+            <button class="mode">自由</button>
+          </div>
+          <span class="tb-sep"></span>
+          <button class="tb-icon" title="搜索流程 / 视图 / 命令（Ctrl+K）">${svg('i-search')}</button>
+          <button class="tb-icon" title="全局变量">${svg('i-vars')}</button>
+          <button class="tb-icon" title="硬件管理">${svg('i-chip')}</button>
+          <button class="tb-icon" title="配方管理">${svg('i-list')}</button>
+        </div>
+        <div class="tb-center">
+          <div class="identity" title="智能装配检测线">
+            ${svg('i-folder','sm')}
+            <span class="sol">智能装配检测线</span>
+          </div>
+        </div>
+        <div class="tb-right">
+          <button class="win" title="最小化">${svg('i-min')}</button>
+          <button class="win" title="最大化">${svg('i-max')}</button>
+          <button class="win close" title="关闭">${svg('i-close')}</button>
+        </div>
+      </header>`;
+  }
+
+  const FLOWS = [
+    {name:'Home', role:'零', kind:'home', count:20},
+    {name:'Main', role:'主', kind:'main', count:14, sel:true},
+    {name:'ST1_LoadC', role:'外部', kind:'ext', count:26, run:true},
+    {name:'ST2_Position', role:'外部', kind:'ext', count:23},
+    {name:'ST3_Measure', role:'外部', kind:'ext', count:32},
+    {name:'ST4_Surface', role:'外部', kind:'ext', count:27},
+    {name:'ST5_Clamp', role:'外部', kind:'ext', count:18},
+    {name:'ST6_Weld', role:'外部', kind:'ext', count:21},
+    {name:'ST7_Inspect', role:'外部', kind:'ext', count:24},
+    {name:'ST8_Pack', role:'外部', kind:'ext', count:19},
+    {name:'ST9_Unload', role:'外部', kind:'ext', count:16},
+    {name:'AlarmScan', role:'外部', kind:'ext', count:12},
+    {name:'RecipePush', role:'子', kind:'sub', count:9},
+  ];
+
+  function pill(f){
+    return `<div class="pill ${f.sel?'sel':''}">
+      <span class="role ${f.kind}">${f.role}</span>
+      <span class="name">${f.name}</span>
+      ${f.run?'<span class="dot run" title="运行中"></span>':''}
+      ${f.fail?'<span class="dot fail" title="上次运行失败"></span>':''}
+      <span class="count">${f.count}</span>
+    </div>`;
+  }
+
+  function flowPanelHtml(){
+    return `
+      <div class="flow-grid">${FLOWS.map(pill).join('')}</div>
+      <div class="flow-foot"><span>13 条流程<a href="#" onclick="return false">全部 ›</a></span><span class="sel">选中：Main</span></div>`;
+  }
+
+  function currentStepHtml(name, type){
+    return `<div class="cur-step">
+      <span class="cur-dot"></span>
+      <span class="cur-icon"></span>
+      <span class="cur-main"><span class="cur-name">${name}</span><span class="cur-type">${type}</span></span>
+    </div>`;
+  }
+
+  document.querySelectorAll('.topbar-slot').forEach(el => el.innerHTML = topbarHtml());
+  const panel = document.getElementById('flow-panel');
+  if (panel) panel.innerHTML = flowPanelHtml();
+
+  const nav = document.getElementById('nav-shell');
+  if (nav){
+    nav.innerHTML = flowPanelHtml() + `
+      <div class="step-zone">
+        <div class="zone-note">步骤树保持现状（46px 行高，不在本次范围）</div>
+        ${currentStepHtml('轴使能','轴使能')}
+        ${currentStepHtml('轴运动','轴运动')}
+        ${currentStepHtml('等待到位','等待到位')}
+        ${currentStepHtml('读轴状态','读轴状态')}
+      </div>`;
+  }
+
+  function show(id){
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === id));
+    document.querySelectorAll('.reviewbar button').forEach(b => b.classList.toggle('on', b.getAttribute('data-page') === id));
+  }
+  const map = {shell:'p-shell', topbar:'p-topbar', capsules:'p-capsules', scope:'p-scope'};
+  document.querySelectorAll('.reviewbar button').forEach(b => b.addEventListener('click', () => show(b.getAttribute('data-page'))));
+  show(map[screen] || 'p-shell');
+
+  const sizes = {shell:[1440,900], topbar:[1440,330], capsules:[1100,640], scope:[1200,1000]};
+  if (shot){
+    const [w,h] = sizes[screen] || sizes.shell;
+    document.body.style.width = w + 'px';
+    document.body.style.height = h + 'px';
+    document.body.style.overflow = 'hidden';
+  }
+})();
+</script>
+</body>
+</html>

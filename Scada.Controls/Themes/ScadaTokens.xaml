@@ -3,6 +3,31 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
 
+    <!--  按钮四态令牌（2026-10-25 按钮审查：悬停边框 / 危险变体 / 禁用蒙版与文字 / 焦点环）  -->
+    <SolidColorBrush x:Key="ScadaButtonHoverStrokeBrush" Color="#FF3F5570" />
+    <SolidColorBrush x:Key="ScadaButtonDangerTintBrush" Color="#FFB03A2E" />
+    <SolidColorBrush x:Key="ScadaButtonDangerTextBrush" Color="#FFFFD9D4" />
+    <SolidColorBrush x:Key="ScadaButtonDisabledVeilBrush" Color="#FF0F172A" />
+    <SolidColorBrush x:Key="ScadaButtonDisabledTextBrush" Color="#FFB6C2D1" />
+    <SolidColorBrush x:Key="ScadaButtonFocusRingBrush" Color="#FF38BDF8" />
+
+    <!--  滑块禁用态令牌（2026-10-25 评审：禁用时轨道/填充/拇指一起降饱和）  -->
+    <SolidColorBrush x:Key="ScadaSliderDisabledTrackBrush" Color="#FF1E2833" />
+    <SolidColorBrush x:Key="ScadaSliderDisabledFillBrush" Color="#FF334155" />
+    <SolidColorBrush x:Key="ScadaSliderDisabledThumbBrush" Color="#FF64748B" />
+
+    <!--
+        状态色令牌（2026-10-26 样式审查）：**同一语义只有这一个取值**。
+        以前"运行"至少有四个绿/蓝（#34C759 / #22C55E / #2D7DD2 / #0EA5E9），
+        同一屏两台设备都在运行却颜色不同，操作员会怀疑"是不是不同意思"。
+        图元的颜色属性仍然可改（局部覆盖），这五个只是默认值与参照。
+    -->
+    <SolidColorBrush x:Key="HmiStateRunningBrush" Color="#FF22C55E" />
+    <SolidColorBrush x:Key="HmiStateStoppedBrush" Color="#FF64748B" />
+    <SolidColorBrush x:Key="HmiStateWarningBrush" Color="#FFFFB020" />
+    <SolidColorBrush x:Key="HmiStateFaultBrush" Color="#FFE03A2B" />
+    <SolidColorBrush x:Key="HmiStateUnknownBrush" Color="#FF4B5563" />
+
     <!--
         运行画面（深色）令牌 —— 设计基线 v1 §03 / §12。
 

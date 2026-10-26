@@ -153,8 +153,11 @@ function Invoke-Captured {
 }
 
 function Get-Counts {
-    param([string]$Text)
-    $m = [regex]::Matches($Text, $countPattern)
+    param([string]$Text, [string]$Pattern)
+    # Most hosts print a Chinese summary line; ScadaWebChecks prints the English
+    # one (RESULT: N PASS / M FAIL). Callers pass Pattern for the latter.
+    if ([string]::IsNullOrWhiteSpace($Pattern)) { $Pattern = $countPattern }
+    $m = [regex]::Matches($Text, $Pattern)
     if ($m.Count -eq 0) { return '' }
     $last = $m[$m.Count - 1]
     return ('pass=' + $last.Groups[1].Value + ' fail=' + $last.Groups[2].Value)
@@ -254,6 +257,9 @@ $hosts = @(
     @{ N = 'FlowCanvasChecks';   P = 'FlowCanvasChecks\FlowCanvasChecks.csproj' }
     @{ N = 'UIThemeSmokeTest';   P = 'UIThemeSmokeTest\UIThemeSmokeTest.csproj' }
     @{ N = 'HelpProbe';          P = 'HelpProbe\HelpProbe.csproj' }
+    # ScadaWebChecks lives under Web\ (not next to the other hosts) and prints the
+    # English summary line, so it carries its own directory + count pattern.
+    @{ N = 'ScadaWebChecks';     P = 'Web\ScadaWebChecks\ScadaWebChecks.csproj'; D = 'Web\ScadaWebChecks'; M = 'RESULT:\s*(\d+)\s*PASS\s*/\s*(\d+)\s*FAIL' }
 )
 
 foreach ($h in $hosts) {
@@ -275,7 +281,10 @@ foreach ($h in $hosts) {
         }
     }
 
-    $exe = Join-Path $RepoRoot ($h.N + '\bin\Debug\net9.0-windows\' + $h.N + '.exe')
+    $dir = $h.N
+    if ($h.ContainsKey('D') -and -not [string]::IsNullOrWhiteSpace($h.D)) { $dir = $h.D }
+
+    $exe = Join-Path $RepoRoot ($dir + '\bin\Debug\net9.0-windows\' + $h.N + '.exe')
     if (-not (Test-Path -LiteralPath $exe)) {
         Add-Row -Name $h.N -Exit 1 -Note ('EXE MISSING ' + $exe)
         continue
@@ -284,7 +293,7 @@ foreach ($h in $hosts) {
     # R65: never run a stale exe. The exe must be at least as new as the host's
     # own sources, otherwise the verdict belongs to an older build.
     $exeTime = (Get-Item -LiteralPath $exe).LastWriteTimeUtc
-    $srcDir = Join-Path $RepoRoot $h.N
+    $srcDir = Join-Path $RepoRoot $dir
     $newestSrc = Get-ChildItem -LiteralPath $srcDir -Recurse -File -Include *.cs,*.xaml,*.csproj -ErrorAction SilentlyContinue |
         Where-Object { $_.FullName -notmatch '\\bin\\' -and $_.FullName -notmatch '\\obj\\' } |
         Sort-Object LastWriteTimeUtc -Descending |
@@ -301,7 +310,9 @@ foreach ($h in $hosts) {
         Add-Row -Name $h.N -Exit 1 -Note 'NO OUTPUT (host produced nothing)'
         continue
     }
-    $note = Get-Counts -Text $r.Text
+    $note = ''
+    if ($h.ContainsKey('M')) { $note = Get-Counts -Text $r.Text -Pattern $h.M }
+    else { $note = Get-Counts -Text $r.Text }
     if ($r.Exit -eq 124) {
         $note = 'TIMEOUT after ' + $StepTimeoutSec + 's (killed)'
     }

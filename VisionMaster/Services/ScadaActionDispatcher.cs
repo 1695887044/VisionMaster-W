@@ -160,6 +160,16 @@ namespace VisionMaster.Services
         private readonly IScadaSoundPlayer? _sounds;
 
         /// <summary>
+        /// 语音播报出口（组态动作表的「语音播报」）。可为 null——没接线时按"未接入"跳过。
+        ///
+        /// 为什么是<b>可写属性</b>而不是构造参数：播报器的生命周期跟着运行态会话走
+        /// （它要把报警提示音压住，那个压住动作属于会话里的声音服务），
+        /// 而分发器是应用级单例（App 启动就建好）。会话启动时挂上、停止时摘掉，
+        /// 与 <c>ScadaMonitoringHost</c> 里报警播报用的是同一个实例，不会出现"两套队列抢着说话"。
+        /// </summary>
+        public IScadaAnnouncer? Announcer { get; set; }
+
+        /// <summary>
         /// 执行前二次确认出口（P0）。可为 null——没接线时按“取消”处理，
         /// 绝不静默放行；断言工程/离线场景可以注入一个假实现。
         /// </summary>
@@ -463,6 +473,16 @@ namespace VisionMaster.Services
         /// </summary>
         private void Execute(ScadaAction action, string head, AuditStamp stamp)
         {
+            // 轴控九条不再从事件动作表下发（2026-10-25 纠偏）。
+            // 放在 switch 之前而不是删掉 case：老 .vms 里已经配上的运动动作仍在，
+            // 必须"如实拒绝并说明去哪做"，不能静默执行、也不能静默消失。
+            if (ScadaActionTaxonomy.IsMotion(action.Type))
+            {
+                const string reason = "轴控动作不允许从事件动作表下发（请在轴面板或流程的轴步骤里操作）";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
             switch (action.Type)
             {
                 case ScadaActionType.Log:
@@ -493,6 +513,10 @@ namespace VisionMaster.Services
                     ExecutePlaySound(action, head, stamp);
                     return;
 
+                case ScadaActionType.SpeakText:
+                    ExecuteSpeakText(action, head, stamp);
+                    return;
+
                 case ScadaActionType.Navigate:
                     ExecuteNavigate(action, head, stamp);
                     return;
@@ -521,19 +545,8 @@ namespace VisionMaster.Services
                     ExecuteRecipeAction(action, head, stamp);
                     return;
 
-                // 运动九条：取轴、门禁、下发全在 executor 里（那层认识 IMotionDevice 与门禁，
-                // 本类只认识"动作语义"）。这里只做"接没接运动模块"与"成没成"两档交代。
-                case ScadaActionType.MotionEnable:
-                case ScadaActionType.MotionDisable:
-                case ScadaActionType.MotionMoveAbsolute:
-                case ScadaActionType.MotionMoveRelative:
-                case ScadaActionType.MotionHome:
-                case ScadaActionType.MotionStop:
-                case ScadaActionType.MotionClearAlarm:
-                case ScadaActionType.MotionJogStart:
-                case ScadaActionType.MotionJogStop:
-                    ExecuteMotionAction(action, head, stamp);
-                    return;
+                // 运动九条（2026-10-25 起不再从这里下发）：守卫在 Execute 开头，
+                // 老配置会在日志里看到"不允许从事件动作表下发"并跳过。
 
                 default:
                     // "高版本存下的、本版本不认识的类型"（枚举按数值反序列化，不校验取值范围）：
@@ -960,12 +973,7 @@ namespace VisionMaster.Services
             }
 
             var kind = action.SoundKind;
-            var severity = kind switch
-            {
-                "Critical" => ScadaAlarmSeverity.Critical,
-                "Warning" => ScadaAlarmSeverity.Warning,
-                _ => ScadaAlarmSeverity.Info,
-            };
+            var severity = ToSeverity(kind);
 
             try
             {
@@ -983,9 +991,104 @@ namespace VisionMaster.Services
             }
         }
 
-        private void ExecuteBitAction(ScadaAction action, string head, AuditStamp stamp)
+        /// <summary>
+        /// 语音播报：把模板念出来，模板里的 <c>{变量名}</c> 按当前值替换。
+        ///
+        /// 三档交代：
+        /// · 没接线 / 播报被关 / 本机没语音包 → Skipped（宿主装配或环境问题，不是这次动作写错了）；
+        /// · 模板里某个变量找不到 → <b>照念</b>其余部分，日志里点出缺的是谁（少一个数比整句不念更有用）；
+        /// · 整句都渲染成空 → Skipped（念一段静音等于静默空跑）。
+        /// </summary>
+        private void ExecuteSpeakText(ScadaAction action, string head, AuditStamp stamp)
         {
-            // ① 没选变量：配置漏了。措辞与「写变量」「增量/减量」同一句
+            if (string.IsNullOrWhiteSpace(action.Text))
+            {
+                const string reason = "播报内容未填";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            if (Announcer == null)
+            {
+                const string reason = "未接入语音播报";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            if (!Announcer.Enabled)
+            {
+                const string reason = "语音播报已关闭";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            if (!Announcer.IsAvailable)
+            {
+                string reason = Announcer.UnavailableReason ?? "本机没有可用语音包";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            var rendered = ScadaTextTemplate.Format(action.Text, ReadForSpeech);
+            if (string.IsNullOrWhiteSpace(rendered.Text))
+            {
+                string reason = rendered.HasMissing
+                    ? $"播报内容为空（变量找不到：{string.Join("、", rendered.Missing)}）"
+                    : "播报内容为空";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            var severity = ToSeverity(action.SoundKind);
+
+            try
+            {
+                if (!Announcer.AnnounceCommand(rendered.Text, severity))
+                {
+                    const string reason = "播报未入队";
+                    Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                    return;
+                }
+
+                string suffix = rendered.HasMissing
+                    ? $"（变量找不到：{string.Join("、", rendered.Missing)}，已省略）"
+                    : string.Empty;
+                Ok(stamp, action, $"{head} → 播报「{rendered.Text}」{suffix}", rendered.Text);
+            }
+            catch (Exception ex)
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：播报失败：{ex.Message}", ex.Message);
+            }
+        }
+
+        /// <summary>模板里的一个变量名 → 当前值。读不到返回 null（由模板渲染记为"找不到"）</summary>
+        private string? ReadForSpeech(string name)
+        {
+            try
+            {
+                if (!_values.TryResolve(Guid.Empty, name, out var handle) || handle == null)
+                    return null;
+
+                var value = handle.Value;
+                return value == null ? null : Text(value);
+            }
+            catch (Exception)
+            {
+                // 单个变量读失败不该让整句话落空：模板会把这一处记成"找不到"，其余照念。
+                return null;
+            }
+        }
+
+        /// <summary>声音/播报共用的档位映射（未知档位按 Info，调用侧负责在日志里说明）</summary>
+        private static ScadaAlarmSeverity ToSeverity(string? kind) => kind switch
+        {
+            "Critical" => ScadaAlarmSeverity.Critical,
+            "Warning" => ScadaAlarmSeverity.Warning,
+            _ => ScadaAlarmSeverity.Info,
+        };
+
+        private void ExecuteBitAction(ScadaAction action, string head, AuditStamp stamp)
+        {            // ① 没选变量：配置漏了。措辞与「写变量」「增量/减量」同一句
             if (!action.HasVariable)
             {
                 Skipped(stamp, action,

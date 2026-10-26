@@ -1,0 +1,253 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.DebugPanelView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    Background="{StaticResource DialogBackgroundBrush}">
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="CanResize" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <Setter Property="Width" Value="900" />
+            <Setter Property="Height" Value="660" />
+            <Setter Property="MinWidth" Value="780" />
+            <Setter Property="MinHeight" Value="520" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <Grid UseLayoutRounding="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  自绘标题栏（与系统健康弹窗同一形态）  -->
+        <Border
+            Grid.Row="0"
+            Padding="24,0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogSurfaceBrush}"
+            Style="{StaticResource DialogCardHeader}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Style="{StaticResource DialogCardTitleIcon}" Text="&#xf188;" />
+
+                <StackPanel
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource DialogCardTitle}" Text="{Binding Title}" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        Style="{StaticResource DialogHintText}"
+                        Text="运行时诊断 · 调试模式开关（不按时间失效）" />
+                </StackPanel>
+
+                <StackPanel
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    Orientation="Horizontal">
+                    <Button
+                        Margin="0,0,8,0"
+                        AutomationProperties.Name="刷新"
+                        Command="{Binding RefreshCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogIconButton}">
+                        <Button.ToolTip>
+                            <ToolTip Content="立即刷新诊断信息" Style="{StaticResource DialogToolTipStyle}" />
+                        </Button.ToolTip>
+                        <TextBlock
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="13"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="&#xf021;" />
+                    </Button>
+                    <Button
+                        AutomationProperties.Name="关闭"
+                        Command="{Binding CloseCommand}"
+                        FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                        Style="{StaticResource DialogIconButton}">
+                        <Button.ToolTip>
+                            <ToolTip Content="关闭" Style="{StaticResource DialogToolTipStyle}" />
+                        </Button.ToolTip>
+                        <TextBlock
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="13"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="&#xf00d;" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!--  调试模式开关卡  -->
+        <Border
+            Grid.Row="1"
+            Margin="24,12,24,0"
+            Padding="16,12"
+            Style="{StaticResource DialogColumnCard}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Ellipse
+                    Width="8"
+                    Height="8"
+                    VerticalAlignment="Top"
+                    Margin="0,6,0,0">
+                    <Ellipse.Style>
+                        <Style TargetType="Ellipse">
+                            <Setter Property="Fill" Value="{StaticResource DialogTextMutedBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                    <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Ellipse.Style>
+                </Ellipse>
+
+                <StackPanel Grid.Column="1" Margin="10,0,12,0">
+                    <TextBlock
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="调试模式" />
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding StageText}"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Margin="0,2,0,0"
+                        Style="{StaticResource DialogHintText}"
+                        Text="{Binding EnabledInfoText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <Button
+                    Grid.Column="2"
+                    MinWidth="112"
+                    VerticalAlignment="Center"
+                    AutomationProperties.Name="切换调试模式"
+                    Command="{Binding ToggleCommand}"
+                    Content="{Binding ToggleText}"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}" />
+            </Grid>
+        </Border>
+
+        <!--  诊断信息  -->
+        <Border
+            Grid.Row="2"
+            Margin="24,12,24,0"
+            Padding="16,12"
+            Style="{StaticResource DialogColumnCard}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                    Text="诊断信息" />
+                <TextBlock
+                    Grid.Row="1"
+                    Margin="0,4,0,8"
+                    Style="{StaticResource DialogHintText}"
+                    Text="{Binding SummaryText}"
+                    TextWrapping="Wrap" />
+
+                <ScrollViewer
+                    Grid.Row="2"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+                    <ItemsControl AutomationProperties.Name="DebugInfoRows" ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        FontSize="11"
+                                        Foreground="{StaticResource DialogTextMutedBrush}"
+                                        Text="{Binding Group}" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                        Text="{Binding Name}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        FontSize="12"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="{Binding Value}"
+                                        TextWrapping="Wrap" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!--  底栏  -->
+        <Border
+            Grid.Row="3"
+            Margin="24,12,24,20"
+            Padding="0,10,0,0"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="0,1,0,0">
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button
+                    Margin="0,0,8,0"
+                    Command="{Binding CopyCommand}"
+                    Content="复制诊断信息"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}" />
+                <Button
+                    Margin="0,0,8,0"
+                    Command="{Binding OpenLogFolderCommand}"
+                    Content="打开日志目录"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}" />
+                <Button
+                    Margin="0,0,8,0"
+                    Command="{Binding OpenAppFolderCommand}"
+                    Content="打开程序目录"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}" />
+                <Button
+                    MinWidth="88"
+                    Command="{Binding CloseCommand}"
+                    Content="关闭"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}" />
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

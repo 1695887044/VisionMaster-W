@@ -93,6 +93,13 @@ namespace Plugin.GeometryFinder
         /// <summary>半径（圆/椭圆长半轴）</summary>
         public OutputPort<double> Radius { get; } = new("Radius", "半径（圆/椭圆长半轴）");
 
+        /// <summary>
+        /// 本轮投射用的标注列表（托管对象，**不烘焙、不开窗**）。
+        /// 接「结果显示」的任意结果项，由它把标注烧进最终展示图；SCADA 只认像素。
+        /// </summary>
+        public OutputPort<List<MeasureAnnotation>> Annotations { get; } =
+            new("Annotations", "标注列表（接「结果显示」烧成图，供图像赋值/SCADA 使用）");
+
         #endregion
 
         public override void RunAlgorithm(IExecutionContext context)
@@ -104,6 +111,7 @@ namespace Plugin.GeometryFinder
             Col.Value = 0;
             Phi.Value = 0;
             Radius.Value = 0;
+            Annotations.Value = null!;
 
             var img = SrcImage.ActualValue;
             if (img == null || !img.IsInitialized())
@@ -242,7 +250,11 @@ namespace Plugin.GeometryFinder
         private void Publish(IExecutionContext context, HImage source, List<MeasureAnnotation> annotations, List<ImageInfoRow> info)
         {
             var viewIndex = DisplayViewIndex.ActualValue;
-            if (source == null || viewIndex <= 0) return;
+            if (source == null) return;
+
+            // 标注先交端口：显示窗口=0 也要给「结果显示」合成最终图用
+            Annotations.Value = annotations;
+            if (viewIndex <= 0) return;
             if (viewIndex > 9) viewIndex = 9;
             try { this.PublishPreview(source, viewIndex, "几何查找", info, annotations); }
             catch (Exception ex)

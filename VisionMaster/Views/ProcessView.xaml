@@ -297,7 +297,7 @@
 
         <!--  v2：程序面板合并进流程导航。FlowListView 自带 VM（AutoWire），
               这里只负责把它放在当前流程树上方；不再单独占用一个 AvalonDock 窗格。  -->
-        <local:FlowListView Grid.Row="0" Height="112" />
+        <local:FlowListView Grid.Row="0" MinHeight="112" MaxHeight="224" />
 
         <TreeView
             x:Name="StepTree"

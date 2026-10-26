@@ -9,13 +9,13 @@
          自合并后引用只走自身链，与父级无关。同 FluentTokens/FluentAliases 的既有模式。  -->
     <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
     <!--
-        2026-10-09 补：本字典的状态胶囊模板里用了 DialogIconFont（"出过错"那个 ⚠ 字形），
-        而该键定义在兄弟字典 Themes/Dialog/Dialog.Text.xaml —— 与上面 Colors.xaml 同一个问题：
-        跨兄弟字典的引用在宿主合并链与 App 不一致时会解析失败，且失败点在**模板实例化**时
-        （离屏渲染探针里实测抛"无法找到名为 DialogIconFont 的资源"，整条模板一起打不开）。
-        按本文件既有的做法自合并，引用只走自身链。
+        2026-10-25 删除一条死边：本文件曾为 DialogIconFont（"出过错"那个 ⚠ 字形）
+        自合并兄弟字典 Themes/Dialog/Dialog.Text.xaml。该键 2026-10-10 已上移到
+        Colors.xaml，而上面那行已经把 Colors.xaml 合并进来——这条边从此不再提供任何键，
+        却是 R31 明文禁止的形态（兄弟册互相 merge），故删除。
+        判据（可复算）：剥掉注释后本文件共 21 处 StaticResource，逐键比对
+        Colors.xaml / Dialog.Text.xaml 的 x:Key，**没有**任何一个键只能由 Dialog.Text.xaml 满足。
     -->
-    <ResourceDictionary Source="/UI;component/Themes/Dialog/Dialog.Text.xaml" />
   </ResourceDictionary.MergedDictionaries>
   <Style x:Key="DialogStatusDot" TargetType="Ellipse">
     <Setter Property="Width" Value="8" />
@@ -354,6 +354,70 @@
   </Style>
   <Style x:Key="DialogLinkButtonSuccess" BasedOn="{StaticResource DialogLinkButton}" TargetType="Button">
     <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+  </Style>
+  <Style x:Key="DialogLinkButtonDanger" BasedOn="{StaticResource DialogLinkButton}" TargetType="Button">
+    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+  </Style>
+  <!--
+      危险操作描边按钮（删除账号 / 删除组 / 全部踢下线）：白底红字红框，悬停浅红底。
+      与 Fluent 的实心 DialogDangerButton 分工：破坏性但可恢复的走描边，不可恢复的才走实心。
+      焦点环就地内联：DialogFocusVisual 在 Dialog.Misc.xaml（兄弟分册），本册不能跨册 StaticResource（R30）。
+  -->
+  <Style x:Key="DialogDangerOutlineButton" TargetType="Button">
+    <Setter Property="Height" Value="34" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="SnapsToDevicePixels" Value="True" />
+    <Setter Property="FocusVisualStyle">
+      <Setter.Value>
+        <Style TargetType="Control">
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate>
+                <Border
+                    Margin="2"
+                    BorderBrush="{StaticResource DialogAccentBrush}"
+                    BorderThickness="2"
+                    CornerRadius="6"
+                    SnapsToDevicePixels="True" />
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </Setter.Value>
+    </Setter>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border
+              x:Name="Bd"
+              Padding="{TemplateBinding Padding}"
+              Background="{TemplateBinding Background}"
+              BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}"
+              CornerRadius="6"
+              SnapsToDevicePixels="True">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogDangerBorderBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Opacity" Value="0.45" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
   <!--
       幽灵按钮（删除 / 底栏撤销）：透明底无框，悬停出浅底与描边。

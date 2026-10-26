@@ -454,6 +454,15 @@
                         Foreground="{StaticResource ScadaToolbarTextBrush}"
                         IsChecked="{Binding SelectedPage.SnapToGrid, Mode=TwoWay}" />
 
+                    <!--  计划表是方案级配置（时间/事件触发 + 动作），入口放在组态里而不是主界面顶栏  -->
+                    <Rectangle Style="{StaticResource ScadaToolbarSeparator}" />
+                    <Button
+                        Margin="6,0,0,0"
+                        Click="OnSchedules"
+                        Content="计划表"
+                        Style="{StaticResource ScadaToolButton}"
+                        ToolTip="方案级计划表：到点 / 条件持续满足时自动执行动作" />
+
                     <Rectangle Style="{StaticResource ScadaToolbarSeparator}" />
 
                     <Button

@@ -18,6 +18,7 @@
 - [快速开始](#快速开始)
 - [1. 为什么会慢：决策与执行混在一起](#1-为什么会慢决策与执行混在一起)
 - [2. 总体设计：四个角色](#2-总体设计四个角色)
+- [2.1 两个执行身份](#21-两个执行身份)
 - [3. 功能清单（109 项）](#3-功能清单109-项)
 - [4. 可执行步骤序列](#4-可执行步骤序列)
 - [5. 文件怎么组织，AI 才能直接执行](#5-文件怎么组织ai-才能直接执行)
@@ -65,6 +66,8 @@ AI 的工作从「N 步 × 每步推理」变成「1 次规划 + N 步机械执�
 
    AI 只读一次 `plans/solution-create-and-save.json`，按 `steps` 机械执行；中途不再问「下一步点哪」。
 
+4. **要排一轮测试**：交给 `vm-test-planner` 产出批次单；**要执行**：把批次单交给 `vm-test-runner`。职责边界、批次单模板与六类状态见 [`测试身份契约.md`](测试身份契约.md)。
+
 > 第一次跑之前，先按 §10 校准选择器；否则按 §9 K-01/K-02 的兜底策略走。
 
 ---
@@ -108,6 +111,20 @@ VisionMaster
 | 选择器表 | `ui-map.json` | 窗口、控件名、AutomationId、兜底坐标 | 业务顺序、参数、判断逻辑 |
 | 执行器 | 外部程序 | 原语实现、等待、重试、日志 | 业务规则、「聪明地」改步骤 |
 | 断言 | 计划内 | 可观察的状态（窗口、文本、文件、值） | 「看起来对了」「应该没问题」 |
+
+### 2.1 两个执行身份
+
+> 角色定义归客户端：`.zcode/agents/vm-test-planner.md`、`.zcode/agents/vm-test-runner.md`。
+> 仓库只留交接契约：[`测试身份契约.md`](测试身份契约.md)。
+
+| 身份 | 负责 | 不负责 | 交付物 |
+|---|---|---|---|
+| `vm-test-planner` | 查全软件功能、找覆盖缺口、编制 `vm-plan/1`、登记选择器、下批次单 | 点界面、起 exe、跑断言、改产品源码 | `plans/*.json`、`ui-map.json`、`TASKS.md`、`batches/<日期>-<主题>.md` |
+| `vm-test-runner` | 按批次单机械执行、逐步断言、留证据、报六类状态、更新台账 | 改计划/选择器、即兴补步、猜坐标、改产品源码 | `artifacts/logs/**`、`artifacts/render/**`、批次汇总、交接报告、台账更新 |
+
+分界一句话：**planner 决定"测什么、怎么判"，runner 只回答"这一条跑成了没有"。**
+
+状态只用六类：`PASS` / `FAIL` / `BLOCKED` / `UNVERIFIED` / `SKIPPED` / `NOT RUN`；"没跑"不许并进 `PASS`（R183）。需要真实鼠标手势或视觉验收时，runner 标 `BLOCKED_NEEDS_MAIN` 交回主会话。
 
 ---
 
@@ -2391,6 +2408,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\vm-uia.ps1 -Action inv
 | `plan.schema.json` | `vm-plan/1` 的 JSON Schema |
 | `ui-map.json` | 26 个窗口 + 205 个控件的选择器表 |
 | `plans/*.json` | 47 个可执行计划（含 1 个组合计划 `solution-create-and-save`） |
+| `测试身份契约.md` | planner/runner 的职责边界、批次单模板、六类状态、升级路径 |
+| `batches/` | 每轮测试的批次单与索引（执行证据不在这里） |
 | `tools/validate-plans.ps1` | 结构校验器（ASCII / PS 5.1） |
 
 校验命令：

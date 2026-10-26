@@ -36,6 +36,7 @@ namespace VisionMaster
     {
         private AppLifetimeService? _lifetime;
         private SingleInstanceCheck? _singleInstance;
+        private SolutionSessionCoordinator? _sessionCoordinator;
         private HalconCheck? _halconCheck;
         private CommunicationCheck? _communicationCheck;
         private HelpCatalogCheck? _helpCatalogCheck;
@@ -412,6 +413,15 @@ namespace VisionMaster
             containerRegistry.RegisterForNavigation<ProcessView, ProcessViewModel>();
             containerRegistry.RegisterForNavigation<MonitorView, MonitorViewModel>();
             containerRegistry.RegisterForNavigation<ToolView, ToolViewModel>();
+            // 底部控制台抽屉条（收起态 32px）要和日志页/监控栏显示**同一份**计数与"最后一条"：
+            // LogViewModel 订阅的是具体类 LogService.OnLogReceived，每个实例各收一份，
+            // 抽屉自己再造一个会在 LogPanelMaxRows 上限处与日志页的「全部 N」分叉。
+            // 与 ScadaEditorViewModel 同理：singleton 覆盖 RegisterForNavigation 的默认单次构造，
+            // 视图 AutoWire 与抽屉解析到的是同一个实例。
+            containerRegistry.RegisterSingleton<LogViewModel>();
+            containerRegistry.RegisterSingleton<MonitorViewModel>();
+            containerRegistry.RegisterSingleton<ConsoleDrawerViewModel>(c =>
+                new ConsoleDrawerViewModel(c.Resolve<LogViewModel>(), c.Resolve<MonitorViewModel>()));
             // 组态编辑器的视图模型必须是单例：画布宿主与属性面板要靠"同一个 SelectedElement"联动，
             // 各自一份就得引入事件总线才能对齐选中态。RegisterForNavigation 造视图时经由容器
             // 解析视图模型，singleton 覆盖默认的单次构造，所以两处拿到的是同一个实例。
@@ -436,6 +446,8 @@ namespace VisionMaster
             // retentionProvider 同样是**显式传**（S13-d）：保留期现在是软件级配置项
             // （「系统 → 系统参数设置」可改），每次清理时现读——改完不必重启，也不必等下一次跨天。
             // 若不传，构造参数会回落成"构造时定死"，那正是这次要拆掉的写死行为。
+            containerRegistry.RegisterSingleton<SolutionIdentityHolder>();
+            containerRegistry.RegisterSingleton<IScadaSolutionContext>(c => c.Resolve<SolutionIdentityHolder>());
             containerRegistry.RegisterSingleton<ScadaAuditWriter>(c => new ScadaAuditWriter(
                 ScadaAuditWriter.DefaultDirectory,
                 (level, message) =>
@@ -446,7 +458,8 @@ namespace VisionMaster
                     else
                         log.Warn(message);
                 },
-                retentionProvider: () => c.Resolve<AppSettingsService>().Current.AuditRetentionDays));
+                retentionProvider: () => c.Resolve<AppSettingsService>().Current.AuditRetentionDays,
+                solutionTagProvider: () => c.Resolve<SolutionIdentityHolder>().AuditTag));
             // 审计的跨程序集出口（可选模块用）：接口在 VM.Scada，实现是宿主这一份 writer。
             // 映射到**同一个单例**是硬要求——审计是"谁在什么时候按了哪个按钮"的凭证，
             // 两份实例各自往同一个文件追加写，出来的会是交错的行（与上面"全局一份"同一条理由）。
@@ -475,7 +488,9 @@ namespace VisionMaster
                 ResolveOptional<IScadaAxisCommandSink>(c),
                 c.Resolve<IScadaConfirmationService>(),
                 // 方案级监控必须与宿主共用同一个实例；显式传，不靠容器猜可选参数。
-                c.Resolve<ScadaMonitoringHost>()));
+                c.Resolve<ScadaMonitoringHost>(),
+                // 运行态未授权点击：弹登录 → 登录成功后按最新权限重判 → 继续原操作。
+                required => ShowRuntimeAccessLoginPrompt(c, required)));
             // 方案级监控：报警 + 变量事件 + 节拍，生命周期跟方案走（不再跟 SCADA 运行窗口）。
             containerRegistry.RegisterSingleton<ScadaMonitoringHost>(c => new ScadaMonitoringHost(
                 c.Resolve<ILogService>(),
@@ -574,6 +589,28 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<ScadaAccessPolicy>(c =>
                 new ScadaAccessPolicy(() => c.Resolve<AppSettingsService>().Current.IdleTimeout));
             containerRegistry.RegisterSingleton<IScadaAccessPolicy>(c => c.Resolve<ScadaAccessPolicy>());
+            containerRegistry.RegisterSingleton<ScadaPermissionGate>(
+                c => new ScadaPermissionGate(c.Resolve<ScadaAccessPolicy>()));
+            // 调试模式（开发期免权限 / 上线后仅「用户管理」可开关；开关落盘且不按时间失效）。
+            // 走工厂而不是类型映射：四个口全是委托，显式写出来才能一眼看清
+            // "权限判的是哪个 Key、写盘走哪条路径、审计拿的是谁"。
+            // settingsProvider 每次现读配置节——AppSettingsService.Load 在配置损坏时会整体替换 Current，
+            // 抓引用会让开关写到一份已经没人读的旧对象上。
+            containerRegistry.RegisterSingleton<DebugModeService>(c =>
+            {
+                var settingsService = c.Resolve<AppSettingsService>();
+                var policy = c.Resolve<ScadaAccessPolicy>();
+                return new DebugModeService(
+                    settings: () => settingsService.Current.DebugMode,
+                    persist: (enabled, actor, at) => settingsService.SyncDebugModeSettings(enabled, actor, at),
+                    permissionProbe: key =>
+                    {
+                        var allowed = policy.Can(key, out var reason);
+                        return new DebugPermissionResult(allowed, reason);
+                    },
+                    actorProvider: () => policy.CurrentUserName,
+                    audit: c.Resolve<ScadaAuditWriter>());
+            });
             // 账号存储（"谁能登录、登录后是几档"的唯一一份数据）也必须是单例：
             // 登录弹窗验身份、用户管理弹窗增删改，读写的必须是同一份清单，
             // 两份实例的表现是"刚建的账号登录时说不存在"。
@@ -596,15 +633,35 @@ namespace VisionMaster
                     actorProvider: () => policy.CurrentUserName,
                     // 密码最小长度是软件级配置（系统设置 → 安全与留档 → 账号）：
                     // 每次校验现读，改完不需要重启软件。
-                    minPasswordLengthProvider: () => c.Resolve<AppSettingsService>().Current.MinPasswordLength);
+                    minPasswordLengthProvider: () => c.Resolve<AppSettingsService>().Current.MinPasswordLength,
+                    // 账号本属于方案：启动时先不绑机器级文件，由 SolutionSessionCoordinator 在切方案时绑定。
+                    startUnbound: true,
+                    // 删除权限前扫描全方案页面/图元的 RequiredPermission；null 会让删除一律拒绝（fail-closed）。
+                    permissionReferenceCounter: key => CountPermissionReferences(c.Resolve<IWorkspaceManager>(), key));
             });
             // 账号校验的跨程序集出口（可选模块用）：接口在 VM.Scada，实现是宿主这一份 ScadaUserStore。
             // 同一单例——"谁能登录、登录后是几档"只有一份数据；两份实例的表现是
             // "Web 上刚建的账号登录时说不存在"。
             containerRegistry.RegisterSingleton<IScadaUserAuthenticator>(c => c.Resolve<ScadaUserStore>());
-            // 账号变更通知出口（M2a P0-A）：改密/重置/改角色/删号后，Web 模块据此立刻撤销旧会话。
+            // 账号变更通知出口（M2a P0-A）：改密/重置/改用户组/删号后，Web 模块据此立刻撤销旧会话。
             // 必须是同一个 ScadaUserStore 实例——另建一份就收不到事件。
             containerRegistry.RegisterSingleton<IScadaUserChangeNotifier>(c => c.Resolve<ScadaUserStore>());
+            // 属性面板「所需权限」下拉的目录出口：与用户管理同一份目录（15 内置 + 自定义）。
+            // 同一单例——用户在用户管理里新建的权限，回到组态面板必须立刻能选到。
+            containerRegistry.RegisterSingleton<IScadaPermissionCatalog>(c => c.Resolve<ScadaUserStore>());
+            // Web 模块（可选）把在线会话管理口挂到桥；未加载时解析抛异常，协调器按不可用降级。
+            containerRegistry.RegisterSingleton<IScadaWebSessionAdmin>(c =>
+                ScadaWebSessionAdminBridge.Current
+                ?? throw new InvalidOperationException("Web 运行态未加载：在线会话管理不可用"));
+            // 方案切换 = 会话边界：登出旧身份、重绑账号本、更新审计标签；组/用户变更时重判或登出。
+            containerRegistry.RegisterSingleton<SolutionSessionCoordinator>(c => new SolutionSessionCoordinator(
+                c.Resolve<IReadOnlyWorkspaceContext>(),
+                c.Resolve<ScadaUserStore>(),
+                c.Resolve<ScadaAccessPolicy>(),
+                c.Resolve<SolutionIdentityHolder>(),
+                c.Resolve<ScadaAuditWriter>(),
+                () => ResolveOptional<IScadaWebSessionAdmin>(c),
+                message => c.Resolve<ILogService>().Warn(message)));
             // 组态「选变量」入口：属性面板只说"给我一个变量"，弹窗怎么弹、弹哪个由这一层决定。
             // 面板与事件行因此能在无 WPF 宿主下被直接构造、直接断言（ScadaChecks 就是这么测的）。
             containerRegistry.RegisterSingleton<IScadaVariablePicker, ScadaVariablePicker>();
@@ -816,7 +873,10 @@ namespace VisionMaster
             // 两个 VM 都由容器装配（AutoWireViewModel），所以构造注入的 ScadaUserStore /
             // ScadaAccessPolicy / IDialogService 必须已经在上面注册好——这也是它们排在这里的原因。
             containerRegistry.RegisterDialog<ScadaLoginView, ScadaLoginViewModel>("ScadaLoginView");
-            containerRegistry.RegisterDialog<ScadaUserManagerView, ScadaUserManagerViewModel>("ScadaUserManagerView");
+            containerRegistry.RegisterDialog<UserManagementView, UserManagementViewModel>("UserManagementView");
+            containerRegistry.RegisterDialog<ProjectAssetsView, ProjectAssetsViewModel>("ProjectAssetsView");
+            containerRegistry.RegisterDialog<ScadaGroupEditorView, ScadaGroupEditorViewModel>("ScadaGroupEditorView");
+            containerRegistry.RegisterDialog<ScadaPermissionCatalogView, ScadaPermissionCatalogViewModel>("ScadaPermissionCatalogView");
             containerRegistry.RegisterDialog<PluginConfigShellView, PluginConfigShellViewModel>("PluginConfigShell");
             // 帮助手册：目录合并已从启动自检链挪到主窗口显示后后台跑（OnInitialized →
             // RunHelpCatalogCheckInBackground），这里注册服务与弹窗两件事。服务走工厂显式传依赖，
@@ -826,6 +886,9 @@ namespace VisionMaster
                 c.Resolve<IPluginProvider>(),
                 c.Resolve<ILogService>()));
             containerRegistry.RegisterDialog<HelpView, HelpViewModel>("HelpView");
+            // 调试面板：只读诊断 + 调试模式开关。能不能打开由 ShellViewModel 经 DebugModeService 判
+            // （未上线免权限 / 上线后需「用户管理」），弹窗自己不判权限——判据只留一份。
+            containerRegistry.RegisterDialog<DebugPanelView, DebugPanelViewModel>("DebugPanelView");
             containerRegistry.RegisterDialog<SolutionListView, SolutionListViewModel>("SolutionListView");
             // 方案清单弹窗的审计注入：与上面两个弹窗同一手法（理由见「配置类弹窗的审计注入」段）。
             // 这一项改的是"开机自动打开哪份方案"，改错了要到第二天开机才发现，更需要留凭证。
@@ -843,6 +906,7 @@ namespace VisionMaster
         {
             // 先叫停后台诊断：通讯连通性检测跑在退出链之外，不取消就会在关闭过程中继续碰连接管理器
             _postStartupCts.Cancel();
+            try { _sessionCoordinator?.Stop(); } catch { /* 退出链不应被协调器异常打断 */ }
             try { _lifetime?.ExecuteExitChainBlocking("应用退出"); }
             catch { /* 退出链内部已逐项捕获，此处兜底 */ }
             _postStartupCts.Dispose();
@@ -859,6 +923,13 @@ namespace VisionMaster
 
             HookGlobalActivity();
 
+            // 方案切换 = 会话边界：先挂订阅，再把"启动时已经打开的方案"补一次同步
+            // （Shell 构造期可能早于 OnInitialized 完成首次 SwitchSolution）。
+            _sessionCoordinator = Container.Resolve<SolutionSessionCoordinator>();
+            _sessionCoordinator.Start();
+            _sessionCoordinator.HandleSolutionSwitched(
+                Container.Resolve<IReadOnlyWorkspaceContext>().CurrentSolution);
+
             // 上次异常退出/有未保存草稿的提示：延到界面空闲再弹，别卡在启动链上
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(ShowRecoveryNotice));
 
@@ -871,6 +942,41 @@ namespace VisionMaster
 
             // 帮助手册合并：与通讯连通性同一先例——只报不拦、不站在启动关键路径上（见 OnInitialized 的注释）
             RunHelpCatalogCheckInBackground();
+
+            // 语音播报自检：与上面两项同一先例。没有中文语音包只影响"念不念得出声"，
+            // 报警记录/上屏/提示音全都不受影响，所以只落一行 Warn、绝不站在启动链上（R57）。
+            RunSpeechCheckInBackground();
+        }
+
+        /// <summary>
+        /// 后台检查本机有没有可用的语音包（TTS）。没有就落一行 Warn，告诉用户去哪装。
+        /// 只报不拦：没有语音包时报警照常记录与上屏，播报退化为提示音。
+        /// </summary>
+        private void RunSpeechCheckInBackground()
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    using var engine = new Services.SapiSpeechEngine();
+                    var voices = engine.Voices;
+                    var log = TryResolveService<ILogService>();
+                    if (voices.Count == 0)
+                    {
+                        log?.Warn("[语音] 本机没有可用的语音包，报警/组态播报已退化为提示音"
+                                  + "（控制面板 → 时间和语言 → 语音 → 添加语音，选中文）");
+                    }
+                    else
+                    {
+                        log?.Info($"[语音] 可用语音包 {voices.Count} 个：{string.Join("、", voices)}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 语音组件本身缺失（精简系统/Server Core）也只落一行，不阻断任何东西
+                    TryResolveService<ILogService>()?.Warn($"[语音] 语音组件自检失败：{ex.Message}；播报将退化为提示音");
+                }
+            });
         }
 
         /// <summary>
@@ -1116,6 +1222,87 @@ namespace VisionMaster
         {
             try { return container.Resolve<T>(); }
             catch { return null; }
+        }
+
+        /// <summary>
+        /// 运行态未授权点击的登录回调（B3）：弹标准登录窗，等它关闭后按最新权限重判。
+        ///
+        /// <b>为什么要 PushFrame</b>：Prism 的 <c>ShowDialog</c> 是"显示后立即返回、关闭时回调"，
+        /// 而权限判定是同步的——不在这里等，调用方会拿着"还没登录"的会话立刻重判失败。
+        /// 若某天实现改成同步阻塞，回调会先跑完，<see cref="DispatcherFrame.Continue"/> 已为 false，
+        /// PushFrame 立即返回，两种实现都成立。
+        /// </summary>
+        private static bool ShowRuntimeAccessLoginPrompt(IContainerProvider container, string requiredPermission)
+        {
+            if (string.IsNullOrWhiteSpace(requiredPermission))
+                return true;
+
+            var policy = container.Resolve<IScadaAccessPolicy>();
+            if (policy.Can(requiredPermission, out _))
+                return true;
+
+            try
+            {
+                var dialogService = container.Resolve<IDialogService>();
+                bool ok = false;
+                var frame = new DispatcherFrame();
+
+                dialogService.ShowDialog(
+                    "ScadaLoginView",
+                    new DialogParameters
+                    {
+                        { "RequiredPermission", requiredPermission },
+                        { "RequiredPermissionName", ScadaPermissionKeys.DisplayName(requiredPermission) },
+                    },
+                    result =>
+                    {
+                        ok = result.Result == ButtonResult.OK;
+                        frame.Continue = false;
+                    });
+
+                Dispatcher.PushFrame(frame);
+
+                return ok && policy.Can(requiredPermission, out _);
+            }
+            catch (Exception ex)
+            {
+                // 弹窗起不来不能把运行态点击链带崩：按"没有权限"处理，调用方会给回执。
+                try { container.Resolve<ILogService>().Warn($"[权限] 运行态登录弹窗打开失败：{ex.GetType().Name}：{ex.Message}"); }
+                catch { }
+                return false;
+            }
+        }
+
+        /// <summary>删除权限守卫：统计全方案页面/图元里引用该 Key 的按钮数。</summary>
+        private static int CountPermissionReferences(IWorkspaceManager workspace, string key)
+        {
+            var solution = workspace?.CurrentSolution;
+            var document = solution?.Scada;
+            if (document == null || string.IsNullOrWhiteSpace(key)) return 0;
+
+            var count = 0;
+            foreach (var page in document.Pages.Concat(document.BasePages))
+            {
+                if (page == null) continue;
+                if (string.Equals(page.RequiredPermission, key, StringComparison.Ordinal))
+                    count++;
+                else if (string.IsNullOrWhiteSpace(page.RequiredPermission)
+                         && page.RequiredRole is { } pageRole
+                         && string.Equals(ScadaPermissionKeys.LegacyRolePermission(pageRole), key, StringComparison.Ordinal))
+                    count++;
+
+                foreach (var element in page.Elements)
+                {
+                    if (element == null) continue;
+                    if (string.Equals(element.RequiredPermission, key, StringComparison.Ordinal))
+                        count++;
+                    else if (string.IsNullOrWhiteSpace(element.RequiredPermission)
+                             && element.RequiredRole is { } elementRole
+                             && string.Equals(ScadaPermissionKeys.LegacyRolePermission(elementRole), key, StringComparison.Ordinal))
+                        count++;
+                }
+            }
+            return count;
         }
 
         private void HookGlobalActivity()

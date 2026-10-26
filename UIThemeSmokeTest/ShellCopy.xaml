@@ -34,9 +34,9 @@
             <Setter Property="Foreground" Value="#444444" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Width" Value="34" />
-            <Setter Property="Height" Value="30" />
-            <Setter Property="Margin" Value="1,0" />
+            <Setter Property="Width" Value="32" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
             <Setter Property="Template">
@@ -44,7 +44,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border
                             Background="{TemplateBinding Background}"
-                            CornerRadius="5"
+                            CornerRadius="6"
                             x:Name="Bd">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
@@ -70,7 +70,9 @@
         <!--  标题栏分隔线  -->
         <Style x:Key="TitleSeparator" TargetType="Rectangle">
             <Setter Property="Width" Value="1" />
-            <Setter Property="Margin" Value="5,7" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Margin" Value="6,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Fill" Value="#E0E0E0" />
             <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
         </Style>
@@ -148,12 +150,82 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!--  状态栏可点项（与 Shell.xaml 同结构；R44 结构副本）  -->
+        <Style x:Key="StatusBarItemButton" TargetType="Button">
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StatusBarSeparator" TargetType="Rectangle">
+            <Setter Property="Width" Value="1" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Margin" Value="4,0" />
+            <Setter Property="Fill" Value="{StaticResource DialogBorderBrush}" />
+        </Style>
+
+        <Style x:Key="PerfBarStyle" TargetType="ProgressBar">
+            <Setter Property="Width" Value="54" />
+            <Setter Property="Height" Value="4" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border
+                            Background="{TemplateBinding Background}"
+                            ClipToBounds="True"
+                            CornerRadius="2">
+                            <Grid>
+                                <Rectangle x:Name="PART_Track" />
+                                <Rectangle
+                                    x:Name="PART_Indicator"
+                                    HorizontalAlignment="Left"
+                                    Fill="{TemplateBinding Foreground}"
+                                    RadiusX="2"
+                                    RadiusY="2" />
+                            </Grid>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
             <RowDefinition Height="*" />
+            <!--  底部控制台抽屉条（与 Shell.xaml 同步；收起态 32px）  -->
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="26" />
         </Grid.RowDefinitions>
         <ui:OverlayHost />
@@ -250,26 +322,10 @@
                         </MenuItem>
                             <MenuItem
                                 CommandParameter="Panel_LogView"
-                                Header="日志信息"
+                                Header="控制台"
                                  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf15c;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                CommandParameter="Panel_DataView"
-                                Header="数据栏"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf080;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                CommandParameter="Panel_ModuleOutView"
-                                Header="模块输出"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf2f5;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                             <MenuItem
@@ -310,14 +366,6 @@
                                   >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf5fd;" FontFamily="{StaticResource Icon}" />
-                            </MenuItem.Icon>
-                        </MenuItem>
-                            <MenuItem
-                                CommandParameter="Panel_DeviceStateView"
-                                Header="设备状态"
-                                 >
-                            <MenuItem.Icon>
-                                <TextBlock Text="&#xf108;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
                         </MenuItem>
@@ -451,6 +499,13 @@
                             </MenuItem.Icon>
                         </MenuItem>
                             <Separator />
+                            <!--  R44 结构副本：调试面板入口（原件绑 OpenDebugPanelCommand，副本只保留结构）。  -->
+                            <MenuItem Header="调试面板"  >
+                            <MenuItem.Icon>
+                                <TextBlock Text="&#xf188;" FontFamily="{StaticResource Icon}" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                            <Separator />
                             <MenuItem Header="报表查询"  >
                             <MenuItem.Icon>
                                 <TextBlock Text="&#xf200;" FontFamily="{StaticResource Icon}" />
@@ -468,6 +523,15 @@
                                 <TextBlock Text="&#xf4fe;" FontFamily="{StaticResource Icon}" />
                             </MenuItem.Icon>
                         </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.UserManagement}"
+                                Header="用户管理"
+                                 >
+                                <MenuItem.Icon>
+                                    <TextBlock Text="&#xf0c0;" FontFamily="{StaticResource Icon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
@@ -647,15 +711,18 @@
             <!--  窗口控制按钮  -->
             <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <Button
+                    Height="36"
                     Command="{x:Static SystemCommands.MinimizeWindowCommand}"
                     Content="M 0 5 L 10 5"
                     Style="{StaticResource WindowControlButton}" />
                 <Button
                     x:Name="BtnMaximize"
+                    Height="36"
                     Command="{x:Static SystemCommands.MaximizeWindowCommand}"
                     Content="M 0 0 H 10 V 10 H 0 Z"
                     Style="{StaticResource WindowControlButton}" />
                 <Button
+                    Height="36"
                     Command="{x:Static SystemCommands.CloseWindowCommand}"
                     Content="M 0 0 L 10 10 M 0 10 L 10 0"
                     Style="{StaticResource WindowControlButton}"
@@ -694,6 +761,8 @@
                                 Title="流程导航"
                                 CanClose="False"
                                 CanHide="True"
+                                CanDockAsTabbedDocument="False"
+                                CanFloat="False"
                                 ContentId="Panel_ProcessView">
                                 <views:ProcessView />
                             </avalonDock:LayoutAnchorable>
@@ -738,57 +807,66 @@
                                 </avalonDock:LayoutDocument>
                             </avalonDock:LayoutDocumentPane>
 
-                            <!--  3. 底部面板组：四合一标签（可整体隐藏）  -->
+                            <!--  3. 底部面板组：控制台（日志 / 监控栏）两个标签（与 Shell.xaml 同步）  -->
                             <avalonDock:LayoutAnchorablePane DockHeight="200">
                                 <avalonDock:LayoutAnchorable
-                                    Title="日志信息"
+                                    Title="控制台"
                                     CanClose="False"
-                                    CanHide="True"
+                                    CanHide="False"
+                                    CanFloat="False"
                                     ContentId="Panel_LogView">
                                     <views:LogView />
                                 </avalonDock:LayoutAnchorable>
                                 <avalonDock:LayoutAnchorable
                                     Title="监控栏"
                                     CanClose="False"
-                                    CanHide="True"
+                                    CanHide="False"
+                                    CanFloat="False"
                                     ContentId="Panel_MonitorView">
                                     <views:MonitorView />
                                 </avalonDock:LayoutAnchorable>
-                                <avalonDock:LayoutAnchorable
-                                    Title="设备状态"
-                                    CanClose="False"
-                                    CanHide="True"
-                                    ContentId="Panel_DeviceStateView" />
                             </avalonDock:LayoutAnchorablePane>
                         </avalonDock:LayoutPanel>
 
-                        <!--  4. 右侧单列检查器：属性 / 图层 / 工具箱 / 图元工具箱共用一列 320。  -->
-                        <avalonDock:LayoutAnchorablePane DockWidth="320" DockMinWidth="300">
+                        <!--  4. 右侧单列检查器：属性 / 图层 / 工具箱 / 图元工具箱共用一列 300。  -->
+                        <avalonDock:LayoutAnchorablePane DockWidth="300" DockMinWidth="300">
                             <avalonDock:LayoutAnchorable
                                 Title="属性"
+                                AutoHideWidth="300"
                                 CanClose="False"
                                 CanHide="True"
+                                CanDockAsTabbedDocument="False"
+                                CanFloat="False"
                                 ContentId="Panel_ScadaPropertyView">
                                 <views:ScadaPropertyView />
                             </avalonDock:LayoutAnchorable>
                             <avalonDock:LayoutAnchorable
                                 Title="图层"
+                                AutoHideWidth="300"
                                 CanClose="False"
                                 CanHide="True"
+                                CanDockAsTabbedDocument="False"
+                                CanFloat="False"
                                 ContentId="Panel_ScadaLayerView">
                                 <views:ScadaLayerView />
                             </avalonDock:LayoutAnchorable>
                             <avalonDock:LayoutAnchorable
                                 Title="工具箱"
+                                AutoHideWidth="300"
                                 CanClose="False"
                                 CanHide="True"
+                                CanDockAsTabbedDocument="False"
+                                CanFloat="False"
                                 ContentId="Panel_ToolView">
                                 <views:ToolView />
                             </avalonDock:LayoutAnchorable>
                             <avalonDock:LayoutAnchorable
                                 Title="图元工具箱"
+                                AutoHideWidth="300"
                                 CanClose="False"
                                 CanHide="True"
+                                CanDockAsTabbedDocument="False"
+                                CanFloat="False"
                                 ContentId="Panel_ScadaToolboxView">
                                 <views:ScadaToolboxView />
                             </avalonDock:LayoutAnchorable>
@@ -799,9 +877,14 @@
             </avalonDock:DockingManager>
         </Grid>
 
+        <!--  ============ 底部控制台抽屉条（收起态 32px） ============  -->
+        <!--  与 Shell.xaml 同步；这里也实例化真视图，让断言宿主在解析期就能抓到它的 XAML 错误。
+              DataContext 为空 → IsDrawerVisible 绑定不成立 → 默认 Collapsed，不影响测量。  -->
+        <views:ConsoleDrawerBar Grid.Row="2" />
+
         <!--  ============ 状态栏（VS Code 式） ============  -->
         <Border
-            Grid.Row="2"
+            Grid.Row="3"
             Background="#F5F7FA"
             BorderBrush="#E5E5E5"
             BorderThickness="0,1,0,0">
@@ -834,50 +917,130 @@
                         FontSize="12"
                         Foreground="#C9CEDB"
                         Text="|" />
-                    <TextBlock FontSize="12" Text="当前用户：" />
-                    <!--  当前登录者 + 角色。读的是全局唯一的 ScadaAccessPolicy（App 里注册的单例），  -->
-                    <!--  权限判定用的也是这一份，所以"状态栏写的"和"实际生效的"不可能不一致。  -->
-                    <!--  未登录显示"未登录（操作员）"而不是空白：让人一眼明白不是软件坏了，是权限就这么多。  -->
-                    <!--  灰色=未登录 / 蓝色=有人登录着；点一下直接开登录弹窗（比走"系统 → 用户登录"少两步）。  -->
-                    <TextBlock
+                    <!--  当前登录者胶囊（与 Shell.xaml 同结构）：头像圆 + 「角色 · 用户名」；
+                          未登录灰头像 + 「未登录」；点一下开登录弹窗。  -->
+                    <Border
                         x:Name="CurrentUserText"
+                        Height="24"
+                        Padding="8,0"
+                        CornerRadius="6"
                         Cursor="Hand"
-                        FontSize="12"
-                        FontWeight="Bold"
-                        Text="{Binding AccessPolicy.LoginStateText}"
                         ToolTip="点击切换用户（也可走 系统 → 用户登录）">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#606266" />
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Background" Value="Transparent" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding AccessPolicy.IsLoggedIn}" Value="True">
-                                        <Setter Property="Foreground" Value="#409EFF" />
-                                    </DataTrigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                    </Trigger>
                                 </Style.Triggers>
                             </Style>
-                        </TextBlock.Style>
-                        <TextBlock.InputBindings>
+                        </Border.Style>
+                        <Border.InputBindings>
                             <MouseBinding
                                 Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.UserLogin}"
                                 MouseAction="LeftClick" />
-                        </TextBlock.InputBindings>
-                    </TextBlock>
+                        </Border.InputBindings>
+                        <Border.ContextMenu>
+                            <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                <MenuItem
+                                    Command="{Binding SystemCommand}"
+                                    CommandParameter="{x:Static local:SystemAction.UserLogin}"
+                                    Header="用户登录" />
+                                <MenuItem
+                                    Command="{Binding SystemCommand}"
+                                    CommandParameter="{x:Static local:SystemAction.UserManagement}"
+                                    Header="用户管理"
+                                    Visibility="{Binding CanManageUsers, Converter={ui:BooleanToVisibilityConverter}}" />
+                            </ContextMenu>
+                        </Border.ContextMenu>
+                        <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                            <Border Width="16" Height="16" CornerRadius="8">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AccessPolicy.IsLoggedIn}" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="9"
+                                    FontWeight="Bold"
+                                    Text="{Binding UserAvatarText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding AccessPolicy.IsLoggedIn}" Value="True">
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Border>
+                            <TextBlock
+                                Margin="6,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                Text="{Binding UserDisplayText}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource ScadaLabelTextBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AccessPolicy.IsLoggedIn}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    <!--
+                        调试模式徽标（R44 结构副本）：原件按 IsDebugModeEnabled 绑定显隐；
+                        副本没有真实 VM，固定折叠——否则绑定失败会回落 Visible，把状态栏量宽。
+                    -->
+                    <Border
+                        Height="22"
+                        Margin="6,0,0,0"
+                        Padding="6,0"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource ScadaWarningSoftBrush}"
+                        BorderBrush="{StaticResource DialogWarningBrush}"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        ToolTip="调试模式已开启（不会自动失效）"
+                        Visibility="Collapsed">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            FontWeight="Bold"
+                            Foreground="{StaticResource DialogWarningTextBrush}"
+                            Text="调试模式" />
+                    </Border>
                     <TextBlock
                         Margin="8,0"
                         FontSize="12"
                         Foreground="#C9CEDB"
                         Text="|" />
-                    <TextBlock FontSize="12" Text="当前方案" />
+                    <TextBlock FontSize="12" Text="方案" />
                     <TextBlock
                         x:Name="SolutionPathText"
-                        MaxWidth="400"
+                        MaxWidth="320"
                         Margin="4,0,0,0"
                         FontSize="12"
                         FontWeight="Bold"
-                        Text="{Binding Workspace.CurrentSolution.SolutionFilePath, TargetNullValue='未加载', FallbackValue='未加载'}"
+                        Text="{Binding Workspace.CurrentSolution.SolutionName, TargetNullValue='未加载', FallbackValue='未加载'}"
                         TextTrimming="CharacterEllipsis"
-                        ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                        ToolTip="{Binding Workspace.CurrentSolution.SolutionFilePath, TargetNullValue='未加载方案', FallbackValue='未加载方案'}" />
                 </StackPanel>
 
                 <StackPanel
@@ -885,79 +1048,214 @@
                     Margin="10,0"
                     VerticalAlignment="Center"
                     Orientation="Horizontal">
+                    <!--  系统资源（与 Shell.xaml 同结构）：常驻 CPU + MEM，其余进浮窗。
+                          副本没有 code-behind，Click 由 R44 的结构闸豁免；浮窗本身照样能被解析。  -->
+                    <Button
+                        x:Name="PerfButton"
+                        Style="{StaticResource StatusBarItemButton}"
+                        ToolTip="系统资源（点击查看明细）">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="CPU" />
+                            <TextBlock
+                                Margin="5,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Text="{Binding CpuUsagePercent, StringFormat={}{0:F1}%}" />
+                            <TextBlock
+                                Margin="10,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="MEM" />
+                            <TextBlock
+                                Margin="5,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Text="{Binding MemoryUsageMB, StringFormat={}{0:F0}}" />
+                            <TextBlock
+                                Margin="2,0,0,0"
+                                VerticalAlignment="Center"
+                                FontSize="11.5"
+                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                Text="MB" />
+                        </StackPanel>
+                    </Button>
+
+                    <Popup
+                        x:Name="PerfPopup"
+                        AllowsTransparency="True"
+                        Focusable="False"
+                        Placement="Top"
+                        PlacementTarget="{Binding ElementName=PerfButton}"
+                        PopupAnimation="Fade"
+                        StaysOpen="False">
+                        <Border
+                            Width="268"
+                            Margin="10"
+                            Padding="8"
+                            Background="{StaticResource DialogSurfaceBrush}"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock
+                                    Margin="4,2,4,6"
+                                    FontSize="11.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                                    Text="系统资源 · 进程" />
+                                <Grid Height="28">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Text="CPU" />
+                                    <ProgressBar
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Maximum="100"
+                                        Style="{StaticResource PerfBarStyle}"
+                                        Value="{Binding CpuUsagePercent, Mode=OneWay}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Width="62"
+                                        Margin="8,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding CpuUsagePercent, StringFormat={}{0:F1} %}" />
+                                </Grid>
+                                <Grid Height="28">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="12"
+                                        Text="内存（Working Set）" />
+                                    <ProgressBar
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Maximum="1024"
+                                        Style="{StaticResource PerfBarStyle}"
+                                        Value="{Binding MemoryUsageMB, Mode=OneWay}" />
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Width="62"
+                                        Margin="8,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding MemoryUsageMB, StringFormat={}{0:F0} MB}" />
+                                </Grid>
+                                <Grid Height="24">
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="线程" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding ThreadCount}" />
+                                </Grid>
+                                <Grid Height="24">
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="句柄" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Text="{Binding HandleCount, StringFormat={}{0:N0}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsHandleCountHigh}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <Grid Height="24">
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="GC 堆" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding GcHeapMB, StringFormat={}{0:F1} MB}" />
+                                </Grid>
+                                <Grid Height="24">
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="LOH" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding LohSizeMB, StringFormat={}{0:F1} MB}" />
+                                </Grid>
+                                <Grid Height="24">
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="磁盘剩余" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Text="{Binding DiskFreeText}"
+                                        ToolTip="{Binding DiskFreeTip}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDiskFreeLow}" Value="True">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                                <Grid Height="24">
+                                    <TextBlock VerticalAlignment="Center" FontSize="12" Text="运行时长" />
+                                    <TextBlock
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding UptimeText}" />
+                                </Grid>
+                                <Border
+                                    Margin="0,4,0,0"
+                                    Padding="4,6,2,2"
+                                    BorderBrush="{StaticResource DialogBorderBrush}"
+                                    BorderThickness="0,1,0,0">
+                                    <TextBlock
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        Text="阈值：CPU ≥ 80%、内存 ≥ 1 GB、磁盘剩余 &lt; 5% 时数字变橙；句柄 ≥ 10 000 视为异常。"
+                                        TextWrapping="Wrap" />
+                                </Border>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <Rectangle Style="{StaticResource StatusBarSeparator}" />
                     <TextBlock
-                        FontSize="12"
-                        Foreground="#0067C0"
-                        Text="&#xf2db;">
-                        <TextBlock.FontFamily>
-                            <StaticResource ResourceKey="Icon" />
-                        </TextBlock.FontFamily>
-                    </TextBlock>
-                    <TextBlock
-                        Width="72"
-                        FontSize="12"
-                        Text="{Binding CpuUsageStr}"
-                        ToolTip="进程CPU占用率" />
-                    <TextBlock
-                        Margin="6,0"
-                        FontSize="12"
-                        Foreground="#C9CEDB"
-                        Text="|" />
-                    <TextBlock
-                        FontSize="12"
-                        Foreground="#6897BB"
-                        Text="&#xf538;">
-                        <TextBlock.FontFamily>
-                            <StaticResource ResourceKey="Icon" />
-                        </TextBlock.FontFamily>
-                    </TextBlock>
-                    <TextBlock
-                        Width="88"
-                        FontSize="12"
-                        Text="{Binding MemoryUsageStr}"
-                        ToolTip="进程物理内存 (Working Set)" />
-                    <TextBlock
-                        Margin="6,0"
-                        FontSize="12"
-                        Foreground="#C9CEDB"
-                        Text="|" />
-                    <TextBlock
-                        FontSize="12"
-                        Foreground="#9E9E9E"
-                        Text="&#xf0e8;">
-                        <TextBlock.FontFamily>
-                            <StaticResource ResourceKey="Icon" />
-                        </TextBlock.FontFamily>
-                    </TextBlock>
-                    <TextBlock
-                        Width="62"
-                        FontSize="12"
-                        Text="{Binding ThreadCountStr}"
-                        ToolTip="当前进程活动线程数" />
-                    <TextBlock
-                        Margin="6,0"
-                        FontSize="12"
-                        Foreground="#C9CEDB"
-                        Text="|" />
-                    <TextBlock
-                        FontSize="12"
-                        Foreground="#9E9E9E"
-                        Text="&#xf24d;">
-                        <TextBlock.FontFamily>
-                            <StaticResource ResourceKey="Icon" />
-                        </TextBlock.FontFamily>
-                    </TextBlock>
-                    <TextBlock
-                        Width="62"
-                        FontSize="12"
-                        Text="{Binding HandleCountStr}"
-                        ToolTip="系统句柄数 (警告线: 10000)" />
-                    <TextBlock
-                        Margin="10,0"
-                        FontSize="12"
-                        Foreground="#C9CEDB"
-                        Text="|" />
-                    <TextBlock
+                        Margin="8,0,4,0"
+                        VerticalAlignment="Center"
                         FontSize="12"
                         Text="{Binding CurrentTimeText}" />
                 </StackPanel>

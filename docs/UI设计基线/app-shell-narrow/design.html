@@ -1,0 +1,633 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>非全屏图像区布局方案 · 1310×829</title>
+<style>
+  :root{
+    --bg:#E9EEF5; --surface:#FFFFFF; --surface-2:#F8FAFC; --surface-3:#F1F5F9;
+    --border:#E2E8F0; --border-soft:#EEF2F7; --border-strong:#CBD5E1;
+    --text:#0F172A; --text-2:#475569; --text-3:#94A3B8; --text-4:#A8ABB2;
+    --primary:#0EA5E9; --primary-strong:#0284C7; --primary-soft:#F0F9FF; --primary-border:#BAE6FD;
+    --success:#22C55E; --success-text:#15803D; --success-soft:#F0FDF4;
+    --danger:#EF4444; --danger-text:#B91C1C; --danger-soft:#FEF2F2;
+    --warning:#F59E0B; --warning-text:#B45309; --warning-soft:#FFF4E5;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 620px at 50% -12%,#F8FAFC 0%,rgba(248,250,252,0) 62%),var(--bg);
+    color:var(--text);font-family:var(--font);font-size:13px;line-height:1.55;
+    padding:26px 26px 40px;-webkit-font-smoothing:antialiased;
+  }
+  .page{width:1076px;margin:0 auto}
+  h1{margin:0 0 4px;font-size:21px;letter-spacing:.2px}
+  .sub{margin:0;color:var(--text-2);font-size:12.5px}
+  .sub b{color:var(--text)}
+  .rule{height:1px;background:var(--border);margin:14px 0 6px}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+        padding:13px 15px 15px;margin:15px 0;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+  .card-head{display:flex;align-items:center;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+  .tag{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:6px;
+       font-size:11px;font-weight:600;letter-spacing:.3px}
+  .tag.cur{background:var(--surface-3);color:var(--text-2);border:1px solid var(--border)}
+  .tag.a{background:var(--primary-soft);color:var(--primary-strong);border:1px solid var(--primary-border)}
+  .tag.b{background:#F5F3FF;color:#6D28D9;border:1px solid #DDD6FE}
+  .card-title{font-size:14px;font-weight:600}
+  .metric{margin-left:auto;display:flex;align-items:baseline;gap:8px;font-size:12px;color:var(--text-2)}
+  .metric b{font-size:15px;color:var(--text);font-variant-numeric:tabular-nums}
+  .metric .up{color:var(--success-text);font-weight:600}
+  .card-note{margin:-3px 0 10px;font-size:11.5px;color:var(--text-3)}
+
+  .frame-wrap{width:1048px;height:663px;overflow:hidden;border:1px solid var(--border-strong);
+              border-radius:10px;background:var(--surface)}
+  .frame{width:1310px;height:829px;transform:scale(.8);transform-origin:top left;
+         display:flex;flex-direction:column;background:var(--surface);color:var(--text);
+         font-size:11px;overflow:hidden}
+
+  /* ---------- 顶栏 36 ---------- */
+  .titlebar{height:36px;flex:0 0 36px;display:flex;align-items:center;padding-left:10px;
+            border-bottom:1px solid var(--border);position:relative;background:var(--surface)}
+  .tb-left{display:flex;align-items:center;gap:3px}
+  .ico{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+       border-radius:6px;color:var(--text-2);font-size:13px}
+  .sep{width:1px;height:18px;background:var(--border);margin:0 6px}
+  .modes{display:flex;height:24px;padding:2px;background:var(--surface-3);border-radius:6px}
+  .mode{height:20px;padding:0 10px;display:flex;align-items:center;font-size:11px;
+        color:var(--text-2);border:1px solid transparent;border-radius:4px}
+  .mode.on{background:var(--primary-soft);color:var(--primary-strong);border-color:var(--primary-border);font-weight:600}
+  .tb-center{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;
+             font-size:11.5px;font-weight:600;white-space:nowrap}
+  .tb-right{margin-left:auto;display:flex;height:36px}
+  .winbtn{width:46px;height:36px;display:flex;align-items:center;justify-content:center;
+          color:var(--text-2);font-size:12px}
+  .winbtn.close{color:var(--text-2)}
+
+  /* ---------- 运行条 48 ---------- */
+  .runbar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;
+          padding:0 14px;border-bottom:1px solid var(--border);background:var(--surface)}
+  .run-state{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+  .run-sep{width:1px;height:16px;background:var(--border);margin:0 4px}
+  .run-meta{font-size:11.5px;color:var(--text-2)}
+  .run-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .rbtn{height:26px;padding:0 9px;border:1px solid var(--border);border-radius:6px;
+        display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-2);background:var(--surface)}
+  .rbtn.primary{border-color:var(--primary-border);background:var(--primary-soft);color:var(--primary-strong);font-weight:600}
+  .rbtn.danger{border-color:#FECACA;background:var(--danger-soft);color:var(--danger-text);font-weight:600}
+  .rbtn.dim{color:var(--text-3);border-color:var(--border-soft)}
+  .hint{font-size:10.5px;color:var(--text-3);margin-left:6px}
+
+  /* ---------- 主体 ---------- */
+  .main{flex:1;display:flex;min-height:0}
+  .split{width:4px;flex:0 0 4px;background:var(--surface-3)}
+  .nav{width:340px;flex:0 0 340px;display:flex;flex-direction:column;min-height:0;
+       border-right:1px solid var(--border);background:var(--surface)}
+  .inspector{width:320px;flex:0 0 320px;display:flex;flex-direction:column;min-height:0;
+             border-left:1px solid var(--border);background:var(--surface)}
+  .opt-a .inspector{width:300px;flex-basis:300px}
+  .opt-b .nav,.opt-b .inspector,.opt-b .split{display:none}
+  .center{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--surface)}
+
+  .panel-head{height:34px;flex:0 0 34px;display:flex;align-items:center;gap:6px;padding:0 10px;
+              border-bottom:1px solid var(--border);background:var(--surface)}
+  .panel-title{font-size:11.5px;font-weight:600}
+  .panel-tools{margin-left:auto;display:flex;gap:3px;color:var(--text-3);font-size:11px}
+  .panel-tools span{width:18px;height:18px;display:flex;align-items:center;justify-content:center}
+
+  /* 流程导航 */
+  .caps{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:7px 8px 5px}
+  .cap{height:24px;display:flex;align-items:center;gap:5px;padding:0 7px;border:1px solid var(--border);
+       border-radius:6px;background:var(--surface);font-size:9px;color:var(--text);overflow:hidden}
+  .cap .bd{height:13px;min-width:22px;padding:0 4px;display:flex;align-items:center;justify-content:center;
+           border-radius:3px;font-size:8px;font-weight:600;border:1px solid var(--border)}
+  .cap .nm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cap .ct{font-size:8.5px;color:var(--text-3);font-family:var(--mono)}
+  .cap.home{background:var(--surface-2)}
+  .cap.home .bd{background:var(--surface-3);color:var(--text-2)}
+  .cap.main{background:var(--success-soft);border-color:#BBF7D0}
+  .cap.main .bd{background:#DCFCE7;color:var(--success-text);border-color:#BBF7D0}
+  .cap.end{background:var(--surface-2)}
+  .cap.end .bd{background:#FEF3C7;color:var(--warning-text);border-color:#FDE68A}
+  .cap.sel{background:var(--primary-soft);border-color:var(--primary-border);box-shadow:inset 2px 0 0 var(--primary)}
+  .caps-foot{height:22px;display:flex;align-items:center;justify-content:space-between;
+             padding:0 10px;font-size:9px;color:var(--text-3);border-bottom:1px solid var(--border-soft)}
+  .caps-foot b{color:var(--primary-strong);font-weight:600}
+
+  .tree{flex:1;min-height:0;padding:4px 6px;overflow:hidden}
+  .trow{height:23px;display:flex;align-items:center;gap:4px;padding:0 6px;border-radius:5px;
+        font-size:9.5px;color:var(--text)}
+  .trow .ch{width:9px;color:var(--text-3);font-size:8px}
+  .trow .k{font-size:8px;padding:0 4px;border-radius:3px;background:var(--surface-3);
+           color:var(--text-2);border:1px solid var(--border-soft)}
+  .trow .n{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trow .m{font-size:8px;color:var(--text-3)}
+  .trow.i1{margin-left:14px}
+  .trow.i2{margin-left:28px}
+  .trow.sel{background:var(--primary-soft);color:var(--primary-strong)}
+  .tree-foot{height:38px;flex:0 0 38px;border-top:1px solid var(--border);
+             display:flex;align-items:center;gap:8px;padding:0 10px;font-size:9px;color:var(--text-3)}
+
+  /* 中央文档 */
+  .doctabs{height:34px;flex:0 0 34px;display:flex;align-items:stretch;padding:0 8px;
+           border-bottom:1px solid var(--border);background:var(--surface-2)}
+  .doc{display:flex;align-items:center;padding:0 12px;font-size:11px;color:var(--text-2);
+       border-bottom:2px solid transparent}
+  .doc.on{background:var(--surface);color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .doc-tools{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-3)}
+  .focus-btn{height:22px;padding:0 8px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);
+             border-radius:5px;background:var(--surface);color:var(--text-2);font-size:10px}
+
+  .viewport{flex:1;min-height:0;position:relative;background:#0B1220;overflow:hidden}
+  .image-sim{position:absolute;inset:8px;border:1px solid #1E293B;border-radius:4px;
+             background:
+               linear-gradient(rgba(148,163,184,.07) 1px,transparent 1px) 0 0/28px 28px,
+               linear-gradient(90deg,rgba(148,163,184,.07) 1px,transparent 1px) 0 0/28px 28px,
+               radial-gradient(circle at 50% 46%,#101B2C 0%,#0B1220 70%)}
+  .board{position:absolute;left:9%;top:10%;right:9%;bottom:12%;border:1px solid #263449;border-radius:6px;
+         background:linear-gradient(135deg,#111C2E 0%,#0E1726 55%,#101B2C 100%)}
+  .board:before{content:"";position:absolute;inset:12% 14%;border:1px dashed rgba(148,163,184,.28);border-radius:3px}
+  .chip{position:absolute;width:56px;height:34px;border:1px solid #334155;border-radius:3px;background:#16233A}
+  .chip.c1{left:16%;top:20%}
+  .chip.c2{right:18%;top:24%}
+  .chip.c3{left:42%;bottom:18%}
+  .roi{position:absolute;left:34%;top:28%;width:28%;height:34%;border:1.5px dashed #22C55E;
+       border-radius:2px;box-shadow:0 0 0 1px rgba(34,197,94,.18)}
+  .roi:after{content:"ROI";position:absolute;left:0;top:-17px;font-size:9px;color:#22C55E;
+             font-family:var(--mono);letter-spacing:.5px}
+  .vp-label{position:absolute;left:10px;bottom:9px;display:flex;align-items:center;gap:6px;
+            padding:3px 7px;border:1px solid rgba(148,163,184,.22);border-radius:4px;
+            background:rgba(15,23,42,.72);color:#CBD5E1;font-size:9.5px}
+  .vp-label b{color:#E2E8F0;font-family:var(--mono);font-weight:600}
+  .vp-scale{position:absolute;right:10px;bottom:9px;font-size:9px;color:#64748B;font-family:var(--mono)}
+
+  /* 控制台 */
+  .console{height:200px;flex:0 0 200px;display:flex;flex-direction:column;min-height:0;
+           border-top:1px solid var(--border);background:var(--surface)}
+  .opt-a .console{height:32px;flex-basis:32px}
+  .con-tabs{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:2px;padding:0 8px;
+            border-bottom:1px solid var(--border-soft);font-size:10.5px;color:var(--text-2)}
+  .con-tab{height:27px;display:flex;align-items:center;padding:0 9px;border-bottom:2px solid transparent}
+  .con-tab.on{color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .con-pin{margin-left:auto;color:var(--text-3);font-size:10px}
+  .con-tool{height:30px;flex:0 0 30px;display:flex;align-items:center;gap:8px;padding:0 10px}
+  .con-search{flex:1;height:22px;display:flex;align-items:center;gap:5px;padding:0 8px;
+              border:1px solid var(--border);border-radius:6px;color:var(--text-3);font-size:10px;background:var(--surface)}
+  .follow{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2)}
+  .follow .cb{width:13px;height:13px;border-radius:3px;background:var(--primary);color:#fff;
+              display:flex;align-items:center;justify-content:center;font-size:9px}
+  .levels{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:9.5px}
+  .lv{height:20px;padding:0 8px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);
+      border-radius:10px;color:var(--text-2);background:var(--surface)}
+  .lv.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+  .lv .d{width:5px;height:5px;border-radius:50%}
+  .log{flex:1;min-height:0;display:flex;flex-direction:column;gap:1px;padding:2px 10px;font-size:10px;color:var(--text-2)}
+  .logrow{height:22px;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden}
+  .logrow .t{font-family:var(--mono);font-size:9px;color:var(--text-3)}
+  .logrow.warn{background:var(--warning-soft);border-left:3px solid var(--warning);padding-left:7px;color:var(--warning-text)}
+  .con-foot{height:22px;flex:0 0 22px;display:flex;align-items:center;justify-content:space-between;
+            padding:0 10px;border-top:1px solid var(--border-soft);font-size:9px;color:var(--text-3)}
+  .con-drawer{height:32px;display:none;align-items:center;gap:8px;padding:0 10px;font-size:10px;color:var(--text-2)}
+  .con-drawer .pill{height:18px;padding:0 7px;border:1px solid var(--border);border-radius:9px;
+                    display:flex;align-items:center;gap:4px;font-size:9px;color:var(--text-2)}
+  .con-drawer .latest{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-2)}
+  .con-drawer .arrow{margin-left:auto;color:var(--text-3);font-size:10px}
+  .opt-a .console-full{display:none}
+  .opt-a .con-drawer{display:flex}
+
+  /* 检查器 */
+  .insp-tabs{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;
+             border-bottom:1px solid var(--border);background:var(--surface-2)}
+  .itab{display:flex;align-items:center;padding:0 8px;font-size:10.5px;color:var(--text-3);
+        border-bottom:2px solid transparent;white-space:nowrap}
+  .itab.on{color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .tool-head{height:40px;flex:0 0 40px;display:flex;align-items:center;gap:7px;padding:0 10px}
+  .tool-title{font-size:12px;font-weight:600}
+  .count{height:18px;min-width:20px;padding:0 6px;border-radius:9px;background:var(--primary);color:#fff;
+         display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600}
+  .viewtoggle{margin-left:auto;display:flex;gap:2px;padding:2px;border:1px solid var(--border);border-radius:6px;background:var(--surface)}
+  .vt{width:22px;height:18px;display:flex;align-items:center;justify-content:center;border-radius:4px;font-size:9px;color:var(--text-3)}
+  .vt.on{background:var(--primary);color:#fff}
+  .tool-search{height:28px;flex:0 0 28px;margin:0 10px 6px;display:flex;align-items:center;gap:6px;
+               padding:0 9px;border:1px solid var(--border);border-radius:7px;color:var(--text-3);font-size:10px;background:var(--surface)}
+  .groups{flex:1;min-height:0;overflow:hidden;padding:0 6px 6px}
+  .grow{height:26px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:5px;font-size:10px;color:var(--text)}
+  .grow .ch{width:8px;color:var(--text-3);font-size:8px}
+  .grow .gi{width:14px;text-align:center;font-size:10px}
+  .grow .gn{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .grow .gc{min-width:18px;height:15px;padding:0 4px;border-radius:8px;border:1px solid var(--border);
+            display:flex;align-items:center;justify-content:center;font-size:8.5px;color:var(--text-2);background:var(--surface)}
+  .grow.on{background:var(--surface-3)}
+  .item{height:25px;display:flex;align-items:center;gap:6px;padding:0 6px 0 20px;font-size:9.5px;color:var(--text-2)}
+
+  /* 状态栏 */
+  .statusbar{height:26px;flex:0 0 26px;display:flex;align-items:center;gap:8px;padding:0 10px;
+             border-top:1px solid var(--border);background:var(--surface-2);font-size:9.5px;color:var(--text-2)}
+  .statusbar .st{display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .statusbar .sp{color:var(--border-strong)}
+  .statusbar .right{margin-left:auto;display:flex;align-items:center;gap:10px;color:var(--text-3);font-size:9px}
+
+  /* 说明区 */
+  .legend{display:flex;gap:18px;margin-top:9px;font-size:11px;color:var(--text-2)}
+  .legend span b{color:var(--text)}
+  table{width:100%;border-collapse:collapse;margin-top:14px;background:var(--surface);
+        border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  th,td{padding:9px 12px;text-align:left;font-size:11.5px;border-bottom:1px solid var(--border-soft)}
+  th{background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:11px}
+  tr:last-child td{border-bottom:0}
+  td b{font-variant-numeric:tabular-nums}
+  .ok{color:var(--success-text);font-weight:600}
+  .pick{background:var(--primary-soft)}
+  .note{margin:14px 0 0;padding:12px 14px;border:1px solid var(--primary-border);background:var(--primary-soft);
+        border-radius:10px;font-size:11.5px;color:#0C4A6E}
+  .note b{color:#075985}
+  .foot{margin-top:14px;font-size:10.5px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>非全屏图像区布局方案</h1>
+  <p class="sub">基准窗口 <b>1310×829 DIP</b>（截图 1644×1036 @125%）· 左栏 340 / 右栏 320 / 控制台 200 · 图像区 <b>604×464</b>，占窗口约 <b>26%</b></p>
+  <p class="sub" style="margin-top:3px">Web 设计媒介，不是交付物（R126）。三种画法按收益排序；数值来自 <b>2026-10-26 非全屏图像区尺寸分析</b>。</p>
+  <div class="rule"></div>
+
+  <!-- ================= 现状 ================= -->
+  <section class="card">
+    <div class="card-head">
+      <span class="tag cur">现状</span>
+      <span class="card-title">控制台展开 200 · 右栏 320</span>
+      <span class="metric">图像 <b>604×464</b><span>占窗口 26%</span></span>
+    </div>
+    <div class="card-note">底部控制台吃掉 200px 高度；右栏 320 用的是 ≥1500px 视口的设计值。</div>
+    <div class="frame-wrap">
+      <div class="frame opt-current">
+        <div class="titlebar">
+          <div class="tb-left">
+            <span class="ico">☰</span><span class="sep"></span>
+            <span class="ico">🗋</span><span class="ico">🗀</span><span class="ico">🖫</span><span class="sep"></span>
+            <div class="modes"><span class="mode on">调试</span><span class="mode">运行</span><span class="mode">组态</span><span class="mode">自由</span></div>
+            <span class="sep"></span>
+            <span class="ico">⌕</span><span class="ico">&lt;/&gt;</span><span class="ico">▦</span><span class="ico">☰</span>
+          </div>
+          <div class="tb-center">▣ 智能装配检测线</div>
+          <div class="tb-right"><span class="winbtn">—</span><span class="winbtn">□</span><span class="winbtn close">✕</span></div>
+        </div>
+        <div class="runbar">
+          <div class="run-state"><span class="dot"></span>未启动</div><span class="run-sep"></span>
+          <span class="run-meta">未选择流程</span>
+          <div class="run-actions">
+            <span class="rbtn dim">编译</span><span class="rbtn dim">运行主流程</span><span class="rbtn dim">循环主流程</span>
+            <span class="rbtn dim">暂停</span><span class="rbtn dim">继续</span><span class="rbtn dim">单步</span>
+            <span class="rbtn danger">停止</span><span class="hint">F5 继续 · F10 单步</span>
+          </div>
+        </div>
+        <div class="main">
+          <aside class="nav">
+            <div class="panel-head"><span class="panel-title">流程导航</span><span class="panel-tools"><span>▾</span><span>📌</span><span>✕</span></span></div>
+            <div class="caps">
+              <div class="cap home"><span class="bd">零</span><span class="nm">Home</span><span class="ct">20</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">Calib</span><span class="ct">4</span></div>
+              <div class="cap main"><span class="bd">主</span><span class="nm">Main</span><span class="ct">14</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST1_LoadCode</span><span class="ct">26</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST2_Position</span><span class="ct">24</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST3_Measure</span><span class="ct">32</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST4_Surface</span><span class="ct">27</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST5_Assembly</span><span class="ct">24</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST6_Trace</span><span class="ct">19</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">AI_Extension</span><span class="ct">10</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">Recipe</span><span class="ct">11</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">Diag</span><span class="ct">12</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">AlarmReset</span><span class="ct">7</span></div>
+              <div class="cap end"><span class="bd">尾</span><span class="nm">End</span><span class="ct">8</span></div>
+            </div>
+            <div class="caps-foot"><span>14 条流程</span><b>全部 ›</b></div>
+            <div class="tree">
+              <div class="trow"><span class="ch">▾</span><span class="k">序列</span><span class="n">主流程</span><span class="m">14</span></div>
+              <div class="trow i1"><span class="ch">▾</span><span class="k">循环</span><span class="n">For 每个工位</span><span class="m">3</span></div>
+              <div class="trow i2 sel"><span class="ch">▾</span><span class="k">条件</span><span class="n">If 定位成功</span><span class="m">2</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">模板匹配</span><span class="m">1</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">卡尺测量</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">▾</span><span class="k">并行</span><span class="n">并行检测</span><span class="m">2</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">缺陷检测</span><span class="m">1</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">结果上传</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">数据记录</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">报警复位</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">日志输出</span><span class="m">1</span></div>
+            </div>
+            <div class="tree-foot"><span>共 0 步 · 最深 0 层</span><span style="margin-left:auto">☑ 失败自动跳转</span></div>
+          </aside>
+          <div class="split"></div>
+          <div class="center">
+            <div class="doctabs">
+              <span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+              <div class="doc-tools"><span>适应视口</span><span>1:1</span><span class="focus-btn">⤢ 专注图像</span></div>
+            </div>
+            <div class="viewport">
+              <div class="image-sim">
+                <div class="board"></div>
+                <div class="chip c1"></div><div class="chip c2"></div><div class="chip c3"></div>
+                <div class="roi"></div>
+                <div class="vp-label">视觉图像 · 适应视口 <b>604×464</b></div>
+                <div class="vp-scale">2448×2048 → 25%</div>
+              </div>
+            </div>
+            <div class="console">
+              <div class="console-full">
+                <div class="con-tabs"><span class="con-tab on">控制台</span><span class="con-tab">监控栏</span><span class="con-pin">▾</span></div>
+                <div class="con-tool"><div class="con-search">⌕ 正文或来源</div><div class="follow"><span class="cb">✓</span>跟随最新</div></div>
+                <div class="levels">
+                  <span class="lv on">全部 45</span>
+                  <span class="lv"><span class="d" style="background:#0EA5E9"></span>信息 39</span>
+                  <span class="lv"><span class="d" style="background:#22C55E"></span>成功 0</span>
+                  <span class="lv"><span class="d" style="background:#F59E0B"></span>警告 6</span>
+                  <span class="lv"><span class="d" style="background:#EF4444"></span>错误 0</span>
+                </div>
+                <div class="log">
+                  <div class="logrow warn"><span class="t">09:53:11.157</span><span>[启动自检] 通讯连通性 警告：0/1 条连接正常，异常：Plc1(不可达)</span></div>
+                  <div class="logrow"><span class="t">09:53:11.201</span><span>[启动自检] 插件扫描完成，共 32 个程序集</span></div>
+                  <div class="logrow"><span class="t">09:53:12.004</span><span>[图像] 等待相机触发…</span></div>
+                </div>
+                <div class="con-foot"><span>显示 45 / 共 45 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+              </div>
+              <div class="con-drawer">
+                <span class="pill">控制台</span><span class="latest">09:53:11 通讯连通性 警告 · 0/1 条连接正常</span><span class="arrow">▴</span>
+              </div>
+            </div>
+          </div>
+          <div class="split"></div>
+          <aside class="inspector">
+            <div class="insp-tabs"><span class="itab">属性</span><span class="itab">图层</span><span class="itab on">工具箱</span><span class="itab">图元工具箱</span></div>
+            <div class="tool-head"><span class="tool-title">工具箱</span><span class="count">56</span><div class="viewtoggle"><span class="vt on">☰</span><span class="vt">▦</span></div></div>
+            <div class="tool-search">⌕ 搜索节点…</div>
+            <div class="groups">
+              <div class="grow"><span class="ch">▾</span><span class="gi" style="color:#F59E0B">★</span><span class="gn">收藏</span><span class="gc">1</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#8B5CF6">⌘</span><span class="gn">逻辑控制</span><span class="gc">10</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#EF4444">◈</span><span class="gn">缺陷检测</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#0EA5E9">◎</span><span class="gn">标定</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#F59E0B">✎</span><span class="gn">测量</span><span class="gc">1</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#3B82F6">▤</span><span class="gn">图像处理</span><span class="gc">12</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#14B8A6">⇄</span><span class="gn">通讯</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#64748B">☰</span><span class="gn">常用工具</span><span class="gc">4</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#64748B">▦</span><span class="gn">数据处理</span><span class="gc">8</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#22C55E">◉</span><span class="gn">几何工具</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#F97316">⌖</span><span class="gn">定位</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#65A30D">⚙</span><span class="gn">运动控制</span><span class="gc">7</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#6366F1">⇢</span><span class="gn">流程控制</span><span class="gc">1</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#8B5CF6">◇</span><span class="gn">逻辑判断</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#14B8A6">𝑥</span><span class="gn">变量操作</span><span class="gc">1</span></div>
+            </div>
+          </aside>
+        </div>
+        <div class="statusbar">
+          <span class="st"><span class="dot" style="width:7px;height:7px"></span>未启动</span><span class="sp">|</span>
+          <span class="st">节拍 —</span><span class="sp">|</span><span class="st">OK —</span><span class="sp">|</span>
+          <span class="st">NG —</span><span class="sp">|</span><span class="st">告警 —</span><span class="sp">|</span>
+          <span class="st">未登录</span><span class="sp">|</span><span class="st">方案 智能装配检测线</span>
+          <span class="right"><span>CPU 3.3%</span><span>MEM 426 MB</span><span>控制台</span><span>09:53</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="legend"><span>左 <b>340</b></span><span>右 <b>320</b></span><span>控制台 <b>200</b></span><span>图像 <b>604×464</b></span></div>
+  </section>
+
+  <!-- ================= 方案 A ================= -->
+  <section class="card">
+    <div class="card-head">
+      <span class="tag a">方案 A · 推荐</span>
+      <span class="card-title">控制台收起 32 · 右栏 300</span>
+      <span class="metric">图像 <b>624×632</b><span class="up">+41%</span></span>
+    </div>
+    <div class="card-note">与设计基线一致（调试场景控制台 32；≤1500px 视口检查器 300）。日志只留一行抽屉条，点箭头展开。</div>
+    <div class="frame-wrap">
+      <div class="frame opt-a">
+        <div class="titlebar">
+          <div class="tb-left">
+            <span class="ico">☰</span><span class="sep"></span>
+            <span class="ico">🗋</span><span class="ico">🗀</span><span class="ico">🖫</span><span class="sep"></span>
+            <div class="modes"><span class="mode on">调试</span><span class="mode">运行</span><span class="mode">组态</span><span class="mode">自由</span></div>
+            <span class="sep"></span>
+            <span class="ico">⌕</span><span class="ico">&lt;/&gt;</span><span class="ico">▦</span><span class="ico">☰</span>
+          </div>
+          <div class="tb-center">▣ 智能装配检测线</div>
+          <div class="tb-right"><span class="winbtn">—</span><span class="winbtn">□</span><span class="winbtn close">✕</span></div>
+        </div>
+        <div class="runbar">
+          <div class="run-state"><span class="dot"></span>未启动</div><span class="run-sep"></span>
+          <span class="run-meta">未选择流程</span>
+          <div class="run-actions">
+            <span class="rbtn dim">编译</span><span class="rbtn dim">运行主流程</span><span class="rbtn dim">循环主流程</span>
+            <span class="rbtn dim">暂停</span><span class="rbtn dim">继续</span><span class="rbtn dim">单步</span>
+            <span class="rbtn danger">停止</span><span class="hint">F5 继续 · F10 单步</span>
+          </div>
+        </div>
+        <div class="main">
+          <aside class="nav">
+            <div class="panel-head"><span class="panel-title">流程导航</span><span class="panel-tools"><span>▾</span><span>📌</span><span>✕</span></span></div>
+            <div class="caps">
+              <div class="cap home"><span class="bd">零</span><span class="nm">Home</span><span class="ct">20</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">Calib</span><span class="ct">4</span></div>
+              <div class="cap main"><span class="bd">主</span><span class="nm">Main</span><span class="ct">14</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST1_LoadCode</span><span class="ct">26</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST2_Position</span><span class="ct">24</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST3_Measure</span><span class="ct">32</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST4_Surface</span><span class="ct">27</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST5_Assembly</span><span class="ct">24</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">ST6_Trace</span><span class="ct">19</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">AI_Extension</span><span class="ct">10</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">Recipe</span><span class="ct">11</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">Diag</span><span class="ct">12</span></div>
+              <div class="cap"><span class="bd">外部</span><span class="nm">AlarmReset</span><span class="ct">7</span></div>
+              <div class="cap end"><span class="bd">尾</span><span class="nm">End</span><span class="ct">8</span></div>
+            </div>
+            <div class="caps-foot"><span>14 条流程</span><b>全部 ›</b></div>
+            <div class="tree">
+              <div class="trow"><span class="ch">▾</span><span class="k">序列</span><span class="n">主流程</span><span class="m">14</span></div>
+              <div class="trow i1"><span class="ch">▾</span><span class="k">循环</span><span class="n">For 每个工位</span><span class="m">3</span></div>
+              <div class="trow i2 sel"><span class="ch">▾</span><span class="k">条件</span><span class="n">If 定位成功</span><span class="m">2</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">模板匹配</span><span class="m">1</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">卡尺测量</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">▾</span><span class="k">并行</span><span class="n">并行检测</span><span class="m">2</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">缺陷检测</span><span class="m">1</span></div>
+              <div class="trow i2"><span class="ch">·</span><span class="k">算子</span><span class="n">结果上传</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">数据记录</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">报警复位</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">日志输出</span><span class="m">1</span></div>
+              <div class="trow i1"><span class="ch">·</span><span class="k">算子</span><span class="n">结果判定</span><span class="m">1</span></div>
+            </div>
+            <div class="tree-foot"><span>共 0 步 · 最深 0 层</span><span style="margin-left:auto">☑ 失败自动跳转</span></div>
+          </aside>
+          <div class="split"></div>
+          <div class="center">
+            <div class="doctabs">
+              <span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+              <div class="doc-tools"><span>适应视口</span><span>1:1</span><span class="focus-btn">⤢ 专注图像</span></div>
+            </div>
+            <div class="viewport">
+              <div class="image-sim">
+                <div class="board"></div>
+                <div class="chip c1"></div><div class="chip c2"></div><div class="chip c3"></div>
+                <div class="roi"></div>
+                <div class="vp-label">视觉图像 · 适应视口 <b>624×632</b></div>
+                <div class="vp-scale">2448×2048 → 26%</div>
+              </div>
+            </div>
+            <div class="console">
+              <div class="console-full">
+                <div class="con-tabs"><span class="con-tab on">控制台</span><span class="con-tab">监控栏</span><span class="con-pin">▾</span></div>
+                <div class="con-tool"><div class="con-search">⌕ 正文或来源</div><div class="follow"><span class="cb">✓</span>跟随最新</div></div>
+                <div class="levels">
+                  <span class="lv on">全部 45</span>
+                  <span class="lv"><span class="d" style="background:#0EA5E9"></span>信息 39</span>
+                  <span class="lv"><span class="d" style="background:#22C55E"></span>成功 0</span>
+                  <span class="lv"><span class="d" style="background:#F59E0B"></span>警告 6</span>
+                  <span class="lv"><span class="d" style="background:#EF4444"></span>错误 0</span>
+                </div>
+                <div class="log"><div class="logrow warn"><span class="t">09:53:11.157</span><span>[启动自检] 通讯连通性 警告：0/1 条连接正常，异常：Plc1(不可达)</span></div></div>
+                <div class="con-foot"><span>显示 45 / 共 45 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+              </div>
+              <div class="con-drawer">
+                <span class="pill">控制台</span><span class="latest">09:53:11 通讯连通性 警告 · 0/1 条连接正常</span><span class="arrow">▴</span>
+              </div>
+            </div>
+          </div>
+          <div class="split"></div>
+          <aside class="inspector">
+            <div class="insp-tabs"><span class="itab">属性</span><span class="itab">图层</span><span class="itab on">工具箱</span><span class="itab">图元工具箱</span></div>
+            <div class="tool-head"><span class="tool-title">工具箱</span><span class="count">56</span><div class="viewtoggle"><span class="vt on">☰</span><span class="vt">▦</span></div></div>
+            <div class="tool-search">⌕ 搜索节点…</div>
+            <div class="groups">
+              <div class="grow"><span class="ch">▾</span><span class="gi" style="color:#F59E0B">★</span><span class="gn">收藏</span><span class="gc">1</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#8B5CF6">⌘</span><span class="gn">逻辑控制</span><span class="gc">10</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#EF4444">◈</span><span class="gn">缺陷检测</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#0EA5E9">◎</span><span class="gn">标定</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#F59E0B">✎</span><span class="gn">测量</span><span class="gc">1</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#3B82F6">▤</span><span class="gn">图像处理</span><span class="gc">12</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#14B8A6">⇄</span><span class="gn">通讯</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#64748B">☰</span><span class="gn">常用工具</span><span class="gc">4</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#64748B">▦</span><span class="gn">数据处理</span><span class="gc">8</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#22C55E">◉</span><span class="gn">几何工具</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#F97316">⌖</span><span class="gn">定位</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#65A30D">⚙</span><span class="gn">运动控制</span><span class="gc">7</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#6366F1">⇢</span><span class="gn">流程控制</span><span class="gc">1</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#8B5CF6">◇</span><span class="gn">逻辑判断</span><span class="gc">2</span></div>
+              <div class="grow"><span class="ch">▸</span><span class="gi" style="color:#14B8A6">𝑥</span><span class="gn">变量操作</span><span class="gc">1</span></div>
+            </div>
+          </aside>
+        </div>
+        <div class="statusbar">
+          <span class="st"><span class="dot" style="width:7px;height:7px"></span>未启动</span><span class="sp">|</span>
+          <span class="st">节拍 —</span><span class="sp">|</span><span class="st">OK —</span><span class="sp">|</span>
+          <span class="st">NG —</span><span class="sp">|</span><span class="st">告警 —</span><span class="sp">|</span>
+          <span class="st">未登录</span><span class="sp">|</span><span class="st">方案 智能装配检测线</span>
+          <span class="right"><span>CPU 3.3%</span><span>MEM 426 MB</span><span>控制台</span><span>09:53</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="legend"><span>左 <b>340</b></span><span>右 <b>300</b></span><span>控制台 <b>32</b></span><span>图像 <b>624×632</b></span><span class="ok">+41% 面积</span></div>
+  </section>
+
+  <!-- ================= 方案 B ================= -->
+  <section class="card">
+    <div class="card-head">
+      <span class="tag b">方案 B · 专注图像</span>
+      <span class="card-title">隐藏左右栏，保留控制台</span>
+      <span class="metric">图像 <b>1264×464</b><span class="up">+109%</span></span>
+    </div>
+    <div class="card-note">看图 / 调焦时按「专注图像」：左右栏收起，控制台保留；退出后恢复原布局。</div>
+    <div class="frame-wrap">
+      <div class="frame opt-b">
+        <div class="titlebar">
+          <div class="tb-left">
+            <span class="ico">☰</span><span class="sep"></span>
+            <span class="ico">🗋</span><span class="ico">🗀</span><span class="ico">🖫</span><span class="sep"></span>
+            <div class="modes"><span class="mode on">调试</span><span class="mode">运行</span><span class="mode">组态</span><span class="mode">自由</span></div>
+            <span class="sep"></span>
+            <span class="ico">⌕</span><span class="ico">&lt;/&gt;</span><span class="ico">▦</span><span class="ico">☰</span>
+          </div>
+          <div class="tb-center">▣ 智能装配检测线</div>
+          <div class="tb-right"><span class="winbtn">—</span><span class="winbtn">□</span><span class="winbtn close">✕</span></div>
+        </div>
+        <div class="runbar">
+          <div class="run-state"><span class="dot"></span>未启动</div><span class="run-sep"></span>
+          <span class="run-meta">未选择流程</span>
+          <div class="run-actions">
+            <span class="rbtn dim">编译</span><span class="rbtn dim">运行主流程</span><span class="rbtn dim">循环主流程</span>
+            <span class="rbtn dim">暂停</span><span class="rbtn dim">继续</span><span class="rbtn dim">单步</span>
+            <span class="rbtn danger">停止</span><span class="hint">F5 继续 · F10 单步</span>
+          </div>
+        </div>
+        <div class="main">
+          <div class="center">
+            <div class="doctabs">
+              <span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+              <div class="doc-tools"><span>适应视口</span><span>1:1</span><span class="focus-btn" style="background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary-strong)">⤡ 退出专注</span></div>
+            </div>
+            <div class="viewport">
+              <div class="image-sim">
+                <div class="board" style="left:6%;right:6%;top:7%;bottom:8%"></div>
+                <div class="chip c1" style="left:12%;top:16%"></div>
+                <div class="chip c2" style="right:14%;top:20%"></div>
+                <div class="chip c3" style="left:46%;bottom:14%"></div>
+                <div class="roi" style="left:36%;top:26%;width:26%;height:36%"></div>
+                <div class="vp-label">视觉图像 · 适应视口 <b>1264×464</b></div>
+                <div class="vp-scale">2448×2048 → 52%</div>
+              </div>
+            </div>
+            <div class="console">
+              <div class="console-full">
+                <div class="con-tabs"><span class="con-tab on">控制台</span><span class="con-tab">监控栏</span><span class="con-pin">▾</span></div>
+                <div class="con-tool"><div class="con-search">⌕ 正文或来源</div><div class="follow"><span class="cb">✓</span>跟随最新</div></div>
+                <div class="levels">
+                  <span class="lv on">全部 45</span>
+                  <span class="lv"><span class="d" style="background:#0EA5E9"></span>信息 39</span>
+                  <span class="lv"><span class="d" style="background:#22C55E"></span>成功 0</span>
+                  <span class="lv"><span class="d" style="background:#F59E0B"></span>警告 6</span>
+                  <span class="lv"><span class="d" style="background:#EF4444"></span>错误 0</span>
+                </div>
+                <div class="log">
+                  <div class="logrow warn"><span class="t">09:53:11.157</span><span>[启动自检] 通讯连通性 警告：0/1 条连接正常，异常：Plc1(不可达)</span></div>
+                  <div class="logrow"><span class="t">09:53:11.201</span><span>[启动自检] 插件扫描完成，共 32 个程序集</span></div>
+                  <div class="logrow"><span class="t">09:53:12.004</span><span>[图像] 等待相机触发…</span></div>
+                </div>
+                <div class="con-foot"><span>显示 45 / 共 45 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+              </div>
+              <div class="con-drawer">
+                <span class="pill">控制台</span><span class="latest">09:53:11 通讯连通性 警告 · 0/1 条连接正常</span><span class="arrow">▴</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="statusbar">
+          <span class="st"><span class="dot" style="width:7px;height:7px"></span>未启动</span><span class="sp">|</span>
+          <span class="st">节拍 —</span><span class="sp">|</span><span class="st">OK —</span><span class="sp">|</span>
+          <span class="st">NG —</span><span class="sp">|</span><span class="st">告警 —</span><span class="sp">|</span>
+          <span class="st">未登录</span><span class="sp">|</span><span class="st">方案 智能装配检测线</span>
+          <span class="right"><span>CPU 3.3%</span><span>MEM 426 MB</span><span>控制台</span><span>09:53</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="legend"><span>左 <b>隐藏</b></span><span>右 <b>隐藏</b></span><span>控制台 <b>200</b></span><span>图像 <b>1264×464</b></span><span class="ok">+109% 面积</span></div>
+  </section>
+
+  <table>
+    <tr><th>方案</th><th>图像区</th><th>面积</th><th>代价 / 前提</th><th>建议</th></tr>
+    <tr><td>现状</td><td><b>604×464</b></td><td>280k</td><td>控制台 200 常驻；右栏 320</td><td>—</td></tr>
+    <tr class="pick"><td><b>A</b> 控制台 32 + 右栏 300</td><td><b>624×632</b></td><td>394k</td><td>日志只留抽屉条；属性编辑器 205→185px</td><td class="ok">推荐，先做</td></tr>
+    <tr><td><b>B</b> 专注图像</td><td><b>1264×464</b></td><td>586k</td><td>左右栏不可见；需新增专注/退出入口</td><td>看图时用</td></tr>
+    <tr><td><b>A+B</b> 专注 + 收起</td><td><b>1264×632</b></td><td>799k</td><td>同上两项</td><td>可选组合</td></tr>
+  </table>
+
+  <div class="note">
+    <b>建议顺序：</b>A 是基线一致性修正（设计稿调试场景本来就是控制台 32、≤1500px 检查器 300），不需要新交互；
+    B 是新增「专注图像」入口，收益最大但要走设计评审。左栏 340 不建议降——2 列胶囊在 280 时名字列只剩约 60px，
+    <code>ST1_LoadCode</code> 会被截断。
+  </div>
+
+  <p class="foot">绘图比例 0.8；框架尺寸 1310×829 DIP。设计稿只表达布局比例与信息层级，不代替真机像素级验收（R129/R132）。</p>
+</div>
+</body>
+</html>

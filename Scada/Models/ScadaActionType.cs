@@ -141,6 +141,44 @@ namespace VisionMaster.Scada
         /// 事件负责“什么时候触发”，声音是触发后的副作用；本动作不改变任何变量。
         /// </summary>
         PlaySound = 27,
+
+        /// <summary>
+        /// 语音播报（v5）：把 <see cref="ScadaAction.Text"/> 念出来，文本里可写
+        /// <c>{变量名}</c> 按运行态当前值替换（见 <see cref="ScadaTextTemplate"/>）。
+        /// 与「播放声音」同属"只产生副作用、不改变量"，但走的是 TTS 队列（限流/抢占），
+        /// 且不受报警播报的最低级别门槛限制——这是操作员主动触发的一句话。
+        /// </summary>
+        SpeakText = 28,
+    }
+
+    /// <summary>
+    /// 动作分类的唯一一份名单：运动族 / 停止族 / 兜底权限 Key。
+    /// <see cref="ScadaAction.IsMotionAction"/>、<see cref="ScadaRuntime.RequiredPermissionFor"/> 与
+    /// 轴面板的命令感知闸门都从这里取，避免三份名单分头演化。
+    /// </summary>
+    public static class ScadaActionTaxonomy
+    {
+        /// <summary>未配权限的非停运动 → 轴点动。</summary>
+        public const string MotionFallbackPermission = ScadaPermissionKeys.AxisJog;
+
+        /// <summary>停止族（含点动结束）→ 停止。</summary>
+        public const string StopPermission = ScadaPermissionKeys.Stop;
+
+        public static bool IsMotion(ScadaActionType type) => type is
+            ScadaActionType.MotionEnable or ScadaActionType.MotionDisable
+            or ScadaActionType.MotionMoveAbsolute or ScadaActionType.MotionMoveRelative
+            or ScadaActionType.MotionHome or ScadaActionType.MotionStop
+            or ScadaActionType.MotionClearAlarm
+            or ScadaActionType.MotionJogStart or ScadaActionType.MotionJogStop;
+
+        public static bool IsStopFamily(ScadaActionType type)
+            => type is ScadaActionType.MotionStop or ScadaActionType.MotionJogStop;
+
+        public static bool IsNonStopMotion(ScadaActionType type)
+            => IsMotion(type) && !IsStopFamily(type);
+
+        public static bool IsStopCommand(ScadaAxisCommandKind kind)
+            => kind is ScadaAxisCommandKind.Stop or ScadaAxisCommandKind.JogStop;
     }
 
     /// <summary>
@@ -185,6 +223,7 @@ namespace VisionMaster.Scada
             ScadaActionType.ResetBit => "复位",
             ScadaActionType.ToggleBit => "取反",
             ScadaActionType.PlaySound => "播放声音",
+            ScadaActionType.SpeakText => "语音播报",
             ScadaActionType.ApplyRecipe => "应用配方",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
@@ -239,6 +278,9 @@ namespace VisionMaster.Scada
             ScadaActionType.ToggleBit => null,
             // 播放声音：没接声卡/播放器属于宿主装配状态，由执行侧当场报“未接入”，不在这里预判。
             ScadaActionType.PlaySound => null,
+            // 语音播报：没接播报器/本机没中文语音包属于宿主装配状态，由执行侧当场报"未接入"；
+            // 文本里的变量找不到属于配错了，也由执行侧当场算出来（缺哪个念哪句都在日志里）。
+            ScadaActionType.SpeakText => null,
             ScadaActionType.Navigate => null,
             // 流程启停三条走 IScadaFlowRunner：目标流程找不到/停用/加密/编译不过/正被占用，
             // 全是"配错了或这次没排上"，由执行侧当场算出来，不在这里预先写死。

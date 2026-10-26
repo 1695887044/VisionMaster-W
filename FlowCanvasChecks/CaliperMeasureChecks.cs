@@ -213,6 +213,160 @@ namespace FlowCanvasChecks
                 cali.Dispose();
                 calib.Dispose();
             }
+
+            RunMeasurementTruth(ctx);
+        }
+
+        // ==================================================================
+        //  测量真值：宽度 / 圆直径 / 角度（合成图，真插件 Execute）
+        // ==================================================================
+        private static void RunMeasurementTruth(ExecutionContext ctx)
+        {
+            Section("[CALM] 测量真值：宽度/圆直径/角度（合成图，真插件 Execute）");
+
+            using (var img = BuildBandImage(300, 339))   // 40 px 宽
+            {
+                var p = NewMeasurePlugin(img, MeasureKind.Width);
+                try
+                {
+                    p.CaliperCount = 5;
+                    p.CaliperRegions.Add(Rect(240, 320, 0, 80, 100));
+                    p.Execute(ctx);
+                    double v = Convert.ToDouble(p.MeasureValue.Value);
+                    Check("[CALM] 宽度：40px 亮带 → 40px",
+                        p.Success.Value is true && Math.Abs(v - 40) <= 0.05,
+                        $"实测={v:0.####} Success={p.Success.Value} Err='{p.ErrorMessage.Value}'");
+                }
+                finally { p.Dispose(); }
+            }
+
+            using (var img = BuildCircleImage(240, 320, 100))
+            {
+                var p = NewMeasurePlugin(img, MeasureKind.CircleDiameter);
+                try
+                {
+                    p.CaliperCount = 36;
+                    p.AnnulusWidth = 40;
+                    p.FitMinPoints = 3;
+                    p.CaliperRegions.Add(Circle(240, 320, 100));
+                    p.Execute(ctx);
+                    double v = Convert.ToDouble(p.MeasureValue.Value);
+                    Check("[CALM] 圆直径：r=100 → 200px",
+                        p.Success.Value is true && Math.Abs(v - 200) <= 0.5,
+                        $"实测={v:0.####} Success={p.Success.Value} Err='{p.ErrorMessage.Value}'");
+                }
+                finally { p.Dispose(); }
+            }
+
+            using (var img = BuildTwoBarsImage())
+            {
+                double a1 = 30 * Math.PI / 180, a2 = 80 * Math.PI / 180;
+
+                // 同侧：两条射线夹角 50°
+                var p = NewMeasurePlugin(img, MeasureKind.Angle);
+                try
+                {
+                    p.CaliperCount = 5;
+                    p.FitMinPoints = 2;
+                    p.FitMaxError = 5;
+                    p.CaliperRegions.Add(Rect(
+                        240 - 100 * Math.Sin(a1), 320 + 100 * Math.Cos(a1), a1 - Math.PI / 2, 30, 80));
+                    p.CaliperRegions.Add(Rect(
+                        240 - 100 * Math.Sin(a2), 320 + 100 * Math.Cos(a2), a2 - Math.PI / 2, 30, 80));
+                    p.Execute(ctx);
+                    double v = Convert.ToDouble(p.MeasureValue.Value);
+                    Check("[CALM] 角度：30/80 度两条亮条、ROI 同侧 → 50°",
+                        p.Success.Value is true && Math.Abs(v - 50) <= 2,
+                        $"实测={v:0.####} Success={p.Success.Value} Err='{p.ErrorMessage.Value}'");
+                }
+                finally { p.Dispose(); }
+
+                // 异侧：ROI1 在交点负方向 → 130°
+                var q = NewMeasurePlugin(img, MeasureKind.Angle);
+                try
+                {
+                    q.CaliperCount = 5;
+                    q.FitMinPoints = 2;
+                    q.FitMaxError = 5;
+                    q.CaliperRegions.Add(Rect(
+                        240 + 100 * Math.Sin(a1), 320 - 100 * Math.Cos(a1), a1 - Math.PI / 2, 30, 80));
+                    q.CaliperRegions.Add(Rect(
+                        240 - 100 * Math.Sin(a2), 320 + 100 * Math.Cos(a2), a2 - Math.PI / 2, 30, 80));
+                    q.Execute(ctx);
+                    double v = Convert.ToDouble(q.MeasureValue.Value);
+                    Check("[CALM] 角度：30/80 度两条亮条、ROI 异侧 → 130°",
+                        q.Success.Value is true && Math.Abs(v - 130) <= 2,
+                        $"实测={v:0.####} Success={q.Success.Value} Err='{q.ErrorMessage.Value}'");
+                }
+                finally { q.Dispose(); }
+            }
+        }
+
+        private static CaliperMeasurePlugin NewMeasurePlugin(HImage image, MeasureKind kind)
+        {
+            var p = new CaliperMeasurePlugin { InstanceName = "卡尺_真值" };
+            p.SrcImage.Value = image;
+            p.MeasureKind = kind;
+            p.CaliperRegions.Clear();   // 清掉 MeasureKind setter 播种的默认搜索区
+            p.CaliperCount = 1;
+            p.Sigma = 1.0;
+            p.EdgeThreshold = 20;
+            p.Polarity = EdgePolarity.All;
+            p.Select = EdgeSelect.First;
+            p.Interpolation = EdgeInterpolation.Bilinear;
+            p.FitAlgorithm = FitAlgorithmKind.Regression;
+            p.FitMaxError = 2.0;
+            p.FitMinPoints = 3;
+            p.AnnulusWidth = 40;
+            p.StandardValue = 0;
+            p.UpperTolerance = 1e9;
+            p.LowerTolerance = -1e9;
+            p.PixelSizeMm = 1.0;
+            return p;
+        }
+
+        private static CaliperRegion Rect(double row, double col, double phi, double l1, double l2)
+            => new() { ShapeType = DrawShapeType.Rectangle, Params = new[] { row, col, phi, l1, l2 } };
+
+        private static CaliperRegion Circle(double row, double col, double radius)
+            => new() { ShapeType = DrawShapeType.Circle, Params = new[] { row, col, radius, 0, 0 } };
+
+        private static HImage BuildBandImage(double c1, double c2)
+        {
+            HOperatorSet.GenImageConst(out HObject proto, "byte", 640, 480);
+            HOperatorSet.GenImageProto(proto, out HObject img, 0);
+            HOperatorSet.GenRectangle1(out HObject band, 0, c1, 479, c2);
+            HOperatorSet.PaintRegion(band, img, out HObject painted, 255, "fill");
+            proto.Dispose(); img.Dispose(); band.Dispose();
+            var result = new HImage(painted);
+            painted.Dispose();
+            return result;
+        }
+
+        private static HImage BuildCircleImage(double row, double col, double radius)
+        {
+            HOperatorSet.GenImageConst(out HObject proto, "byte", 640, 480);
+            HOperatorSet.GenImageProto(proto, out HObject img, 0);
+            HOperatorSet.GenCircle(out HObject disc, row, col, radius);
+            HOperatorSet.PaintRegion(disc, img, out HObject painted, 255, "fill");
+            proto.Dispose(); img.Dispose(); disc.Dispose();
+            var result = new HImage(painted);
+            painted.Dispose();
+            return result;
+        }
+
+        private static HImage BuildTwoBarsImage()
+        {
+            HOperatorSet.GenImageConst(out HObject proto, "byte", 640, 480);
+            HOperatorSet.GenImageProto(proto, out HObject img, 0);
+            HOperatorSet.GenRectangle2(out HObject bar1, 240, 320, 30 * Math.PI / 180, 200, 4);
+            HOperatorSet.PaintRegion(bar1, img, out HObject painted1, 255, "fill");
+            HOperatorSet.GenRectangle2(out HObject bar2, 240, 320, 80 * Math.PI / 180, 200, 4);
+            HOperatorSet.PaintRegion(bar2, painted1, out HObject painted2, 255, "fill");
+            proto.Dispose(); img.Dispose(); bar1.Dispose(); painted1.Dispose(); bar2.Dispose();
+            var result = new HImage(painted2);
+            painted2.Dispose();
+            return result;
         }
 
         /// <summary>合成图：640×480 黑底 + 竖直亮带（列 200~440，宽 ≈240px）——"L1 横跨亮带"的教科书场景</summary>

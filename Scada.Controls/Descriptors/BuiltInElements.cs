@@ -124,6 +124,19 @@ namespace VisionMaster.Scada.Controls
                     AppearanceProperties.StrokeThickness(),
                     AppearanceProperties.CornerRadius("3"),
                     TextProperties.Foreground("#FFFFFFFF"),
+                    new[]
+                    {
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "Danger",
+                            DisplayName = "危险动作",
+                            Kind = ElementPropertyKind.Bool,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = "False",
+                            TargetProperty = ButtonElement.DangerProperty,
+                            Description = "勾选 = 红边 + 淡红文字（急停、复位、清报警这类动作）；只影响外观，不改变动作本身",
+                        },
+                    },
                     TextProperties.FontSize(),
                     TextProperties.FontWeight()),
             },
@@ -409,7 +422,7 @@ namespace VisionMaster.Scada.Controls
                 ControlType = typeof(AlarmBannerElement),
                 Category = "报警",
                 DefaultWidth = 320,
-                DefaultHeight = 140,
+                DefaultHeight = 36,
                 Description = "把运行态挂着的报警按严重度排成一列实时刷新：严重且未确认时左侧色条会闪，" +
                               "表头同时给出未确认条数与总条数；没有任何报警时显示「系统正常」",
                 Properties = GeometryProperties.WithGroups(
@@ -571,6 +584,54 @@ namespace VisionMaster.Scada.Controls
 
             new()
             {
+                TypeKey = "Hmi.Symbol",
+                DisplayName = "工艺符号",
+                ControlType = typeof(ProcessSymbolElement),
+                Category = "工艺",
+                DefaultWidth = 120,
+                DefaultHeight = 140,
+                Description = "30 种工艺符号（塔/釜/换热器/压缩机/风机/过滤器/分离器/罐/球罐/六种阀门/管道连接件/仪表）。" +
+                              "状态可绑变量（停止/运行/故障三色，故障可闪），位号与读数可绑；" +
+                              "默认只读，打开「允许点击」才发按下/释放事件",
+                Events = new[] { ScadaEventType.Pressed, ScadaEventType.Released },
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ProcessSymbolElement)),
+                    AppearanceProperties.Stroke("#FF9AA5B1", displayName: "轮廓色",
+                        description: "符号主线条的颜色；设备本体是线框图，靠它立住"),
+                    AppearanceProperties.StrokeThickness(),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "位号与读数的颜色"),
+                    TextProperties.FontSize("11")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.PipeRun",
+                DisplayName = "管道连线",
+                ControlType = typeof(PipeRunElement),
+                Category = "工艺",
+                DefaultWidth = 200,
+                DefaultHeight = 60,
+                // 几何由路由器现算：显示但只读（见 ElementDescriptor.ReadOnlyKeys）
+                ReadOnlyKeys = new[] { "$X", "$Y", "$Width", "$Height", "$Rotation" },
+                Description = "两端连到图元的连接口（在画布上从接口拖线生成）：走线由路由器现算，" +
+                              "拖动设备时管线自动重排；可开「避让设备」绕开别的图元。" +
+                              "「管线号」可写死也可绑变量",
+                // 管线几何由路由器算（拖动设备时自动重排）：X/Y/宽高/旋转**不给改**——
+                // 改完会被下一拍写回，用户会以为改了、实际没改（2026-10-26 会审 P1）。
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(PipeRunElement)),
+                    AppearanceProperties.Stroke("#FF38BDF8", displayName: "管色",
+                        description: "管线颜色；与工艺符号的轮廓色同一套深色画面语汇"),
+                    AppearanceProperties.StrokeThickness("2", displayName: "管宽"),
+                    TextProperties.Text("管线号", "", isBindable: true,
+                        description: "沿线显示的标签：写死文本，或绑一个字符串变量（配方切换时管号跟着变）"),
+                    TextProperties.Foreground("#FFE6EEF7"),
+                    TextProperties.FontSize("11")),
+            },
+
+            new()
+            {
                 TypeKey = "Hmi.RunMeter",
                 DisplayName = "运行计时 / 计数器",
                 ControlType = typeof(RunMeterElement),
@@ -691,7 +752,7 @@ namespace VisionMaster.Scada.Controls
                 ControlType = typeof(AxisPanelElement),
                 Category = "运动",
                 DefaultWidth = 280,
-                DefaultHeight = 310,
+                DefaultHeight = 380,
                 Description = "紧凑预设：只显示状态与手动操作（使能/点动/回零/停止/清报警），不显示点位表。" +
                               "需要点位时用「轴控台」",
                 Properties = GeometryProperties.WithGroups(
@@ -1208,6 +1269,62 @@ namespace VisionMaster.Scada.Controls
                     },
                     TextProperties.Text("标题", "产品记录", isBindable: false,
                         description: "表格左上角的标题；留空则只剩右侧的行数")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.Report",
+                DisplayName = "报表",
+                ControlType = typeof(ReportElement),
+                Category = "数据",
+                DefaultWidth = 760,
+                DefaultHeight = 380,
+                Description = "按时间范围把 CSV 账本取出来：明细逐行看（可翻页），或按班次/日/小时分组聚合；" +
+                              "可导出 xlsx/csv、可 A4 打印。与「数据表格」分工：表格是实时缓冲，报表是出纸",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(ReportElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.Text("标题", "生产报表", isBindable: false,
+                        description: "报表标题；打印与导出文件都用它"),
+                    TextProperties.Foreground("#FFE6EEF7"),
+                    TextProperties.FontSize("12")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.BarChart",
+                DisplayName = "柱状图",
+                ControlType = typeof(BarChartElement),
+                Category = "图表",
+                DefaultWidth = 420,
+                DefaultHeight = 240,
+                Description = "一个变量一根柱：班次产量、设备稼动、工位良率。支持目标线（超目标变红加粗）、"
+                              + "横向/竖向、排序；变量解析不到画灰柱「未解析」，不冒充 0",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(BarChartElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.CornerRadius("8")),
+            },
+
+            new()
+            {
+                TypeKey = "Hmi.PieChart",
+                DisplayName = "饼图",
+                ControlType = typeof(PieChartElement),
+                Category = "图表",
+                DefaultWidth = 420,
+                DefaultHeight = 240,
+                Description = "整体里各占多少：良率分布、报警级别占比、能耗构成。环形/实心、百分比、"
+                              + "小片并入「其他」；合计为 0 显示「没有计数」",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(PieChartElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.CornerRadius("8")),
             },
 
             new()

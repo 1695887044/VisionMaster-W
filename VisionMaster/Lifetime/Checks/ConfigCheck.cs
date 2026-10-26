@@ -35,6 +35,23 @@ namespace VisionMaster.Lifetime.Checks
                 return CheckResult.Fail(CheckLevel.Error, $"AppConfig.json 加载失败：{ex.Message}");
             }
 
+            // 存量自愈：历史上 PopulateObject 的集合追加缺陷把 AppConfig 写成过 4096 / 16384 / 65536
+            // 份同一个方案（每次 Load 翻一倍）。Load 已在内存里去重，这里回写一次让磁盘也干净——
+            // 否则每次启动都要解析一个 27MB 的配置文件，而且方案列表/自检显示的数量仍是天文数字。
+            // 回写失败不影响启动：内存里已经是干净清单，只是磁盘下次再清。
+            if (_settings.LastLoadNormalized)
+            {
+                try
+                {
+                    _settings.Save();
+                    _log.Info($"[启动自检] AppConfig 已清理重复/空白条目（方案清单现 {_settings.Current.Solutions.Count} 项）");
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn($"[启动自检] AppConfig 清理后回写失败（不影响启动）：{ex.Message}");
+                }
+            }
+
             // 2. 日志目录可写
             try
             {

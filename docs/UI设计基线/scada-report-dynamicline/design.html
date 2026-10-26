@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SCADA · 报表图元 与 动态画线 · 设计基线 v1</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#ffffff; --line:#e3e8f0; --line2:#eef1f6;
+    --text:#1f2937; --text2:#5b667a; --text3:#8a94a6;
+    --brand:#2563eb; --brand2:#38bdf8; --ok:#16a34a; --warn:#d97706; --danger:#dc2626;
+    --chip:#eef4ff; --radius:10px;
+    --mono:"Cascadia Mono","Consolas",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.65 "Microsoft YaHei UI","Segoe UI",system-ui,sans-serif}
+  a{color:var(--brand);text-decoration:none}
+  code{font-family:var(--mono);font-size:12.5px;background:#eef2f8;border-radius:4px;padding:1px 5px}
+  .wrap{display:grid;grid-template-columns:236px 1fr;min-height:100vh}
+  /* 左导航 */
+  nav{position:sticky;top:0;height:100vh;background:#0f172a;color:#cbd5e1;padding:22px 16px;overflow:auto}
+  nav .brand{font-size:15px;font-weight:700;color:#fff;letter-spacing:.3px}
+  nav .ver{margin:6px 0 18px;font-size:11.5px;color:#7c8aa3}
+  nav a{display:block;color:#c2cddd;padding:7px 10px;border-radius:7px;font-size:13px;margin-bottom:2px}
+  nav a:hover{background:#1b2b45;color:#fff}
+  nav .grp{margin:16px 0 6px;font-size:11px;color:#64748b;letter-spacing:.08em}
+  /* 正文 */
+  main{padding:28px 34px 80px;max-width:1180px}
+  h1{font-size:24px;margin:0 0 6px}
+  .sub{color:var(--text2);margin:0 0 22px}
+  h2{font-size:19px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:24px 0 8px}
+  p{margin:8px 0}
+  .muted{color:var(--text3);font-size:12.5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin:12px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}nav{position:static;height:auto}.grid2,.grid3{grid-template-columns:1fr}}
+  .tag{display:inline-block;background:var(--chip);color:#1d4ed8;border-radius:999px;
+       padding:1px 9px;font-size:11.5px;margin-right:6px;vertical-align:1px}
+  .tag.g{background:#e9f7ee;color:#15803d}
+  .tag.w{background:#fdf3e3;color:#b45309}
+  .tag.r{background:#fdeaea;color:#b91c1c}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:var(--panel)}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+  th{background:#f7f9fc;color:var(--text2);font-weight:600;font-size:12.5px}
+  .myth{display:grid;grid-template-columns:24px 1fr;gap:10px;margin:10px 0}
+  .myth .n{width:24px;height:24px;border-radius:50%;background:#fdeaea;color:#b91c1c;
+           font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .myth.fix .n{background:#e9f7ee;color:#15803d}
+  /* 模拟器外壳 */
+  .sim{background:#f8fafc;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .sim .bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line)}
+  .sim .bar .title{font-weight:600;font-size:13px}
+  .sim .bar .right{margin-left:auto;display:flex;gap:6px}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text)}
+  .btn:hover{border-color:#b9c6da;background:#f9fbfe}
+  .btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn.pri:hover{background:#1d4ed8}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg button{border:0;background:#fff;padding:4px 10px;font-size:12px;cursor:pointer;color:var(--text2)}
+  .seg button.on{background:#e8f0ff;color:#1d4ed8;font-weight:600}
+  /* 报表表格 */
+  .rep{padding:12px}
+  .rep .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px;font-size:12.5px;color:var(--text2)}
+  .rep .filters select,.rep .filters input{font:inherit;font-size:12.5px;padding:3px 6px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .rep table{font-size:12.5px}
+  .rep td.num{text-align:right;font-family:var(--mono)}
+  .rep .foot{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:var(--text3)}
+  .rep .foot .right{margin-left:auto;display:flex;gap:6px}
+  .empty{padding:26px;text-align:center;color:var(--text3);font-size:12.5px}
+  /* 动态画线 */
+  .dyn{display:grid;grid-template-columns:320px 1fr;gap:14px;padding:12px}
+  @media(max-width:820px){.dyn{grid-template-columns:1fr}}
+  .dyn .stage{background:#0b1220;border-radius:8px;position:relative;min-height:300px;overflow:hidden}
+  .dyn .stage svg{display:block;width:100%;height:300px}
+  .dyn .readout{position:absolute;left:10px;top:8px;color:#94a3b8;font:12px/1.6 var(--mono)}
+  .dyn .readout b{color:#e2e8f0}
+  .ctrl{margin:10px 0}
+  .ctrl label{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text2);margin-bottom:2px}
+  .ctrl input[type=range]{width:100%}
+  .ctrl .bind{font:11.5px var(--mono);color:var(--text3)}
+  .legend{display:flex;gap:14px;font-size:12px;color:var(--text2);margin-top:8px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .note{border-left:3px solid var(--brand2);background:#f2f8ff;padding:10px 12px;border-radius:0 8px 8px 0;font-size:13px;margin:12px 0}
+  .warnnote{border-left:3px solid var(--warn);background:#fffaf1}
+  .kbd{border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:4px;padding:0 5px;font:11.5px var(--mono);background:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">SCADA · 设计基线</div>
+    <div class="ver">报表图元 / 动态画线　v1 · 2026-10-25 · 待确认</div>
+    <a href="#s0">0 · 一句话结论</a>
+    <div class="grp">报表</div>
+    <a href="#s1">1 · 它到底是什么</a>
+    <a href="#s2">2 · 三个误区</a>
+    <a href="#s3">3 · 数据从哪来</a>
+    <a href="#s4">4 · 配置三步（可点）</a>
+    <a href="#s5">5 · 运行态（可点）</a>
+    <a href="#s6">6 · 什么时候用 / 别用</a>
+    <div class="grp">动态画线</div>
+    <a href="#s7">7 · 它是什么</a>
+    <a href="#s8">8 · 两个独立数据属性</a>
+    <a href="#s9">9 · 现场演示（可拖）</a>
+    <a href="#s10">10 · 用途清单</a>
+    <div class="grp">收尾</div>
+    <a href="#s11">11 · 选型速查</a>
+    <a href="#s12">12 · 待确认项</a>
+  </nav>
+
+  <main>
+    <h1>报表图元 &amp; 动态画线 —— 它们解决什么问题</h1>
+    <p class="sub">
+      这不是新功能说明书，而是回答两句现场话：<b>「报表看着都是死数据，能绑什么？」</b>、
+      <b>「动态画线到底拿来干嘛？」</b>。所有交互都能点。
+    </p>
+
+    <!-- ================= 0 ================= -->
+    <h2 id="s0">0 · 一句话结论</h2>
+    <div class="card">
+      <p><b>报表</b>不是「把变量贴到表里」，而是<b>把 CSV 账本按时间段取出来，做成班次报表 / 日报，并能导出 Excel、打印</b>。
+         你绑的不是整张表，是<b>每一列绑哪个变量</b>；行来自历史流水，所以设计期看起来是空的——这是刻意的。</p>
+      <p><b>动态画线</b>是一条从中心出发的线，<b>长度</b>和<b>角度</b>各自可以绑一个变量，所以一条线能被两个量同时驱动
+         （液位定长短、阀开度定方向）；段数 &gt; 1 就变成锯齿，用来示意振动 / 料流 / 报警抖动。</p>
+    </div>
+
+    <!-- ================= 报表 ================= -->
+    <h2 id="s1">1 · 报表图元到底是什么</h2>
+    <div class="grid2">
+      <div class="card">
+        <h3 style="margin-top:0">它做三件事</h3>
+        <p><span class="tag">取数</span>按时间范围（今天 / 本班 / 自定义）从 <b>CSV 账本</b>里捞记录。</p>
+        <p><span class="tag">成形</span><b>明细</b>逐行照抄；<b>汇总</b>按班次分组算（产量 / 合格数 / 合格率 / 均值…）。</p>
+        <p><span class="tag">带出画面</span>导出 xlsx / csv、打印带页脚页码——这是「把数据带出画面」，所以走权限与审计。</p>
+      </div>
+      <div class="card">
+        <h3 style="margin-top:0">它不做什么</h3>
+        <p>✗ 不做实时刷新显示（那是「数据表格」的活）。</p>
+        <p>✗ 不做趋势曲线（那是「趋势图」的活）。</p>
+        <p>✗ 不做数据录入（报表是只读视图）。</p>
+        <p class="muted">一句话：<b>报表回答「昨天这班干了多少、合不合格」</b>，不是「现在这个值是多少」。</p>
+      </div>
+    </div>
+
+    <h2 id="s2">2 · 三个误区，逐个拆</h2>
+
+    <div class="card">
+      <div class="myth"><div class="n">1</div><div>
+        <b>「看着都是死数据」</b><br>
+        设计器里看到的空表 + 一句提示是<b>刻意的</b>（设计期不查数据：否则一选中图元就去读盘、甚至弹文件对话框）。
+        运行态一进来就按默认范围查一次，之后由「刷新间隔」或手动刷新驱动。
+      </div></div>
+      <div class="myth fix"><div class="n">✓</div><div>
+        <b>实际行为</b>：进页即查 → 表格出数 → 顶条显示「共 N 行 · 查询耗时 xx ms · 上次刷新 hh:mm:ss」。
+        无数据时是「该范围内没有记录」，不是空白表。
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="myth"><div class="n">2</div><div>
+        <b>「没办法绑定」</b><br>
+        能绑，但<b>绑的粒度是「列」不是「表」</b>：每列配 <code>表头 + 变量名 + 列宽 + 对齐 + 格式</code>，
+        运行时按变量名去账本里取值。一张 6 列的班次报表 = 6 个变量 + 5 个聚合口径。
+      </div></div>
+      <div class="myth fix"><div class="n">✓</div><div>
+        <b>为什么不做「整表绑一个变量」</b>：一个变量只有一个值，一张表要几十行 × 几列。
+        真正的数据源是账本（CSV 历史），列配置只是「告诉报表该显示哪几列、怎么格式化」。
+      </div></div>
+    </div>
+
+    <div class="card">
+      <div class="myth"><div class="n">3</div><div>
+        <b>「想象不到用途」</b><br>
+        最典型的三张表：<b>班次报表</b>（每班产量/合格率，交接班签字用）、
+        <b>日报/月报</b>（按天汇总，导出给主管）、<b>追溯表</b>（某段时间某批次的明细，出问题回查）。
+      </div></div>
+      <div class="myth fix"><div class="n">✓</div><div>
+        <b>判断标准</b>：需要「<b>一段时间</b>的记录 + <b>汇总</b> + <b>能导出/打印</b>」→ 用报表；
+        只想「看最近几条」→ 用数据表格。
+      </div></div>
+    </div>
+
+    <h2 id="s3">3 · 数据从哪来（一张图说清）</h2>
+    <div class="card">
+      <pre style="margin:0;font:12.5px/1.9 var(--mono);color:#334155;overflow:auto">
+采集/流程  ──写──▶  CSV 账本（方案目录\History\yyyy-MM-dd.csv，一行一次采样）
+                        │
+                        │  报表图元按【时间范围】查询
+                        ▼
+              ┌───────────────────────────┐
+              │ 明细模式：逐行照抄          │──▶ 屏幕分页（每页 N 行）
+              │ 汇总模式：按班次分组聚合     │──▶ 导出 xlsx / csv（整份结果，不是当前页）
+              └───────────────────────────┘──▶ 打印（FlowDocument + 页脚页码）
+      </pre>
+      <p class="muted" style="margin-bottom:0">
+        账本由已有的历史记录链路写入；报表不产生数据，只<b>读</b>。没有账本时报表显示「未接入历史数据源」。
+      </p>
+    </div>
+
+    <h2 id="s4">4 · 配置三步（右边可点）</h2>
+    <div class="grid2">
+      <div class="card">
+        <p><b>① 选范围与模式</b>：时间范围（今天 / 本班 / 最近 7 天 / 自定义）、明细 or 汇总、刷新间隔。</p>
+        <p><b>② 配列</b>：点「配置列」弹编辑器——每行一个列：表头、绑定变量、列宽、对齐、格式串。</p>
+        <p><b>③ 配外观</b>：标题、斑马纹、行高、每页行数；导出/打印按钮是否显示、需要什么权限。</p>
+        <p class="muted">列编辑器里「变量名」是<b>按名字解析</b>的（与绑定同一口径），填错不会崩，运行时该列显示「—」并在日志点名。</p>
+      </div>
+      <div class="card" style="padding:0">
+        <div class="sim">
+          <div class="bar"><span class="title">配置列（设计器弹窗）</span>
+            <span class="right"><span class="btn" style="cursor:default">＋ 添加列</span></span></div>
+          <div style="padding:12px">
+            <table>
+              <tr><th>表头</th><th>绑定变量</th><th>宽度</th><th>对齐</th><th>格式</th></tr>
+              <tr><td>时间</td><td><code>时间</code></td><td>140</td><td>左</td><td>HH:mm:ss</td></tr>
+              <tr><td>产量</td><td><code>产量</code></td><td>0（占满）</td><td>右</td><td>F0</td></tr>
+              <tr><td>合格数</td><td><code>合格数</code></td><td>90</td><td>右</td><td>F0</td></tr>
+              <tr><td>合格率</td><td><code>合格率</code></td><td>90</td><td>右</td><td>P1</td></tr>
+              <tr><td>操作员</td><td><code>操作员</code></td><td>100</td><td>左</td><td>—</td></tr>
+            </table>
+            <p class="muted" style="margin-bottom:0">宽度填 0 = 占满剩余；变量名为空的行确认时会被丢掉。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <h2 id="s5">5 · 运行态（可点：切模式 / 翻页 / 导出）</h2>
+    <div class="sim">
+      <div class="bar">
+        <span class="title">班次生产报表</span>
+        <span class="right">
+          <span class="seg" id="modeSeg">
+            <button class="on" data-mode="detail">明细</button>
+            <button data-mode="summary">汇总</button>
+          </span>
+          <button class="btn" id="btnRefresh">刷新</button>
+          <button class="btn" id="btnExport">导出 xlsx</button>
+          <button class="btn" id="btnPrint">打印</button>
+        </span>
+      </div>
+      <div class="rep">
+        <div class="filters">
+          <span>范围</span>
+          <select id="rangeSel">
+            <option value="today">今天</option>
+            <option value="shift">本班（08:00—20:00）</option>
+            <option value="7d">最近 7 天</option>
+          </select>
+          <span class="muted" id="rangeHint">共 24 条记录</span>
+          <span style="margin-left:auto" class="muted" id="permHint">当前账号：操作员 · 可导出/打印</span>
+        </div>
+        <div id="repHost"></div>
+        <div class="foot">
+          <span id="pageInfo"></span>
+          <span class="right">
+            <button class="btn" id="btnPrev">上一页</button>
+            <button class="btn" id="btnNext">下一页</button>
+          </span>
+        </div>
+      </div>
+    </div>
+    <p class="muted">点「导出 xlsx」只会弹一条模拟回执——真实实现里这一步会先判权限（按下前），成功后写审计（谁 / 什么范围 / 多少行 / 写到哪）。</p>
+
+    <h2 id="s6">6 · 什么时候用报表，什么时候别用</h2>
+    <table>
+      <tr><th style="width:34%">你想要</th><th style="width:22%">该用</th><th>为什么</th></tr>
+      <tr><td>看最近 20 条采样，切页就没了也没关系</td><td><b>数据表格</b></td><td>实时缓冲，轻；不需要聚合与出纸</td></tr>
+      <tr><td>看某个量最近 1 小时的曲线</td><td><b>趋势图 / 多趋势</b></td><td>报表是表格形态，不做曲线</td></tr>
+      <tr><td>交班时要一张「本班产量 / 合格率」的表，签字、导出 Excel</td><td><b>报表</b></td><td>按范围取数 + 聚合 + 导出打印 + 审计</td></tr>
+      <tr><td>客户要查上个月某批次每一件的明细</td><td><b>报表（明细 + 自定义范围）</b></td><td>分页只渲染一页，几千行也不卡</td></tr>
+      <tr><td>想看一个数现在是多少</td><td><b>IO 域 / 数值显示</b></td><td>报表不承担实时读数</td></tr>
+    </table>
+
+    <!-- ================= 动态画线 ================= -->
+    <h2 id="s7">7 · 动态画线是什么</h2>
+    <div class="card">
+      <p>一条<b>从控件中心出发</b>的线。它只有两个「会动」的数据属性：</p>
+      <p><span class="tag">长度</span>占控件短边的比例 0~1，可绑变量 → 线随值伸缩。</p>
+      <p><span class="tag">角度</span>度，0 = 向右，顺时针为正，可绑变量 → 线随值转动。</p>
+      <p><span class="tag">段数</span>1 = 直线；&gt; 1 = 锯齿折线（幅度可调），用来示意振动 / 料流 / 抖动。</p>
+      <div class="note">
+        <b>和「动画」通道的区别</b>：动画是「一个值 → 图元的某个外观」（位置、尺寸、透明度），
+        一条线只能吃一个值。动态画线把<b>长度和角度拆成两个独立的数据属性</b>，
+        所以能同时被两个变量驱动——这是动画通道表达不了的。
+      </div>
+    </div>
+
+    <h2 id="s8">8 · 两个独立数据属性，意味着什么</h2>
+    <div class="grid3">
+      <div class="card"><b>液位定长短</b><p class="muted">长度绑 <code>T101.液位%</code>：0% 缩到中心，100% 顶到边。</p></div>
+      <div class="card"><b>开度定方向</b><p class="muted">角度绑 <code>V201.开度</code>：0° 向右，90° 向下（顺时针）。</p></div>
+      <div class="card"><b>两个一起用</b><p class="muted">风向标 / 机械臂姿态 / 料流方向 + 流量：一个图元吃两个量。</p></div>
+    </div>
+
+    <h2 id="s9">9 · 现场演示（拖滑杆 = 模拟变量在变）</h2>
+    <div class="sim">
+      <div class="bar"><span class="title">Hmi.DynamicLine · 属性面板等价物</span>
+        <span class="right"><button class="btn" id="btnPause">暂停变量</button></span></div>
+      <div class="dyn">
+        <div>
+          <div class="ctrl">
+            <label><span>长度 <span class="bind">Length ← 液位%</span></span><span id="vLen">62%</span></label>
+            <input type="range" id="rLen" min="0" max="100" value="62">
+          </div>
+          <div class="ctrl">
+            <label><span>角度 <span class="bind">Angle ← 开度</span></span><span id="vAng">35°</span></label>
+            <input type="range" id="rAng" min="-180" max="180" value="35">
+          </div>
+          <div class="ctrl">
+            <label><span>段数 <span class="bind">Segments（锯齿）</span></span><span id="vSeg">1</span></label>
+            <input type="range" id="rSeg" min="1" max="16" value="1">
+          </div>
+          <div class="ctrl">
+            <label><span>锯齿幅度 <span class="bind">Amplitude</span></span><span id="vAmp">8%</span></label>
+            <input type="range" id="rAmp" min="0" max="30" value="8">
+          </div>
+          <div class="legend">
+            <span><i style="background:#38bdf8"></i>线（主色）</span>
+            <span><i style="background:#334155"></i>控件中心</span>
+            <span><i style="background:#1e293b"></i>控件边界（短边 = 长度 100%）</span>
+          </div>
+        </div>
+        <div class="stage">
+          <div class="readout">Length=<b id="oL">0.62</b>　Angle=<b id="oA">35</b>　Segments=<b id="oS">1</b></div>
+          <svg id="stage" viewBox="0 0 520 300" preserveAspectRatio="none">
+            <defs>
+              <pattern id="grid" width="26" height="26" patternUnits="userSpaceOnUse">
+                <path d="M26 0H0V26" fill="none" stroke="#16233a" stroke-width="1"/>
+              </pattern>
+            </defs>
+            <rect x="0" y="0" width="520" height="300" fill="url(#grid)"/>
+            <rect id="box" x="140" y="40" width="240" height="220" fill="none" stroke="#1e293b" stroke-width="1.5" stroke-dasharray="5 5"/>
+            <circle id="hub" cx="260" cy="150" r="4" fill="#334155"/>
+            <path id="line" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="note warnnote">
+      <b>段数 &gt; 1 的画法</b>：沿主线方向来回折（锯齿），幅度按控件短边比例算。
+      它不是「多段折线编辑器」，是「一条会抖的线」——用于振动、料流、报警抖动的示意，不做精确轨迹。
+    </div>
+
+    <h2 id="s10">10 · 用途清单（现场真会用到的）</h2>
+    <table>
+      <tr><th style="width:26%">场景</th><th style="width:30%">绑什么</th><th>效果</th></tr>
+      <tr><td>罐体液位指示</td><td>Length ← 液位%（0~100）</td><td>液位越高线越长，与旁边的罐体图元呼应</td></tr>
+      <tr><td>阀门开度 / 风向标</td><td>Angle ← 开度（0~360）</td><td>线跟着转，一眼看出方向</td></tr>
+      <tr><td>料流 / 泵出口</td><td>Length ← 流量，Angle 固定</td><td>有流量才伸出来，停泵就缩回</td></tr>
+      <tr><td>振动 / 报警抖动</td><td>Segments=6~12，Length 固定</td><td>锯齿示意抖动；报警时再用闪烁</td></tr>
+      <tr><td>机械臂姿态示意</td><td>Angle ← 关节角度，Length ← 臂长</td><td>一个图元表达两个自由度</td></tr>
+    </table>
+
+    <h2 id="s11">11 · 选型速查</h2>
+    <table>
+      <tr><th>需求</th><th>图元</th></tr>
+      <tr><td>一段时间 + 汇总 + 导出打印</td><td><b>报表（Hmi.Report）</b></td></tr>
+      <tr><td>最近 N 条实时缓冲</td><td>数据表格（Hmi.DataGrid）</td></tr>
+      <tr><td>一个值 → 位置/尺寸/透明度</td><td>动画（任意图元都能挂）</td></tr>
+      <tr><td>一个值 → 线的长短或方向</td><td><b>动态画线（Hmi.DynamicLine）</b></td></tr>
+      <tr><td>两个值 → 长短 + 方向</td><td><b>动态画线</b>（这就是它存在的理由）</td></tr>
+      <tr><td>固定管身 + 流向箭头</td><td>管道（Hmi.Pipe）/ 管线（Hmi.PipeRun）</td></tr>
+    </table>
+
+    <h2 id="s12">12 · 待确认项（请逐条裁定）</h2>
+    <div class="card">
+      <p><b>Q1</b> 报表默认范围用「本班」还是「今天」？（本稿按「今天」出）</p>
+      <p><b>Q2</b> 汇总模式的默认分组：按班次（8h）还是按天？（本稿按班次）</p>
+      <p><b>Q3</b> 运行态是否显示「查询耗时」这类诊断信息？（本稿显示，操作员可关）</p>
+      <p><b>Q4</b> 动态画线的锯齿方向要不要可配（横向 / 纵向）？还是固定横向？</p>
+      <p><b>Q5</b> 动态画线是否需要「端点箭头」属性（料流方向用）？</p>
+      <p class="muted" style="margin-bottom:0">确认后本稿冻结为 v1，再进入 WPF 复刻；改动需升 v2 并同步令牌映射（R128）。</p>
+    </div>
+
+    <p class="muted" style="margin-top:28px">
+      设计媒介，不进构建、不部署（R126）。本文件自包含，无外部依赖。
+    </p>
+  </main>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- 报表模拟 ---------------- */
+  var MODE = "detail", PAGE = 0, PER = 8, RANGE = "today";
+
+  // 确定性样本：4 个班 × 6 条
+  var SHIFTS = ["08:00—16:00 甲班", "16:00—24:00 乙班", "00:00—08:00 丙班"];
+  var rows = [];
+  (function(){
+    var seed = 7;
+    function rnd(){ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+    var base = new Date(2026, 9, 25, 8, 0, 0);
+    for (var i = 0; i < 24; i++) {
+      var t = new Date(base.getTime() + i * 37 * 60000);
+      var total = 120 + Math.floor(rnd() * 60);
+      var ok = total - Math.floor(rnd() * 6);
+      rows.push({
+        time: t,
+        shift: SHIFTS[Math.floor(i / 8)],
+        total: total,
+        ok: ok,
+        rate: ok / total,
+        op: ["张伟", "李娜", "王强"][i % 3]
+      });
+    }
+  })();
+
+  function fmtTime(d){
+    function p(n){ return n < 10 ? "0" + n : "" + n; }
+    return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+  }
+  function fmtRate(v){ return (v * 100).toFixed(1) + "%"; }
+
+  function visibleRows(){
+    if (RANGE === "shift") return rows.slice(0, 8);
+    if (RANGE === "7d") return rows;
+    return rows.slice(0, 24);
+  }
+
+  function summarize(list){
+    var map = {};
+    list.forEach(function(r){
+      var k = r.shift;
+      if (!map[k]) map[k] = { shift: k, total: 0, ok: 0, n: 0 };
+      map[k].total += r.total; map[k].ok += r.ok; map[k].n++;
+    });
+    return Object.keys(map).map(function(k){
+      var s = map[k];
+      return { shift: s.shift, total: s.total, ok: s.ok, rate: s.ok / s.total, n: s.n };
+    });
+  }
+
+  var host = document.getElementById("repHost");
+  var pageInfo = document.getElementById("pageInfo");
+  var rangeHint = document.getElementById("rangeHint");
+  var prev = document.getElementById("btnPrev"), next = document.getElementById("btnNext");
+
+  function render(){
+    var list = visibleRows();
+    rangeHint.textContent = "共 " + list.length + " 条记录";
+
+    if (MODE === "summary") {
+      var sum = summarize(list);
+      host.innerHTML = "<table><tr><th>班次</th><th>记录数</th><th>产量</th><th>合格数</th><th>合格率</th></tr>" +
+        sum.map(function(s){
+          return "<tr><td>" + s.shift + "</td><td class='num'>" + s.n + "</td><td class='num'>" + s.total +
+                 "</td><td class='num'>" + s.ok + "</td><td class='num'>" + fmtRate(s.rate) + "</td></tr>";
+        }).join("") + "</table>";
+      pageInfo.textContent = "汇总 " + sum.length + " 组 · 范围：" + rangeLabel();
+      prev.disabled = next.disabled = true;
+      return;
+    }
+
+    var pages = Math.max(1, Math.ceil(list.length / PER));
+    if (PAGE >= pages) PAGE = pages - 1;
+    var slice = list.slice(PAGE * PER, PAGE * PER + PER);
+    host.innerHTML = "<table><tr><th>时间</th><th>班次</th><th>产量</th><th>合格数</th><th>合格率</th><th>操作员</th></tr>" +
+      (slice.length ? slice.map(function(r){
+        return "<tr><td>" + fmtTime(r.time) + "</td><td>" + r.shift + "</td><td class='num'>" + r.total +
+               "</td><td class='num'>" + r.ok + "</td><td class='num'>" + fmtRate(r.rate) +
+               "</td><td>" + r.op + "</td></tr>";
+      }).join("") : "<tr><td colspan='6' class='empty'>该范围内没有记录</td></tr>") + "</table>";
+    pageInfo.textContent = "第 " + (PAGE + 1) + " / " + pages + " 页 · 共 " + list.length + " 行 · 范围：" + rangeLabel();
+    prev.disabled = PAGE === 0;
+    next.disabled = PAGE >= pages - 1;
+  }
+
+  function rangeLabel(){
+    return RANGE === "shift" ? "本班" : (RANGE === "7d" ? "最近 7 天" : "今天");
+  }
+
+  document.getElementById("modeSeg").addEventListener("click", function(e){
+    var b = e.target.closest("button"); if (!b) return;
+    MODE = b.dataset.mode; PAGE = 0;
+    Array.prototype.forEach.call(this.querySelectorAll("button"), function(x){ x.classList.toggle("on", x === b); });
+    render();
+  });
+  document.getElementById("rangeSel").addEventListener("change", function(){
+    RANGE = this.value; PAGE = 0; render();
+  });
+  prev.addEventListener("click", function(){ if (PAGE > 0) { PAGE--; render(); } });
+  next.addEventListener("click", function(){ PAGE++; render(); });
+  document.getElementById("btnRefresh").addEventListener("click", function(){
+    var b = this, old = b.textContent;
+    b.textContent = "查询中…"; b.disabled = true;
+    setTimeout(function(){ b.textContent = old; b.disabled = false; render(); }, 260);
+  });
+  document.getElementById("btnExport").addEventListener("click", function(){
+    alert("（模拟回执）已导出：" + rangeLabel() + " / " + (MODE === "summary" ? "汇总" : "明细") +
+          "\n文件：artifacts\\render\\报表_20261025.xlsx\n审计：操作员 · 范围 · 行数 · 路径 已记录");
+  });
+  document.getElementById("btnPrint").addEventListener("click", function(){
+    alert("（模拟回执）打印预览已打开：A4 横向，页脚「第 n / N 页 · 生成时间」");
+  });
+  render();
+
+  /* ---------------- 动态画线 ---------------- */
+  var rLen = document.getElementById("rLen"), rAng = document.getElementById("rAng"),
+      rSeg = document.getElementById("rSeg"), rAmp = document.getElementById("rAmp"),
+      vLen = document.getElementById("vLen"), vAng = document.getElementById("vAng"),
+      vSeg = document.getElementById("vSeg"), vAmp = document.getElementById("vAmp"),
+      oL = document.getElementById("oL"), oA = document.getElementById("oA"), oS = document.getElementById("oS"),
+      line = document.getElementById("line"), hub = document.getElementById("hub"), box = document.getElementById("box");
+
+  var BOX = { x: 140, y: 40, w: 240, h: 220 };
+  var CX = BOX.x + BOX.w / 2, CY = BOX.y + BOX.h / 2, SHORT = Math.min(BOX.w, BOX.h);
+
+  function draw(){
+    var len = +rLen.value / 100;
+    var ang = +rAng.value;
+    var segs = +rSeg.value;
+    var amp = +rAmp.value / 100;
+
+    vLen.textContent = rLen.value + "%";
+    vAng.textContent = ang + "°";
+    vSeg.textContent = segs;
+    vAmp.textContent = rAmp.value + "%";
+    oL.textContent = len.toFixed(2);
+    oA.textContent = ang;
+    oS.textContent = segs;
+
+    var rad = ang * Math.PI / 180;
+    var dx = Math.cos(rad), dy = Math.sin(rad);
+    var L = len * SHORT;
+    var ex = CX + dx * L, ey = CY + dy * L;
+
+    var d;
+    if (segs <= 1) {
+      d = "M" + CX + " " + CY + " L" + ex.toFixed(1) + " " + ey.toFixed(1);
+    } else {
+      // 沿主线来回折：法向偏移 ±amp*SHORT
+      var nx = -dy, ny = dx;
+      var pts = [];
+      for (var i = 0; i <= segs; i++) {
+        var t = i / segs;
+        var off = (i === 0 || i === segs) ? 0 : (i % 2 === 0 ? 1 : -1) * amp * SHORT;
+        pts.push([CX + dx * L * t + nx * off, CY + dy * L * t + ny * off]);
+      }
+      d = "M" + pts.map(function(p){ return p[0].toFixed(1) + " " + p[1].toFixed(1); }).join(" L");
+    }
+    line.setAttribute("d", d);
+    hub.setAttribute("cx", CX); hub.setAttribute("cy", CY);
+  }
+
+  [rLen, rAng, rSeg, rAmp].forEach(function(el){ el.addEventListener("input", draw); });
+
+  var timer = null;
+  document.getElementById("btnPause").addEventListener("click", function(){
+    if (timer) {
+      clearInterval(timer); timer = null; this.textContent = "模拟变量";
+      return;
+    }
+    this.textContent = "暂停变量";
+    var t = 0;
+    timer = setInterval(function(){
+      t += 0.05;
+      // 长度按正弦在 20%~100% 摆，角度缓慢转一圈
+      rLen.value = Math.round(60 + 40 * Math.sin(t));
+      rAng.value = Math.round(180 * Math.sin(t * 0.6));
+      draw();
+    }, 90);
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>

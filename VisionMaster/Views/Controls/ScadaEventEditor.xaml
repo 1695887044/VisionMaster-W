@@ -102,19 +102,23 @@
                                 ToolTip="删除这条动作" />
                         </Grid>
 
-                        <!--  日志文案：只有"记录日志"需要填（留空则由执行侧回落成"图元名 + 事件名"）  -->
+                        <!--  日志文案 / 播报文本：两种动作共用这一个框（都是自由文本）。
+                              「语音播报」里可写 {变量名}，运行态按当前值替换（见 ScadaTextTemplate）。  -->
                         <TextBox
                             Margin="0,3,0,0"
                             Padding="3,2"
                             BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                             FontSize="11"
                             Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
-                            ToolTip="留空则记录「图元名 + 事件名」">
+                            ToolTip="记录日志：留空则记录「图元名 + 事件名」。语音播报：要念的话，可写 {变量名} 按当前值替换，如「一号罐液位 {T101} 毫米」">
                             <TextBox.Style>
                                 <Style TargetType="TextBox">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Type}" Value="Log">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="SpeakText">
                                             <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -384,13 +388,18 @@
                             </TextBlock>
                         </StackPanel>
 
-                        <!--  播放声音：只选档位，不改变任何变量；执行侧按 Info/Warning/Critical 播放  -->
+                        <!--  播放声音 / 语音播报：只选档位，不改变任何变量。
+                              「播放声音」按 Info/Warning/Critical 播提示音；
+                              「语音播报」用同一档位表达这句话有多急（严重的会打断正在念的低级别）。  -->
                         <StackPanel Margin="0,3,0,0">
                             <StackPanel.Style>
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Type}" Value="PlaySound">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="SpeakText">
                                             <Setter Property="Visibility" Value="Visible" />
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -401,7 +410,8 @@
                                 Margin="0,0,0,3"
                                 FontSize="11"
                                 Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                                Text="声音档位" />
+                                Text="档位"
+                                ToolTip="提示音的音调；语音播报用它表达紧急程度（严重的会打断正在念的低级别）" />
                             <ComboBox
                                 FontSize="11"
                                 SelectedValue="{Binding SoundKind, Mode=TwoWay}"

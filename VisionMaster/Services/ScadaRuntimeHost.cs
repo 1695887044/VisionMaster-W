@@ -305,6 +305,11 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly IScadaAxisCommandSink? _axisCommands;
 
+        /// <summary>
+        /// 运行态未授权点击的登录回调（B3）。null = 无界面场景（断言宿主）不弹登录，直接拒绝。
+        /// </summary>
+        private readonly Func<string, bool>? _accessLoginPrompt;
+
         public ScadaRuntimeHost(
             ILogService log,
             IUserNotifier notifier,
@@ -319,7 +324,8 @@ namespace VisionMaster.Services
             IScadaAxisSource? axisSource = null,
             IScadaAxisCommandSink? axisCommands = null,
             IScadaConfirmationService? confirmations = null,
-            ScadaMonitoringHost? monitoring = null)
+            ScadaMonitoringHost? monitoring = null,
+            Func<string, bool>? accessLoginPrompt = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -332,6 +338,7 @@ namespace VisionMaster.Services
             _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
             _axisSource = axisSource;
             _axisCommands = axisCommands;
+            _accessLoginPrompt = accessLoginPrompt;
             _confirmations = confirmations ?? new ScadaConfirmationService();
             _workspaceManager = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _monitoring = monitoring ?? (System.Windows.Application.Current == null
@@ -423,6 +430,7 @@ namespace VisionMaster.Services
             try
             {
                 session = new ScadaRuntime(document, _accessPolicy);
+                session.AccessLoginPrompt = _accessLoginPrompt;
 
                 stage = "创建运行窗口";
                 window = new ScadaRuntimeWindow(session);
@@ -879,9 +887,20 @@ namespace VisionMaster.Services
             // 且会话对象是活的——"此刻是谁"由它每次现问，登录/登出立刻生效。
             // 值通道（第八个）：数据表格这类"列定义里写的是变量名"的图元要按名字解析句柄。
             // 数据泵虽然拿着同一个值源，但它只按 ScadaBinding 推属性，帮不了"按名字取数"。
+            // 历史与报表共用同一个目录（<方案根>\History 下的 CSV 账本）：
+            // · history 给「数据表格」的 History 模式（分页看最近 N 条）；
+            // · reports 给「报表」图元（整段范围聚合）。
+            // 桌面运行窗口原先漏了 history（只有后台监控宿主接了），表现是运行态表格切到历史
+            // 一直显示"未接入历史数据源"——这里一并补上。
+            var historyDirectory = SolutionPaths.GetHistoryDirectory(_workspaceManager.CurrentSolution?.SolutionFilePath);
+            var historySource = new CsvFolderHistorySource(historyDirectory);
+            var reportSource = new CsvReportSource(historyDirectory);
+
             window.CanvasHost.RuntimeContext = new ScadaRuntimeContext(
                 engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations, _valueSource,
-                priorAlarms, stateLists: document.StateLists, subPages: _session);
+                priorAlarms, historySource, document.StateLists, subPages: _session,
+                reports: reportSource, reportExporter: new ScadaReportExporter(), audit: _audit,
+                accessLoginPrompt: _accessLoginPrompt);
 
             engine.Attach();
             beat.Start();

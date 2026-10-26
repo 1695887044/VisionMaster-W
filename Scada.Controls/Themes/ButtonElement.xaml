@@ -4,29 +4,47 @@
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
 
     <!--
-        按钮图元的外观：带圆角的矩形 + 居中文字 + 一层"悬停提亮"覆盖层。
+        自带令牌口粮：本文件在 Generic.xaml 里排在 ScadaTokens 之后，App 内解析没问题；
+        但断言宿主会**单独**加载这一份字典（不经过 Generic.xaml），跨册 StaticResource 会抛
+        XamlParseException。合并一份令牌表让两种加载路径都能解析（同键覆盖、值一致）。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        按钮图元的外观：带圆角的矩形 + 居中文字 + 三层反馈（悬停提亮 / 按下压暗 / 危险蒙版）。
 
         与基类样式（Focusable=False）的三处差别写在这里：
         ① Focusable / IsTabStop 改成 True——按钮要能用键盘操作，操作员戴手套点不准时靠 Tab；
-        ② Cursor 改成 Hand——第一眼就告诉你"这里能点"；
-        ③ 悬停/按下反馈：Hover 层是一个白色半透明矩形，Opacity 从 0 提亮到 0.12。
-           用"覆盖层改透明度"而不是"换填充色"，是因为填充色是用户配的（可能来自变量绑定），
-           我们要的是在它<b>之上</b>叠一层亮度，不去动用户的颜色。
+        ② Cursor 改成 Hand——第一眼就告诉你"这里能点"；禁用时改回箭头（手型是"能点"的承诺）；
+        ③ 四态反馈：悬停（白色叠加 + 边框提亮）/ 按下（黑色叠加，视觉下沉）/ 键盘焦点（青色外环）/
+           禁用（暗色蒙版 + 文字降亮，但不整体半透明——那样深色底上的字几乎不可读）。
 
-        注意 IsPressed 用不了：那是 ButtonBase 的属性，本控件是 ContentControl 派生，
-        没有"按下"这个状态。运行态的按下反馈（含长按/确认弹窗）由 S4 接管。
+        为什么用"叠加层改透明度"而不是"换填充色"
+        =========
+        填充色是用户配的（也可能来自变量绑定），我们要的是在它<b>之上</b>叠一层明暗，
+        不去动用户的颜色。危险变体是唯一例外：它本来就是"红"这个语义，所以另加一层红色蒙版。
+
+        2026-10-25 按钮审查（docs/UI设计基线/scada-button-review）的落地：
+        P1 按下反馈、P1 键盘焦点环、P1 危险变体、P1 最小可点尺寸、P2 禁用态光标与对比度、
+        P2 悬停同时提亮边框。忙碌态（执行中圆环）本轮不做——它要运行态分发器参与，另批。
     -->
     <Style TargetType="{x:Type local:ButtonElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="True" />
         <Setter Property="IsTabStop" Value="True" />
         <Setter Property="Cursor" Value="Hand" />
+        <!--  最小可点尺寸（触摸屏上按钮被拉得太小会点不准）  -->
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="MinWidth" Value="72" />
 
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="{x:Type local:ButtonElement}">
                     <Grid>
                         <Rectangle
+                            x:Name="FillRect"
                             Margin="{TemplateBinding Padding}"
                             Fill="{TemplateBinding Fill}"
                             Stroke="{TemplateBinding Stroke}"
@@ -34,6 +52,7 @@
                             RadiusX="{TemplateBinding CornerRadius}"
                             RadiusY="{TemplateBinding CornerRadius}" />
 
+                        <!--  悬停提亮（白色叠加）  -->
                         <Rectangle
                             x:Name="HoverLayer"
                             Margin="{TemplateBinding Padding}"
@@ -43,13 +62,57 @@
                             RadiusY="{TemplateBinding CornerRadius}"
                             IsHitTestVisible="False" />
 
+                        <!--  按下压暗（黑色叠加）：比"换填充色"更不容易和用户配色打架  -->
+                        <Rectangle
+                            x:Name="PressLayer"
+                            Margin="{TemplateBinding Padding}"
+                            Fill="Black"
+                            Opacity="0"
+                            RadiusX="{TemplateBinding CornerRadius}"
+                            RadiusY="{TemplateBinding CornerRadius}"
+                            IsHitTestVisible="False" />
+
+                        <!--  危险动作蒙版（红）：即使 StrokeThickness=0 也能看出是危险按钮  -->
+                        <Rectangle
+                            x:Name="DangerLayer"
+                            Margin="{TemplateBinding Padding}"
+                            Fill="{StaticResource ScadaButtonDangerTintBrush}"
+                            Opacity="0"
+                            RadiusX="{TemplateBinding CornerRadius}"
+                            RadiusY="{TemplateBinding CornerRadius}"
+                            IsHitTestVisible="False" />
+
+                        <!--  禁用蒙版：压暗填充但**不压暗文字**（整体 Opacity 会连字一起吃掉）  -->
+                        <Rectangle
+                            x:Name="DisabledLayer"
+                            Margin="{TemplateBinding Padding}"
+                            Fill="{StaticResource ScadaButtonDisabledVeilBrush}"
+                            Opacity="0"
+                            RadiusX="{TemplateBinding CornerRadius}"
+                            RadiusY="{TemplateBinding CornerRadius}"
+                            IsHitTestVisible="False" />
+
+                        <!--  键盘焦点环：只在键盘导航时出现（鼠标点击不留环，触摸屏上那圈会像"卡住了"）  -->
+                        <Rectangle
+                            x:Name="FocusRing"
+                            Margin="{TemplateBinding Padding}"
+                            Fill="Transparent"
+                            Stroke="{StaticResource ScadaButtonFocusRingBrush}"
+                            StrokeThickness="2"
+                            RadiusX="{TemplateBinding CornerRadius}"
+                            RadiusY="{TemplateBinding CornerRadius}"
+                            Visibility="Collapsed"
+                            IsHitTestVisible="False" />
+
                         <TextBlock
+                            x:Name="Label"
                             Margin="{TemplateBinding Padding}"
                             Text="{TemplateBinding Text}"
                             Foreground="{TemplateBinding Foreground}"
                             FontFamily="{TemplateBinding FontFamily}"
                             FontSize="{TemplateBinding FontSize}"
                             FontWeight="{TemplateBinding FontWeight}"
+                            LineHeight="{TemplateBinding FontSize}"
                             TextAlignment="Center"
                             TextWrapping="Wrap"
                             HorizontalAlignment="Center"
@@ -58,15 +121,41 @@
 
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="HoverLayer" Property="Opacity" Value="0.12" />
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="0.10" />
+                            <!--  边框同时提亮：浅色填充上单靠白色叠加几乎看不出来  -->
+                            <Setter TargetName="FillRect" Property="Stroke" Value="{StaticResource ScadaButtonHoverStrokeBrush}" />
+                        </Trigger>
+
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressLayer" Property="Opacity" Value="0.18" />
+                        </Trigger>
+
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="FocusRing" Property="Visibility" Value="Visible" />
+                        </Trigger>
+
+                        <Trigger Property="Danger" Value="True">
+                            <Setter TargetName="DangerLayer" Property="Opacity" Value="0.22" />
+                            <Setter TargetName="FillRect" Property="Stroke" Value="{StaticResource ScadaButtonDangerTintBrush}" />
+                            <Setter TargetName="Label" Property="Foreground" Value="{StaticResource ScadaButtonDangerTextBrush}" />
                         </Trigger>
 
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.5" />
+                            <Setter TargetName="DisabledLayer" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="Label" Property="Foreground" Value="{StaticResource ScadaButtonDisabledTextBrush}" />
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="0" />
+                            <Setter TargetName="PressLayer" Property="Opacity" Value="0" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+
+        <Style.Triggers>
+            <!--  禁用：手型改回箭头（手型 = "能点"的承诺，禁用时不该给）  -->
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Cursor" Value="Arrow" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 </ResourceDictionary>

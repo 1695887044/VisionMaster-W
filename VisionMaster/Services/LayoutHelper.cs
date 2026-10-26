@@ -8,10 +8,31 @@ using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Xml.Linq;
+using Core.Interfaces;
 using UI.Core;
 
 namespace VisionMaster.Services
 {
+    /// <summary>
+    /// 底部控制台的三种状态。
+    ///
+    /// 为什么要有这个枚举，而不是像以前那样只看 <c>DockHeight &gt; 60</c>：
+    /// 抽屉条（<c>ConsoleDrawerBar</c>）的可见性、面板高度、箭头方向必须是同一份状态的三处输出；
+    /// 从高度反推会把"用户把分隔条拖到 50px"误判成收起，而且组态模式（隐藏）与用户收起
+    /// （抽屉条可见）在高度上都是 1px，反推根本分不开。
+    /// </summary>
+    public enum ConsolePaneState
+    {
+        /// <summary>组态模式：面板压到 1px，且抽屉条也不显示（底部整块让给画布）。</summary>
+        Hidden,
+
+        /// <summary>收起：面板压到 1px，抽屉条（页签 + 计数 + 摘要 + 箭头）显示。</summary>
+        Collapsed,
+
+        /// <summary>展开：面板 240（或用户拖出的高度），抽屉条隐藏，由面板自己的页签条接管。</summary>
+        Expanded,
+    }
+
     /// <summary>
     /// AvalonDock 布局助手：布局保存 / 加载 / 重置 / 面板激活的统一入口
     /// 关键点：XmlLayoutSerializer 只序列化布局结构（位置、大小、停靠关系），
@@ -44,8 +65,12 @@ namespace VisionMaster.Services
         /// 文档区多了一个 ContentId，旧 Layout.xml 必须让位。
         /// v6（2026-10-20）：程序面板并入流程导航、右侧三列收成单列检查器，
         /// 面板归属/停靠语义再次变化，旧 Layout.xml 必须让位。
+        /// v7（2026-10-26）：底部面板组删掉「设备状态」占位页签、日志页改名「控制台」、
+        /// 控制台收起改由 Shell 抽屉条承载。**必须升版**：旧 Layout.xml 里存着
+        /// Panel_DeviceStateView，反序列化会把它原样恢复成一个空壳标签（正是这次要删的东西），
+        /// 而 ContentId 覆盖度校验不会因此报错——属于"改造在老用户机器上等于没发生"。
         /// </summary>
-        private const int CurrentLayoutSchemaVersion = 6;
+        private const int CurrentLayoutSchemaVersion = 7;
 
         /// <summary>
         /// 流程栏所在列的默认宽度（与 Shell.xaml 的 DockWidth 一致）。
@@ -74,6 +99,12 @@ namespace VisionMaster.Services
         /// 绝不能让它看到我们自己塞进去的私有属性。
         /// </summary>
         private const string LayoutSchemaVersionAttributeName = "LayoutSchemaVersion";
+
+        /// <summary>
+        /// 底部控制台状态的根元素属性名：保存时写入（Collapsed / Expanded），
+        /// 下发前摘除。只持久化用户可见的两态；组态模式的 Hidden 是瞬态，写成 Collapsed。
+        /// </summary>
+        private const string LayoutConsoleStateAttributeName = "ConsoleState";
 
         /// <summary>
         /// 布局加载/重载完成后触发（活动栏等外部状态在此同步；
@@ -113,7 +144,8 @@ namespace VisionMaster.Services
             // "从 Layout.xml 恢复布局"之后图层面板变空壳；而覆盖度校验只遍历本表的 Keys，
             // 也不会因为缺它而拦下那份布局——属于"静默少一个面板"。
             ["Panel_ScadaLayerView"] = () => new Views.ScadaLayerView(),
-            // Panel_DeviceStateView：占位面板，无内容
+            // 底部面板组只剩「控制台 / 监控栏」两个页签；原「设备状态」占位面板已于 2026-10-26 删除
+            // （空壳标签，设备在线信息按设计基线归运行驾驶舱 KPI 卡），故这里不再有它的条目。
         };
 
         /// <summary>
@@ -234,23 +266,42 @@ namespace VisionMaster.Services
                     EnsureCoreDocuments(manager);
                     RestoreAllDocuments(manager);
 
-                    // 组态模式会把日志 pane 收成 1px；序列化会把该瞬态写进 Layout.xml，
-                    // 下次启动（Debug）因没有“收起前高度”记忆而无法恢复。保存前先还原高度。
+                    // 控制台收起（或组态隐藏）时整块面板不在停靠树里；序列化前必须放回，
+                    // 否则写出的 Layout.xml 里没有它，下次启动控制台直接消失。
+                    var consoleState = CurrentConsoleState;
+                    // 组态的 Hidden 是模式瞬态，不能带给下次启动的调试模式；写盘按收起处理。
+                    var persistedConsoleState = consoleState == ConsolePaneState.Hidden
+                        ? ConsolePaneState.Collapsed
+                        : consoleState;
                     RestoreLogPane(manager);
 
                     var serializer = new XmlLayoutSerializer(manager);
-                    using (var writer = new StringWriter())
+                    try
                     {
-                        serializer.Serialize(writer);
-                        // 出厂前打上结构版本戳：这是升级时判定"旧布局必须让位"的唯一依据
-                        var doc = XDocument.Parse(writer.ToString());
-                        doc.Root?.SetAttributeValue(LayoutSchemaVersionAttributeName, CurrentLayoutSchemaVersion);
-                        var xml = doc.ToString();
-
-                        // 序列化完成后恢复当前模式的文档可见性与日志高度；只动这两项，不动其它面板。
-                        ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
-                        if (mode == ShellMode.Config) CollapseLogPane(manager);
-                        return xml;
+                        using (var writer = new StringWriter())
+                        {
+                            serializer.Serialize(writer);
+                            // 出厂前打上结构版本戳：这是升级时判定”旧布局必须让位”的唯一依据
+                            var doc = XDocument.Parse(writer.ToString());
+                            doc.Root?.SetAttributeValue(LayoutSchemaVersionAttributeName, CurrentLayoutSchemaVersion);
+                            doc.Root?.SetAttributeValue(LayoutConsoleStateAttributeName, persistedConsoleState.ToString());
+                            return doc.ToString();
+                        }
+                    }
+                    finally
+                    {
+                        // 成功/失败都要恢复当前模式的文档可见性与控制台状态；只动这两项，不动其它面板。
+                        // 为什么放 finally：Serialize 抛异常时界面已经处于“全部文档放回 + 日志展开”的临时态，
+                        // 旧写法在 catch 里直接 return null，会把用户界面永久停在这个临时态。
+                        try
+                        {
+                            ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
+                            if (consoleState != ConsolePaneState.Expanded) ApplyConsoleState(manager, consoleState);
+                        }
+                        catch (Exception restoreEx)
+                        {
+                            Console.WriteLine($"布局序列化后恢复当前模式失败：{restoreEx.Message}");
+                        }
                     }
                 }
                 finally
@@ -306,7 +357,16 @@ namespace VisionMaster.Services
                 // 校验通过后、下发之前摘掉私有版本属性：
                 // XmlLayoutSerializer 对未知根属性的行为不可靠，不能让它看见我们塞进去的东西
                 var doc = XDocument.Parse(layoutXml);
+                ConsolePaneState? savedConsoleState = null;
+                var consoleStateAttr = doc.Root?.Attribute(LayoutConsoleStateAttributeName);
+                if (consoleStateAttr != null
+                    && Enum.TryParse<ConsolePaneState>(consoleStateAttr.Value, out var parsedConsoleState))
+                {
+                    savedConsoleState = parsedConsoleState;
+                }
+
                 doc.Root?.Attribute(LayoutSchemaVersionAttributeName)?.Remove();
+                doc.Root?.Attribute(LayoutConsoleStateAttributeName)?.Remove();
 
                 var previousApplying = IsApplyingShellMode;
                 IsApplyingShellMode = true;
@@ -325,14 +385,26 @@ namespace VisionMaster.Services
 
                     // 反序列化只还原结构，按 ContentId 回填面板内容
                     FillContents(manager);
+
+                    // 旧现场可能把右侧检查器面板拖成了中央文档（CanDockAsTabbedDocument 之前是默认 true）；
+                    // 这里把 4 个检查器面板从 LayoutDocument 迁回右侧 LayoutAnchorablePane。
+                    EnsureInspectorPanelsAreAnchorables(manager);
+
+                    // XmlLayoutSerializer 会新建 LayoutAnchorable，XML 里没写的属性回落库默认
+                    // （CanDockAsTabbedDocument=true / AutoHideWidth=0 / CanFloat=true）。
+                    // 旧布局没有这些新属性时必须按当前策略补回，否则“工具箱被拖成中央文档”会复发。
+                    ApplyPanelPolicies(manager);
                 }
                 finally
                 {
                     IsApplyingShellMode = previousApplying;
                 }
 
-                // 新树里的日志 pane 高度来自文件，旧的“收起前高度”记忆不再适用
+                // 新树里的日志 pane 高度来自文件，旧的“收起前高度”记忆与缓存 pane 都不再适用
                 _savedLogPaneHeight = null;
+                _consolePaneCache = null;
+                _consolePaneParent = null;
+                _consolePaneIndex = -1;
 
                 // 双保险（A 方案第 2 层）：对已经被旧 vms 持久化到 Hidden 的关键面板强制拉回可见。
                 // CanHide=False 只能从源头禁止后续关闭，已持久化的 Hidden 条目仍需此处兜底。
@@ -341,6 +413,14 @@ namespace VisionMaster.Services
                 // 流程栏列宽兜底：旧布局里可能是被拖窄的绝对宽度（实测 230），
                 // 低于最小宽度时拉回默认值（只动这一列，其余面板位置不变）。
                 EnsureProcessColumnWidth(manager);
+
+                // 右侧检查器列宽兜底：旧布局里是 320（v2 的 ≥1500 值），当前按 ≤1500 规则用 300。
+                // 只纠正"恰好 320"的旧默认，用户自己拖过的其它宽度保持不动。
+                EnsureInspectorColumnWidth(manager);
+
+                // 控制台状态：带属性的新布局按用户上次状态恢复；老布局没有属性按模式默认
+                // （调试/自由收起 32、运行展开 240、组态隐藏）。这是 A 方案"默认不占 200"的落点。
+                ApplyConsoleState(manager, savedConsoleState ?? ConsoleStateForMode(_currentShellMode));
 
                 LayoutLoaded?.Invoke();
                 return true;
@@ -481,14 +561,14 @@ namespace VisionMaster.Services
         /// </summary>
         public static bool IsPanelVisible(DockingManager? manager, string contentId)
             => FindPanel(manager, contentId) is LayoutContent c
-               && (c is not LayoutAnchorable a || a.IsVisible);
+               && (c is not LayoutAnchorable a || (a.IsVisible && !a.IsAutoHidden));
 
         /// <summary>
         /// 面板是否可见且处于激活状态（活动栏高亮判定；兼容停靠面板与文档选项卡）
         /// </summary>
         public static bool IsPanelActive(string contentId)
             => FindPanel(contentId) is LayoutContent c
-               && (c is not LayoutAnchorable a || a.IsVisible)
+               && (c is not LayoutAnchorable a || (a.IsVisible && !a.IsAutoHidden))
                && c.IsActive;
 
         /// <summary>
@@ -534,6 +614,9 @@ namespace VisionMaster.Services
 
         private const string LogPanelContentId = "Panel_LogView";
 
+        /// <summary>底部面板组的第二个页签（抽屉条"监控栏"入口用）。</summary>
+        private const string MonitorPanelContentId = "Panel_MonitorView";
+
         /// <summary>组态模式收起前记录的底部日志 pane 高度（null = 当前未收起）。</summary>
         private static GridLength? _savedLogPaneHeight;
 
@@ -555,14 +638,15 @@ namespace VisionMaster.Services
         /// 注意：本方法只改**可见性**，不改任何面板的 pane 归属，因此不触发
         /// <see cref="CurrentLayoutSchemaVersion"/> 递增（见 R43 的判据）。
         /// </summary>
-        public static void ApplyScadaPanelMode(bool scadaDesign)
-            => ApplyScadaPanelMode(FindManager(), scadaDesign);
+        public static void ApplyScadaPanelMode(bool scadaDesign, bool respectUserHidden = false)
+            => ApplyScadaPanelMode(FindManager(), scadaDesign, respectUserHidden);
 
         /// <summary>
         /// 四种工作模式的上下文收敛：文档标签 + 左右面板 + 底部面板。
         /// 只改可见性/文档集合，不改面板归属与停靠结构（R43 不触发）。
         /// </summary>
-        public static void ApplyShellMode(ShellMode mode) => ApplyShellMode(FindManager(), mode);
+        public static void ApplyShellMode(ShellMode mode, bool respectUserHidden = false)
+            => ApplyShellMode(FindManager(), mode, respectUserHidden);
 
         private static ShellMode _currentShellMode = ShellMode.Debug;
 
@@ -577,6 +661,14 @@ namespace VisionMaster.Services
             _ => new[] { "Panel_ImageView", "Panel_FlowCanvasView", "Panel_ScadaEditorView", "Panel_RunCockpitView" },
         };
 
+        /// <summary>各模式的底部控制台默认态（新布局/老布局没有 ConsoleState 属性时使用）。</summary>
+        private static ConsolePaneState ConsoleStateForMode(ShellMode mode) => mode switch
+        {
+            ShellMode.Run => ConsolePaneState.Expanded,
+            ShellMode.Config => ConsolePaneState.Hidden,
+            _ => ConsolePaneState.Collapsed,
+        };
+
         private static string? ActiveDocumentForMode(ShellMode mode) => mode switch
         {
             ShellMode.Debug => "Panel_ImageView",
@@ -585,7 +677,7 @@ namespace VisionMaster.Services
             _ => null,
         };
 
-        public static void ApplyShellMode(DockingManager? manager, ShellMode mode)
+        public static void ApplyShellMode(DockingManager? manager, ShellMode mode, bool respectUserHidden = false)
         {
             if (manager == null) return;
             if (IsApplyingShellMode) return;
@@ -605,7 +697,7 @@ namespace VisionMaster.Services
                     // 因此保留显式编排，避免用 false 分支把 Run/Free 做坏。
                     case ShellMode.Debug:
                         ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
-                        ApplyScadaPanelMode(manager, false);
+                        ApplyScadaPanelMode(manager, false, respectUserHidden);
                         break;
 
                     case ShellMode.Config:
@@ -626,12 +718,18 @@ namespace VisionMaster.Services
                     case ShellMode.Free:
                         ApplyDocumentMode(manager, DocumentsForMode(mode), ActiveDocumentForMode(mode));
                         ShowPanel(manager, "Panel_ProcessView");
-                        // 同一 pane 内最后 Show 的标签胜出：属性主标签放最后
-                        ShowPanel(manager, "Panel_ToolView");
+                        // 同一 pane 内最后 Show 的标签胜出：属性主标签放最后。
+                        // 尊重用户收起：启动/布局加载时不把已经进 Hidden/自动隐藏区的工具箱强行拉出来。
+                        // 判据用 IsPanelVisible（自动隐藏的 IsVisible 仍为 true，不能只看 IsVisible）。
+                        if (!(respectUserHidden && !IsPanelVisible(manager, OperatorToolboxPanel)))
+                        {
+                            ShowPanel(manager, OperatorToolboxPanel);
+                        }
                         ShowPanel(manager, "Panel_ScadaToolboxView");
                         ShowPanel(manager, "Panel_ScadaLayerView");
                         ShowPanel(manager, "Panel_ScadaPropertyView");
-                        RestoreLogPane(manager);
+                        // 自由模式的控制台默认也是 32；不在这里 RestoreLogPane，
+                        // 否则启动/切文档会把 LoadFromString 恢复的收起态洗回 200。
                         break;
                 }
             }
@@ -744,7 +842,7 @@ namespace VisionMaster.Services
         }
 
         /// <summary><see cref="ApplyScadaPanelMode(bool)"/> 的指定宿主重载（断言宿主用）</summary>
-        public static void ApplyScadaPanelMode(DockingManager? manager, bool scadaDesign)
+        public static void ApplyScadaPanelMode(DockingManager? manager, bool scadaDesign, bool respectUserHidden = false)
         {
             if (manager == null) return;
 
@@ -771,62 +869,38 @@ namespace VisionMaster.Services
             }
             else
             {
-                ShowPanel(manager, OperatorToolboxPanel);
+                // 尊重用户收起：启动/布局加载时工具箱已在 Hidden 区或自动隐藏区（胶囊态）就不再 Show；
+                // 显式切模式（respectUserHidden=false）仍按调试模式的默认面板集显示。
+                // 判据必须用 IsPanelVisible：自动隐藏时 IsVisible 仍为 true（Parent 是 LayoutAnchorGroup），
+                // 只看 IsVisible 会在重启后把用户的图钉收起强行拉回来（2026-10-26 真机）。
+                if (!(respectUserHidden && !IsPanelVisible(manager, OperatorToolboxPanel)))
+                {
+                    ShowPanel(manager, OperatorToolboxPanel);
+                }
+
                 foreach (var id in ScadaDesignPanels) HidePanel(manager, id);
 
                 foreach (var id in LeftWorkPanels) ShowPanel(manager, id);
-                RestoreLogPane(manager);
+                // 不在这里 RestoreLogPane：A 方案把调试/自由的控制台默认改成 32，
+                // 控制台状态由 LoadFromString（ConsoleState）/ SetShellMode（切模式收起）/
+                // 用户手动 Toggle 维护；这里再展开会把启动时恢复的收起态洗回 200。
             }
         }
 
         /// <summary>
-        /// 把底部日志 pane 收成 0 高。不用 HidePanel 是为了保住用户原来的可见性/标签选择
-        /// （日志、监控栏、设备状态共用这个 pane，隐藏其中一个会把整组收起）。
-        /// 重复调用幂等：已经是 0 时不再覆盖保存的高度。
+        /// 底部控制台状态变化（收起 / 展开 / 组态隐藏）。抽屉条与状态栏按钮都以此为准。
+        ///
+        /// 为什么用静态事件：改高度只有 DockingManager 能做（<see cref="LayoutHelper"/> 是静态类），
+        /// 而 UI 状态在 ShellViewModel 手里；不通知就会变成"面板 1px 了但抽屉条不出现"的分叉。
         /// </summary>
-        private static void CollapseLogPane(DockingManager manager)
-        {
-            // 已收起：重复调用直接返回（不能拿高度判断——收起后高度是 1，不是 0）
-            if (_savedLogPaneHeight != null) return;
+        public static event Action<ConsolePaneState>? ConsoleStateChanged;
 
-            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
-            if (pane == null) return;
-
-            // 已经是伪值（1~29，多为上次收起写盘后被夹出来的）就别把它当“收起前高度”记下来
-            _savedLogPaneHeight = pane.DockHeight.IsAbsolute && pane.DockHeight.Value < 30
-                ? new GridLength(200)
-                : pane.DockHeight;
-
-            // 为什么是 1 而不是 0：AvalonDock 的 DockHeight 会把 0 夹回原值（实测 set0 读回 200），
-            // 1px 则正常生效——视觉上就是一条边线，高度已经还给画布。
-            pane.DockHeight = new GridLength(1);
-        }
+        /// <summary>当前底部控制台状态（唯一事实源；由 <see cref="ApplyConsoleState"/> 维护）。</summary>
+        public static ConsolePaneState CurrentConsoleState { get; private set; } = ConsolePaneState.Collapsed;
 
         /// <summary>
-        /// 恢复底部日志 pane 的高度。
-        /// 有“收起前高度”记忆时按记忆恢复；没有记忆但当前高度明显是被夹出来的伪值（1~29）时，
-        /// 回到默认 200——否则组态模式退出/重启后日志条会永久停在一条缝。
-        /// </summary>
-        private static void RestoreLogPane(DockingManager manager)
-        {
-            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
-            if (pane == null) return;
-
-            if (_savedLogPaneHeight != null)
-            {
-                pane.DockHeight = _savedLogPaneHeight.Value;
-                _savedLogPaneHeight = null;
-                return;
-            }
-
-            // 只治“伪值”，不碰用户合法拖窄（>=30 视为用户选择）
-            if (pane.DockHeight.IsAbsolute && pane.DockHeight.Value < 30)
-                pane.DockHeight = new GridLength(200);
-        }
-
-        /// <summary>
-        /// 底部控制台展开 / 收起（32 ↔ 240）。只改 pane 高度，不改可见性与标签选择；
-        /// 与组态模式的 CollapseLogPane 分开：后者用 1px 且带"保存前高度"记忆。
+        /// 收起 / 展开底部控制台。只改 pane 高度与状态，不改可见性与标签选择。
+        /// 组态模式下直接返回：底部面板是刻意隐藏的，状态栏按钮与命令面板都不该把它叫出来。
         /// </summary>
         public static void ToggleConsole() => ToggleConsole(FindManager());
 
@@ -834,15 +908,166 @@ namespace VisionMaster.Services
         public static void ToggleConsole(DockingManager? manager)
         {
             if (manager == null) return;
-            // 组态模式的底部面板是刻意隐藏的，命令面板/状态栏都不该把它临时叫出来。
             if (_currentShellMode == ShellMode.Config) return;
+
+            ApplyConsoleState(
+                manager,
+                CurrentConsoleState == ConsolePaneState.Expanded
+                    ? ConsolePaneState.Collapsed
+                    : ConsolePaneState.Expanded);
+        }
+
+        /// <summary>
+        /// 展开底部控制台（抽屉条上的页签点击、视图菜单「控制台」等外部入口共用）。
+        /// 与 <see cref="ToggleConsole"/> 分开：这些入口的语义是"我要看这块"，不是"切一下"。
+        /// </summary>
+        public static void ExpandConsole() => ExpandConsole(FindManager());
+
+        /// <summary><see cref="ExpandConsole()"/> 的指定宿主重载（断言宿主用）。</summary>
+        public static void ExpandConsole(DockingManager? manager)
+        {
+            if (manager == null) return;
+            ApplyConsoleState(manager, ConsolePaneState.Expanded);
+        }
+
+        /// <summary>收起底部控制台（启动无布局 / 切回调试·自由时的模式默认）。</summary>
+        public static void CollapseConsole() => CollapseConsole(FindManager());
+
+        /// <summary><see cref="CollapseConsole()"/> 的指定宿主重载（断言宿主用）。</summary>
+        public static void CollapseConsole(DockingManager? manager)
+        {
+            if (manager == null) return;
+            ApplyConsoleState(manager, ConsolePaneState.Collapsed);
+        }
+
+        /// <summary>
+        /// 底部 pane 的状态落点：高度 + 记忆高度 + 广播状态。
+        /// </summary>
+        private static void ApplyConsoleState(DockingManager manager, ConsolePaneState state)
+        {
+            if (state == ConsolePaneState.Expanded) AttachConsolePane(manager);
+            else DetachConsolePane(manager);
+
+            if (CurrentConsoleState == state) return;
+            CurrentConsoleState = state;
+            ConsoleStateChanged?.Invoke(state);
+        }
+
+        /// <summary>收起时缓存下来的整块底部面板（null = 未收起）。</summary>
+        private static LayoutAnchorablePane? _consolePaneCache;
+        private static ILayoutGroup? _consolePaneParent;
+        private static int _consolePaneIndex = -1;
+        private static string? _consoleActivePanelId;
+
+        /// <summary>
+        /// 收起：把整块底部面板从停靠树里摘下来缓存。
+        ///
+        /// 为什么不是把 <c>DockHeight</c> 压到 1px：AvalonDock 的页签条有约 20px 最小高度，
+        /// 1px 只会让它**画到面板外**（屏幕上就是抽屉条上方多出一条重复页签，2026-10-26 真机实测），
+        /// 而 <c>LayoutAnchorablePane</c> 没有 <c>ShowHeader</c> 可以关掉它。
+        /// 摘下来 = 屏幕上真的没有它，抽屉条才是唯一的一条。
+        ///
+        /// 为什么不用 <c>IsVisible=false</c>（Hidden 区）：恢复时库按"记忆容器"插回，
+        /// 容器已不在树上时会退化成"找任意空 pane / 末尾新建一列"，控制台可能跑到别的列；
+        /// 缓存整块 pane 则是**原父容器、原索引**插回，位置不会漂。
+        /// </summary>
+        private static void DetachConsolePane(DockingManager manager)
+        {
+            if (_consolePaneCache != null) return;   // 已经收起
 
             var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
             if (pane == null) return;
 
-            var expanded = pane.DockHeight.IsAbsolute && pane.DockHeight.Value > 60;
-            pane.DockHeight = new GridLength(expanded ? 32 : 240);
+            _consoleActivePanelId = (pane.SelectedContent as LayoutContent)?.ContentId ?? LogPanelContentId;
+
+            if (_savedLogPaneHeight == null)
+            {
+                // 伪值（1~29，多为上次收起写盘后被夹出来的）不能当"收起前高度"记下来
+                _savedLogPaneHeight = pane.DockHeight.IsAbsolute && pane.DockHeight.Value < 30
+                    ? new GridLength(240)
+                    : pane.DockHeight;
+            }
+
+            // 只有父容器里还有别的子项时才摘：摘成空列会把整列宽度留给空白
+            if (pane.Parent is ILayoutGroup parent && parent.ChildrenCount > 1)
+            {
+                _consolePaneParent = parent;
+                _consolePaneIndex = parent.IndexOfChild(pane);
+                parent.RemoveChild(pane);
+                _consolePaneCache = pane;
+                return;
+            }
+
+            // 兜底（父容器拿不到 / 是唯一子项）：退回压高度，至少不崩
+            pane.DockHeight = new GridLength(1);
         }
+
+        /// <summary>
+        /// 展开：把缓存的 pane 按原父容器、原索引插回，再还原高度与用户收起前看的那一页。
+        /// </summary>
+        private static void AttachConsolePane(DockingManager manager)
+        {
+            var reattached = false;
+            if (_consolePaneCache != null && _consolePaneParent != null)
+            {
+                var index = Math.Max(0, Math.Min(_consolePaneIndex, _consolePaneParent.ChildrenCount));
+                _consolePaneParent.InsertChildAt(index, _consolePaneCache);
+                _consolePaneCache = null;
+                _consolePaneParent = null;
+                _consolePaneIndex = -1;
+                reattached = true;
+            }
+
+            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
+            if (pane == null) return;
+
+            if (_savedLogPaneHeight != null)
+            {
+                pane.DockHeight = _savedLogPaneHeight.Value;
+                _savedLogPaneHeight = null;
+            }
+            else if (pane.DockHeight.IsAbsolute && pane.DockHeight.Value < 30)
+            {
+                // 没有记忆但当前是"伪值"：回到默认展开高度。只治伪值，不碰用户合法拖窄（>=30）。
+                pane.DockHeight = new GridLength(240);
+            }
+
+            // 只在"刚从收起态插回"这一次还原用户看的页；用完即清，
+            // 否则之后每次模式收敛（都会走 Expanded）都会把用户刚切过去的页签拽回旧的。
+            if (reattached && _consoleActivePanelId != null
+                && FindPanel(manager, _consoleActivePanelId) is LayoutAnchorable active)
+            {
+                active.IsSelected = true;
+                active.IsActive = true;
+                _consoleActivePanelId = null;
+            }
+        }
+
+        /// <summary>
+        /// 底部面板组当前选中的 ContentId（抽屉条用它高亮"当前页"）。
+        /// 只读：取不到就返回 null，调用方按"不知道"处理，不要猜成日志页。
+        /// </summary>
+        public static string? GetConsoleSelectedPanelId()
+        {
+            var manager = FindManager();
+            if (manager == null) return null;
+
+            var pane = FindAncestorAnchorablePane(manager, LogPanelContentId);
+            return (pane?.SelectedContent as LayoutContent)?.ContentId;
+        }
+
+        /// <summary>
+        /// 组态模式：整块底部面板摘出停靠树。语义 = <see cref="ConsolePaneState.Hidden"/>：
+        /// 抽屉条也不显示，底部整块让给画布。
+        /// </summary>
+        private static void CollapseLogPane(DockingManager manager)
+            => ApplyConsoleState(manager, ConsolePaneState.Hidden);
+
+        /// <summary>
+        /// 恢复底部日志 pane（离开组态 / 进入运行或自由）。语义 = <see cref="ConsolePaneState.Expanded"/>。
+        /// </summary>
+        private static void RestoreLogPane(DockingManager manager)
+            => ApplyConsoleState(manager, ConsolePaneState.Expanded);
 
         /// <summary>按 ContentId 找到锚定面板所在的 LayoutAnchorablePane（沿 Parent 链）。</summary>
         private static LayoutAnchorablePane? FindAncestorAnchorablePane(DockingManager manager, string contentId)
@@ -860,7 +1085,12 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 隐藏指定面板（活动栏再次点击时收起；停靠面板切自动隐藏，文档切到其他标签）
+        /// 隐藏指定面板到 AvalonDock 的 Hidden 区（<c>IsVisible=false</c> → <c>Hide()</c>）。
+        /// <para><b>这不是“自动隐藏/图钉”</b>：<c>IsAutoHidden</c> 只能由用户点图钉或
+        /// <c>ToggleAutoHide()</c> 产生，Parent 是 <c>LayoutAnchorGroup</c>；本方法产生的是
+        /// Parent=LayoutRoot 的 Hidden 条目。两者在 <see cref="IsPanelVisible"/> 里都算不可见，
+        /// 但恢复路径不同（<see cref="ShowAnchorable"/> 分别走 ToggleAutoHide / Show）。</para>
+        /// 文档选项卡无“收起”语义（只能切走），仅处理停靠面板。
         /// </summary>
         public static void HidePanel(string contentId) => HidePanel(FindManager(), contentId);
 
@@ -881,6 +1111,14 @@ namespace VisionMaster.Services
         {
             if (string.IsNullOrEmpty(contentId)) return;
             if (manager == null) return;
+
+            // 控制台收起时整块面板不在停靠树里（见 DetachConsolePane），先展开再按 ContentId 查，
+            // 否则视图菜单「控制台 / 监控栏」点下去会静默无反应。
+            if (_consolePaneCache != null
+                && (contentId == LogPanelContentId || contentId == MonitorPanelContentId))
+            {
+                ApplyConsoleState(manager, ConsolePaneState.Expanded);
+            }
 
             var content = EnumerateContents(manager)
                 .FirstOrDefault(c => c.ContentId == contentId);
@@ -918,6 +1156,33 @@ namespace VisionMaster.Services
         /// </summary>
         private static void ShowAnchorable(DockingManager manager, LayoutAnchorable anchorable)
         {
+            // 自动隐藏（图钉按下）是**第三种**状态：Parent 是 LayoutAnchorGroup，
+            // IsAutoHidden=true、IsHidden=false，而 IsVisible 仍为 true（Parent 非 LayoutRoot）。
+            // 所以这一段必须排在 IsVisible 早退**之前**；库的 Show() 只认 Hidden 区，
+            // 对这种状态直接抛 InvalidOperationException。
+            // 收回走 ToggleAutoHide() 的“收回停靠”分支——它按 group.PreviousContainer 把整组
+            // 移回原 pane，并自己处理 PreviousContainer 为空的情况（新建 pane），
+            // 不碰 Dock()/Show() 那条缺负索引判据的老路（R58 的 2026-10-16 真机闪退同族）。
+            if (anchorable.IsAutoHidden)
+            {
+                var log = TryResolveLogService();
+                try
+                {
+                    var group = anchorable.Parent as LayoutAnchorGroup;
+                    Console.WriteLine($"[ShowPanel] {anchorable.ContentId} 自动隐藏收回前 groupParent={group?.Parent?.GetType().Name ?? "null"}");
+                    log?.Warn($"[ShowPanel] {anchorable.ContentId} 自动隐藏收回前 groupParent={group?.Parent?.GetType().Name ?? "null"}");
+                    anchorable.ToggleAutoHide();
+                    Console.WriteLine($"[ShowPanel] {anchorable.ContentId} 自动隐藏收回后 auto={anchorable.IsAutoHidden} parent={anchorable.Parent?.GetType().Name ?? "null"}");
+                    log?.Warn($"[ShowPanel] {anchorable.ContentId} 自动隐藏收回后 auto={anchorable.IsAutoHidden} parent={anchorable.Parent?.GetType().Name ?? "null"}");
+                    if (!anchorable.IsAutoHidden) return;
+                }
+                catch (Exception ex)
+                {
+                    log?.Warn($"[ShowPanel] {anchorable.ContentId} 自动隐藏收回异常：{ex.GetType().Name} {ex.Message}");
+                    Console.WriteLine($"面板 {anchorable.ContentId} 从自动隐藏区收回失败：{ex.Message}");
+                }
+            }
+
             if (anchorable.IsVisible) return;
             // 既不可见也不隐藏 = Parent 为 null（已从布局上摘干净）：Show() 这一态直接抛 InvalidOperationException
             if (!anchorable.IsHidden) return;
@@ -925,10 +1190,15 @@ namespace VisionMaster.Services
             var remembered = ReadPreviousContainer(anchorable);
             var rememberedIndex = ReadPreviousContainerIndex(anchorable);
 
-            // 记忆判废（索引为负、或那一列已经不在当前这棵树上）就不许让库自己插。
-            // 索引反射不到（库版本改了内部属性）时 rememberedIndex 为 null，算"不知道"：让库自己试，抛了照样走修复。
+            // 记忆判废（索引为负、那一列已不在当前树上、或压根不是 LayoutAnchorablePane）
+            // 就不许让库自己插。最后一条是 2026-10-26 真机布局实测补的：工具箱的 PreviousContainerId
+            // 指向中央 LayoutDocumentPane（旧“拖成文档”现场留下的记忆），索引 2 有效、容器也在树上，
+            // 旧判据会放行；库的 Show() 会真的把 LayoutAnchorable 插进文档 pane（实测不抛异常）。
+            // 索引反射不到（库版本改了内部属性）时 rememberedIndex 为 null，算“不知道”：让库自己试，抛了照样走修复。
+            bool rememberedIsAnchorablePane = remembered is LayoutAnchorablePane;
             bool memoryUnusable = rememberedIndex < 0
-                || (remembered != null && !IsAttachedTo(remembered, manager.Layout));
+                || (remembered != null && !IsAttachedTo(remembered, manager.Layout))
+                || (remembered != null && !rememberedIsAnchorablePane);
 
             if (!memoryUnusable)
             {
@@ -1002,7 +1272,9 @@ namespace VisionMaster.Services
             if (anchorable.IsVisible) return;
 
             var root = manager.Layout;
-            var rememberedGroup = remembered as ILayoutGroup;
+            // 落点只认 LayoutAnchorablePane：remembered 可能是 LayoutDocumentPane（旧现场）或
+            // LayoutAnchorGroup（自动隐藏组），把 anchorable 塞进这两种容器都不是“回到右侧列”。
+            var rememberedGroup = remembered as LayoutAnchorablePane;
             bool rememberedUsable = rememberedGroup != null && IsAttachedTo(rememberedGroup, root);
 
             var emptyRemembered = rememberedUsable && rememberedGroup!.ChildrenCount == 0 ? rememberedGroup : null;
@@ -1020,11 +1292,24 @@ namespace VisionMaster.Services
             }
 
             if (root.RootPanel == null) return;
-            var newPane = new LayoutAnchorablePane(anchorable) { DockWidth = new GridLength(260) };
+            var newPane = new LayoutAnchorablePane(anchorable) { DockWidth = new GridLength(DefaultPaneWidthFor(anchorable.ContentId)) };
             root.RootPanel.InsertChildAt(root.RootPanel.ChildrenCount, newPane);
             anchorable.IsSelected = true;
             anchorable.IsActive = true;
             Console.WriteLine($"面板 {anchorable.ContentId} 找不到可用的列，已在根面板末尾新建一列承载");
+        }
+
+        /// <summary>
+        /// 兜底新建 pane 的默认宽度：检查器 300、流程导航 340、其余 260。
+        /// 旧实现一律 260，右侧检查器从胶囊/隐藏区回来时会比设计窄 40px（且不会被 320→300 的兜底纠正）。
+        /// </summary>
+        private static double DefaultPaneWidthFor(string? contentId)
+        {
+            if (!string.IsNullOrEmpty(contentId) && InspectorPanelIds.Contains(contentId, StringComparer.Ordinal))
+                return 300;
+            if (string.Equals(contentId, ProcessViewContentId, StringComparison.Ordinal))
+                return DefaultProcessColumnWidth;
+            return 260;
         }
 
         /// <summary>
@@ -1052,10 +1337,15 @@ namespace VisionMaster.Services
             {
                 if (content is not LayoutAnchorable anchorable) continue;
                 if (!CriticalPanelContentIds.Contains(anchorable.ContentId)) continue;
-                if (anchorable.IsVisible) continue;
+
+                // 自动隐藏（Parent=LayoutAnchorGroup）时 IsVisible 仍为 true，但它不是“看得见”。
+                // 关键面板的口径是“必须常驻可见”，所以这里同时排除 IsAutoHidden；
+                // ShowAnchorable 会走 ToggleAutoHide 把它收回原 pane。
+                if (anchorable.IsVisible && !anchorable.IsAutoHidden) continue;
 
                 ShowAnchorable(manager, anchorable);
-                Console.WriteLine($"关键面板 {anchorable.ContentId} 从 Hidden 区强制恢复可见（{(anchorable.IsVisible ? "成功" : "失败：仍未显示")}）");
+                var restored = anchorable.IsVisible && !anchorable.IsAutoHidden;
+                Console.WriteLine($"关键面板 {anchorable.ContentId} 从 Hidden/自动隐藏区强制恢复可见（{(restored ? "成功" : "失败：仍未显示")}）");
             }
         }
 
@@ -1105,6 +1395,191 @@ namespace VisionMaster.Services
             {
                 Console.WriteLine($"流程栏列宽校正失败（不影响启动）：{ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// 右侧检查器列宽兜底：v2 默认 320 是 ≥1500px 视口的值，当前窗口约 1310，
+        /// 按设计稿 ≤1500 规则用 300。只纠正"恰好 320"的旧默认；用户自己拖过的
+        /// 其它宽度（例如 280/340）保持不动，避免把用户布局改坏。
+        /// </summary>
+        internal static void EnsureInspectorColumnWidth(DockingManager manager)
+        {
+            try
+            {
+                // 检查器可能被旧布局/自动隐藏拆成多列（真机 Layout.xml：属性一列 300、工具箱一列 304）。
+                // 每一列都要归一化，不能只修“第一个可见面板”的那一列。
+                var panes = new HashSet<LayoutAnchorablePane>();
+                foreach (var contentId in InspectorPanelIds)
+                {
+                    if (FindPanel(manager, contentId) is not LayoutAnchorable anchorable) continue;
+
+                    if (anchorable.Parent is LayoutAnchorablePane current && IsAttachedTo(current, manager.Layout))
+                        panes.Add(current);
+                    else if (ReadPreviousContainer(anchorable) is LayoutAnchorablePane previous && IsAttachedTo(previous, manager.Layout))
+                        panes.Add(previous);
+                }
+
+                foreach (var pane in panes)
+                {
+                    // 最小宽度也拉回设计值：旧布局可能是 320（v2 的 ≥1500 值）。
+                    pane.DockMinWidth = 300;
+
+                    // 只纠正已知的漂移值，不碰用户自己拖出的 280/340：
+                    // 320 = v2 旧默认；304 = 自动隐藏组收回时留下的列宽（真机 Layout.xml 实测）；
+                    // 260 = AnchorToHomePane 旧兜底新建的列宽。
+                    if (pane.DockWidth.IsAbsolute
+                        && (Math.Abs(pane.DockWidth.Value - 320) < 0.1
+                            || Math.Abs(pane.DockWidth.Value - 304) < 0.1
+                            || Math.Abs(pane.DockWidth.Value - 260) < 0.1))
+                    {
+                        var oldWidth = pane.DockWidth.Value;
+                        pane.DockWidth = new GridLength(300);
+                        Console.WriteLine($"右侧检查器列宽 {oldWidth:0.#}（已知漂移值）已按 ≤1500 规则拉回 300");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"右侧检查器列宽校正失败（不影响启动）：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 右侧检查器的 4 个面板：属性 / 图层 / 工具箱 / 图元工具箱。
+        /// 它们只能待在右侧 LayoutAnchorablePane，不能被拖成中央文档。
+        /// </summary>
+        private static readonly string[] InspectorPanelIds =
+        {
+            "Panel_ScadaPropertyView",
+            "Panel_ScadaLayerView",
+            "Panel_ToolView",
+            "Panel_ScadaToolboxView",
+        };
+
+        /// <summary>
+        /// 把被旧布局拖成 LayoutDocument 的检查器面板迁回右侧 LayoutAnchorablePane。
+        ///
+        /// 现场（2026-10-26）：工具箱被双击/拖到中央文档区，变成"视觉图像 / 流程画布 / 工具箱"的文档标签；
+        /// 点胶囊钉回时找不到 anchorable，右侧永远是空的。新布局已用 CanDockAsTabbedDocument=False 拦住；
+        /// 这条负责救治已经落盘的旧现场（不升结构版本、不丢其它面板位置）。
+        /// </summary>
+        private static void EnsureInspectorPanelsAreAnchorables(DockingManager manager)
+        {
+            try
+            {
+                foreach (var contentId in InspectorPanelIds)
+                {
+                    var document = EnumerateContents(manager)
+                        .OfType<LayoutDocument>()
+                        .FirstOrDefault(d => string.Equals(d.ContentId, contentId, StringComparison.Ordinal));
+                    if (document == null) continue;
+
+                    var rightPane = manager.Layout.Descendents()
+                                        .OfType<LayoutAnchorablePane>()
+                                        .FirstOrDefault(p => p.ChildrenCount == 0 && IsAttachedTo(p, manager.Layout))
+                                    ?? FindInspectorHomePane(manager)
+                                    ?? CreateInspectorPane(manager);
+                    if (rightPane == null) continue;
+
+                    var content = document.Content;
+                    document.Content = null;
+                    if (document.Parent is ILayoutContainer parent)
+                        parent.RemoveChild(document);
+
+                    var anchorable = new LayoutAnchorable
+                    {
+                        Title = document.Title,
+                        ContentId = contentId,
+                        Content = content,
+                        CanClose = false,
+                        CanHide = true,
+                        CanDockAsTabbedDocument = false,
+                        AutoHideWidth = 300,
+                    };
+                    rightPane.Children.Add(anchorable);
+                    anchorable.IsSelected = true;
+                    anchorable.IsActive = true;
+                    Console.WriteLine($"检查器面板 {contentId} 曾以文档形式停靠，已迁回右侧 LayoutAnchorablePane");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"检查器面板归位失败（不影响启动）：{ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 布局恢复后的面板策略兜底。
+        ///
+        /// <para>为什么必须有：<c>XmlLayoutSerializer.Deserialize</c> 会**新建** <c>LayoutAnchorable</c>，
+        /// 不是复用 XAML 里那个实例；XML 里没写的属性一律回落库默认值：
+        /// <c>CanDockAsTabbedDocument=true</c>、<c>AutoHideWidth=0</c>、<c>CanFloat=true</c>。
+        /// 旧 <c>Layout.xml</c> 没有这些新属性 → 恢复后“检查器页签不能再拖成文档 / 自动隐藏浮层 300 /
+        /// 不许浮动”三条守卫全部丢失（2026-10-26 真机布局实测：工具箱 XML 里两项都没有）。</para>
+        ///
+        /// <para>策略只作用于“有明确归属”的面板：检查器 4 个固定右侧列、流程导航固定左侧列、
+        /// 底部控制台/监控栏固定底部抽屉。中央文档仍保留可拆分/浮动（设计基线明确允许）。</para>
+        /// </summary>
+        private static void ApplyPanelPolicies(DockingManager manager)
+        {
+            foreach (var contentId in InspectorPanelIds)
+            {
+                if (FindPanel(manager, contentId) is not LayoutAnchorable anchorable) continue;
+                anchorable.CanClose = false;
+                anchorable.CanHide = true;
+                anchorable.CanDockAsTabbedDocument = false;
+                anchorable.CanFloat = false;
+                anchorable.AutoHideWidth = 300;
+            }
+
+            if (FindPanel(manager, ProcessViewContentId) is LayoutAnchorable process)
+            {
+                process.CanClose = false;
+                process.CanHide = true;
+                process.CanDockAsTabbedDocument = false;
+                process.CanFloat = false;
+            }
+
+            foreach (var id in new[] { LogPanelContentId, MonitorPanelContentId })
+            {
+                if (FindPanel(manager, id) is not LayoutAnchorable bottom) continue;
+                bottom.CanClose = false;
+                bottom.CanHide = false;
+                bottom.CanFloat = false;
+            }
+
+            foreach (var (id, _) in CoreDocuments)
+            {
+                if (FindPanel(manager, id) is LayoutDocument document)
+                    document.CanClose = false;
+            }
+        }
+
+        private static LayoutAnchorablePane? FindInspectorHomePane(DockingManager manager)
+        {
+            foreach (var contentId in InspectorPanelIds)
+            {
+                if (FindPanel(manager, contentId) is not LayoutAnchorable anchorable) continue;
+
+                var pane = anchorable.Parent as LayoutAnchorablePane
+                           ?? ReadPreviousContainer(anchorable) as LayoutAnchorablePane;
+                if (pane != null && IsAttachedTo(pane, manager.Layout)) return pane;
+            }
+
+            return null;
+        }
+
+        private static LayoutAnchorablePane? CreateInspectorPane(DockingManager manager)
+        {
+            if (manager.Layout.RootPanel == null) return null;
+
+            var pane = new LayoutAnchorablePane
+            {
+                DockWidth = new GridLength(300),
+                DockMinWidth = 300,
+            };
+            manager.Layout.RootPanel.InsertChildAt(manager.Layout.RootPanel.ChildrenCount, pane);
+            return pane;
         }
 
         /// <summary>
@@ -1187,6 +1662,16 @@ namespace VisionMaster.Services
 
             foreach (var hidden in manager.Layout.Hidden)
                 yield return hidden;
+
+            // 自动隐藏区（图钉按下）不在 RootPanel、也不在 Hidden：Parent 是 LayoutAnchorGroup，
+            // 挂在 LayoutRoot.{Left,Right,Top,Bottom}Side 上。漏掉这四棵子树 → FindPanel 返回 null，
+            // 胶囊点下去 ShowPanel 直接 return（2026-10-26 真机"点胶囊没反应"的根因）。
+            foreach (var side in new[] { manager.Layout.LeftSide, manager.Layout.RightSide, manager.Layout.TopSide, manager.Layout.BottomSide })
+            {
+                if (side == null) continue;
+                foreach (var c in Walk(side))
+                    yield return c;
+            }
         }
 
         /// <summary>
@@ -1231,7 +1716,52 @@ namespace VisionMaster.Services
                     foreach (var c in docPaneGroup.Children.SelectMany(Walk))
                         yield return c;
                     break;
+
+                case LayoutAnchorGroup anchorGroup: // 自动隐藏组：Children 是 LayoutAnchorable
+                    foreach (var c in anchorGroup.Children.SelectMany(Walk))
+                        yield return c;
+                    break;
+
+                case LayoutAnchorSide anchorSide: // 自动隐藏区的一侧：Children 是 LayoutAnchorGroup
+                    foreach (var c in anchorSide.Children.SelectMany(Walk))
+                        yield return c;
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 取“与指定面板同处一个自动隐藏组”的其它面板 ContentId。
+        ///
+        /// <para>AvalonDock 的 <c>ToggleAutoHide()</c> 是 **pane 级**：图钉收起时会把整列所有标签
+        /// 移进同一个 <c>LayoutAnchorGroup</c>，收回时也整组搬回原 pane。胶囊是 **panel 级**，
+        /// 点一枚后必须把同组其它面板再收回去，否则组态模式点“属性”会把本应隐藏的“工具箱”
+        /// 一起带回来（2026-10-26 评审结论）。</para>
+        /// </summary>
+        public static IReadOnlyList<string> GetAutoHiddenGroupSiblingIds(string contentId)
+            => GetAutoHiddenGroupSiblingIds(FindManager(), contentId);
+
+        /// <summary><see cref="GetAutoHiddenGroupSiblingIds(string)"/> 的指定宿主重载（断言宿主用）。</summary>
+        internal static IReadOnlyList<string> GetAutoHiddenGroupSiblingIds(DockingManager? manager, string contentId)
+        {
+            if (manager == null) return Array.Empty<string>();
+            if (FindPanel(manager, contentId) is not LayoutAnchorable anchorable) return Array.Empty<string>();
+            if (anchorable.Parent is not LayoutAnchorGroup group) return Array.Empty<string>();
+
+            var ids = new List<string>();
+            foreach (var child in group.Children)
+            {
+                var id = child.ContentId;
+                if (string.IsNullOrEmpty(id) || string.Equals(id, contentId, StringComparison.Ordinal)) continue;
+                ids.Add(id);
+            }
+            return ids;
+        }
+
+        /// <summary>排障留痕：断言宿主没有 Prism 容器时返回 null（日志绝不能让布局操作失败）。</summary>
+        private static ILogService? TryResolveLogService()
+        {
+            try { return Prism.Ioc.ContainerLocator.Container.Resolve<ILogService>(); }
+            catch { return null; }
         }
 
         private static bool TryDeleteLayoutFile()

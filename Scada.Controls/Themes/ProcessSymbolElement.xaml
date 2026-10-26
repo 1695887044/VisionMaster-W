@@ -1,0 +1,113 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        工艺符号（Hmi.Symbol）：轮廓（描边）+ 装饰（状态色填充）+ 读数 + 位号。
+
+        版式三行：上方位号 / 符号 / 下方位号；"Inside" 跨三行压在中间。
+        位号三个落点各用一个 TextBlock（显隐由控件的三个 Visibility 属性给），
+        不用 VerticalAlignment 一个块挪来挪去——那样 Above 会压在符号身上。
+    -->
+    <Style TargetType="{x:Type local:ProcessSymbolElement}">
+        <!--  状态色默认取令牌（2026-10-26）：不烤局部值，改令牌全局生效；用户改了则局部覆盖  -->
+        <Setter Property="AccentColor" Value="{StaticResource HmiStateRunningBrush}" />
+        <Setter Property="StoppedColor" Value="{StaticResource HmiStateStoppedBrush}" />
+        <Setter Property="FaultColor" Value="{StaticResource HmiStateFaultBrush}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:ProcessSymbolElement}">
+                    <!--  Background=Transparent：细线符号也要整个框可命中（选中/拖动）  -->
+                    <Grid Background="Transparent">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!--  上方位号  -->
+                        <TextBlock
+                            Grid.Row="0"
+                            Margin="2,0,2,2"
+                            HorizontalAlignment="Center"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            Foreground="{TemplateBinding Foreground}"
+                            Text="{TemplateBinding Text}"
+                            TextTrimming="CharacterEllipsis"
+                            Visibility="{Binding TagAboveVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                        <!--  符号本体  -->
+                        <Viewbox
+                            Grid.Row="1"
+                            Margin="4"
+                            Stretch="Uniform">
+                            <Grid Width="100" Height="100">
+                                <Path
+                                    Data="{Binding OutlineGeometry, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Fill="Transparent"
+                                    SnapsToDevicePixels="True"
+                                    Stroke="{TemplateBinding Stroke}"
+                                    StrokeLineJoin="Round"
+                                    StrokeThickness="{TemplateBinding StrokeThickness}" />
+                                <Path
+                                    Data="{Binding AccentGeometry, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Fill="{Binding AccentBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                                    SnapsToDevicePixels="True"
+                                    Stroke="{Binding AccentBrush, RelativeSource={RelativeSource TemplatedParent}}"
+                                    StrokeThickness="1" />
+                            </Grid>
+                        </Viewbox>
+
+                        <!--  下方位号  -->
+                        <TextBlock
+                            Grid.Row="2"
+                            Margin="2,2,2,0"
+                            HorizontalAlignment="Center"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            Foreground="{TemplateBinding Foreground}"
+                            Text="{TemplateBinding Text}"
+                            TextTrimming="CharacterEllipsis"
+                            Visibility="{Binding TagBelowVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                        <!--  压在符号中央的位号（跨三行）  -->
+                        <TextBlock
+                            Grid.Row="0"
+                            Grid.RowSpan="3"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{TemplateBinding FontFamily}"
+                            FontSize="{TemplateBinding FontSize}"
+                            Foreground="{TemplateBinding Foreground}"
+                            Text="{TemplateBinding Text}"
+                            TextTrimming="CharacterEllipsis"
+                            Visibility="{Binding TagInsideVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                        <!--  读数（可选）  -->
+                        <TextBlock
+                            Grid.Row="0"
+                            Grid.RowSpan="3"
+                            Margin="2"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="Consolas, Microsoft YaHei UI"
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Foreground="{TemplateBinding Foreground}"
+                            Text="{Binding ValueText, RelativeSource={RelativeSource TemplatedParent}}"
+                            Visibility="{Binding ValueVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

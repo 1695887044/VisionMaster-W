@@ -18,8 +18,9 @@ namespace ScadaWebE2E
         {
             try { Console.OutputEncoding = System.Text.Encoding.UTF8; } catch { }
 
-            // --all：ClickPolicy=AllOperators（所有登录操作员都能点）；
-            // 默认 HighestRoleOnly（只有最高角色能点，其余只读）。
+            // --all：租约关（两个账号都能同时点）；
+            // 默认租约开 + 必须持租约（`AllOperatorsRequiresLease`）。
+            // B3 之后"谁能点"由账号的权限 Key 决定，不再有"最高档"策略可切。
             var allOperators = args.Any(a => string.Equals(a, "--all", StringComparison.OrdinalIgnoreCase));
 
             var document = new ScadaDocument();
@@ -54,12 +55,10 @@ namespace ScadaWebE2E
                 BindAddress = "127.0.0.1",
                 AllowAnonymousView = false,
                 AllowCommands = true,
-                ClickPolicy = allOperators
-                    ? ScadaWebClickPolicy.AllOperators
-                    : ScadaWebClickPolicy.HighestRoleOnly,
                 RequireConfirmForDangerous = true,
+                // --all = 不用租约（两人都能点）；默认要持租约。
                 OperationLeaseEnabled = true,
-                AllOperatorsRequiresLease = false,
+                AllOperatorsRequiresLease = !allOperators,
                 MaxSessions = 16
             };
 
@@ -159,21 +158,32 @@ namespace ScadaWebE2E
 
         private sealed class FakeAuthenticator : IScadaUserAuthenticator
         {
-            public bool TryValidate(string? userName, string? password, out ScadaRole role, out string? error)
+            // B3：身份是「用户组 + 权限 Key」，没有角色。两个演示账号分属两个组，
+            // 差别只在 Key 集合上（admin 有全部内置 Key，op 只有看画面 + 运行控制）。
+            private static readonly string[] AdminPerms = ScadaPermissionKeys.BuiltInKeys.ToArray();
+
+            private static readonly string[] OperatorPerms =
             {
-                role = ScadaRole.Operator;
+                ScadaPermissionKeys.ViewRuntime,
+                ScadaPermissionKeys.ControlRun,
+            };
+
+            public bool TryValidate(string? userName, string? password, out ScadaUserInfo? user, out string? error)
+            {
+                user = null;
                 error = null;
 
                 if (string.Equals(userName?.Trim(), "admin", StringComparison.OrdinalIgnoreCase)
                     && password == "admin123")
                 {
-                    role = ScadaRole.Administrator;
+                    user = new ScadaUserInfo("admin", "tpl-admin", AdminPerms, "模板·管理员");
                     return true;
                 }
 
                 if (string.Equals(userName?.Trim(), "op", StringComparison.OrdinalIgnoreCase)
                     && password == "op123")
                 {
+                    user = new ScadaUserInfo("op", "G-lineop", OperatorPerms, "产线操作员");
                     return true;
                 }
 

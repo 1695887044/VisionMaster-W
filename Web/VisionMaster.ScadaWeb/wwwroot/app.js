@@ -606,6 +606,7 @@
       ParentId: pick(raw, 'ParentId', 'parentId', 'parent') || null,
       LayerId: pick(raw, 'LayerId', 'layerId', 'layer') || null,
       LayerVisible: toBool(pick(raw, 'LayerVisible', 'layerVisible'), true),
+      RequiredPermission: pick(raw, 'RequiredPermission', 'requiredPermission') || null,
       RequiredRole: pick(raw, 'RequiredRole', 'requiredRole') || null,
       Properties: props,
       Bindings: pick(raw, 'Bindings', 'bindings', 'bind') || [],
@@ -628,6 +629,7 @@
     el.parentId = el.ParentId;
     el.layerId = el.LayerId;
     el.layerVisible = el.LayerVisible;
+    el.requiredPermission = el.RequiredPermission;
     el.requiredRole = el.RequiredRole;
     el.props = el.Properties;
     el.bindings = el.Bindings;
@@ -1896,15 +1898,12 @@
 
   // ---- 在线用户（presence） -------------------------------------------------
 
-  function roleLabel(role) {
-    var text = String(role === undefined || role === null ? '' : role).trim();
-    var key = text.toLowerCase();
-
-    if (key === 'admin' || key === 'administrator') return '管理员';
-    if (key === 'engineer') return '工程师';
-    if (key === 'operator') return '操作员';
-    if (key === 'viewer' || key === 'guest') return '访客';
-    return text || '未登录';
+  /** 组名直接上屏（B3：身份只有「用户组 + 权限 Key」，没有角色档位） */
+  function groupLabel(user) {
+    var name = String(user.groupName || '').trim();
+    if (name) return name;
+    var id = String(user.groupId || '').trim();
+    return id || '未分组';
   }
 
   /** presence 每行只有不透明 sessionRef，没有 sessionId（方案 §9.3） */
@@ -1914,7 +1913,8 @@
     return {
       sessionRef: toText(pick(raw, 'sessionRef', 'SessionRef'), ''),
       user: toText(pick(raw, 'user', 'User', 'userName', 'UserName', 'name', 'Name'), ''),
-      role: toText(pick(raw, 'role', 'Role'), ''),
+      groupId: toText(pick(raw, 'groupId', 'GroupId'), ''),
+      groupName: toText(pick(raw, 'groupName', 'GroupName'), ''),
       ip: toText(pick(raw, 'ip', 'Ip', 'remoteIp', 'RemoteIp'), ''),
       connectedAtUtc: toText(pick(raw, 'connectedAtUtc', 'ConnectedAtUtc'), ''),
       lastSeenUtc: toText(pick(raw, 'lastSeenUtc', 'LastSeenUtc'), ''),
@@ -1969,7 +1969,7 @@
 
       var meta = document.createElement('span');
       meta.className = 'presence-meta';
-      var parts = [roleLabel(user.role)];
+      var parts = [groupLabel(user)];
       if (user.ip) parts.push(user.ip);
       if (/holder/i.test(user.leaseState)) parts.push('持操作权');
       meta.textContent = parts.join(' · ');

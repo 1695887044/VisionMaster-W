@@ -53,6 +53,19 @@ namespace Plugin.Matching
             set { if (_rect != value) { _rect = value; OnChanged(nameof(Rect)); } }
         }
 
+        /// <summary>
+        /// NCC 模型原点（模板域重心）相对 ROI 中心的偏移（模型坐标系，行/列）。
+        ///
+        /// 形状模型用 set_shape_model_origin 把原点搬到 ROI 中心；NCC 没有对应算子，
+        /// find_ncc_model 返回的是模板域重心。学习时记下这个偏移，匹配时按角度旋转后补回，
+        /// 两种算法的 Row/Column 才同口径。旧方案没有该字段 → 0；
+        /// 非对称掩膜的旧 NCC 模板需要重新学习一次才能获得修正。
+        /// </summary>
+        public double NccOffsetRow { get; set; }
+
+        /// <summary>NCC 原点列偏移，语义见 <see cref="NccOffsetRow"/></summary>
+        public double NccOffsetCol { get; set; }
+
         private string _mask = string.Empty;
 
         /// <summary>涂抹排除域（掩膜图 PNG 的 base64，255=挖掉）；空 = 没有涂抹</summary>

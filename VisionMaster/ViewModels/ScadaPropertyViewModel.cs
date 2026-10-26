@@ -80,6 +80,12 @@ namespace VisionMaster.ViewModels
         /// <c>internal</c> 而不是 <c>private</c>：动画档位卡片那套取色器（<see cref="ScadaColorSlot"/>）
         /// 与属性行的取色器对同一串坏值必须给出同一块灰，否则一张面板上两处颜色控件两种观感。
         /// </summary>
+        /// <summary>
+        /// 这一行只读（由描述符的 <c>ReadOnlyKeys</c> 声明）：显示但置灰，悬停提示"由系统计算"。
+        /// 典型：管线的 X/Y/宽高/旋转——几何由路由器现算，改了会被下一拍写回。
+        /// </summary>
+        public bool IsReadOnly { get; set; }
+
         internal static readonly Brush FallbackSwatch = Frozen(0xCC, 0xCC, 0xCC);
 
         /// <summary>
@@ -215,7 +221,7 @@ namespace VisionMaster.ViewModels
         /// （翻译只发生在显示层，写回的一律是 <see cref="ScadaChoiceOption.Value"/>）。
         ///
         /// 覆写者注意：模板绑的是本属性，所以候选集变了要通知的也是<b>本属性</b>；
-        /// 通知 <c>Choices</c> 没人听（见 <see cref="ScadaRolePropertyRow.RefreshValue"/>）。
+        /// 通知 <c>Choices</c> 没人听（见 <see cref="ScadaPermissionPropertyRow.RefreshValue"/>）。
         /// </summary>
         public virtual IReadOnlyList<ScadaChoiceOption> ChoiceOptions => ScadaChoiceNames.ToOptions(Choices);
 
@@ -819,6 +825,97 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
+    /// 报表列定义的一行（Kind = <see cref="ElementPropertyKind.ReportColumnList"/>）。
+    ///
+    /// 与 <see cref="ScadaGridColumnsRow"/> 同形（摘要 + 「选择列…」），所以视图侧
+    /// 复用同一个 DataTemplate——但打开的是报表列编辑器：报表列绑的是<b>账本列名</b>，
+    /// 还多一个聚合方式，跟"绑哪个变量"不是一回事。
+    /// </summary>
+    public sealed class ScadaReportColumnsRow : ScadaPropertyRow
+    {
+        private readonly Action<ScadaReportColumnsRow> _pick;
+
+        public ScadaReportColumnsRow(ScadaElement element, ElementPropertyDescriptor descriptor,
+                                     Action<ScadaReportColumnsRow> pick)
+            : base(element, descriptor)
+        {
+            _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+            PickColumnsCommand = new DelegateCommand(() => _pick(this));
+        }
+
+        /// <summary>「选择列…」：打开报表列配置弹窗，确认后由面板写回</summary>
+        public DelegateCommand PickColumnsCommand { get; }
+
+        /// <summary>行上显示的摘要（未配置 / N 列 · 名称…）</summary>
+        public string Summary
+        {
+            get
+            {
+                var columns = ScadaReportCodec.Parse(Value);
+                if (columns.Count == 0)
+                    return "未配置";
+
+                var names = string.Join(" / ", columns.Select(c => c.Title));
+                return columns.Count <= 3
+                    ? $"{columns.Count} 列 · {names}"
+                    : $"{columns.Count} 列 · {names}…";
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            RaisePropertyChanged(nameof(Summary));
+        }
+    }
+
+    /// <summary>
+    /// 柱状图 / 饼图的「数据项」行：摘要 + 「配置数据项…」。
+    ///
+    /// 为什么按<b>属性键</b>认它、而不是加一个新的 <c>ElementPropertyKind</c>：
+    /// 图表项与报表列<b>同形但不同义</b>（绑工程变量 vs 绑账本列名），加枚举值要同时改
+    /// 生成器、属性面板与所有 switch；按键认只在面板这一处落地，
+    /// 而 <c>BarSeries</c> / <c>PieSlices</c> 本来就是这两个图元的稳定标识。
+    /// </summary>
+    public sealed class ScadaChartSeriesRow : ScadaPropertyRow
+    {
+        private readonly Action<ScadaChartSeriesRow> _pick;
+
+        public ScadaChartSeriesRow(ScadaElement element, ElementPropertyDescriptor descriptor,
+                                   Action<ScadaChartSeriesRow> pick)
+            : base(element, descriptor)
+        {
+            _pick = pick ?? throw new ArgumentNullException(nameof(pick));
+            PickSeriesCommand = new DelegateCommand(() => _pick(this));
+        }
+
+        /// <summary>「配置数据项…」：打开数据项编辑器，确认后由面板写回</summary>
+        public DelegateCommand PickSeriesCommand { get; }
+
+        /// <summary>行上显示的摘要（未配置 / N 项 · 名称…）</summary>
+        public string Summary
+        {
+            get
+            {
+                var items = ScadaChartCodec.Parse(Value);
+                if (items.Count == 0)
+                    return "未配置";
+
+                var names = string.Join(" / ", items.Select(i => i.Label));
+                return items.Count <= 3
+                    ? $"{items.Count} 项 · {names}"
+                    : $"{items.Count} 项 · {names}…";
+            }
+        }
+
+        public override void RefreshValue()
+        {
+            base.RefreshValue();
+            RaisePropertyChanged(nameof(Summary));
+        }
+    }
+
+    /// <summary>
     /// 方案级文本列表的一行（Kind = <see cref="ElementPropertyKind.StateList"/>）。
     ///
     /// 行上是一个列表选择器 + 「管理…」：候选来自方案文档，不是手打；
@@ -1013,12 +1110,18 @@ namespace VisionMaster.ViewModels
     public sealed class ScadaPagePropertyRow : ScadaPropertyRowBase
     {
         private readonly Func<string?>? _solutionPath;
+        private readonly Func<IReadOnlyList<ScadaPermissionInfo>>? _permissionCatalog;
+
+        private string _describedPermission;
+        private IReadOnlyList<string> _permissionChoices = Array.Empty<string>();
+        private IReadOnlyList<ScadaChoiceOption> _permissionOptions = Array.Empty<ScadaChoiceOption>();
 
         public ScadaPagePropertyRow(
             ScadaPage page,
             ScadaDocument document,
             ScadaPagePropertySpec spec,
-            Func<string?>? solutionPath = null)
+            Func<string?>? solutionPath = null,
+            Func<IReadOnlyList<ScadaPermissionInfo>>? permissionCatalog = null)
             : base(spec ?? throw new ArgumentNullException(nameof(spec)),
                    spec.Read(page ?? throw new ArgumentNullException(nameof(page)),
                              document ?? throw new ArgumentNullException(nameof(document))))
@@ -1027,6 +1130,14 @@ namespace VisionMaster.ViewModels
             Document = document;
             Spec = spec;
             _solutionPath = solutionPath;
+            _permissionCatalog = permissionCatalog;
+
+            if (IsPermission)
+            {
+                _describedPermission = ScadaPermissionChoices.Describe(Value);
+                (_permissionChoices, _permissionOptions) =
+                    ScadaPermissionChoices.Build(_describedPermission, _permissionCatalog);
+            }
 
             PickImageCommand = new DelegateCommand(OnPickImage, () => IsImageFile);
             ClearImageCommand = new DelegateCommand(OnClearImage, () => IsImageFile && !string.IsNullOrWhiteSpace(Value));
@@ -1044,6 +1155,15 @@ namespace VisionMaster.ViewModels
         /// <summary>这一行是不是“方案内图片文件”（背景图）</summary>
         public bool IsImageFile => Spec.Kind == ElementPropertyKind.ImageFile;
 
+        /// <summary>这一行是不是页面级「所需权限」行（候选来自权限目录，不是静态声明）</summary>
+        public bool IsPermission => string.Equals(Spec.Key, "RequiredPermission", StringComparison.Ordinal);
+
+        /// <summary>候选的落盘值：权限行是 <c>__none__</c> + 权限 Key；其余行转手声明</summary>
+        public override IReadOnlyList<string> Choices => IsPermission ? _permissionChoices : base.Choices;
+
+        /// <summary>下拉实际绑定的一份（值 + 目录里的显示名）</summary>
+        public override IReadOnlyList<ScadaChoiceOption> ChoiceOptions => IsPermission ? _permissionOptions : base.ChoiceOptions;
+
         /// <summary>选择图片：复制进方案 Image\，把相对路径写回属性（走基类提交，进撤销栈）</summary>
         public DelegateCommand PickImageCommand { get; }
 
@@ -1060,12 +1180,40 @@ namespace VisionMaster.ViewModels
         {
             base.RefreshValue();
 
+            if (IsPermission)
+            {
+                string current = ScadaPermissionChoices.Describe(Value);
+                if (!string.Equals(current, _describedPermission, StringComparison.Ordinal))
+                {
+                    _describedPermission = current;
+                    (_permissionChoices, _permissionOptions) =
+                        ScadaPermissionChoices.Build(current, _permissionCatalog);
+                    RaisePropertyChanged(nameof(Choices));
+                    RaisePropertyChanged(nameof(ChoiceOptions));
+                }
+            }
+
             if (!IsImageFile)
                 return;
 
             RaisePropertyChanged(nameof(ImageSummary));
             RaisePropertyChanged(nameof(ImagePreview));
             ClearImageCommand.RaiseCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// 权限目录变了：只重算候选，不动当前值。当前值若是刚被删掉的 Key，
+        /// 候选里会把它作为"未知权限"临时补在末尾（与图元行同一口径）。
+        /// </summary>
+        public void RefreshChoices()
+        {
+            if (!IsPermission) return;
+
+            _describedPermission = ScadaPermissionChoices.Describe(Value);
+            (_permissionChoices, _permissionOptions) =
+                ScadaPermissionChoices.Build(_describedPermission, _permissionCatalog);
+            RaisePropertyChanged(nameof(Choices));
+            RaisePropertyChanged(nameof(ChoiceOptions));
         }
 
         private void OnPickImage()
@@ -1097,6 +1245,27 @@ namespace VisionMaster.ViewModels
 
         protected override bool Commit(string text)
         {
+            // 页面级权限：候选与写回都走权限目录 / TrySetRequiredPermission，
+            // 不能落到下面的 Spec.Write——那里只做裸赋值，没有"旧角色清空 + 撤销操作名"。
+            if (IsPermission)
+            {
+                if (!TryParsePermission(text, out var permissionKey))
+                {
+                    SetError(string.IsNullOrWhiteSpace(text)
+                        ? "请从下拉里选一个权限（清空不等于「不限制」）"
+                        : $"不认识的权限「{text}」");
+                    return false;
+                }
+
+                if (!Page.TrySetRequiredPermission(permissionKey, out var permissionError))
+                {
+                    SetError(permissionError);
+                    return false;
+                }
+
+                return true;
+            }
+
             // 与图元数字行同一预检：画面宽高/网格间距的 setter 对非数字是"原样忽略"
             // （TryNumber 不过就不赋值），不先判一次就没法区分"模型采纳了"和"模型没搭理"。
             if (Kind == ElementPropertyKind.Number
@@ -1114,6 +1283,27 @@ namespace VisionMaster.ViewModels
                 Spec.Write(Page, Document, text);
             }
 
+            return true;
+        }
+
+        /// <summary>
+        /// 下拉值 → 权限 Key（页面级）。与图元行同一口径：<c>__none__</c> → <c>null</c>，
+        /// 只有当前候选里认得的值才落得下；空文案不算「不限制」（候选失配时不能静默放权）。
+        /// </summary>
+        private bool TryParsePermission(string? text, out string? permissionKey)
+        {
+            permissionKey = null;
+
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (string.Equals(text, ScadaPermissionKeys.NotLimitedValue, StringComparison.Ordinal))
+                return true;
+
+            if (!_permissionChoices.Contains(text, StringComparer.Ordinal))
+                return false;
+
+            permissionKey = text;
             return true;
         }
     }
@@ -2074,7 +2264,7 @@ namespace VisionMaster.ViewModels
     /// </summary>
     internal sealed class ScadaTypeSpec : IPropertySpec
     {
-        /// <summary>无状态共享实例（读哪个图元由行实例钉住，与 <see cref="ScadaRoleSpec"/> 同一手法）</summary>
+        /// <summary>无状态共享实例（读哪个图元由行实例钉住，与 <see cref="GeometryProperties.Standard"/> 同一手法）</summary>
         public static readonly ScadaTypeSpec Instance = new ScadaTypeSpec();
 
         private ScadaTypeSpec() { }
@@ -2128,33 +2318,34 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
-    /// 权限行的声明（S12）：<see cref="ScadaElement.RequiredRole"/> <b>不是</b>属性袋里的键，
+    /// 权限行的声明（B3）：<see cref="ScadaElement.RequiredPermission"/> <b>不是</b>属性袋里的键，
     /// 描述符也声明不了它（那是强类型字段，理由见该属性的注释），所以它像事件行一样自带一份声明，
     /// 存在的唯一目的是顺着 <see cref="ScadaPropertyRowBase"/> 的既有通道
     /// （Kind/DisplayName/Description）进同一个面板模板，而不是为权限单开一套 UI。
     ///
-    /// <see cref="Choices"/> 给空：候选<b>来自被编辑对象</b>（当前值可能是文件里的坏值），
-    /// 由 <see cref="ScadaRolePropertyRow"/> 自己算——与基类 <c>Choices</c> 注释里
-    /// 「所属图层」那条同源。声明是无状态的共享实例（与 <see cref="GeometryProperties.Standard"/> 同一手法）。
+    /// <see cref="Choices"/> 给空：候选<b>来自用户管理的权限目录</b>（含自定义，当前值还可能是
+    /// 已删除权限的悬空 Key），由 <see cref="ScadaPermissionPropertyRow"/> 自己算——
+    /// 与基类 <c>Choices</c> 注释里「所属图层」那条同源。声明是无状态的共享实例
+    /// （与 <see cref="GeometryProperties.Standard"/> 同一手法）。
     /// </summary>
-    internal sealed class ScadaRoleSpec : IPropertySpec
+    internal sealed class ScadaPermissionSpec : IPropertySpec
     {
-        /// <summary>每种角色一份共享实例（本类无状态，读哪个图元由行实例钉住）</summary>
-        public static readonly ScadaRoleSpec Instance = new ScadaRoleSpec();
+        /// <summary>无状态共享实例（读哪个图元由行实例钉住）</summary>
+        public static readonly ScadaPermissionSpec Instance = new ScadaPermissionSpec();
 
-        private ScadaRoleSpec() { }
+        private ScadaPermissionSpec() { }
 
         /// <summary>不落属性袋，只是一个标识（与事件行的 <c>Event.N</c> 同源）</summary>
-        public string Key => "RequiredRole";
+        public string Key => "RequiredPermission";
 
-        public string DisplayName => "操作权限";
+        public string DisplayName => "所需权限";
 
         public ElementPropertyKind Kind => ElementPropertyKind.Choice;
 
         public string Group => ScadaPropertyGroups.Interaction;
 
         public string? Description =>
-            "运行态操作这个图元所需的最低角色。选「不限制」= 谁都能操作；高角色自动包含低角色（管理员可以按工程师的按钮）。未登录时按「操作员」计";
+            "运行态操作这个图元所需的权限（来自用户管理的权限目录，含自定义）。选「不限制」= 谁都能操作；按权限 Key 精确匹配，不做角色高低包含";
 
         /// <summary>权限是"谁能操作"，不该被变量驱动——绑一个变量进来等于把权限交给运行数据</summary>
         public bool IsBindable => false;
@@ -2167,112 +2358,170 @@ namespace VisionMaster.ViewModels
     }
 
     /// <summary>
-    /// 属性面板的一行<b>操作权限</b>（S12）：一个下拉框 = "运行态操作这个图元所需的最低角色"。
+    /// 权限候选的<b>唯一构造口径</b>：图元行与画面行共用。
+    ///
+    /// 候选 = 「不限制」 + 权限目录（内置 15 + 自定义） + 当前值（认不出来时临时补在末尾）。
+    /// 与旧角色行的差别：显示名不再来自 <see cref="ScadaChoiceNames"/> 的固定词汇表，
+    /// 而是来自权限目录本身——自定义权限的显示名只能由目录给。
+    ///
+    /// <b>当前值认不出来时也要画出来</b>：已删除权限的悬空 Key、旧版本写入的未知 Key，
+    /// 若直接丢掉，下拉会显示成空白，用户看到的是"这一行莫名其妙是空的"，
+    /// 而不是"这里有个坏值，重选一个"。这与旧角色行"未知角色(N) 临时补在末尾"同一取舍。
+    /// </summary>
+    internal static class ScadaPermissionChoices
+    {
+        public static (IReadOnlyList<string> Choices, IReadOnlyList<ScadaChoiceOption> Options) Build(
+            string? current,
+            Func<IReadOnlyList<ScadaPermissionInfo>>? catalog)
+        {
+            var options = new List<ScadaChoiceOption>
+            {
+                new(ScadaPermissionKeys.NotLimitedValue, "不限制"),
+            };
+            var seen = new HashSet<string>(StringComparer.Ordinal)
+            {
+                ScadaPermissionKeys.NotLimitedValue,
+            };
+
+            var source = catalog?.Invoke();
+            if (source == null || source.Count == 0)
+                source = ScadaPermissionKeys.BuiltIn;
+
+            foreach (var permission in source)
+            {
+                if (permission == null || string.IsNullOrWhiteSpace(permission.Key))
+                    continue;
+                if (!seen.Add(permission.Key))
+                    continue;
+
+                options.Add(new ScadaChoiceOption(
+                    permission.Key,
+                    string.IsNullOrWhiteSpace(permission.Name) ? permission.Key : permission.Name));
+            }
+
+            if (!string.IsNullOrWhiteSpace(current)
+                && !string.Equals(current, ScadaPermissionKeys.NotLimitedValue, StringComparison.Ordinal)
+                && seen.Add(current))
+            {
+                options.Add(new ScadaChoiceOption(current, DescribeUnknown(current)));
+            }
+
+            return (options.Select(o => o.Value).ToArray(), options);
+        }
+
+        /// <summary>目录里没有的 Key：<c>Always</c> 是系统级恒放行，单独给一句人话；其余按"未知权限"显示。</summary>
+        public static string DescribeUnknown(string key)
+            => string.Equals(key, ScadaPermissionKeys.Always, StringComparison.Ordinal)
+                ? "始终允许（Always）"
+                : $"未知权限({key})";
+
+        /// <summary>模型值 → 下拉里的落盘值；空 = 「不限制」哨兵。</summary>
+        public static string Describe(string? permissionKey)
+            => string.IsNullOrWhiteSpace(permissionKey)
+                ? ScadaPermissionKeys.NotLimitedValue
+                : permissionKey;
+    }
+
+    /// <summary>
+    /// 属性面板的一行<b>所需权限</b>（B3）：一个下拉框 = "运行态操作这个图元要求哪个权限 Key"。
     ///
     /// 为什么不复用 <see cref="ScadaPropertyRow"/>：权限既不是几何键、也不在属性袋里，
     /// 走 <see cref="ElementValueAccess"/> 得先塞一个假键进去——那等于污染那条唯一通道。
     /// 与事件行、画面行同一取舍：读写逻辑各自一小段，值语义/标红/回填全部继承基类。
     ///
-    /// 写回一律走 <see cref="ScadaPage.TrySetRequiredRole"/>（D3），本行自己不碰
-    /// <see cref="ScadaElement.RequiredRole"/>：裸写虽然也会落一条记录，但那条记录没有操作名
+    /// 写回一律走 <see cref="ScadaPage.TrySetRequiredPermission"/>（D3），本行自己不碰
+    /// <see cref="ScadaElement.RequiredPermission"/>：裸写虽然也会落一条记录，但那条记录没有操作名
     /// （撤销按钮上只显示"编辑"），而且 <c>ScadaWriteGuard.Strict</c> 下会被当场拒掉。
     ///
-    /// 候选第一项是"不限制"（对应模型里的 <c>null</c>）。文件里若存着不认识的数值
-    /// （高版本存、低版本读），那一项会被临时补进候选——否则 ComboBox 匹配不上任何一项、
-    /// 显示成空白，用户看到的是"这一行莫名其妙是空的"，而不是"这里有个坏值"。
+    /// 候选来自用户管理的权限目录（内置 + 自定义）。旧 .vms 只写了 <see cref="ScadaElement.RequiredRole"/>
+    /// 的，读出来经 <see cref="ScadaPermissionKeys.LegacyRolePermission"/> 折成 Key 显示；
+    /// 用户一旦在这里改选，写入口会把旧角色清空——否则选「不限制」时旧角色又会兜底回来。
     /// </summary>
-    public sealed class ScadaRolePropertyRow : ScadaPropertyRowBase
+    public sealed class ScadaPermissionPropertyRow : ScadaPropertyRowBase
     {
-        /// <summary>"不限制"在下拉里的文案（= 模型里的 <c>null</c>）</summary>
-        public const string NotLimitedText = "不限制";
-
-        /// <summary>
-        /// 标准候选：不限制 + 三个已定义角色。
-        /// 按枚举算而不是手抄三个字符串：枚举扩展时自动带上，且显示名与状态栏、审计文件同一个出处
-        /// （<see cref="ScadaRoleExtensions.DisplayName"/>），三处不会各叫各的。
-        /// </summary>
-        private static readonly IReadOnlyList<string> StandardChoices =
-            new[] { NotLimitedText }
-                .Concat(Enum.GetValues<ScadaRole>().Where(r => r.IsDefined()).Select(r => r.DisplayName()))
-                .ToArray();
-
         private readonly ScadaPage _page;
-        private IReadOnlyList<string> _choices;
+        private readonly Func<IReadOnlyList<ScadaPermissionInfo>>? _catalog;
 
-        /// <summary>上次算候选集时用的"当前值文案"（判断候选集要不要重算的唯一依据）</summary>
+        private IReadOnlyList<string> _choices;
+        private IReadOnlyList<ScadaChoiceOption> _options;
+
+        /// <summary>上次算候选集时用的"当前值"（判断候选集要不要重算的唯一依据）</summary>
         private string _described;
 
-        public ScadaRolePropertyRow(ScadaPage page, ScadaElement element)
-            : base(ScadaRoleSpec.Instance,
-                   Describe((element ?? throw new ArgumentNullException(nameof(element))).RequiredRole))
+        public ScadaPermissionPropertyRow(
+            ScadaPage page,
+            ScadaElement element,
+            Func<IReadOnlyList<ScadaPermissionInfo>>? catalog = null)
+            : base(ScadaPermissionSpec.Instance,
+                   ScadaPermissionChoices.Describe((element ?? throw new ArgumentNullException(nameof(element))).RequiredPermissionOf()))
         {
             _page = page ?? throw new ArgumentNullException(nameof(page));
             Element = element;
+            _catalog = catalog;
 
-            _described = Describe(element.RequiredRole);
-            _choices = BuildChoices(_described);
+            _described = ScadaPermissionChoices.Describe(element.RequiredPermissionOf());
+            (_choices, _options) = ScadaPermissionChoices.Build(_described, _catalog);
         }
 
         /// <summary>本行写入的目标图元</summary>
         public ScadaElement Element { get; }
 
-        /// <summary>
-        /// 候选文案（不限制 + 三档角色，坏值临时补在末尾）。
-        ///
-        /// <b>本行不必覆写 <see cref="ScadaPropertyRowBase.ChoiceOptions"/></b>：这些候选本身就是中文文案，
-        /// 而 <see cref="ScadaChoiceNames.DisplayName"/> 认不出的值原样返回——"不限制"、"管理员"、
-        /// 坏值"未知角色(9)"过一遍词汇表出来还是它们自己。翻译只对描述符里那些英文落盘值有意义。
-        /// </summary>
+        /// <summary>候选的落盘值（<c>__none__</c> + 权限 Key）</summary>
         public override IReadOnlyList<string> Choices => _choices;
 
-        protected override string Read() => Describe(Element.RequiredRole);
+        /// <summary>下拉实际绑定的一份（值 + 目录里的显示名）</summary>
+        public override IReadOnlyList<ScadaChoiceOption> ChoiceOptions => _options;
+
+        protected override string Read()
+            => ScadaPermissionChoices.Describe(Element.RequiredPermissionOf());
 
         /// <summary>
         /// 回读时连候选集一起对一遍：坏值进出名单会让候选多一项/少一项，
         /// 而基类只通知 <c>Value</c>，不通知候选——不补这一手，
-        /// 撤销掉一个坏值之后下拉框里那条"未知角色(N)"会一直挂着。
-        ///
-        /// 通知的是 <see cref="ScadaPropertyRowBase.ChoiceOptions"/> 而不是本类的 <see cref="Choices"/>：
-        /// 模板绑的是前者（下拉要"值 + 名字"两列），通知后者等于对着空气喊话。
-        /// 后者没有缓存，每次读都从 <c>_choices</c> 现算，所以这一次通知之后下拉拿到的一定是新名单。
-        ///
-        /// 只在"当前值文案变了"时才重算并通知：本方法在图元属性变更时被逐行调用
-        /// （见 <c>OnElementPropertyChanged</c>），拖动图元期间会连着响很多次，
-        /// 无条件通知等于让下拉框在拖动过程中反复重建列表。权限跟几何无关，
-        /// 拖一百次也不会变，这里必须能一眼判定"没事发生"。
+        /// 撤销掉一个坏值之后下拉框里那条"未知权限(...)"会一直挂着。
+        /// 只在"当前值文案变了"时才重算并通知：本方法在图元属性变更时被逐行调用，
+        /// 拖动图元期间会连着响很多次，权限跟几何无关，必须能一眼判定"没事发生"。
         /// </summary>
         public override void RefreshValue()
         {
             base.RefreshValue();
 
-            string current = Describe(Element.RequiredRole);
+            string current = Read();
             if (string.Equals(current, _described, StringComparison.Ordinal)) return;
 
             _described = current;
-            _choices = BuildChoices(current);
+            (_choices, _options) = ScadaPermissionChoices.Build(current, _catalog);
+            RaisePropertyChanged(nameof(Choices));
             RaisePropertyChanged(nameof(ChoiceOptions));
         }
 
-        /// <summary>候选集 = 标准四项，当前值认不出来时把那一项临时补在末尾</summary>
-        private static IReadOnlyList<string> BuildChoices(string current)
-            => StandardChoices.Contains(current)
-                ? StandardChoices
-                : StandardChoices.Concat(new[] { current }).ToArray();
+        /// <summary>
+        /// 权限目录变了（新建/删除自定义权限）：只重算候选，不动当前值。
+        /// 当前值若是刚被删掉的 Key，<see cref="ScadaPermissionChoices.Build"/> 会把它作为
+        /// "未知权限"临时补在末尾——用户仍看得见它，并能改选一个有效权限。
+        /// </summary>
+        public void RefreshChoices()
+        {
+            _described = Read();
+            (_choices, _options) = ScadaPermissionChoices.Build(_described, _catalog);
+            RaisePropertyChanged(nameof(Choices));
+            RaisePropertyChanged(nameof(ChoiceOptions));
+        }
 
         protected override bool Commit(string text)
         {
-            if (!TryParseRole(text, out var role))
+            if (!TryParsePermission(text, out var permissionKey))
             {
                 // 空文案单独措辞：下拉被清空（当前值不在候选里时 WPF 会这么做）不是"用户选了不限制"，
                 // 而是"这一行现在对不上任何一个选项"，得让人看见并就地重选。
                 SetError(string.IsNullOrWhiteSpace(text)
-                    ? "请从下拉里选一个角色（清空不等于「不限制」）"
-                    : $"不认识的角色「{text}」");
+                    ? "请从下拉里选一个权限（清空不等于「不限制」）"
+                    : $"不认识的权限「{text}」");
                 return false;
             }
 
-            // D3：写模型只走画面上的统一入口（它内部罩 BeginEdit，撤销栈里是一条"设置操作权限"）
-            if (!_page.TrySetRequiredRole(Element, role, out var error))
+            // D3：写模型只走画面上的统一入口（它内部罩 BeginEdit，撤销栈里是一条"设置所需权限"）
+            if (!_page.TrySetRequiredPermission(Element, permissionKey, out var error))
             {
                 SetError(error);
                 return false;
@@ -2282,42 +2531,29 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
-        /// 模型值 → 下拉文案。<c>null</c> = 不限制；坏值回落成"未知角色(N)"，
-        /// 与属性面板、日志里看到的是同一个词（见 <see cref="ScadaRoleExtensions.DisplayName"/>）。
-        /// </summary>
-        private static string Describe(ScadaRole? role)
-            => role is { } value ? value.DisplayName() : NotLimitedText;
-
-        /// <summary>
-        /// 下拉文案 → 模型值。
-        /// 只有<b>认得的文案</b>才落得下：<c>"不限制"</c> → <c>null</c>，三个角色名 → 对应枚举。
+        /// 下拉值 → 权限 Key。
+        /// 只有<b>当前候选里认得的值</b>才落得下：<c>__none__</c> → <c>null</c>，
+        /// 目录里的 Key → 原样；坏值项（临时补上的）也可以原样保留，但造不出新的坏值。
         ///
         /// 空文案<b>不算</b>「不限制」，这一点是刻意的。下拉不是可编辑控件，用户打不出空值；
         /// 它变空只有一种来路——当前值不在候选列表里，WPF 就把 SelectedItem 置成 null 并回写。
-        /// 那时若把空当成"取消限制"，一次候选失配就会<b>静默把权限放大成谁都能操作</b>，
-        /// 而现场只会看到"这台机器本来要工程师才能开，怎么操作员也能开了"。
-        /// 所以认不出来一律返回 <c>false</c>，由 <see cref="Commit"/> 标红让人重选——
-        /// 宁可他看见一条红提示，也不能替他做一次放权。
+        /// 那时若把空当成"取消限制"，一次候选失配就会<b>静默把权限放大成谁都能操作</b>。
         /// </summary>
-        private static bool TryParseRole(string? text, out ScadaRole? role)
+        private bool TryParsePermission(string? text, out string? permissionKey)
         {
-            role = null;
+            permissionKey = null;
 
-            if (string.Equals(text, NotLimitedText, StringComparison.Ordinal))
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (string.Equals(text, ScadaPermissionKeys.NotLimitedValue, StringComparison.Ordinal))
                 return true;
 
-            foreach (var candidate in Enum.GetValues<ScadaRole>())
-            {
-                if (!candidate.IsDefined()) continue;
+            if (!_choices.Contains(text, StringComparer.Ordinal))
+                return false;
 
-                if (string.Equals(candidate.DisplayName(), text, StringComparison.Ordinal))
-                {
-                    role = candidate;
-                    return true;
-                }
-            }
-
-            return false;
+            permissionKey = text;
+            return true;
         }
     }
 
@@ -2359,6 +2595,15 @@ namespace VisionMaster.ViewModels
         /// <summary>「选配方」入口（「应用配方」动作行用）；可为 null = 没接（按钮灰掉，不静默空跑）</summary>
         private readonly IScadaRecipePicker? _recipePicker;
 
+        /// <summary>
+        /// 权限目录出口（「所需权限」下拉的候选来源）。可为 null = 断言宿主/无用户管理时
+        /// 回落到 15 条内置权限；接了就在目录变化时刷新候选。
+        /// </summary>
+        private readonly IScadaPermissionCatalog? _permissionCatalogSource;
+
+        /// <summary>当前权限目录快照（每次现取；用户管理里刚建的自定义权限立刻可选）</summary>
+        private readonly Func<IReadOnlyList<ScadaPermissionInfo>> _permissionCatalog;
+
         /// <summary>轴身份 → 最新轴名的权威来源（属性行摘要按 Id 取显示名，不信任落盘时那份旧名）</summary>
         private readonly MotionAxisRegistry _axisRegistry;
 
@@ -2378,7 +2623,7 @@ namespace VisionMaster.ViewModels
         /// <summary>搜索词（空串 = 不过滤）。只影响"显示哪些行"，不影响行本身，见 <see cref="SearchText"/></summary>
         private string _searchText = string.Empty;
 
-        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker, MotionAxisRegistry axisRegistry, IScadaRecipePicker? recipePicker = null)
+        public ScadaPropertyViewModel(ScadaEditorViewModel editor, IUserNotifier notifier, IScadaVariablePicker picker, IScadaPagePicker pagePicker, IScadaFlowPicker flowPicker, IScadaAxisPicker axisPicker, MotionAxisRegistry axisRegistry, IScadaRecipePicker? recipePicker = null, IScadaPermissionCatalog? permissionCatalog = null)
         {
             _editor = editor ?? throw new ArgumentNullException(nameof(editor));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -2388,6 +2633,12 @@ namespace VisionMaster.ViewModels
             _axisPicker = axisPicker ?? throw new ArgumentNullException(nameof(axisPicker));
             _axisRegistry = axisRegistry ?? throw new ArgumentNullException(nameof(axisRegistry));
             _recipePicker = recipePicker;
+            _permissionCatalogSource = permissionCatalog;
+            _permissionCatalog = () =>
+            {
+                var catalog = permissionCatalog?.PermissionCatalog;
+                return catalog is { Count: > 0 } ? catalog : ScadaPermissionKeys.BuiltIn;
+            };
             _dispatcher = Dispatcher.CurrentDispatcher;
             RefreshAxisNames();
 
@@ -2597,6 +2848,11 @@ namespace VisionMaster.ViewModels
             _axisRegistry.Changed += OnAxisRegistryChanged;
             RefreshAxisNames();
 
+            // 权限目录同理：用户刚在「用户管理」里新建/删除自定义权限，回到组态面板
+            // 下拉里就该有/没有那一项，不必重选图元。
+            if (_permissionCatalogSource != null)
+                _permissionCatalogSource.CatalogChanged += OnPermissionCatalogChanged;
+
             Rebuild();
         }
 
@@ -2608,6 +2864,8 @@ namespace VisionMaster.ViewModels
 
             _editor.PropertyChanged -= OnEditorPropertyChanged;
             _axisRegistry.Changed -= OnAxisRegistryChanged;
+            if (_permissionCatalogSource != null)
+                _permissionCatalogSource.CatalogChanged -= OnPermissionCatalogChanged;
             BindElement(null);
             BindPage(null);
         }
@@ -2646,6 +2904,33 @@ namespace VisionMaster.ViewModels
 
             foreach (var row in _rows.OfType<ScadaAxisListRow>())
                 row.RefreshSummary();
+        }
+
+        /// <summary>
+        /// 权限目录变了（用户管理里新建/删除自定义权限）：只让「所需权限」两行重算候选，
+        /// 不重建整份面板——重建会把用户正在编辑的输入框与焦点一起换掉。
+        /// 事件可能来自后台线程，先切回创建本 VM 的 Dispatcher。
+        /// </summary>
+        private void OnPermissionCatalogChanged()
+        {
+            if (!_dispatcher.CheckAccess())
+            {
+                _dispatcher.BeginInvoke(new Action(OnPermissionCatalogChanged));
+                return;
+            }
+
+            foreach (var row in _rows)
+            {
+                switch (row)
+                {
+                    case ScadaPermissionPropertyRow permissionRow:
+                        permissionRow.RefreshChoices();
+                        break;
+                    case ScadaPagePropertyRow pageRow when pageRow.IsPermission:
+                        pageRow.RefreshChoices();
+                        break;
+                }
+            }
         }
 
         /// <summary>重取「轴 Id → 最新轴名」快照（一次遍历，不在每个摘要 getter 里各查一遍）</summary>
@@ -2755,12 +3040,20 @@ namespace VisionMaster.ViewModels
                     {
                         ElementPropertyKind.AxisList => new ScadaAxisListRow(element, property, OnPickAxes, ResolveAxisName),
                         ElementPropertyKind.ColumnList => new ScadaGridColumnsRow(element, property, OnPickColumns),
+                        ElementPropertyKind.ReportColumnList => new ScadaReportColumnsRow(element, property, OnPickReportColumns),
+                        // 图表数据项：绑的是工程变量（不是账本列名），所以单独一个 Kind + 单独编辑器
+                        ElementPropertyKind.ChartSeries => new ScadaChartSeriesRow(element, property, OnPickChartSeries),
                         ElementPropertyKind.StateList => new ScadaStateListRow(
                             element, property, () => _editor.Document.StateLists, OnManageStateLists),
                         ElementPropertyKind.Page => new ScadaPageRow(
                             element, property, () => _editor.Document),
                         _ => new ScadaPropertyRow(element, property, () => _editor.SolutionRoot),
                     });
+
+                    // 描述符声明为只读的键（几何由系统算，如 PipeRun）：显示但置灰并说明原因。
+                    // 判据放在"行建好之后"而不是在 switch 里逐类型判断——只读是描述符的属性，不是行类型的属性。
+                    if (descriptor.ReadOnlyKeys.Contains(property.Key))
+                        _rows[^1].IsReadOnly = true;
                 }
 
                 // 「类型」只读行：与「名称」同属「基本」组，组内次序取源次序，所以加在这里
@@ -2787,9 +3080,9 @@ namespace VisionMaster.ViewModels
                 // 用 _editor.SelectedPage 而不是本方法开头的局部 page：图元模式下那个 page 恒为 null
                 // （两种模式互斥，见上面的三元表达式），口径与 OnBindVariable 逐字一致。
                 // 万一 SelectedPage 与 SelectedElement 不同源（理论上不会），
-                // TrySetRequiredRole 会以"图元不属于本画面"拒掉并标红，不会写错画面。
+                // TrySetRequiredPermission 会以"图元不属于本画面"拒掉并标红，不会写错画面。
                 if (_editor.SelectedPage is { } owner)
-                    _rows.Add(new ScadaRolePropertyRow(owner, element));
+                    _rows.Add(new ScadaPermissionPropertyRow(owner, element, _permissionCatalog));
             }
             else if (page != null)
             {
@@ -2803,7 +3096,7 @@ namespace VisionMaster.ViewModels
                     if (!spec.IsVisibleFor(page))
                         continue;
 
-                    _rows.Add(new ScadaPagePropertyRow(page, document, spec, () => _editor.SolutionRoot));
+                    _rows.Add(new ScadaPagePropertyRow(page, document, spec, () => _editor.SolutionRoot, _permissionCatalog));
                 }
 
                 // 画面级事件行：与图元侧同一份实现（宿主收成 IScadaEventHost），差别只有清单来源与分组。
@@ -2952,6 +3245,43 @@ namespace VisionMaster.ViewModels
             // 静默丢配置等于"我填了却没生效"，比报错更难查。
             if (editor.DroppedCount > 0)
                 _notifier.ShowWarn($"已忽略 {editor.DroppedCount} 行未选变量的列（列必须绑定一个变量）");
+
+            row.Value = editor.ResultJson;
+        }
+
+        /// <summary>
+        /// 「配置列…」（报表）：与数据表格同一套弹窗范式，但编辑的是账本列 + 聚合方式。
+        /// </summary>
+        /// <summary>
+        /// 「配置数据项…」（柱状图 / 饼图）：每行 = 标签 + 变量名 + 颜色。
+        /// 与报表列同一套弹窗范式，但编辑的是工程变量（不是账本列名）。
+        /// </summary>
+        private void OnPickChartSeries(ScadaChartSeriesRow row)
+        {
+            var editor = new VisionMaster.Views.Controls.ScadaChartSeriesEditor(
+                ScadaChartCodec.Parse(row.Value),
+                _picker);
+
+            if (!UI.CustomControl.EasyDialog.ShowSync("配置数据项", editor))
+                return;
+
+            if (editor.DroppedCount > 0)
+                _notifier.ShowWarn($"已忽略 {editor.DroppedCount} 行未填变量的数据项（每项必须绑一个工程变量）");
+
+            row.Value = editor.ResultJson;
+        }
+
+        private void OnPickReportColumns(ScadaReportColumnsRow row)
+        {
+            var editor = new VisionMaster.Views.Controls.ScadaReportColumnsEditor(
+                ScadaReportCodec.Parse(row.Value),
+                _editor.CurrentSolutionFilePath);
+
+            if (!UI.CustomControl.EasyDialog.ShowSync("配置报表列", editor))
+                return;
+
+            if (editor.DroppedCount > 0)
+                _notifier.ShowWarn($"已忽略 {editor.DroppedCount} 行未填来源列的列（列必须对应账本里的一列）");
 
             row.Value = editor.ResultJson;
         }

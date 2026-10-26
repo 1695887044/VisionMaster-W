@@ -274,8 +274,7 @@ namespace VisionMaster.Scada.Controls
                               && IsEnabled
                               && RuntimeContext?.Writer is not null
                               && Element?.FindBinding(ValueKey) is { IsEnabled: true }
-                              && (Element?.RequiredRole is not { } required
-                                  || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true);
+                              && RuntimeContext?.AccessPolicy.CanElement(Element) == true;
 
             SetValue(CanOperatePropertyKey, canOperate);
             Focusable = canOperate;

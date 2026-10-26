@@ -146,9 +146,17 @@ namespace Plugin.HandEye
                 {
                     string raw = cells[c].Trim();
                     if (raw.Length == 0) continue;
-                    if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+                    if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out double parsed))
                     {
                         error = $"第 {i + 1} 行第 {c + 1} 列不是数字：「{raw}」。\n这次粘贴一个字都没写进去。";
+                        rows.Clear();
+                        return false;
+                    }
+                    // "NaN"/"Infinity" 能被 double.TryParse 解析成功，但不是合法位姿：
+                    // 放进去会在求解时变成 ArithmeticException（Math.Sign(NaN)）或"矩阵奇异"。
+                    if (!double.IsFinite(parsed))
+                    {
+                        error = $"第 {i + 1} 行第 {c + 1} 列不是有限数：「{raw}」（NaN/Infinity 不能作为位姿）。\n这次粘贴一个字都没写进去。";
                         rows.Clear();
                         return false;
                     }

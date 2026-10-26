@@ -103,13 +103,11 @@ namespace VisionMaster.Services
             var (pageIndex, pageSize) = query.NormalizePaging();
             var stopwatch = Stopwatch.StartNew();
 
-            var files = Directory.GetFiles(_folder!, "*.csv", SearchOption.AllDirectories);
+            var files = CsvLedger.EnumerateFiles(_folder!);
             if (files.Length == 0)
                 return ScadaHistoryResult.Empty(
                     Array.Empty<string>(), pageIndex, pageSize, Name,
                     "History 目录里还没有 CSV 账本。把「CSV 记录」插件的目录指到 <方案>\\History 即可。");
-
-            Array.Sort(files, StringComparer.OrdinalIgnoreCase);
 
             IReadOnlyList<string>? header = null;
             var timeIndex = -1;
@@ -140,7 +138,7 @@ namespace VisionMaster.Services
                 if (lines.Length == 0)
                     continue;
 
-                var fileHeader = ParseCsvLine(lines[0]);
+                var fileHeader = CsvLedger.ParseLine(lines[0]);
                 if (fileHeader.Count == 0)
                 {
                     skippedFiles++;
@@ -150,7 +148,7 @@ namespace VisionMaster.Services
                 if (header == null)
                 {
                     header = fileHeader;
-                    timeIndex = ResolveTimeIndex(header, query.TimestampColumn);
+                    timeIndex = CsvLedger.ResolveTimeIndex(header, query.TimestampColumn);
 
                     if (timeIndex < 0)
                     {
@@ -159,7 +157,7 @@ namespace VisionMaster.Services
                             "可在「历史时间列」里指定列名。");
                     }
                 }
-                else if (!HeaderMatches(header, fileHeader))
+                else if (!CsvLedger.HeaderMatches(header, fileHeader))
                 {
                     skippedFiles++;
                     continue;
@@ -180,14 +178,14 @@ namespace VisionMaster.Services
                     if (string.IsNullOrWhiteSpace(line))
                         continue;
 
-                    var cells = ParseCsvLine(line);
+                    var cells = CsvLedger.ParseLine(line);
                     if (cells.Count <= timeIndex)
                     {
                         badRows++;
                         continue;
                     }
 
-                    if (!TryParseTime(cells[timeIndex], out var time))
+                    if (!CsvLedger.TryParseTime(cells[timeIndex], out var time))
                     {
                         badRows++;
                         continue;
@@ -196,7 +194,7 @@ namespace VisionMaster.Services
                     if (time < query.FromLocal || time >= query.ToLocal)
                         continue;
 
-                    if (!string.IsNullOrWhiteSpace(query.Keyword) && !RowContains(cells, query.Keyword!))
+                    if (!string.IsNullOrWhiteSpace(query.Keyword) && !CsvLedger.RowContains(cells, query.Keyword!))
                         continue;
 
                     matched.Add((time, cells));
@@ -260,138 +258,11 @@ namespace VisionMaster.Services
             return parts.Count == 0 ? string.Empty : "；" + string.Join("；", parts);
         }
 
-        private static bool HeaderMatches(IReadOnlyList<string> expected, IReadOnlyList<string> actual)
-        {
-            if (expected.Count != actual.Count)
-                return false;
-
-            for (var i = 0; i < expected.Count; i++)
-            {
-                if (!string.Equals(expected[i].Trim(), actual[i].Trim(), StringComparison.OrdinalIgnoreCase))
-                    return false;
-            }
-
-            return true;
-        }
-
-        private static int ResolveTimeIndex(IReadOnlyList<string> header, string? explicitColumn)
-        {
-            if (!string.IsNullOrWhiteSpace(explicitColumn))
-            {
-                var name = explicitColumn!.Trim();
-
-                for (var i = 0; i < header.Count; i++)
-                {
-                    if (string.Equals(header[i].Trim(), name, StringComparison.OrdinalIgnoreCase))
-                        return i;
-                }
-
-                return -1;
-            }
-
-            for (var i = 0; i < header.Count; i++)
-            {
-                var text = header[i] ?? string.Empty;
-
-                if (text.Contains("时间", StringComparison.Ordinal)
-                    || text.Contains("日期", StringComparison.Ordinal)
-                    || text.Contains("time", StringComparison.OrdinalIgnoreCase)
-                    || text.Contains("date", StringComparison.OrdinalIgnoreCase))
-                {
-                    return i;
-                }
-            }
-
-            return -1;
-        }
-
-        private static bool RowContains(IReadOnlyList<string> cells, string keyword)
-        {
-            foreach (var cell in cells)
-            {
-                if (cell != null && cell.IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0)
-                    return true;
-            }
-
-            return false;
-        }
-
-        private static readonly string[] TimeFormats =
-        {
-            "yyyy-MM-dd HH:mm:ss.fff",
-            "yyyy-MM-dd HH:mm:ss",
-            "yyyy-MM-dd HH:mm",
-            "yyyy-MM-dd",
-            "yyyy/MM/dd HH:mm:ss.fff",
-            "yyyy/MM/dd HH:mm:ss",
-            "yyyy/MM/dd HH:mm",
-            "yyyy/MM/dd",
-            "yyyy-MM-ddTHH:mm:ss.fff",
-            "yyyy-MM-ddTHH:mm:ss",
-        };
-
-        private static bool TryParseTime(string? text, out DateTime time)
-        {
-            time = default;
-            if (string.IsNullOrWhiteSpace(text))
-                return false;
-
-            var value = text.Trim();
-
-            return DateTime.TryParseExact(
-                       value, TimeFormats, CultureInfo.InvariantCulture,
-                       DateTimeStyles.AssumeLocal, out time)
-                   || DateTime.TryParse(
-                       value, CultureInfo.CurrentCulture, DateTimeStyles.AssumeLocal, out time);
-        }
-
-        /// <summary>CSV 一行 → 单元格。支持双引号包裹、<c>""</c> 转义；不支持引号内换行（见类注释）。</summary>
-        public static IReadOnlyList<string> ParseCsvLine(string line)
-        {
-            var cells = new List<string>();
-            var builder = new StringBuilder();
-            var quoted = false;
-
-            for (var i = 0; i < line.Length; i++)
-            {
-                var c = line[i];
-
-                if (quoted)
-                {
-                    if (c == '"')
-                    {
-                        if (i + 1 < line.Length && line[i + 1] == '"')
-                        {
-                            builder.Append('"');
-                            i++;
-                        }
-                        else
-                        {
-                            quoted = false;
-                        }
-                    }
-                    else
-                    {
-                        builder.Append(c);
-                    }
-                }
-                else if (c == '"')
-                {
-                    quoted = true;
-                }
-                else if (c == ',')
-                {
-                    cells.Add(builder.ToString());
-                    builder.Clear();
-                }
-                else
-                {
-                    builder.Append(c);
-                }
-            }
-
-            cells.Add(builder.ToString());
-            return cells;
-        }
+        /// <summary>
+        /// CSV 一行 → 单元格（支持双引号包裹、<c>""</c> 转义；不支持引号内换行，见类注释）。
+        /// 实现已下沉到 <see cref="CsvLedger"/>（报表走同一套解析）；这里保留公开入口，
+        /// 既有断言与调用方不受影响。
+        /// </summary>
+        public static IReadOnlyList<string> ParseCsvLine(string line) => CsvLedger.ParseLine(line);
     }
 }

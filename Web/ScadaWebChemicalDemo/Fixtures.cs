@@ -490,24 +490,37 @@ namespace ScadaWebChemicalDemo
         }
     }
 
-    /// <summary>账号：一个管理员、一个操作员（默认策略下只有最高角色能操作）</summary>
+    /// <summary>
+    /// 账号：一个管理员、一个操作员。
+    /// B3 之后身份是「用户组 + 权限 Key」——管理员拿全部内置 Key，操作员只有看画面 + 运行控制，
+    /// 所以"谁能点哪个按钮"由按钮上的 <c>RequiredPermission</c> 决定，不再有"最高角色"这回事。
+    /// </summary>
     internal sealed class PlantAuthenticator : IScadaUserAuthenticator
     {
-        public bool TryValidate(string? userName, string? password, out ScadaRole role, out string? error)
+        private static readonly string[] AdminPerms = ScadaPermissionKeys.BuiltInKeys.ToArray();
+
+        private static readonly string[] OperatorPerms =
         {
-            role = ScadaRole.Operator;
+            ScadaPermissionKeys.ViewRuntime,
+            ScadaPermissionKeys.ControlRun,
+        };
+
+        public bool TryValidate(string? userName, string? password, out ScadaUserInfo? user, out string? error)
+        {
+            user = null;
             error = null;
 
             if (string.Equals(userName?.Trim(), "admin", StringComparison.OrdinalIgnoreCase)
                 && password == "admin123")
             {
-                role = ScadaRole.Administrator;
+                user = new ScadaUserInfo("admin", "tpl-admin", AdminPerms, "模板·管理员");
                 return true;
             }
 
             if (string.Equals(userName?.Trim(), "op", StringComparison.OrdinalIgnoreCase)
                 && password == "op123")
             {
+                user = new ScadaUserInfo("op", "G-lineop", OperatorPerms, "产线操作员");
                 return true;
             }
 

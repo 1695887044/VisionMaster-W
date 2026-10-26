@@ -595,7 +595,7 @@ namespace Plugin.HandEye
             {
                 // 万向锁：ry = ±90°，rx 与 rz 只剩一个自由度，约定 rx = 0
                 rx = 0.0;
-                rz = Math.Atan2(r[0, 1], r[1, 1]);
+                rz = -Math.Atan2(r[0, 1], r[1, 1]);
             }
             else
             {
@@ -637,6 +637,14 @@ namespace Plugin.HandEye
         {
             w = new double[3];
             error = null;
+
+            // NaN/Inf 必须在进入 π 分支前拦住：RotationAngle 会把 NaN 传下去，
+            // 而 π 分支里的 Math.Sign(NaN) 直接抛 ArithmeticException。
+            if (!IsFinite(r))
+            {
+                error = "旋转矩阵含非法数值（NaN/Inf）——请检查该组位姿数据";
+                return false;
+            }
 
             double angle = RotationAngle(r);
             if (angle < 1e-12)
@@ -810,6 +818,22 @@ namespace Plugin.HandEye
             int n = 3;
             var m = (double[,])a.Clone();
             var v = new double[n, n];
+
+            // 非有限输入会在下面的旋转里让 Math.Sign(NaN) 抛异常（.NET 行为）；
+            // 这里是 SVD 的唯一入口，先挡一次，返回 false 让调用方走"数据含 NaN"的失败文案。
+            for (int i = 0; i < n; i++)
+            {
+                for (int j = 0; j < n; j++)
+                {
+                    if (double.IsNaN(m[i, j]) || double.IsInfinity(m[i, j]))
+                    {
+                        eigenValues = new double[n];
+                        eigenVectors = new double[n, n];
+                        return false;
+                    }
+                }
+            }
+
             for (int i = 0; i < n; i++)
             {
                 v[i, i] = 1.0;

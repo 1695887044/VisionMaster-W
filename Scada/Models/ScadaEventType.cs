@@ -89,5 +89,14 @@ namespace VisionMaster.Scada
 
         /// <summary>关闭（图元级）：二态开关被置到 OFF。</summary>
         Closed = 12,
+
+        /// <summary>
+        /// 计划表触发（方案级）：时间到点、或事件条件持续满足，由 <c>ScadaScheduleEngine</c> 发出。
+        ///
+        /// 它不是图元事件，也不出现在任何图元的事件清单里（面板长哪些行由描述符的 <c>Events</c> 决定）；
+        /// 借这条枚举值只是为了让计划表复用同一套动作表、同一个分发器与同一句日志文案
+        /// （`[组态事件] 系统（计划表） · 计划表：白班开班 · 计划表触发`）。
+        /// </summary>
+        ScheduleFired = 13,
     }
 }

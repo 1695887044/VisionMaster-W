@@ -33,7 +33,7 @@ internal static partial class Program
 
         return new JObject
         {
-            ["SolutionName"] = "综合测试台（测试员版）",
+            ["SolutionName"] = "综合测试台",
             ["Version"] = 1.0,
             ["Config"] = new JObject { ["ImageViewMode"] = 0 },
             ["Flows"] = flows,
@@ -294,7 +294,7 @@ internal static partial class Program
         {
             VarAssign("tv:init", "初始化视觉结果", "VisionOk", null, "Global", new JValue(true)),
 
-            ImgFile("tv:acq", "采集板卡图", DIR_BOARD + @"\board-01.png", 1),
+            ImgFile("tv:acq", "采集板卡图", IMG_BOARD_01, 1),
             PreProcess("tv:pre", "图像预处理", new JArray
             {
                 Op("gauss", ("Size", "5")),
@@ -308,7 +308,7 @@ internal static partial class Program
             GeometryRelation("tv:rel", "两圆心距", "CircleRelation", "tv:findCircle", "找圆", "tv:findSmall", "找小圆", 0.05),
             PoseFollow("tv:pose", "跟随ROI", "tv:roi", "ROI圆区域", "tv:findCircle", "找圆", 0),
             BlobDetect("tv:blob", "表面缺陷检测", "tv:pose", "跟随ROI", 0.05, 2, "tv:pre", "图像预处理"),
-            ImgFile("tv:ocrAcq", "采集批号图", @"D:\C#\VM\Image\images\ocr\lot_number_01.png", 0),
+            ImgFile("tv:ocrAcq", "采集批号图", IMG_LOT, 0),
             Ocr("tv:ocr", "OCR识别", new double[] { 272, 320, 0, 170, 40 }, 1, "tv:ocrAcq", "采集批号图", true),
         };
 
@@ -328,7 +328,7 @@ internal static partial class Program
             Logic("tv:and5", "视觉正例5", "tv:and4", "视觉正例4", "bead:inspect", "胶路检测", "Result", "IsOk"),
 
             // 负例 1：缺图
-            ImgFile("tv:missing", "读不存在图(应失败)", @"D:\C#\VM\Image\no_such_image.png", 0),
+            ImgFile("tv:missing", "读不存在图(应失败)", IMG_MISSING, 0),
             IfStep("tv:missingCheck", "缺图判定", "!Ok", G("tv:var:missingOk"), "Ok", "System.Boolean",
                 L("tv:missing", "Success", "读不存在图(应失败)"),
                 new JArray { VarAssign("tv:missingPass", "缺图通过", "NegMissingOk", null, "Global", new JValue(true)) },
@@ -354,7 +354,7 @@ internal static partial class Program
                 new JArray { VarAssign("tv:badCalFail", "空ROI异常", "NegCalOk", null, "Global", new JValue(false)) }),
 
             // 负例 4：无文本图 OCR
-            ImgFile("tv:ocrNegAcq", "采集无文本图", @"D:\C#\VM\Image\test\blank_1200x800.png", 0),
+            ImgFile("tv:ocrNegAcq", "采集无文本图", IMG_BLANK, 0),
             Ocr("tv:ocrNeg", "无文本OCR(应0)", new double[] { 505, 790, 0, 40, 40 }, 0, "tv:ocrNegAcq", "采集无文本图", false),
             Compare("tv:cmpNoText", "无文本=0", "tv:ocrNeg", "无文本OCR(应0)", "Count", 0, "Equal"),
             VarAssign("tv:setNegText", "写无文本负例", "NegTextOk", L("tv:cmpNoText", "Result", "无文本=0"), "Global", null),
@@ -529,8 +529,8 @@ internal static partial class Program
             VarAssign("td:result", "写结果到运行时", "CurrentResult", null, "Runtime", new JValue(true), true),
             VarAssign("td:ocr", "写OCR到运行时", "OcrText", null, "Runtime", new JValue("TEST"), true),
             VarAssign("td:defect", "写缺陷数到运行时", "DefectCount", null, "Runtime", new JValue(0), true),
-            CsvRecord("td:csv", "CSV记录"),
-            Excel("td:excel", "导出Excel报表", "CSV记录"),
+            CcgCsvRecord("td:csv", "CSV记录", DefaultCsvColumns()),
+            CcgExcel("td:excel", "导出Excel报表", "CSV记录"),
             Upload("td:upload", "上报MES(默认不触发)"),
             Delay("td:delay", "数据延时", 100),
             IfStep("td:count", "数据结果计数", "Ok", G("td:var:dataCount"), "Ok", "System.Boolean",

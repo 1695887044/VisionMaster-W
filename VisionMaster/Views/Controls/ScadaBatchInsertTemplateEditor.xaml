@@ -58,7 +58,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Style="{StaticResource FieldLabel}" Text="模板" />
-            <ComboBox
+            <ComboBox Style="{StaticResource DialogComboCompact}"
                 Grid.Column="1"
                 Height="28"
                 DisplayMemberPath="Name"

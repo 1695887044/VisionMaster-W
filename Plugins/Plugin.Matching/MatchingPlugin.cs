@@ -13,6 +13,7 @@ using Core.Halcon.Controls;
 using Core.Halcon.Helpers;
 using Core.Halcon.Models;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 using Newtonsoft.Json;
 
@@ -53,6 +54,13 @@ namespace Plugin.Matching
         /// </summary>
         [StepConfig]
         public string TemplateLibraryJson { get; set; } = "[]";
+
+        /// <summary>
+        /// 方案模板资产 Id（优先于内嵌 TemplateLibraryJson；运行期由宿主解析成模板库 JSON 文件）。
+        /// 只接受模板资产，文件必须是 MatchingTemplateEntry 数组。
+        /// </summary>
+        [StepConfig]
+        public string TemplateAssetId { get; set; } = string.Empty;
 
         /// <summary>
         /// 默认模板名：RecipeName 端口未连接/为空时使用。界面"设为默认"按钮写入。
@@ -730,8 +738,7 @@ namespace Plugin.Matching
         /// 「模板1」，迁移后清空遗留字段防重复导入。
         /// </summary>
         private void ParseLibraryAndMigrate()
-        {
-            // 释放旧条目的模型句柄，防止反复解析库时泄漏
+        {            // 释放旧条目的模型句柄，防止反复解析库时泄漏
             foreach (var e in Library.ToArray())
                 ReleaseEntryModel(e);
             Library.Clear();
@@ -1003,6 +1010,12 @@ namespace Plugin.Matching
                         out HTuple nccModelId
                     );
                     entry.RuntimeModelId = nccModelId;
+
+                    // NCC 的原点是模板域重心（没有 set_ncc_model_origin）。
+                    // 记下"重心 → ROI 中心"的偏移，匹配时按角度旋转补回，保证 Row/Column 与形状匹配同口径。
+                    HOperatorSet.AreaCenter(domainSource, out _, out HTuple nccCogRow, out HTuple nccCogCol);
+                    entry.NccOffsetRow = CanvasRect[0] - nccCogRow.D;
+                    entry.NccOffsetCol = CanvasRect[1] - nccCogCol.D;
                 }
                 else if (entry.ScaleEnabled)
                 {
@@ -1250,21 +1263,6 @@ namespace Plugin.Matching
         private static string AlgorithmName(MatchingAlgorithm algorithm) =>
             algorithm == MatchingAlgorithm.Ncc ? "基于灰度相关（NCC）" : "基于形状（边缘几何）";
 
-        /// <summary>
-        /// NCC 模型的默认原点行（= 模板域的重心行）。
-        ///
-        /// 形状匹配用 <c>set_shape_model_origin</c> 把原点搬到"用户画的区域中心"，
-        /// NCC 没有对应的算子，所以创建模板时把重心落点记进 <see cref="MatchingTemplateEntry.LearnedSignature"/>？
-        /// **不**——签名是给人看的字符串。这里改为从条目区域反推：NCC 的 create_ncc_model
-        /// 用的就是 reduce_domain 后的模板域，其重心近似矩形/椭圆/圆的几何中心，
-        /// 所以直接取 <c>Rect[0]/Rect[1]</c> 作为"用户期望的原点"，实际偏移量为 0。
-        /// 保留成方法是为了把"为什么 NCC 不需要偏移"这件事写在代码里而不是消失。
-        /// </summary>
-        private static double ModelOriginRow(MatchingTemplateEntry entry) => entry.Rect![0];
-
-        /// <summary>NCC 模型的默认原点列，理由见 <see cref="ModelOriginRow"/></summary>
-        private static double ModelOriginCol(MatchingTemplateEntry entry) => entry.Rect![1];
-
         private static string RectKeyOf(double[]? rect) =>
             rect == null || rect.Length != 5
                 ? string.Empty
@@ -1502,15 +1500,30 @@ namespace Plugin.Matching
                     if (entry.Rect is { Length: 5 })
                     {
                         var r = entry.Rect;
-                        HOperatorSet.GenRectangle2ContourXld(
-                            out HObject nccContour,
-                            r[0],
-                            r[1],
-                            r[2],
-                            r[3],
-                            r[4]
-                        );
-                        entry.RuntimeContours = nccContour;
+                        // 轮廓必须相对模板原点 (0,0)：预览按"平移到 ROI 中心"、运行时按
+                        // "旋转平移到命中位姿"使用；生成在 (r[0],r[1]) 会被再平移一次而飞掉。
+                        // 形状也要按条目实际类型生成：圆/椭圆不能退化成矩形。
+                        if (entry.Shape == RoiShapeNames.Circle)
+                        {
+                            HOperatorSet.GenCircleContourXld(
+                                out HObject nccContour,
+                                0, 0, r[2], 0, 2 * Math.PI, "positive", 0.01);
+                            entry.RuntimeContours = nccContour;
+                        }
+                        else if (entry.Shape == RoiShapeNames.Ellipse)
+                        {
+                            HOperatorSet.GenEllipseContourXld(
+                                out HObject nccContour,
+                                0, 0, r[2], r[3], r[4], 0, 2 * Math.PI, "positive", 0.01);
+                            entry.RuntimeContours = nccContour;
+                        }
+                        else
+                        {
+                            HOperatorSet.GenRectangle2ContourXld(
+                                out HObject nccContour,
+                                0, 0, r[2], r[3], r[4]);
+                            entry.RuntimeContours = nccContour;
+                        }
                     }
                 }
                 catch
@@ -1556,6 +1569,37 @@ namespace Plugin.Matching
         /// 选条目：RecipeName 端口（按名字）→ 默认模板 → 库里第一条。
         /// 名字不在库里 → error 带上库里现有的名字（产线口径：不静默、不猜）。
         /// </summary>
+        /// <summary>
+        /// 资产 Id 优先：模板资产文件必须是模板库 JSON；解析失败就明确报错，不回退到旧库。
+        /// </summary>
+        private bool TryApplyTemplateAsset(IExecutionContext context, out string? error)
+        {
+            error = null;
+            if (string.IsNullOrWhiteSpace(TemplateAssetId))
+                return true;
+
+            if (!ProjectAssetPathResolver.TryResolve(context, TemplateAssetId, null, "template", out var path, out error))
+                return false;
+
+            if (!string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"模板资产必须是模板库 JSON，当前文件：{Path.GetFileName(path)}";
+                return false;
+            }
+
+            try
+            {
+                TemplateLibraryJson = File.ReadAllText(path);
+                ParseLibraryAndMigrate();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = $"读取模板资产失败：{ex.Message}";
+                return false;
+            }
+        }
+
         private MatchingTemplateEntry? ResolveEntry(out string? error)
         {
             error = null;
@@ -1613,6 +1657,13 @@ namespace Plugin.Matching
             if (src == null || !src.IsInitialized())
             {
                 Fail("输入图像为空或未初始化");
+                context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                return;
+            }
+
+            if (!TryApplyTemplateAsset(context, out var templateAssetError))
+            {
+                Fail(templateAssetError ?? "模板资产解析失败");
                 context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
                 return;
             }
@@ -1715,12 +1766,25 @@ namespace Plugin.Matching
                     // NCC 没有 set_ncc_model_origin：find 给的是模板域重心落点，
                     // 而形状匹配那边已经把原点锚到了用户画的区域中心。
                     // 为了让"两种算法的 Row/Column 口径一致"，这里在输出侧补同一份偏移。
-                    if (rows.Length > 0 && entry.Rect is { Length: 5 })
+                    // NCC 的原点是模板域重心；形状匹配的原点已被 set_shape_model_origin 搬到 ROI 中心。
+                    // 用学习时记下的偏移，按匹配角旋转后补回，两种算法的 Row/Column 才同口径。
+                    double dRow = entry.NccOffsetRow;
+                    double dCol = entry.NccOffsetCol;
+                    if (Math.Abs(dRow) > 1e-9 || Math.Abs(dCol) > 1e-9)
                     {
-                        double dRow = entry.Rect[0] - ModelOriginRow(entry);
-                        double dCol = entry.Rect[1] - ModelOriginCol(entry);
-                        rows = rows + dRow;
-                        cols = cols + dCol;
+                        var adjustedRows = new HTuple();
+                        var adjustedCols = new HTuple();
+                        for (int i = 0; i < rows.Length; i++)
+                        {
+                            HOperatorSet.VectorAngleToRigid(
+                                0, 0, 0, rows[i].D, cols[i].D, angles[i].D, out HTuple offsetHom);
+                            HOperatorSet.AffineTransPoint2d(
+                                offsetHom, dRow, dCol, out HTuple adjustedRow, out HTuple adjustedCol);
+                            adjustedRows = adjustedRows.TupleConcat(adjustedRow);
+                            adjustedCols = adjustedCols.TupleConcat(adjustedCol);
+                        }
+                        rows = adjustedRows;
+                        cols = adjustedCols;
                     }
                 }
                 else if (entry.ScaleEnabled)

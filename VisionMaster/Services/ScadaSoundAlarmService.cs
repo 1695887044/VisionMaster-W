@@ -58,6 +58,7 @@ namespace VisionMaster.Services
         private readonly Timer _timer;
 
         private bool _enabled;
+        private bool _suspended;
         private int _volume = DefaultVolume;
         private int _muteMinutes = DefaultMuteMinutes;
         private DateTime? _muteUntilUtc;
@@ -178,6 +179,31 @@ namespace VisionMaster.Services
 
         /// <summary>音频设备是否可用</summary>
         public bool IsAvailable => _player.IsAvailable;
+
+        /// <summary>
+        /// 让路开关：true = 暂停提示音（语音播报期间用）。与 <see cref="Enabled"/> 是两件事——
+        /// 这里不改变用户的"声音开/关"，只是暂时不发声；恢复后按当前报警状态自然接上。
+        /// </summary>
+        public bool Suspended
+        {
+            get
+            {
+                lock (_gate)
+                    return _suspended;
+            }
+            set
+            {
+                lock (_gate)
+                {
+                    if (_suspended == value)
+                        return;
+
+                    _suspended = value;
+                    if (_suspended)
+                        StopPlaybackLocked();
+                }
+            }
+        }
 
         /// <summary>不可用原因；可用时为 null</summary>
         public string? UnavailableReason => _player.UnavailableReason;
@@ -388,6 +414,14 @@ namespace VisionMaster.Services
         /// <summary>真正发声。返回 true = 发声状态发生了变化（供上层决定要不要刷 UI）</summary>
         private bool PlayLocked(ScadaAlarmSeverity severity)
         {
+            // 语音播报期间压住提示音：人声和滴滴声同时响，现场一个字也听不清。
+            // 由播报服务通过 Suspend 开合；这里只是"让路"，不改用户的开关状态。
+            if (_suspended)
+            {
+                StopPlaybackLocked();
+                return false;
+            }
+
             try
             {
                 _player.Play(severity, _volume);

@@ -5,6 +5,7 @@ using System.ComponentModel.DataAnnotations;
 using System.IO;
 using Core.Events;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 using UI.Attributes;
 
@@ -54,6 +55,10 @@ namespace Plugin.DlAnomaly
         [StepConfig, DefaultValue("")]
         [BrowsePath(FileFilter = "ONNX 模型|*.onnx|所有文件|*.*")]
         public partial string ModelPath { get; set; }
+
+        /// <summary>方案模型资产 Id（优先于 ModelPath；运行期由宿主解析成绝对路径）。</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string ModelAssetId { get; set; }
 
         // 模型路径变了 → 重新解析会话，把模型态与摘要一次刷新到位。
         partial void OnModelPathChanged(string value) => RefreshModelState();
@@ -130,6 +135,9 @@ namespace Plugin.DlAnomaly
 
         /// <summary>当前会话对应的模型路径。用于判断"模型换了要换会话"</summary>
         private string _sessionModelPath = string.Empty;
+
+        /// <summary>运行期从 AssetId 解析出的绝对路径；配置预览为空时回退 ModelPath。</summary>
+        private string? _assetModelPath;
 
         private string _sessionError = string.Empty;
 
@@ -321,6 +329,14 @@ namespace Plugin.DlAnomaly
                 return;
             }
 
+            if (!ProjectAssetPathResolver.TryResolve(context, ModelAssetId, ModelPath, "model", out var configuredPath, out var assetError))
+            {
+                Fail(assetError);
+                return;
+            }
+
+            _assetModelPath = string.IsNullOrWhiteSpace(ModelAssetId) ? null : configuredPath;
+
             if (!TryDetect(image, out var result, out string error))
             {
                 Fail(error);
@@ -399,16 +415,17 @@ namespace Plugin.DlAnomaly
         /// </summary>
         private AnomalySession? EnsureSession()
         {
-            if (string.IsNullOrWhiteSpace(ModelPath))
+            var configuredPath = _assetModelPath ?? ModelPath;
+            if (string.IsNullOrWhiteSpace(configuredPath))
             {
                 _sessionError = "尚未选择模型：请在节点配置里选择一个 .onnx 异常检测模型";
                 return null;
             }
 
-            string? resolved = ResolvePath(ModelPath);
+            string? resolved = ResolvePath(configuredPath);
             if (resolved == null)
             {
-                _sessionError = $"模型文件不存在：{ModelPath}。请重新选择，或把模型放到该路径";
+                _sessionError = $"模型文件不存在：{configuredPath}。请重新选择，或把模型放到该路径";
                 return null;
             }
 

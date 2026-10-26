@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>底部控制台改造设计稿 · 提案</title>
+<style>
+body{margin:0;padding:20px;background:#fafbfc;font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;color:#1f2328}
+.doc-note{margin:0 0 10px;font-size:12px;color:#6b7280;line-height:1.6}
+.doc-bar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.doc-bar button{font:inherit;font-size:12px;padding:5px 12px;border:1px solid #d3d7de;border-radius:999px;background:#fff;color:#374151;cursor:pointer}
+.doc-bar button[aria-pressed="true"]{background:#2563eb;border-color:#2563eb;color:#fff}
+</style>
+</head>
+<body>
+<p class="doc-note">设计提案（未确认）：底部控制台改造。切换下方方案查看；窗口内可点页签、点右侧箭头或状态栏「控制台」展开/收起，也可用「模拟一条错误」看故障态。</p>
+<div class="doc-bar" role="group" aria-label="方案切换">
+<button type="button" data-doc-variant="0" aria-pressed="true">现状对照</button>
+<button type="button" data-doc-variant="1" aria-pressed="false">摘要头（推荐）</button>
+<button type="button" data-doc-variant="2" aria-pressed="false">双栏常驻</button>
+<button type="button" data-doc-variant="3" aria-pressed="false">静默提示</button>
+</div>
+<div id="vm-console-mock">
+<style>
+#vm-console-mock{
+  --vm-bg:#eef0f3; --vm-surface:#ffffff; --vm-head:#f7f8fa; --vm-border:#e3e6ea; --vm-border-2:#d3d7de;
+  --vm-text:#1f2328; --vm-text-2:#5b616b; --vm-text-3:#8b919b;
+  --vm-accent:#2563eb; --vm-accent-soft:#eaf0fe;
+  --vm-info:#2563eb; --vm-success:#15803d; --vm-warn:#b8690a; --vm-warn-bg:#fff8ec; --vm-warn-line:#e8a33d;
+  --vm-error:#c02a2a; --vm-error-bg:#fdf2f2; --vm-error-line:#dc2626;
+  font-family:"Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color:var(--vm-text);
+}
+#vm-console-mock, #vm-console-mock *{box-sizing:border-box}
+#vm-console-mock [hidden]{display:none !important}
+#vm-console-mock .vm-stage{min-height:520px;display:flex;flex-direction:column;justify-content:center;gap:10px;padding:10px 4px 6px;border-radius:10px;background-image:radial-gradient(rgba(128,138,152,.22) 1px,transparent 1px);background-size:18px 18px}
+#vm-console-mock .vm-preview{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--vm-text-3)}
+#vm-console-mock .vm-preview>span{margin-right:2px}
+#vm-console-mock .vm-preview button{font:inherit;font-size:12px;padding:3px 9px;border:1px dashed var(--vm-border-2);background:transparent;color:var(--vm-text-2);border-radius:4px;cursor:pointer}
+#vm-console-mock .vm-preview button:hover{background:#e9ebef}
+#vm-console-mock .vm-window{position:relative;border:1px solid var(--vm-border-2);border-radius:8px;overflow:hidden;background:var(--vm-surface);box-shadow:0 1px 2px rgba(16,24,40,.05)}
+#vm-console-mock .vm-canvas{position:relative;height:196px;overflow:hidden;background-color:#fbfcfd;background-image:radial-gradient(#d5dae1 1px,transparent 1px);background-size:16px 16px;border-bottom:1px solid var(--vm-border)}
+#vm-console-mock .vm-menubar{position:absolute;left:10px;top:8px;z-index:6}
+#vm-console-mock .vm-menu-btn{display:inline-flex;align-items:center;gap:4px;font:inherit;font-size:12px;height:24px;padding:0 8px;border:1px solid var(--vm-border-2);border-radius:4px;background:var(--vm-surface);color:var(--vm-text-2);cursor:pointer}
+#vm-console-mock .vm-menu{position:absolute;left:0;top:28px;min-width:186px;padding:4px;border:1px solid var(--vm-border-2);border-radius:8px;background:var(--vm-surface);box-shadow:0 8px 24px rgba(16,24,40,.14)}
+#vm-console-mock .vm-menu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;font:inherit;font-size:12px;padding:6px 10px;border:0;border-radius:4px;background:transparent;color:var(--vm-text);text-align:left;cursor:pointer}
+#vm-console-mock .vm-menu button:hover{background:#f1f3f6}
+#vm-console-mock .vm-dead{font-size:11px;color:var(--vm-text-3)}
+#vm-console-mock .vm-toast{position:absolute;left:50%;top:10px;transform:translateX(-50%);z-index:8;font-size:12px;padding:5px 12px;border-radius:999px;background:#2b3038;color:#fff;box-shadow:0 4px 14px rgba(16,24,40,.24)}
+#vm-console-mock .vm-nodes{position:absolute;left:26px;top:34px;display:flex;flex-direction:column;gap:8px}
+#vm-console-mock .vm-node{width:176px;padding:5px 10px;border:1px solid var(--vm-border);border-radius:6px;background:var(--vm-surface);box-shadow:0 1px 2px rgba(16,24,40,.05)}
+#vm-console-mock .vm-node-t{display:block;font-size:12.5px;line-height:1.35;font-weight:500}
+#vm-console-mock .vm-node-s{display:block;font-size:11px;line-height:1.3;color:var(--vm-text-3);margin-top:1px}
+#vm-console-mock .vm-pane{display:flex;flex-direction:column;height:32px;overflow:hidden;background:var(--vm-surface);transition:height 160ms ease}
+#vm-console-mock .vm-head{display:flex;align-items:center;gap:8px;height:32px;min-height:32px;padding:0 6px 0 8px;background:var(--vm-head);border-bottom:1px solid transparent}
+#vm-console-mock .is-expanded .vm-head{border-bottom-color:var(--vm-border)}
+#vm-console-mock .vm-tabs{display:flex;align-items:center;gap:2px;min-width:0}
+#vm-console-mock .vm-tab{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border:0;border-radius:4px;background:transparent;font:inherit;font-size:12px;color:var(--vm-text-2);white-space:nowrap;cursor:pointer}
+#vm-console-mock .vm-tab:hover{background:#eceef2}
+#vm-console-mock .vm-tab.is-active{background:var(--vm-surface);color:var(--vm-text);font-weight:500;box-shadow:inset 0 0 0 1px var(--vm-border)}
+#vm-console-mock .vm-count{font-size:11px;line-height:15px;padding:0 5px;border-radius:8px;background:#e7eaee;color:var(--vm-text-2);font-weight:400}
+#vm-console-mock .vm-tab.is-active .vm-count{background:var(--vm-accent-soft);color:#1d4ed8}
+#vm-console-mock .vm-head-right{margin-left:auto;display:flex;align-items:center;gap:6px;min-width:0}
+#vm-console-mock .vm-summary{display:flex;align-items:center;gap:6px;min-width:0;max-width:420px;margin-left:10px;font-size:12px;color:var(--vm-text-2)}
+#vm-console-mock .vm-summary .vm-src{color:var(--vm-text-2)}
+#vm-console-mock .vm-summary .vm-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#vm-console-mock .vm-errbadge{flex:none;font-size:11px;padding:0 6px;line-height:16px;border-radius:8px;background:var(--vm-error);color:#fff}
+#vm-console-mock .vm-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;border-radius:4px;background:transparent;color:var(--vm-text-2);cursor:pointer}
+#vm-console-mock .vm-icon-btn:hover{background:#e7eaee}
+#vm-console-mock .vm-icon-btn:disabled{opacity:.35;cursor:default}
+#vm-console-mock .vm-chevron svg{transition:transform 160ms ease}
+#vm-console-mock .is-expanded .vm-chevron svg{transform:rotate(180deg)}
+#vm-console-mock.has-error .vm-head{box-shadow:inset 3px 0 0 var(--vm-error-line)}
+#vm-console-mock .vm-body{flex:1;min-height:0;overflow:hidden}
+#vm-console-mock .vm-panel{display:flex;flex-direction:column;height:100%}
+#vm-console-mock .vm-log-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:7px 10px 6px}
+#vm-console-mock .vm-search{display:inline-flex;align-items:center;gap:6px;height:26px;min-width:180px;padding:0 9px;border:1px solid var(--vm-border-2);border-radius:6px;color:var(--vm-text-3);font-size:12px;background:var(--vm-surface)}
+#vm-console-mock .vm-check{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--vm-text-2)}
+#vm-console-mock .vm-check input{width:14px;height:14px;accent-color:var(--vm-accent);margin:0}
+#vm-console-mock .vm-pills{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+#vm-console-mock .vm-pill{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 10px;border:1px solid var(--vm-border-2);border-radius:999px;background:var(--vm-surface);font:inherit;font-size:12px;color:var(--vm-text-2);cursor:pointer}
+#vm-console-mock .vm-pill b{font-weight:400;color:var(--vm-text-3)}
+#vm-console-mock .vm-pill.is-on{background:var(--vm-accent);border-color:var(--vm-accent);color:#fff}
+#vm-console-mock .vm-pill.is-on b{color:#dbe6ff}
+#vm-console-mock .vm-dot{display:inline-block;width:6px;height:6px;border-radius:50%;flex:none}
+#vm-console-mock .dot-info{background:var(--vm-info)}
+#vm-console-mock .dot-success{background:var(--vm-success)}
+#vm-console-mock .dot-warn{background:var(--vm-warn-line)}
+#vm-console-mock .dot-error{background:var(--vm-error-line)}
+#vm-console-mock .vm-log{flex:1;min-height:0;overflow:auto;padding:0 0 4px}
+#vm-console-mock .vm-row{display:flex;gap:9px;align-items:baseline;padding:3px 12px;border-left:3px solid transparent;font-size:12px;line-height:1.55}
+#vm-console-mock .vm-row[data-level="warn"]{background:var(--vm-warn-bg);border-left-color:var(--vm-warn-line);color:#7d4a06}
+#vm-console-mock .vm-row[data-level="error"]{background:var(--vm-error-bg);border-left-color:var(--vm-error-line);color:#8f2323}
+#vm-console-mock .vm-time{flex:none;color:var(--vm-text-3);font-variant-numeric:tabular-nums}
+#vm-console-mock .vm-row[data-level="warn"] .vm-time,#vm-console-mock .vm-row[data-level="error"] .vm-time{color:inherit;opacity:.72}
+#vm-console-mock .vm-src{flex:none;color:var(--vm-text-2)}
+#vm-console-mock .vm-row[data-level="warn"] .vm-src,#vm-console-mock .vm-row[data-level="error"] .vm-src{color:inherit}
+#vm-console-mock .vm-msg{min-width:0}
+#vm-console-mock .vm-log-foot{display:flex;flex-wrap:wrap;justify-content:space-between;gap:4px 12px;padding:4px 12px 6px;border-top:1px solid var(--vm-border);font-size:11px;color:var(--vm-text-3)}
+#vm-console-mock .vm-log-foot b{font-weight:400;color:var(--vm-text-2)}
+#vm-console-mock .vm-table{width:100%;border-collapse:collapse;font-size:12px}
+#vm-console-mock .vm-table th{text-align:left;font-weight:400;color:var(--vm-text-3);padding:6px 12px;border-bottom:1px solid var(--vm-border);font-size:11px}
+#vm-console-mock .vm-table td{padding:5px 12px;border-bottom:1px solid #f1f3f5;font-variant-numeric:tabular-nums}
+#vm-console-mock .vm-table td:last-child{text-align:right}
+#vm-console-mock .vm-kind{font-size:11px;color:var(--vm-text-3)}
+#vm-console-mock .vm-empty{display:flex;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--vm-text-3);font-size:12px}
+#vm-console-mock .vm-empty small{font-size:11px}
+#vm-console-mock .vm-split{display:grid;grid-template-columns:minmax(0,1fr) 236px;height:100%}
+#vm-console-mock .vm-split-aside{border-left:1px solid var(--vm-border);min-width:0;display:flex;flex-direction:column}
+#vm-console-mock .vm-aside-title{padding:6px 10px 4px;font-size:11px;color:var(--vm-text-3);border-bottom:1px solid var(--vm-border)}
+#vm-console-mock .vm-status{display:flex;align-items:center;gap:8px;height:26px;padding:0 10px;background:#f3f4f6;border-top:1px solid var(--vm-border);font-size:12px;color:var(--vm-text-2);white-space:nowrap}
+#vm-console-mock .vm-status strong{font-weight:500;color:var(--vm-text)}
+#vm-console-mock .vm-status .vm-spacer{flex:1;min-width:8px}
+#vm-console-mock .vm-status .vm-dim{color:var(--vm-text-3);font-variant-numeric:tabular-nums}
+#vm-console-mock .vm-console-btn{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;border:1px solid transparent;border-radius:3px;background:transparent;font:inherit;font-size:12px;color:var(--vm-text-2);cursor:pointer}
+#vm-console-mock .vm-console-btn:hover{background:#e6e9ee;border-color:var(--vm-border-2)}
+#vm-console-mock .vm-console-btn[aria-expanded="true"]{color:var(--vm-text)}
+@media (max-width:760px){
+  #vm-console-mock .vm-status .vm-hide-sm{display:none}
+  #vm-console-mock .vm-summary{max-width:none}
+  #vm-console-mock .vm-split{grid-template-columns:minmax(0,1fr)}
+  #vm-console-mock .vm-split-aside{display:none}
+  #vm-console-mock .vm-stage{min-height:560px}
+}
+@media (max-width:620px){
+  #vm-console-mock .vm-summary{display:none}
+}
+</style>
+
+<div class="viz-carousel" aria-label="底部控制台改造设计稿">
+
+  <section class="vm-stage" data-variant="现状对照" aria-label="现状：底部三页签与控制台按钮" data-vm="" data-start-expanded="false" data-height="240" data-auto-expand="false" data-summary="none">
+    <div class="vm-preview">
+      <span>预览操作（非产品界面）</span>
+      <button type="button" data-act="sim-warn">模拟一条警告</button>
+      <button type="button" data-act="sim-error">模拟一条错误</button>
+      <button type="button" data-act="reset">重置</button>
+    </div>
+    <div class="vm-window">
+      <div class="vm-menubar">
+        <button type="button" class="vm-menu-btn" data-act="menu">视图 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" aria-hidden="true" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div class="vm-menu" data-menu="" hidden="">
+          <button type="button" data-act="show" data-panel="log">控制台</button>
+          <button type="button" data-act="show" data-panel="data">数据栏 <span class="vm-dead">无响应</span></button>
+          <button type="button" data-act="show" data-panel="module">模块输出 <span class="vm-dead">无响应</span></button>
+          <button type="button" data-act="show" data-panel="device">设备状态</button>
+        </div>
+      </div>
+      <div class="vm-toast" data-toast="" hidden=""></div>
+      <div class="vm-canvas">
+        <div class="vm-nodes">
+          <div class="vm-node"><span class="vm-node-t">写宽度</span><span class="vm-node-s">变量赋值</span></div>
+          <div class="vm-node"><span class="vm-node-t">采集两点距图</span><span class="vm-node-s">图像采集</span></div>
+          <div class="vm-node"><span class="vm-node-t">两点距前处理</span><span class="vm-node-s">图像处理</span></div>
+        </div>
+      </div>
+      <div class="vm-pane" data-pane="" style="height: 32px;">
+        <div class="vm-head" data-head="">
+          <div class="vm-tabs">
+            <button type="button" class="vm-tab is-active" data-act="tab" data-tab="log">日志信息</button>
+            <button type="button" class="vm-tab" data-act="tab" data-tab="watch">监控栏</button>
+            <button type="button" class="vm-tab" data-act="tab" data-tab="device">设备状态</button>
+          </div>
+          <div class="vm-head-right">
+            <button type="button" class="vm-icon-btn" aria-label="自动隐藏（AvalonDock）"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="pin" aria-hidden="true" class="lucide lucide-pin"><path d="M12 17v5"></path><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"></path></svg></button>
+            <button type="button" class="vm-icon-btn" aria-label="关闭" disabled=""><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="x" aria-hidden="true" class="lucide lucide-x"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+          </div>
+        </div>
+        <div class="vm-body" data-body="">
+          <div class="vm-panel" data-panel="log">
+            <div class="vm-log-toolbar">
+              <div class="vm-search"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="search" aria-hidden="true" class="lucide lucide-search"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg><span>正文或来源</span></div>
+              <label class="vm-check"><input type="checkbox" checked=""><span>跟随最新</span></label>
+              <div class="vm-pills">
+                <button type="button" class="vm-pill is-on" data-act="pill">全部 <b data-count="all">56</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-info"></i>信息 <b data-count="info">39</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-success"></i>成功 <b data-count="success">0</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-warn"></i>警告 <b data-count="warn">17</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-error"></i>错误 <b data-count="error">0</b></button>
+              </div>
+            </div>
+            <div class="vm-log" data-log="" aria-live="polite">
+              <div class="vm-row" data-level="info"><span class="vm-time">07:34:12.208</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「写宽度」执行完成，耗时 42 ms</span></div>
+              <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：Meter_Station — 连接 127.0.0.1:504 失败，超时时间为 1000 ms</span></div>
+              <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：PLC_Line — Socket Connect 127.0.0.1:503 Exception -&gt; 在一个非套接字上尝试了一个操作。</span></div>
+              <div class="vm-row" data-level="info"><span class="vm-time">07:34:20.112</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「采集两点距图」开始执行</span></div>
+            </div>
+            <div class="vm-log-foot"><span>显示 <b data-count="all">56</b> / 共 <b data-count="all">56</b> 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+          </div>
+          <div class="vm-panel" data-panel="watch" hidden="">
+            <table class="vm-table">
+              <thead><tr><th>名称</th><th>类型</th><th>值</th></tr></thead>
+              <tbody>
+                <tr><td>Global.LineSpeed</td><td class="vm-kind">gv</td><td>12.500</td></tr>
+                <tr><td>采集两点距图.Distance</td><td class="vm-kind">out</td><td>34.882</td></tr>
+                <tr><td>两点距前处理.Result</td><td class="vm-kind">in</td><td>34.882</td></tr>
+                <tr><td>定位.X_Axis</td><td class="vm-kind">out</td><td>12.500</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="vm-panel" data-panel="device" hidden="">
+            <div class="vm-empty"><span>占位面板：无内容</span><small>Panel_DeviceStateView 未登记 ContentFactories</small></div>
+          </div>
+        </div>
+      </div>
+      <div class="vm-status">
+        <span>未登录</span><span>|</span><strong>方案 智能装配检测线</strong>
+        <span class="vm-spacer"></span>
+        <span class="vm-dim vm-hide-sm">CPU 0.8%</span><span class="vm-dim vm-hide-sm">MEM 437 MB</span>
+        <button type="button" class="vm-console-btn" data-act="toggle" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="terminal" aria-hidden="true" class="lucide lucide-terminal"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>控制台</button>
+        <span class="vm-dim vm-hide-sm">07:34:48</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="vm-stage" data-variant="摘要头（推荐）" aria-label="方案一：32px 抽屉头带计数、摘要与展开箭头" data-vm="" data-start-expanded="false" data-height="240" data-auto-expand="true" data-summary="line" hidden="">
+    <div class="vm-preview">
+      <span>预览操作（非产品界面）</span>
+      <button type="button" data-act="sim-warn">模拟一条警告</button>
+      <button type="button" data-act="sim-error">模拟一条错误</button>
+      <button type="button" data-act="reset">重置</button>
+    </div>
+    <div class="vm-window">
+      <div class="vm-menubar">
+        <button type="button" class="vm-menu-btn" data-act="menu">视图 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" aria-hidden="true" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div class="vm-menu" data-menu="" hidden="">
+          <button type="button" data-act="show" data-panel="log">控制台</button>
+          <button type="button" data-act="show" data-panel="watch">监控栏</button>
+        </div>
+      </div>
+      <div class="vm-toast" data-toast="" hidden=""></div>
+      <div class="vm-canvas">
+        <div class="vm-nodes">
+          <div class="vm-node"><span class="vm-node-t">写宽度</span><span class="vm-node-s">变量赋值</span></div>
+          <div class="vm-node"><span class="vm-node-t">采集两点距图</span><span class="vm-node-s">图像采集</span></div>
+          <div class="vm-node"><span class="vm-node-t">两点距前处理</span><span class="vm-node-s">图像处理</span></div>
+        </div>
+      </div>
+      <div class="vm-pane" data-pane="" style="height: 32px;">
+        <div class="vm-head" data-head="">
+          <div class="vm-tabs">
+            <button type="button" class="vm-tab is-active" data-act="tab" data-tab="log">控制台 <span class="vm-count" data-count="all">56</span></button>
+            <button type="button" class="vm-tab" data-act="tab" data-tab="watch">监控栏 <span class="vm-count" data-count="watch">7</span></button>
+          </div>
+          <div class="vm-head-right">
+            <div class="vm-summary" data-summary="">
+              <i class="vm-dot dot-info"></i><span class="vm-src">[Flow]</span><span class="vm-text">步骤「采集两点距图」开始执行</span><span class="vm-errbadge" data-errbadge="" hidden="">0 错误</span>
+            </div>
+            <button type="button" class="vm-icon-btn vm-chevron" data-act="toggle" aria-expanded="false" aria-label="展开或收起控制台"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-up" aria-hidden="true" class="lucide lucide-chevron-up"><path d="m18 15-6-6-6 6"></path></svg></button>
+          </div>
+        </div>
+        <div class="vm-body" data-body="">
+          <div class="vm-panel" data-panel="log">
+            <div class="vm-log-toolbar">
+              <div class="vm-search"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="search" aria-hidden="true" class="lucide lucide-search"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg><span>正文或来源</span></div>
+              <label class="vm-check"><input type="checkbox" checked=""><span>跟随最新</span></label>
+              <div class="vm-pills">
+                <button type="button" class="vm-pill is-on" data-act="pill">全部 <b data-count="all">56</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-info"></i>信息 <b data-count="info">39</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-success"></i>成功 <b data-count="success">0</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-warn"></i>警告 <b data-count="warn">17</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-error"></i>错误 <b data-count="error">0</b></button>
+              </div>
+            </div>
+            <div class="vm-log" data-log="" aria-live="polite">
+              <div class="vm-row" data-level="info"><span class="vm-time">07:34:12.208</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「写宽度」执行完成，耗时 42 ms</span></div>
+              <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：Meter_Station — 连接 127.0.0.1:504 失败，超时时间为 1000 ms</span></div>
+              <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：PLC_Line — Socket Connect 127.0.0.1:503 Exception -&gt; 在一个非套接字上尝试了一个操作。</span></div>
+              <div class="vm-row" data-level="info"><span class="vm-time">07:34:20.112</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「采集两点距图」开始执行</span></div>
+            </div>
+            <div class="vm-log-foot"><span>显示 <b data-count="all">56</b> / 共 <b data-count="all">56</b> 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+          </div>
+          <div class="vm-panel" data-panel="watch" hidden="">
+            <table class="vm-table">
+              <thead><tr><th>名称</th><th>类型</th><th>值</th></tr></thead>
+              <tbody>
+                <tr><td>Global.LineSpeed</td><td class="vm-kind">gv</td><td>12.500</td></tr>
+                <tr><td>采集两点距图.Distance</td><td class="vm-kind">out</td><td>34.882</td></tr>
+                <tr><td>两点距前处理.Result</td><td class="vm-kind">in</td><td>34.882</td></tr>
+                <tr><td>定位.X_Axis</td><td class="vm-kind">out</td><td>12.500</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="vm-status">
+        <span>未登录</span><span>|</span><strong>方案 智能装配检测线</strong>
+        <span class="vm-spacer"></span>
+        <span class="vm-dim vm-hide-sm">CPU 0.8%</span><span class="vm-dim vm-hide-sm">MEM 437 MB</span>
+        <button type="button" class="vm-console-btn" data-act="toggle" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="terminal" aria-hidden="true" class="lucide lucide-terminal"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>控制台</button>
+        <span class="vm-dim vm-hide-sm">07:34:48</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="vm-stage is-expanded" data-variant="双栏常驻" aria-label="方案二：日志与监控同屏双栏，不再切页签" data-vm="" data-start-expanded="true" data-height="248" data-auto-expand="true" data-summary="line" hidden="">
+    <div class="vm-preview">
+      <span>预览操作（非产品界面）</span>
+      <button type="button" data-act="sim-warn">模拟一条警告</button>
+      <button type="button" data-act="sim-error">模拟一条错误</button>
+      <button type="button" data-act="reset">重置</button>
+    </div>
+    <div class="vm-window">
+      <div class="vm-menubar">
+        <button type="button" class="vm-menu-btn" data-act="menu">视图 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" aria-hidden="true" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div class="vm-menu" data-menu="" hidden="">
+          <button type="button" data-act="show" data-panel="log">控制台</button>
+          <button type="button" data-act="show" data-panel="watch">监控栏</button>
+        </div>
+      </div>
+      <div class="vm-toast" data-toast="" hidden=""></div>
+      <div class="vm-canvas">
+        <div class="vm-nodes">
+          <div class="vm-node"><span class="vm-node-t">写宽度</span><span class="vm-node-s">变量赋值</span></div>
+          <div class="vm-node"><span class="vm-node-t">采集两点距图</span><span class="vm-node-s">图像采集</span></div>
+          <div class="vm-node"><span class="vm-node-t">两点距前处理</span><span class="vm-node-s">图像处理</span></div>
+        </div>
+      </div>
+      <div class="vm-pane" data-pane="" style="height: 248px;">
+        <div class="vm-head" data-head="">
+          <div class="vm-tabs">
+            <button type="button" class="vm-tab is-active" data-act="tab" data-tab="log">控制台 <span class="vm-count" data-count="all">56</span></button>
+          </div>
+          <div class="vm-head-right">
+            <div class="vm-summary" data-summary="">
+              <i class="vm-dot dot-info"></i><span class="vm-src">[Flow]</span><span class="vm-text">步骤「采集两点距图」开始执行</span><span class="vm-errbadge" data-errbadge="" hidden="">0 错误</span>
+            </div>
+            <button type="button" class="vm-icon-btn vm-chevron" data-act="toggle" aria-expanded="true" aria-label="展开或收起控制台"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-up" aria-hidden="true" class="lucide lucide-chevron-up"><path d="m18 15-6-6-6 6"></path></svg></button>
+          </div>
+        </div>
+        <div class="vm-body" data-body="">
+          <div class="vm-split">
+            <div class="vm-panel" data-panel="log">
+              <div class="vm-log" data-log="" aria-live="polite">
+                <div class="vm-row" data-level="info"><span class="vm-time">07:34:12.208</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「写宽度」执行完成，耗时 42 ms</span></div>
+                <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：Meter_Station — 连接 127.0.0.1:504 失败，超时时间为 1000 ms</span></div>
+                <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：PLC_Line — Socket Connect 127.0.0.1:503 Exception -&gt; 在一个非套接字上尝试了一个操作。</span></div>
+                <div class="vm-row" data-level="info"><span class="vm-time">07:34:20.112</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「采集两点距图」开始执行</span></div>
+              </div>
+            </div>
+            <div class="vm-split-aside">
+              <div class="vm-aside-title">监控栏 · 7 项</div>
+              <table class="vm-table">
+                <tbody>
+                  <tr><td>Global.LineSpeed</td><td>12.500</td></tr>
+                  <tr><td>采集两点距图.Distance</td><td>34.882</td></tr>
+                  <tr><td>两点距前处理.Result</td><td>34.882</td></tr>
+                  <tr><td>定位.X_Axis</td><td>12.500</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="vm-status">
+        <span>未登录</span><span>|</span><strong>方案 智能装配检测线</strong>
+        <span class="vm-spacer"></span>
+        <span class="vm-dim vm-hide-sm">CPU 0.8%</span><span class="vm-dim vm-hide-sm">MEM 437 MB</span>
+        <button type="button" class="vm-console-btn" data-act="toggle" aria-expanded="true"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="terminal" aria-hidden="true" class="lucide lucide-terminal"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>控制台</button>
+        <span class="vm-dim vm-hide-sm">07:34:48</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="vm-stage" data-variant="静默提示" aria-label="方案三：故障只在头部提示，不抢画面" data-vm="" data-start-expanded="false" data-height="240" data-auto-expand="false" data-summary="line" hidden="">
+    <div class="vm-preview">
+      <span>预览操作（非产品界面）</span>
+      <button type="button" data-act="sim-warn">模拟一条警告</button>
+      <button type="button" data-act="sim-error">模拟一条错误</button>
+      <button type="button" data-act="reset">重置</button>
+    </div>
+    <div class="vm-window">
+      <div class="vm-menubar">
+        <button type="button" class="vm-menu-btn" data-act="menu">视图 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-down" aria-hidden="true" class="lucide lucide-chevron-down"><path d="m6 9 6 6 6-6"></path></svg></button>
+        <div class="vm-menu" data-menu="" hidden="">
+          <button type="button" data-act="show" data-panel="log">控制台</button>
+          <button type="button" data-act="show" data-panel="watch">监控栏</button>
+        </div>
+      </div>
+      <div class="vm-toast" data-toast="" hidden=""></div>
+      <div class="vm-canvas">
+        <div class="vm-nodes">
+          <div class="vm-node"><span class="vm-node-t">写宽度</span><span class="vm-node-s">变量赋值</span></div>
+          <div class="vm-node"><span class="vm-node-t">采集两点距图</span><span class="vm-node-s">图像采集</span></div>
+          <div class="vm-node"><span class="vm-node-t">两点距前处理</span><span class="vm-node-s">图像处理</span></div>
+        </div>
+      </div>
+      <div class="vm-pane" data-pane="" style="height: 32px;">
+        <div class="vm-head" data-head="">
+          <div class="vm-tabs">
+            <button type="button" class="vm-tab is-active" data-act="tab" data-tab="log">控制台 <span class="vm-count" data-count="all">56</span></button>
+            <button type="button" class="vm-tab" data-act="tab" data-tab="watch">监控栏 <span class="vm-count" data-count="watch">7</span></button>
+          </div>
+          <div class="vm-head-right">
+            <div class="vm-summary" data-summary="">
+              <i class="vm-dot dot-info"></i><span class="vm-src">[Flow]</span><span class="vm-text">步骤「采集两点距图」开始执行</span><span class="vm-errbadge" data-errbadge="" hidden="">0 错误</span>
+            </div>
+            <button type="button" class="vm-icon-btn vm-chevron" data-act="toggle" aria-expanded="false" aria-label="展开或收起控制台"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="chevron-up" aria-hidden="true" class="lucide lucide-chevron-up"><path d="m18 15-6-6-6 6"></path></svg></button>
+          </div>
+        </div>
+        <div class="vm-body" data-body="">
+          <div class="vm-panel" data-panel="log">
+            <div class="vm-log-toolbar">
+              <div class="vm-search"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="search" aria-hidden="true" class="lucide lucide-search"><path d="m21 21-4.34-4.34"></path><circle cx="11" cy="11" r="8"></circle></svg><span>正文或来源</span></div>
+              <label class="vm-check"><input type="checkbox" checked=""><span>跟随最新</span></label>
+              <div class="vm-pills">
+                <button type="button" class="vm-pill is-on" data-act="pill">全部 <b data-count="all">56</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-info"></i>信息 <b data-count="info">39</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-success"></i>成功 <b data-count="success">0</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-warn"></i>警告 <b data-count="warn">17</b></button>
+                <button type="button" class="vm-pill" data-act="pill"><i class="vm-dot dot-error"></i>错误 <b data-count="error">0</b></button>
+              </div>
+            </div>
+            <div class="vm-log" data-log="" aria-live="polite">
+              <div class="vm-row" data-level="info"><span class="vm-time">07:34:12.208</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「写宽度」执行完成，耗时 42 ms</span></div>
+              <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：Meter_Station — 连接 127.0.0.1:504 失败，超时时间为 1000 ms</span></div>
+              <div class="vm-row" data-level="warn"><span class="vm-time">07:34:18.954</span><span class="vm-src">[Comm]</span><span class="vm-msg">通信故障：PLC_Line — Socket Connect 127.0.0.1:503 Exception -&gt; 在一个非套接字上尝试了一个操作。</span></div>
+              <div class="vm-row" data-level="info"><span class="vm-time">07:34:20.112</span><span class="vm-src">[Flow]</span><span class="vm-msg">步骤「采集两点距图」开始执行</span></div>
+            </div>
+            <div class="vm-log-foot"><span>显示 <b data-count="all">56</b> / 共 <b data-count="all">56</b> 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+          </div>
+          <div class="vm-panel" data-panel="watch" hidden="">
+            <table class="vm-table">
+              <thead><tr><th>名称</th><th>类型</th><th>值</th></tr></thead>
+              <tbody>
+                <tr><td>Global.LineSpeed</td><td class="vm-kind">gv</td><td>12.500</td></tr>
+                <tr><td>采集两点距图.Distance</td><td class="vm-kind">out</td><td>34.882</td></tr>
+                <tr><td>两点距前处理.Result</td><td class="vm-kind">in</td><td>34.882</td></tr>
+                <tr><td>定位.X_Axis</td><td class="vm-kind">out</td><td>12.500</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="vm-status">
+        <span>未登录</span><span>|</span><strong>方案 智能装配检测线</strong>
+        <span class="vm-spacer"></span>
+        <span class="vm-dim vm-hide-sm">CPU 0.8%</span><span class="vm-dim vm-hide-sm">MEM 437 MB</span>
+        <button type="button" class="vm-console-btn" data-act="toggle" aria-expanded="false"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-lucide="terminal" aria-hidden="true" class="lucide lucide-terminal"><path d="M12 19h8"></path><path d="m4 17 6-6-6-6"></path></svg>控制台</button>
+        <span class="vm-dim vm-hide-sm">07:34:48</span>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function () {
+  var root = document.getElementById('vm-console-mock');
+  if (!root) return;
+
+  function refreshIcons() {
+    if (globalThis.lucide && typeof lucide.createIcons === 'function') {
+      try { lucide.createIcons({ attrs: { width: 14, height: 14 } }); } catch (e) {}
+    }
+  }
+
+  function stamp() {
+    var d = new Date();
+    function p(n, w) { var s = String(n); while (s.length < w) { s = '0' + s; } return s; }
+    return p(d.getHours(), 2) + ':' + p(d.getMinutes(), 2) + ':' + p(d.getSeconds(), 2) + '.' + p(d.getMilliseconds(), 3);
+  }
+
+  function setup(section) {
+    var pane = section.querySelector('[data-pane]');
+    var log = section.querySelector('[data-log]');
+    var initialLog = log ? log.innerHTML : '';
+    var base = { all: 56, info: 39, success: 0, warn: 17, error: 0 };
+
+    var st = {
+      expanded: section.dataset.startExpanded === 'true',
+      height: parseInt(section.dataset.height || '240', 10),
+      autoExpand: section.dataset.autoExpand === 'true',
+      counts: { all: base.all, info: base.info, success: base.success, warn: base.warn, error: base.error }
+    };
+
+    function renderCounts() {
+      var list = section.querySelectorAll('[data-count]');
+      for (var i = 0; i < list.length; i++) {
+        var key = list[i].getAttribute('data-count');
+        if (key === 'watch') continue;
+        if (st.counts[key] != null) { list[i].textContent = String(st.counts[key]); }
+      }
+    }
+
+    function renderSummary() {
+      var box = section.querySelector('[data-summary]');
+      if (!box) return;
+      var rows = log ? log.querySelectorAll('.vm-row') : [];
+      var row = rows.length ? rows[rows.length - 1] : null;
+      if (row) {
+        var level = row.getAttribute('data-level') || 'info';
+        var dot = box.querySelector('.vm-dot');
+        if (dot) { dot.className = 'vm-dot dot-' + level; }
+        var srcEl = row.querySelector('.vm-src');
+        var src = box.querySelector('.vm-src');
+        if (src && srcEl) { src.textContent = srcEl.textContent; }
+        var msgEl = row.querySelector('.vm-msg');
+        var text = box.querySelector('.vm-text');
+        if (text && msgEl) { text.textContent = msgEl.textContent; }
+      }
+      var badge = box.querySelector('[data-errbadge]');
+      if (badge) {
+        badge.textContent = st.counts.error + ' 错误';
+        badge.hidden = st.counts.error === 0;
+      }
+      section.classList.toggle('has-error', st.counts.error > 0);
+    }
+
+    function render() {
+      if (pane) { pane.style.height = (st.expanded ? st.height : 32) + 'px'; }
+      section.classList.toggle('is-expanded', st.expanded);
+      var toggles = section.querySelectorAll('[data-act="toggle"]');
+      for (var i = 0; i < toggles.length; i++) {
+        toggles[i].setAttribute('aria-expanded', st.expanded ? 'true' : 'false');
+      }
+      renderCounts();
+      renderSummary();
+    }
+
+    function selectTab(name) {
+      var tabs = section.querySelectorAll('[data-act="tab"]');
+      for (var i = 0; i < tabs.length; i++) {
+        tabs[i].classList.toggle('is-active', tabs[i].getAttribute('data-tab') === name);
+      }
+      var body = section.querySelector('[data-body]');
+      var panels = body ? body.querySelectorAll('[data-panel]') : [];
+      for (var j = 0; j < panels.length; j++) {
+        panels[j].hidden = panels[j].getAttribute('data-panel') !== name;
+      }
+    }
+
+    function appendRow(level, srcText, msgText) {
+      if (!log) return;
+      var row = document.createElement('div');
+      row.className = 'vm-row';
+      row.setAttribute('data-level', level);
+      var t = document.createElement('span');
+      t.className = 'vm-time';
+      t.textContent = stamp();
+      var s = document.createElement('span');
+      s.className = 'vm-src';
+      s.textContent = srcText;
+      var m = document.createElement('span');
+      m.className = 'vm-msg';
+      m.textContent = msgText;
+      row.appendChild(t); row.appendChild(s); row.appendChild(m);
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+      st.counts.all += 1;
+      if (st.counts[level] != null) { st.counts[level] += 1; }
+    }
+
+    function toast(msg) {
+      var box = section.querySelector('[data-toast]');
+      if (!box) return;
+      box.textContent = msg;
+      box.hidden = false;
+      clearTimeout(box._t);
+      box._t = setTimeout(function () { box.hidden = true; }, 2400);
+    }
+
+    function reset() {
+      if (log) { log.innerHTML = initialLog; }
+      st.counts = { all: base.all, info: base.info, success: base.success, warn: base.warn, error: base.error };
+      st.expanded = section.dataset.startExpanded === 'true';
+      selectTab('log');
+      render();
+      refreshIcons();
+    }
+
+    section.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('[data-act]') : null;
+      if (!btn) return;
+      var act = btn.getAttribute('data-act');
+
+      if (act === 'toggle') {
+        st.expanded = !st.expanded;
+        render();
+      } else if (act === 'tab') {
+        selectTab(btn.getAttribute('data-tab'));
+        if (!st.expanded) { st.expanded = true; render(); }
+      } else if (act === 'menu') {
+        var menu = section.querySelector('[data-menu]');
+        if (menu) { menu.hidden = !menu.hidden; }
+      } else if (act === 'show') {
+        var menu2 = section.querySelector('[data-menu]');
+        if (menu2) { menu2.hidden = true; }
+        var panel = btn.getAttribute('data-panel');
+        if (panel === 'data' || panel === 'module') {
+          toast('无响应：' + (panel === 'data' ? '数据栏' : '模块输出') + ' 面板已不存在（仅旧布局迁移用）');
+        } else {
+          selectTab(panel);
+          st.expanded = true;
+          render();
+        }
+      } else if (act === 'pill') {
+        var pills = section.querySelectorAll('[data-act="pill"]');
+        for (var i = 0; i < pills.length; i++) { pills[i].classList.remove('is-on'); }
+        btn.classList.add('is-on');
+      } else if (act === 'sim-error') {
+        appendRow('error', '[Comm]', '通信故障：PLC_Line — Socket Connect 127.0.0.1:503 失败，重试 3 次后放弃');
+        if (st.autoExpand) { st.expanded = true; }
+        render();
+      } else if (act === 'sim-warn') {
+        appendRow('warn', '[Comm]', '通信故障：Meter_Station — 连接 127.0.0.1:504 失败，超时时间为 1000 ms');
+        render();
+      } else if (act === 'reset') {
+        reset();
+      }
+    });
+
+    render();
+
+    if (globalThis.Tweak && section.dataset.variant !== '现状对照') {
+      try {
+        var tweak = new Tweak({ container: section, onChange: render });
+        tweak.addToggle(st, 'autoExpand', { label: '故障自动展开' });
+        tweak.addSlider(st, 'height', { label: '展开高度', min: 180, max: 320, unit: 'px' });
+      } catch (e) {}
+    }
+  }
+
+  var sections = root.querySelectorAll('[data-vm]');
+  for (var i = 0; i < sections.length; i++) { setup(sections[i]); }
+  refreshIcons();
+})();
+</script>
+</div>
+<script>
+(function(){
+  var bar = document.querySelector('.doc-bar');
+  if (!bar) return;
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest ? e.target.closest('[data-doc-variant]') : null;
+    if (!btn) return;
+    var idx = Number(btn.getAttribute('data-doc-variant'));
+    var secs = document.querySelectorAll('#vm-console-mock [data-vm]');
+    for (var i = 0; i < secs.length; i++) { secs[i].hidden = i !== idx; }
+    var all = bar.querySelectorAll('[data-doc-variant]');
+    for (var j = 0; j < all.length; j++) { all[j].setAttribute('aria-pressed', all[j] === btn ? 'true' : 'false'); }
+  });
+})();
+</script>
+</body>
+</html>

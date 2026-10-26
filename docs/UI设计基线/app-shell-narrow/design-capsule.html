@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>VS 式胶囊 · 交互稿</title>
+<style>
+  :root{
+    --bg:#E9EEF5; --surface:#FFFFFF; --surface-2:#F8FAFC; --surface-3:#F1F5F9;
+    --border:#E2E8F0; --border-soft:#EEF2F7; --border-strong:#CBD5E1;
+    --text:#0F172A; --text-2:#475569; --text-3:#94A3B8;
+    --primary:#0EA5E9; --primary-strong:#0284C7; --primary-soft:#F0F9FF; --primary-border:#BAE6FD;
+    --success:#22C55E; --success-text:#15803D; --success-soft:#F0FDF4;
+    --danger:#EF4444; --danger-text:#B91C1C; --danger-soft:#FEF2F2;
+    --warning:#F59E0B; --warning-text:#B45309; --warning-soft:#FFF4E5;
+    --violet:#8B5CF6; --violet-soft:#F5F3FF; --violet-border:#DDD6FE;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:radial-gradient(1200px 620px at 50% -12%,#F8FAFC 0%,rgba(248,250,252,0) 62%),var(--bg);
+       color:var(--text);font-family:var(--font);font-size:13px;line-height:1.55;padding:26px 26px 40px;-webkit-font-smoothing:antialiased}
+  .page{width:1076px;margin:0 auto}
+  h1{margin:0 0 4px;font-size:21px;letter-spacing:.2px}
+  h2{margin:26px 0 8px;font-size:16px;display:flex;align-items:center;gap:9px}
+  h2 .num{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+          background:var(--text);color:#fff;font-size:12px;font-weight:700}
+  .sub{margin:0;color:var(--text-2);font-size:12.5px}
+  .sub b{color:var(--text)}
+  .rule{height:1px;background:var(--border);margin:14px 0 4px}
+
+  .machine{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 4px;padding:12px 14px;
+           background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:11.5px;color:var(--text-2)}
+  .machine .label{font-weight:600;color:var(--text);min-width:74px}
+  .node{height:26px;padding:0 11px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;
+        background:var(--surface-2);font-weight:600;color:var(--text)}
+  .node.on{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary-strong)}
+  .node.focus{background:var(--violet-soft);border-color:var(--violet-border);color:#6D28D9}
+  .arrow{color:var(--text-3);font-size:14px}
+  .trig{font-size:10.5px;color:var(--text-3)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 15px 16px;
+        margin:12px 0;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+  .card-head{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .tag{display:inline-flex;align-items:center;height:21px;padding:0 8px;border-radius:6px;font-size:10.5px;font-weight:600}
+  .tag.a{background:var(--primary-soft);color:var(--primary-strong);border:1px solid var(--primary-border)}
+  .tag.b{background:var(--violet-soft);color:#6D28D9;border:1px solid var(--violet-border)}
+  .tag.gray{background:var(--surface-3);color:var(--text-2);border:1px solid var(--border)}
+  .card-title{font-size:13.5px;font-weight:600}
+  .hint{margin:0 0 12px;font-size:11.5px;color:var(--text-3)}
+
+  .row{display:flex;gap:18px;align-items:stretch}
+  .crop-wrap{flex:0 0 760px;border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;background:var(--surface);
+             display:flex;flex-direction:column}
+  .legend{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+  .li{display:flex;gap:7px;font-size:11px;color:var(--text-2);line-height:1.45}
+  .li .n{flex:0 0 17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+         font-size:9.5px;font-weight:700;background:var(--primary-soft);color:var(--primary-strong);border:1px solid var(--primary-border)}
+  .li .n.v{background:var(--violet-soft);color:#6D28D9;border-color:var(--violet-border)}
+  .li b{color:var(--text)}
+  .li code{font-family:var(--mono);font-size:10px;background:var(--surface-3);padding:0 4px;border-radius:3px;color:var(--text)}
+
+  /* 钉住态裁切 */
+  .pin-crop{height:360px;display:flex;background:var(--surface)}
+  .pin-col{flex:1;display:flex;flex-direction:column;min-width:0}
+  .pin-tabs{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;background:var(--surface-2);
+            border-bottom:1px solid var(--border)}
+  .pin-tab{display:flex;align-items:center;padding:0 8px;font-size:10.5px;color:var(--text-3);border-bottom:2px solid transparent;white-space:nowrap}
+  .pin-tab.on{color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .pin-btn{margin-left:auto;width:26px;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:12px}
+  .pin-body{padding:10px;display:flex;flex-direction:column;gap:7px}
+  .pin-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+  .pin-count{height:18px;min-width:20px;padding:0 6px;border-radius:9px;background:var(--primary);color:#fff;
+             display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600}
+  .pin-search{height:26px;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid var(--border);
+              border-radius:6px;color:var(--text-3);font-size:10px}
+  .pin-group{height:25px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-2)}
+  .pin-group .g{flex:1}
+  .pin-group .c{min-width:18px;height:15px;padding:0 4px;border-radius:8px;border:1px solid var(--border);
+                display:flex;align-items:center;justify-content:center;font-size:8.5px}
+  .pin-hint{margin-top:auto;padding:8px;border:1px dashed var(--primary-border);border-radius:7px;
+            background:var(--primary-soft);color:var(--primary-strong);font-size:10px}
+  .edge-strip{width:34px;flex:0 0 34px;border-left:1px solid var(--border);background:var(--surface-3);
+              display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:16px}
+  .mini-cap{width:26px;height:64px;border-radius:7px;background:var(--surface);border:1px solid var(--border);
+            display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:10px;
+            writing-mode:vertical-rl;letter-spacing:1px}
+
+  /* 整帧 */
+  .frame-wrap{width:891px;height:564px;overflow:hidden;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);position:relative}
+  .frame{width:1310px;height:829px;transform:scale(.68);transform-origin:top left;display:flex;flex-direction:column;background:var(--surface);font-size:11px;overflow:hidden}
+  .titlebar{height:36px;flex:0 0 36px;display:flex;align-items:center;padding-left:10px;border-bottom:1px solid var(--border);position:relative}
+  .tb-left{display:flex;align-items:center;gap:3px}
+  .ico{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-2);font-size:13px}
+  .sep{width:1px;height:18px;background:var(--border);margin:0 6px}
+  .modes{display:flex;height:24px;padding:2px;background:var(--surface-3);border-radius:6px}
+  .mode{height:20px;padding:0 10px;display:flex;align-items:center;font-size:11px;color:var(--text-2);border:1px solid transparent;border-radius:4px}
+  .mode.on{background:var(--primary-soft);color:var(--primary-strong);border-color:var(--primary-border);font-weight:600}
+  .tb-center{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .tb-right{margin-left:auto;display:flex;height:36px}
+  .winbtn{width:46px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:12px}
+  .runbar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--border)}
+  .run-state{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+  .run-sep{width:1px;height:16px;background:var(--border);margin:0 4px}
+  .run-meta{font-size:11.5px;color:var(--text-2)}
+  .run-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .rbtn{height:26px;padding:0 9px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3)}
+  .rbtn.danger{border-color:#FECACA;background:var(--danger-soft);color:var(--danger-text);font-weight:600}
+  .main{flex:1;display:flex;min-height:0;position:relative}
+  .center{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+  .doctabs{height:34px;flex:0 0 34px;display:flex;align-items:stretch;padding:0 8px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+  .doc{display:flex;align-items:center;padding:0 12px;font-size:11px;color:var(--text-2);border-bottom:2px solid transparent}
+  .doc.on{background:var(--surface);color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .doc-tools{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-3)}
+  .viewport{flex:1;min-height:0;position:relative;background:#0B1220;overflow:hidden}
+  .image-sim{position:absolute;inset:8px;border:1px solid #1E293B;border-radius:4px;
+             background:linear-gradient(rgba(148,163,184,.07) 1px,transparent 1px) 0 0/28px 28px,
+                        linear-gradient(90deg,rgba(148,163,184,.07) 1px,transparent 1px) 0 0/28px 28px,
+                        radial-gradient(circle at 50% 46%,#101B2C 0%,#0B1220 70%)}
+  .board{position:absolute;left:6%;right:6%;top:7%;bottom:8%;border:1px solid #263449;border-radius:6px;
+         background:linear-gradient(135deg,#111C2E 0%,#0E1726 55%,#101B2C 100%)}
+  .board:before{content:"";position:absolute;inset:12% 14%;border:1px dashed rgba(148,163,184,.28);border-radius:3px}
+  .roi{position:absolute;left:38%;top:26%;width:24%;height:36%;border:1.5px dashed #22C55E;border-radius:2px}
+  .roi:after{content:"ROI";position:absolute;left:0;top:-17px;font-size:9px;color:#22C55E;font-family:var(--mono)}
+  .vp-label{position:absolute;left:10px;bottom:9px;display:flex;align-items:center;gap:6px;padding:3px 7px;
+            border:1px solid rgba(148,163,184,.22);border-radius:4px;background:rgba(15,23,42,.72);color:#CBD5E1;font-size:9.5px}
+  .vp-label b{color:#E2E8F0;font-family:var(--mono)}
+  .console{height:32px;flex:0 0 32px;display:flex;align-items:center;gap:10px;padding:0 8px;border-top:1px solid var(--border);background:var(--surface-2)}
+  .drawer-tabs{display:flex;align-items:center;gap:2px}
+  .dtab{height:24px;padding:0 9px;display:flex;align-items:center;gap:6px;border-radius:4px;font-size:11px;color:var(--text-2)}
+  .dtab.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+  .dtab i{height:15px;min-width:18px;padding:0 4px;border-radius:8px;background:var(--surface-3);border:1px solid var(--border-soft);
+          display:flex;align-items:center;justify-content:center;font-size:9px;font-style:normal;color:var(--text-2)}
+  .latest{flex:1;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden}
+  .latest .dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px}
+  .latest .src{color:var(--text);font-weight:600}
+  .latest .txt{overflow:hidden;text-overflow:ellipsis}
+  .chev{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;
+        color:var(--text-2);font-size:12px;background:var(--surface);border:1px solid var(--border)}
+  .statusbar{height:26px;flex:0 0 26px;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid var(--border);
+             background:var(--surface-2);font-size:9.5px;color:var(--text-2)}
+  .statusbar .right{margin-left:auto;display:flex;gap:10px;color:var(--text-3);font-size:9px}
+
+  /* 胶囊列 */
+  .capsule-rail{position:absolute;right:0;top:0;bottom:0;width:24px;background:var(--surface-3);
+                border-left:1px solid var(--border);display:flex;flex-direction:column;align-items:center;gap:3px;padding-top:10px;z-index:4}
+  .capsule{position:relative;width:20px;min-height:64px;max-height:100px;border-radius:2px;background:var(--surface);border:1px solid var(--border);
+           display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+           color:var(--text-2);font-size:9px}
+  .capsule .ic{font-size:11px;color:var(--primary-strong)}
+  .capsule .tt{writing-mode:vertical-rl;letter-spacing:.5px;font-size:9px;font-weight:400;color:var(--text-2)}
+  .capsule .ct{font-size:8.5px;color:var(--text-3);font-family:var(--mono)}
+  .capsule.on{border-color:var(--primary)}
+  .capsule.hover{border-color:var(--primary);background:var(--surface)}
+  .capsule:hover::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--primary);border-radius:2px 0 0 2px}
+  .cap-tip{position:absolute;right:24px;top:64px;padding:4px 8px;border-radius:5px;background:#0F172A;color:#E2E8F0;
+           font-size:9.5px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.35);z-index:5}
+
+  /* 浮层 */
+  .flyout{position:absolute;right:24px;top:0;bottom:0;width:300px;background:var(--surface);
+          border-left:1px solid var(--border-strong);box-shadow:-8px 0 24px rgba(15,23,42,.18);z-index:6;
+          display:flex;flex-direction:column}
+  .fly-head{height:34px;flex:0 0 34px;display:flex;align-items:stretch;gap:1px;padding:0 8px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+  .fly-tab{display:flex;align-items:center;padding:0 8px;font-size:10.5px;color:var(--text-3);border-bottom:2px solid transparent;white-space:nowrap}
+  .fly-tab.on{color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .fly-pin{margin-left:auto;width:26px;display:flex;align-items:center;justify-content:center;color:var(--primary-strong);font-size:12px}
+  .fly-body{padding:10px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+  .fly-title{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+  .fly-count{height:18px;min-width:20px;padding:0 6px;border-radius:9px;background:var(--primary);color:#fff;
+             display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600}
+  .fly-search{height:26px;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid var(--border);
+              border-radius:6px;color:var(--text-3);font-size:10px}
+  .fly-group{height:25px;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-2)}
+  .fly-group .g{flex:1}
+  .fly-group .c{min-width:18px;height:15px;padding:0 4px;border-radius:8px;border:1px solid var(--border);
+                display:flex;align-items:center;justify-content:center;font-size:8.5px}
+  .fly-foot{margin-top:auto;padding:7px 10px;border-top:1px solid var(--border-soft);font-size:9px;color:var(--text-3)}
+  .scrim{position:absolute;inset:0;background:rgba(15,23,42,.04);z-index:5}
+
+  table{width:100%;border-collapse:collapse;margin-top:10px;background:var(--surface);border:1px solid var(--border);
+        border-radius:10px;overflow:hidden}
+  th,td{padding:8px 11px;text-align:left;font-size:11px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+  th{background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:10.5px}
+  tr:last-child td{border-bottom:0}
+  td code{font-family:var(--mono);font-size:10px;background:var(--surface-3);padding:0 4px;border-radius:3px}
+  .ok{color:var(--success-text);font-weight:600}
+  .notes{margin-top:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
+         font-size:11px;color:var(--text-2)}
+  .notes b{color:var(--text)}
+  .notes ul{margin:6px 0 0 16px;padding:0}
+  .notes li{margin:3px 0}
+  .foot{margin-top:14px;font-size:10.5px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>VS 式胶囊：面板收起为侧边胶囊</h1>
+  <p class="sub">钉住 ⇄ 胶囊 ⇄ 浮层。胶囊 <b>20×64~100</b>（VS 样式：平边、无阴影），右边缘竖排；浮层 <b>300px</b> 覆盖画布、不挤压图像；钉回或点外部/`Esc` 收回。</p>
+  <p class="sub" style="margin-top:3px">设计媒介，不是交付物（R126）。整帧按 0.68 绘制；胶囊/浮层尺寸为 DIP。</p>
+  <div class="rule"></div>
+
+  <div class="machine">
+    <span class="label">状态机</span>
+    <span class="node on">钉住（300 列）</span><span class="arrow">⇄</span><span class="node">胶囊（30）</span><span class="arrow">⇄</span><span class="node focus">浮层（300 覆盖）</span>
+    <span class="trig">钉住→胶囊：页签条「收起为胶囊」　胶囊→浮层：点击胶囊　浮层→胶囊：点外部/`Esc`　浮层→钉住：浮层右上图钉</span>
+  </div>
+
+  <!-- ================= 1 钉住 ================= -->
+  <h2><span class="num">1</span>钉住态：面板在 300 列里</h2>
+  <section class="card">
+    <div class="card-head"><span class="tag a">钉住</span><span class="card-title">页签条右端一颗「收起为胶囊」</span></div>
+    <p class="hint">沿用现有页签条；图钉语义改成"收起为胶囊"，不再是隐晦的 auto-hide。四个面板各自一枚，可只收工具箱。</p>
+    <div class="row">
+      <div class="crop-wrap" style="flex-basis:420px">
+        <div class="pin-crop">
+          <div class="pin-col">
+            <div class="pin-tabs">
+              <span class="pin-tab">属性</span><span class="pin-tab">图层</span><span class="pin-tab on">工具箱</span><span class="pin-tab">图元</span>
+              <span class="pin-btn hot">📌</span>
+            </div>
+            <div class="pin-body">
+              <div class="pin-title">工具箱 <span class="pin-count">56</span></div>
+              <div class="pin-search">⌕ 搜索节点…</div>
+              <div class="pin-group"><span>▾</span><span>★</span><span class="g">收藏</span><span class="c">1</span></div>
+              <div class="pin-group"><span>▸</span><span>⌘</span><span class="g">逻辑控制</span><span class="c">10</span></div>
+              <div class="pin-group"><span>▸</span><span>◈</span><span class="g">缺陷检测</span><span class="c">2</span></div>
+              <div class="pin-group"><span>▸</span><span>▤</span><span class="g">图像处理</span><span class="c">12</span></div>
+              <div class="pin-hint">点 📌 → 收起为右侧胶囊；图像立刻变宽</div>
+            </div>
+          </div>
+          <div class="edge-strip">
+            <div class="mini-cap">工具箱</div>
+            <div class="mini-cap" style="height:48px;color:var(--text-3)">属性</div>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="li"><span class="n">1</span><span><b>页签条</b>：属性/图层/工具箱/图元，与现状一致。</span></div>
+        <div class="li"><span class="n">2</span><span><b>「收起为胶囊」</b>：页签条右端图钉；tooltip 写明"收起为右侧胶囊"。</span></div>
+        <div class="li"><span class="n">3</span><span><b>只收当前面板</b>：点哪个页签的图钉就收哪个；其余面板仍留在 300 列。</span></div>
+        <div class="li"><span class="n">4</span><span><b>预览</b>：右侧示意收起后的胶囊位置（不占 300 列）。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2 胶囊 ================= -->
+  <h2><span class="num">2</span>胶囊态：右列 0，胶囊贴边</h2>
+  <section class="card">
+    <div class="card-head"><span class="tag b">胶囊</span><span class="card-title">20×64~100 竖向胶囊（VS 样式），最多 4 枚堆叠</span></div>
+    <p class="hint">胶囊是面板的"身份牌"：图标 + 竖排标题 + 计数；悬停强调边；点击弹出 300 浮层。图像从 604 宽变 1264 宽（A 的控制台 32 已生效）。</p>
+    <div class="frame-wrap">
+      <div class="frame">
+        <div class="titlebar">
+          <div class="tb-left"><span class="ico">☰</span><span class="sep"></span><span class="ico">🗋</span><span class="ico">🗀</span><span class="ico">🖫</span><span class="sep"></span>
+            <div class="modes"><span class="mode on">调试</span><span class="mode">运行</span><span class="mode">组态</span><span class="mode">自由</span></div>
+            <span class="sep"></span><span class="ico">⌕</span><span class="ico">&lt;/&gt;</span><span class="ico">▦</span><span class="ico">☰</span>
+          </div>
+          <div class="tb-center">▣ 智能装配检测线</div>
+          <div class="tb-right"><span class="winbtn">—</span><span class="winbtn">□</span><span class="winbtn">✕</span></div>
+        </div>
+        <div class="runbar">
+          <div class="run-state"><span class="dot"></span>未启动</div><span class="run-sep"></span><span class="run-meta">未选择流程</span>
+          <div class="run-actions"><span class="rbtn">编译</span><span class="rbtn">运行主流程</span><span class="rbtn">暂停</span><span class="rbtn">单步</span><span class="rbtn danger">停止</span></div>
+        </div>
+        <div class="main">
+          <div class="center">
+            <div class="doctabs"><span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+              <div class="doc-tools"><span>适应视口</span><span>1:1</span></div>
+            </div>
+            <div class="viewport">
+              <div class="image-sim"><div class="board"></div><div class="roi"></div>
+                <div class="vp-label">视觉图像 · 适应视口 <b>1274×464</b></div>
+              </div>
+            </div>
+            <div class="console">
+              <div class="drawer-tabs"><span class="dtab on">控制台 <i>45</i></span><span class="dtab">监控栏 <i>6</i></span></div>
+              <div class="latest"><span class="dot" style="background:var(--warning)"></span><span class="src">通讯</span><span class="txt">0/1 条连接正常，异常：Plc1(不可达)</span></div>
+              <span class="chev">▴</span>
+            </div>
+          </div>
+          <div class="capsule-rail">
+            <div class="capsule on"><span class="ic">▦</span><span class="tt">工具箱</span><span class="ct">56</span></div>
+            <div class="capsule"><span class="ic">▤</span><span class="tt">属性</span><span class="ct">8</span></div>
+            <div class="capsule"><span class="ic">◫</span><span class="tt">图层</span><span class="ct">12</span></div>
+            <div class="capsule"><span class="ic">▧</span><span class="tt">图元</span><span class="ct">27</span></div>
+          </div>
+        </div>
+        <div class="statusbar">
+          <span>● 未启动</span><span>|</span><span>节拍 —</span><span>|</span><span>OK —</span><span>|</span><span>NG —</span><span>|</span><span>告警 —</span><span>|</span><span>未登录</span><span>|</span><span>方案 智能装配检测线</span>
+          <span class="right"><span>CPU 3.3%</span><span>09:53</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-top:10px">
+      <div class="li"><span class="n v">1</span><span><b>20×64~100</b>：圆角 2、白底、1px 边、无阴影；右边缘竖向排列。</span></div>
+      <div class="li"><span class="n v">2</span><span><b>图标 + 竖排标题</b>：标题 10px，字距 2；一眼看出是哪个面板。</span></div>
+      <div class="li"><span class="n v">3</span><span><b>计数徽标</b>：第一版未实现（胶囊只显示图标 + 标题）。</span></div>
+      <div class="li"><span class="n v">4</span><span><b>当前/悬停</b>：主色边 + 内侧 2px 主色竖线；不上浮、不加阴影。</span></div>
+      <div class="li"><span class="n v">5</span><span><b>右列 0</b>：胶囊只占 24px 轨道；图像 1274 宽（A 的 32 控制台）。</span></div>
+      <div class="li"><span class="n v">6</span><span><b>最多 4 枚</b>：工具箱/属性/图层/图元各自独立；全部收起时图像最宽。</span></div>
+    </div>
+  </section>
+
+  <!-- ================= 3 浮层 ================= -->
+  <h2><span class="num">3</span>浮层：点胶囊，300 覆盖画布</h2>
+  <section class="card">
+    <div class="card-head"><span class="tag b">浮层</span><span class="card-title">覆盖不挤压；图钉钉回列内</span></div>
+    <p class="hint">浮层从右边缘滑出（160ms），宽度 300，覆盖在图像上；图像尺寸不变、不重新布局。点画布空白或 `Esc` 收回胶囊；点右上图钉回到钉住态。</p>
+    <div class="frame-wrap">
+      <div class="frame">
+        <div class="titlebar">
+          <div class="tb-left"><span class="ico">☰</span><span class="sep"></span><span class="ico">🗋</span><span class="ico">🗀</span><span class="ico">🖫</span><span class="sep"></span>
+            <div class="modes"><span class="mode on">调试</span><span class="mode">运行</span><span class="mode">组态</span><span class="mode">自由</span></div>
+            <span class="sep"></span><span class="ico">⌕</span><span class="ico">&lt;/&gt;</span><span class="ico">▦</span><span class="ico">☰</span>
+          </div>
+          <div class="tb-center">▣ 智能装配检测线</div>
+          <div class="tb-right"><span class="winbtn">—</span><span class="winbtn">□</span><span class="winbtn">✕</span></div>
+        </div>
+        <div class="runbar">
+          <div class="run-state"><span class="dot"></span>未启动</div><span class="run-sep"></span><span class="run-meta">未选择流程</span>
+          <div class="run-actions"><span class="rbtn">编译</span><span class="rbtn">运行主流程</span><span class="rbtn">暂停</span><span class="rbtn">单步</span><span class="rbtn danger">停止</span></div>
+        </div>
+        <div class="main">
+          <div class="center">
+            <div class="doctabs"><span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+              <div class="doc-tools"><span>适应视口</span><span>1:1</span></div>
+            </div>
+            <div class="viewport">
+              <div class="image-sim"><div class="board"></div><div class="roi"></div>
+                <div class="vp-label">视觉图像 · 适应视口 <b>1274×464</b>（浮层不改变尺寸）</div>
+              </div>
+              <div class="scrim"></div>
+              <div class="flyout">
+                <div class="fly-head">
+                  <span class="fly-tab">属性</span><span class="fly-tab">图层</span><span class="fly-tab on">工具箱</span><span class="fly-tab">图元</span>
+                  <span class="fly-pin">📌</span>
+                </div>
+                <div class="fly-body">
+                  <div class="fly-title">工具箱 <span class="fly-count">56</span></div>
+                  <div class="fly-search">⌕ 搜索节点…</div>
+                  <div class="fly-group"><span>▾</span><span>★</span><span class="g">收藏</span><span class="c">1</span></div>
+                  <div class="fly-group"><span>▸</span><span>⌘</span><span class="g">逻辑控制</span><span class="c">10</span></div>
+                  <div class="fly-group"><span>▸</span><span>◈</span><span class="g">缺陷检测</span><span class="c">2</span></div>
+                  <div class="fly-group"><span>▸</span><span>▤</span><span class="g">图像处理</span><span class="c">12</span></div>
+                  <div class="fly-group"><span>▸</span><span>⇄</span><span class="g">通讯</span><span class="c">2</span></div>
+                  <div class="fly-group"><span>▸</span><span>⚙</span><span class="g">运动控制</span><span class="c">7</span></div>
+                </div>
+                <div class="fly-foot">点画布空白或 Esc 收回胶囊　·　📌 钉回 300 列</div>
+              </div>
+            </div>
+            <div class="console">
+              <div class="drawer-tabs"><span class="dtab on">控制台 <i>45</i></span><span class="dtab">监控栏 <i>6</i></span></div>
+              <div class="latest"><span class="dot" style="background:var(--warning)"></span><span class="src">通讯</span><span class="txt">0/1 条连接正常，异常：Plc1(不可达)</span></div>
+              <span class="chev">▴</span>
+            </div>
+          </div>
+          <div class="capsule-rail">
+            <div class="capsule on"><span class="ic">▦</span><span class="tt">工具箱</span><span class="ct">56</span></div>
+            <div class="capsule"><span class="ic">▤</span><span class="tt">属性</span><span class="ct">8</span></div>
+          </div>
+        </div>
+        <div class="statusbar">
+          <span>● 未启动</span><span>|</span><span>节拍 —</span><span>|</span><span>OK —</span><span>|</span><span>NG —</span><span>|</span><span>告警 —</span><span>|</span><span>未登录</span><span>|</span><span>方案 智能装配检测线</span>
+          <span class="right"><span>CPU 3.3%</span><span>09:53</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-top:10px">
+      <div class="li"><span class="n v">1</span><span><b>浮层 300</b>：从右侧滑出，覆盖图像；图像尺寸不变。</span></div>
+      <div class="li"><span class="n v">2</span><span><b>图钉</b>：右上角，点它回到钉住态（300 列）。</span></div>
+      <div class="li"><span class="n v">3</span><span><b>阴影</b>：左侧 8px 阴影，和画布分层；不加全屏遮罩（VS 同款）。</span></div>
+      <div class="li"><span class="n v">4</span><span><b>点外部 / Esc</b>：收回胶囊；焦点回到图像。</span></div>
+      <div class="li"><span class="n v">5</span><span><b>胶囊仍在</b>：浮层关闭后胶囊保持当前高亮；不重复建浮层。</span></div>
+      <div class="li"><span class="n v">6</span><span><b>控制台 32</b>：A 的默认收起态；浮层只覆盖文档区，不盖控制台。</span></div>
+    </div>
+  </section>
+
+  <!-- ================= 规格 ================= -->
+  <h2><span class="num">4</span>规格、持久化与边界</h2>
+  <section class="card">
+    <div class="card-head"><span class="tag gray">规格</span><span class="card-title">实现口径</span></div>
+    <table>
+      <tr><th style="width:22%">项</th><th>值</th></tr>
+      <tr><td>胶囊尺寸</td><td><b>20×64~100</b>（DIP）；圆角 2；1px 边；白底；无阴影；轨道 24px</td></tr>
+      <tr><td>胶囊内容</td><td>11px 图标 + 9px 竖排标题（字重 400，字距 .5）；计数未实现；最多 4 枚，竖向 4px 间距</td></tr>
+      <tr><td>悬停</td><td>主色边 + 内侧 2px 主色竖线；不上浮、不加阴影；tooltip「点击钉回右侧 300 列」</td></tr>
+      <tr><td>浮层</td><td>宽 300；从右滑出 160ms；左侧 8px 阴影；覆盖文档区，不盖顶栏/运行条/控制台/状态栏</td></tr>
+      <tr><td>收起/展开</td><td>页签条图钉「收起为胶囊」；第一版点胶囊钉回 300 列（300 覆盖浮层未做）</td></tr>
+      <tr><td>持久化</td><td>`Layout.xml` 根属性 <code>CollapsedPanels="工具箱,图层"</code>；加载后**在模式收敛之后**应用；切模式保留；「重置布局」清空</td></tr>
+      <tr><td>模式边界</td><td>调试/自由显示胶囊；组态模式右栏是属性/图层/图元，胶囊规则相同；运行模式右栏隐藏，胶囊不显示</td></tr>
+      <tr><td>与 B 的关系</td><td>B 是整列临时隐藏（看图/调焦）；胶囊是单面板持久收起；可共存</td></tr>
+    </table>
+    <div class="notes">
+      <b>实现落点（第一版，2026-10-26）：</b>
+      <ul>
+        <li><b>已实施</b>：AvalonDock 的 auto-hide 页签是库内部控件（实测 <code>LayoutAnchorable.TabItem=null</code>，视觉树只有左栏页签），拿不到实例换模板；改用 Shell 覆盖层 <code>InspectorCapsuleRail</code>（24px 轨道、20×64~100 胶囊、点击钉回 300 列）+ <code>ShellViewModel.InspectorCapsules</code>。见 <code>app-shell-narrow/README.md</code> §9.4。</li>
+        <li><b>未做</b>：300 覆盖浮层、滑出动画、Esc/点外部收回、跨模式保留（切模式按模式默认恢复）、计数徽标。浮层若要做，需要自定义承载面板内容，不能依赖库的 auto-hide tab。</li>
+        <li><b>持久化</b>：<code>ApplyScadaPanelMode</code>/<code>ApplyShellMode</code> 的 <code>respectUserHidden</code> 让启动/布局加载不把已收起的工具箱 Show 回来；布局里的 Hidden 状态就是持久化，不需要额外 <code>CollapsedPanels</code> 属性。</li>
+        <li>图钉沿用库的 auto-hide 命令；<code>AutoHideWidth=300</code> 已加到 4 个右侧面板（为后续浮层预留）。</li>
+      </ul>
+    </div>
+    <div class="notes" style="border-color:var(--violet-border);background:var(--violet-soft);color:#4C1D95">
+      <b>待拍板：</b>Q9 胶囊按面板（推荐）还是整列一枚；Q10 切模式是否保留胶囊态（推荐保留）；Q11 浮层覆盖（推荐）还是推开画布；Q12 胶囊尺寸 20×64~100（推荐）。
+    </div>
+  </section>
+
+  <p class="foot">设计稿只表达交互与状态，不代替真机像素级验收（R129/R132）。胶囊/浮层落地后需在真窗口验：钉住→胶囊→浮层→钉回、点外部/Esc、切模式、重启。</p>
+</div>
+</body>
+</html>

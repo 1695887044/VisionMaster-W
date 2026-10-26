@@ -42,14 +42,15 @@ internal static partial class Program
         // --giant：把全部节点塞进**一条**流程。默认是摊到 N 条流程上（压"切换"），
         // 而"一条流程几千点"压的是单帧渲染与一次重建，两种负载不一样，都要量。
         bool giant = args.Any(a => string.Equals(a, "--giant", StringComparison.OrdinalIgnoreCase));
-        string outPath = GetStr(args, "--out", giant ? @"解决方案\压测-3000节点-单流程.vms" : @"解决方案\压测-3000节点.vms");
-        outPath = MakeAbsolute(outPath);
 
         Console.WriteLine($"STRESS nodes={nodes} flows={(giant ? 1 : flows)} seed={seed} layout={(withLayout ? "auto" : "none")} giant={giant}");
 
         var solution = BuildStressSolution(nodes, giant ? 1 : flows, seed, withLayout, out var stats);
-        Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
-        WriteSolution(solution, outPath);
+
+        // 方案名就是文件夹名（SolutionPaths.IsFolderLayout 的判据）：--giant 与普通版
+        // 必须不同名，否则两个模式会写进同一个文件夹互相覆盖。
+        solution["SolutionName"] = $"压测方案-{nodes}节点" + (giant ? "-单流程" : string.Empty);
+        WriteSolutionInFolder(solution);
 
         Console.WriteLine(
             $"STRESS total_steps={stats.Steps} containers={stats.Containers} lanes={stats.Lanes} " +
@@ -71,17 +72,6 @@ internal static partial class Program
             if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
                 return args[i + 1];
         return fallback;
-    }
-
-    /// <summary>相对路径按仓库根解析（生成器 bin 在 tools\vms-generator\bin\<cfg>\net9.0）</summary>
-    static string MakeAbsolute(string path)
-    {
-        if (Path.IsPathRooted(path)) return path;
-        var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
-        for (int i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, "AGENTS.md")))
-                return Path.Combine(dir.FullName, path);
-        return Path.GetFullPath(path);
     }
 
     sealed class StressStats

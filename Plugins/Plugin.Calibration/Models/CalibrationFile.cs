@@ -46,6 +46,15 @@ namespace Plugin.Calibration.Models
         [JsonProperty]
         public string CameraSerial { get; set; } = "";
 
+        /// <summary>
+        /// 相机内参（与 <see cref="UndistortBeforeCalibration"/> 配套；null = 未标定/未使用）。
+        /// 落盘形态仍是插件本地 DTO（`Plugin.*` 白名单），不是契约类型。
+        /// </summary>
+        public CameraIntrinsicsDto? Intrinsics { get; set; }
+
+        /// <summary>导出时是否启用「取点前先去畸变」</summary>
+        public bool UndistortBeforeCalibration { get; set; }
+
         /// <summary>质量阈值（像素）</summary>
         public double ResidualThresholdPx { get; set; } = 1.0;
 

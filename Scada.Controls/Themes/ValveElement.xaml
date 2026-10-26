@@ -34,6 +34,9 @@
         DataTrigger 不触发（见 ScadaElementBase.SetPartVisible）。
     -->
     <Style TargetType="{x:Type local:ValveElement}">
+        <!--  状态色默认取令牌（2026-10-26）  -->
+        <Setter Property="OpenColor" Value="{StaticResource HmiStateRunningBrush}" />
+        <Setter Property="ThrottleColor" Value="{StaticResource HmiStateWarningBrush}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
 

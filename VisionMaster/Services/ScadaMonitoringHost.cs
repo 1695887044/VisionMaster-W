@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Threading;
 using Core.Interfaces;
@@ -53,6 +54,8 @@ namespace VisionMaster.Services
         private ScadaDocument? _document;
         private ScadaAlarmEngine? _alarms;
         private ScadaVariableEventEngine? _variableEvents;
+        private ScadaScheduleEngine? _schedules;
+        private ScadaAnnouncerService? _announcer;
         private ScadaBeatSource? _beat;
         private ScadaAlarmHistoryWriter? _writer;
         private ScadaAlarmHistoryStore? _store;
@@ -171,9 +174,36 @@ namespace VisionMaster.Services
 
             _alarms.Attach();
 
+            // 语音播报：与提示音共用一个"让路"开关——说话期间把提示音压住，
+            // 否则人声和滴滴声叠在一起，现场一个字也听不清。
+            _announcer = new ScadaAnnouncerService(
+                new SapiSpeechEngine(),
+                suspended =>
+                {
+                    var tone = _soundAlarm;
+                    if (tone != null)
+                        tone.Suspended = suspended;
+                },
+                _log);
+
+            // 组态动作表的「语音播报」与报警播报共用同一个队列：两套队列会抢着说话，
+            // 而且抢占/去重/压住提示音这三条规则只该有一份。会话结束时摘掉（见 Stop）。
+            _dispatcher.Announcer = _announcer;
+
+            ApplySpeechSettings();
+
+            // 顶栏「静音 N 分钟」要连播报一起停：声音服务是那个静音状态的唯一出处，
+            // 播报器只是跟着它的状态翻自己的总开关（紧急级报警仍不受静音约束，由服务侧决定）。
+            _soundAlarm.StateChanged += OnSoundStateChanged;
+
             _variableEvents = new ScadaVariableEventEngine(document, _values);
             _variableEvents.VariableEventRaised += OnVariableEventRaised;
             _variableEvents.Attach();
+
+            // 计划表：与报警/变量事件同一轮生命周期（方案级），挂在同一个节拍上。
+            // 放在监控宿主而不是运行窗口：计划表是"方案在跑就该生效"，与有没有人开着运行窗口无关。
+            _schedules = new ScadaScheduleEngine(document, _values, _dispatcher, _log);
+            _schedules.Attach();
 
             _beat = new ScadaBeatSource(_uiDispatcher, AlarmBeatInterval, OnDiagnostic);
             _beat.Beat += OnBeat;
@@ -183,6 +213,7 @@ namespace VisionMaster.Services
             // 方案没保存过时目录为 null，数据表格会显示"未接入历史数据源"而不是空表。
             var historyDirectory = SolutionPaths.GetHistoryDirectory(_workspace.CurrentSolution?.SolutionFilePath);
             var history = new CsvFolderHistorySource(historyDirectory);
+            var reports = new CsvReportSource(historyDirectory);
 
             _context = new ScadaRuntimeContext(
                 _alarms,
@@ -195,7 +226,9 @@ namespace VisionMaster.Services
                 _values,
                 _priorAlarms,
                 history,
-                document.StateLists);
+                document.StateLists,
+                reports: reports,
+                reportExporter: new ScadaReportExporter());
 
             _active = true;
 
@@ -213,11 +246,18 @@ namespace VisionMaster.Services
 
             _active = false;
 
+            // 语音先收：它攥着"压住提示音"的开关，晚于提示音收场会让开关停在 true 上。
+            // 摘掉分发器上的引用要排在 Dispose 之前：否则会话收场后按按钮仍会往一个已停的队列里塞话。
+            _dispatcher.Announcer = null;
+            _announcer?.Dispose();
+            _announcer = null;
+
             // 先退声音：它的节拍与引擎订阅都该在引擎 Detach 之前收干净，
             // 反过来的话最后一拍可能对着已经收场的引擎取值。
             if (_soundAlarm != null)
             {
                 _soundAlarm.EnabledChanged -= OnSoundEnabledChanged;
+                _soundAlarm.StateChanged -= OnSoundStateChanged;
                 _soundAlarm.Dispose();
                 _soundAlarm = null;
             }
@@ -252,6 +292,9 @@ namespace VisionMaster.Services
                 _variableEvents = null;
             }
 
+            _schedules?.Detach();
+            _schedules = null;
+
             _writer = null;
             _store = null;
             _priorAlarms = Array.Empty<ScadaAlarmRecord>();
@@ -281,6 +324,8 @@ namespace VisionMaster.Services
         {
             _alarms?.Tick();
             _variableEvents?.Tick();
+            // 计划表自己节流到 1 秒（见 ScadaScheduleEngine.Tick），不必在这里再降频
+            _schedules?.Tick(DateTime.Now);
         }
 
         private void OnAlarmRaised(ScadaAlarmRecord record)
@@ -294,6 +339,14 @@ namespace VisionMaster.Services
 
             try { ImageCollectionService.Instance?.SaveSnapshot("报警_" + record.Name); }
             catch (Exception ex) { _log.Warn($"[报警留存] 图像集留存失败：{ex.Message}"); }
+
+            // 语音播报：只在报警<b>产生</b>时念一次（不跟 AlarmChanged，否则恢复/确认也会念）。
+            // 去重键用报警 Id + 激活时间：同一条报警不会因为状态迁移被反复念。
+            var spoken = string.IsNullOrWhiteSpace(record.Message)
+                ? $"{record.Severity.DisplayName()}，{record.Name}"
+                : $"{record.Severity.DisplayName()}，{record.Name}，{record.Message}";
+
+            _announcer?.Announce(spoken, record.Severity, record.AlarmId + "@" + record.ActivatedAtUtc.Ticks);
         }
 
         /// <summary>报警态迁移统一落盘：CSV 一行一次迁移，JSON 全量快照（合并 prior）。</summary>
@@ -362,9 +415,55 @@ namespace VisionMaster.Services
             }
         }
 
-        public void Dispose()
+        /// <summary>
+        /// 把「系统设置 → 语音播报」那一组配置应用到播报器上（会话启动时一次）。
+        /// 音色填了本机没有的名字时，播报器内部的 SelectVoice 会静默忽略——
+        /// 这里补一条 Warn，否则用户会以为"改了音色没生效"是软件的锅。
+        /// </summary>
+        private void ApplySpeechSettings()
         {
-            if (_workspaceNotifier != null)
+            var announcer = _announcer;
+            if (announcer == null)
+                return;
+
+            var settings = _appSettings.Current;
+            announcer.Rate = Math.Clamp(settings.SpeechRate, -10, 10);
+            announcer.MinSeverity = ParseSpeechSeverity(settings.SpeechMinSeverity);
+
+            var voice = (settings.SpeechVoice ?? string.Empty).Trim();
+            if (voice.Length > 0)
+            {
+                if (announcer.Voices.Any(name => string.Equals(name, voice, StringComparison.OrdinalIgnoreCase)))
+                    announcer.VoiceName = voice;
+                else
+                    _log.Warn($"[语音] 配置的音色「{voice}」本机没有安装，沿用系统默认语音；"
+                              + $"可用：{(announcer.Voices.Count == 0 ? "（无）" : string.Join("、", announcer.Voices))}");
+            }
+
+            ApplySpeechMuteState();
+        }
+
+        /// <summary>总开关 = 配置里打开 且 顶栏没有在静音</summary>
+        private void ApplySpeechMuteState()
+        {
+            var announcer = _announcer;
+            if (announcer == null)
+                return;
+
+            announcer.Enabled = _appSettings.Current.SpeechEnabled && _soundAlarm?.IsMuted != true;
+        }
+
+        private void OnSoundStateChanged(object? sender, EventArgs e) => ApplySpeechMuteState();
+
+        private static ScadaAlarmSeverity ParseSpeechSeverity(string? text) => text switch
+        {
+            "Info" => ScadaAlarmSeverity.Info,
+            "Critical" => ScadaAlarmSeverity.Critical,
+            _ => ScadaAlarmSeverity.Warning,
+        };
+
+        public void Dispose()
+        {            if (_workspaceNotifier != null)
                 _workspaceNotifier.PropertyChanged -= OnWorkspacePropertyChanged;
             if (Application.Current != null)
                 Application.Current.Exit -= OnApplicationExit;

@@ -57,6 +57,19 @@ namespace ScadaUiProbe
                 if (mode is "--flow-list")
                     RenderFlowList(dir);
 
+                if (mode is "--right-pane-hide")
+                    ProbeRightPaneHide();
+
+                if (mode is "--theme-keys")
+                    DumpThemeKeys();
+
+                if (mode is "--tab-props")
+                    DumpTabProps();
+
+                // 第三轮会审：图元状态出图（只覆盖不依赖运行态上下文的状态，见 ElementStates 的说明）
+                if (mode is "--elements")
+                    ElementStates.RenderAll(dir);
+
                 Console.WriteLine($"出图目录: {dir}");
                 Console.WriteLine("RESULT: OK");
                 return 0;
@@ -204,35 +217,79 @@ namespace ScadaUiProbe
         // ================================================================ 流程条：调用关系徽标
 
         /// <summary>
-        /// 用 340×112 的真实尺寸渲染流程条，检查新增的“循环 / 外部 / 子”徽标会不会挤掉流程名。
+        /// 用 340 宽的真实尺寸渲染流程条两态：13 条（224，max）与 6 条（112，min）。
+        /// 检查 24px 胶囊、单枚角色/调用徽标、选中左条与底栏「全部」是否挤掉流程名。
         /// </summary>
         private static void RenderFlowList(string dir)
         {
-            var flows = new[]
+            FlowModel F(string name, FlowRole role, FlowInvokeType invoke)
+                => new() { FlowName = name, Role = role, InvokeType = invoke };
+
+            var all = new[]
             {
-                new FlowModel { FlowName = "Main", Role = FlowRole.Main, InvokeType = FlowInvokeType.Manual },
-                new FlowModel { FlowName = "Station_Load", Role = FlowRole.None, InvokeType = FlowInvokeType.Subroutine },
-                new FlowModel { FlowName = "Line2_HTTP", Role = FlowRole.None, InvokeType = FlowInvokeType.Http },
+                F("Home", FlowRole.Home, FlowInvokeType.Manual),
+                F("Main", FlowRole.Main, FlowInvokeType.Manual),
+                F("ST1_LoadC", FlowRole.None, FlowInvokeType.Http),
+                F("ST2_Position", FlowRole.None, FlowInvokeType.Timer),
+                F("ST3_Measure", FlowRole.None, FlowInvokeType.Http),
+                F("ST4_Surface", FlowRole.None, FlowInvokeType.Variable),
+                F("ST5_Clamp", FlowRole.None, FlowInvokeType.Http),
+                F("ST6_Weld", FlowRole.None, FlowInvokeType.Http),
+                F("ST7_Inspect", FlowRole.None, FlowInvokeType.Http),
+                F("ST8_Pack", FlowRole.None, FlowInvokeType.Http),
+                F("ST9_Unload", FlowRole.None, FlowInvokeType.Http),
+                F("AlarmScan", FlowRole.None, FlowInvokeType.Http),
+                F("RecipePush", FlowRole.None, FlowInvokeType.Subroutine),
             };
 
+            RenderFlowListShot(dir, all, 340, 224, "flow-list-call-badges.png");
+            RenderFlowListShot(dir, all.Take(6).ToArray(), 340, 112, "flow-list-v2-112.png");
+        }
+
+        private static void RenderFlowListShot(string dir, FlowModel[] flows, int width, int height, string file)
+        {
+            var selected = flows.FirstOrDefault(f => f.Role == FlowRole.Main);
             var view = new FlowListView
             {
-                DataContext = new
+                Width = width,
+                Height = height,
+                DataContext = new FlowListProbeContext
                 {
                     Workspace = new
                     {
                         CurrentSolution = new { Flows = flows },
                     },
+                    SelectFlow = selected,
                 },
             };
-            var window = Show(view, 340, 112);
+
+            // 无边框 + SizeToContent：窗口客户区 = 视图 340×112/224，不扣标题栏与边框。
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                ShowInTaskbar = false,
+                Content = view,
+            };
+            window.Show();
             Pump(600);
 
             Save(Render(view, (int)view.ActualWidth, (int)view.ActualHeight),
-                Path.Combine(dir, "flow-list-call-badges.png"));
-            Console.WriteLine($"  flow-list-call-badges.png  {view.ActualWidth:0}×{view.ActualHeight:0}");
+                Path.Combine(dir, file));
+            Console.WriteLine($"  {file}  {view.ActualWidth:0}×{view.ActualHeight:0}");
 
             window.Close();
+        }
+
+        /// <summary>探针最小上下文：流程集合 + 选中流程（ListBox 的 SelectedItem 需要可写）。</summary>
+        private sealed class FlowListProbeContext
+        {
+            public object Workspace { get; init; } = null!;
+            public FlowModel? SelectFlow { get; set; }
         }
 
         // ================================================================ 流程管理：调用关系徽标
@@ -493,6 +550,264 @@ namespace ScadaUiProbe
             vm.Deactivate();
         }
 
+        // ================================================================ 右栏隐藏
+
+        /// <summary>
+        /// 复现"把工具箱隐藏后右列不收"：搭一个与 Shell 同构的 DockingManager
+        /// （左 340/320、中文档、右 320/300；右列 1 可见 + 3 隐藏），
+        /// 把唯一可见的「工具箱」IsVisible=false，量右列 ActualWidth / DockWidth / DockMinWidth。
+        /// </summary>
+        private static void ProbeRightPaneHide()
+        {
+            var dock = new AvalonDock.DockingManager { AllowMixedOrientation = true };
+            dock.Theme = new ProbeDockTheme();
+            var root = new AvalonDock.Layout.LayoutRoot();
+            var panel = new AvalonDock.Layout.LayoutPanel { Orientation = Orientation.Horizontal };
+            root.RootPanel = panel;
+
+            AvalonDock.Layout.LayoutAnchorable Make(string id, string title, Brush bg)
+                => new()
+                {
+                    Title = title,
+                    ContentId = id,
+                    AutoHideWidth = 300,
+                    Content = new Border
+                    {
+                        Background = bg,
+                        Child = new TextBlock { Text = title, Margin = new Thickness(8) },
+                    },
+                };
+
+            var leftPane = new AvalonDock.Layout.LayoutAnchorablePane
+            {
+                DockWidth = new GridLength(340),
+                DockMinWidth = 320,
+            };
+            leftPane.Children.Add(Make("Panel_ProcessView", "流程导航", Brushes.Gainsboro));
+
+            var docPane = new AvalonDock.Layout.LayoutDocumentPane();
+            docPane.Children.Add(new AvalonDock.Layout.LayoutDocument
+            {
+                Title = "视觉图像",
+                ContentId = "Panel_ImageView",
+                Content = new Border { Background = Brushes.Black },
+            });
+
+            var rightPane = new AvalonDock.Layout.LayoutAnchorablePane
+            {
+                DockWidth = new GridLength(320),
+                DockMinWidth = 300,
+            };
+            var tool = Make("Panel_ToolView", "工具箱", Brushes.WhiteSmoke);
+            var prop = Make("Panel_ScadaPropertyView", "属性", Brushes.WhiteSmoke);
+            var layer = Make("Panel_ScadaLayerView", "图层", Brushes.WhiteSmoke);
+            var elem = Make("Panel_ScadaToolboxView", "图元工具箱", Brushes.WhiteSmoke);
+            rightPane.Children.Add(tool);
+            rightPane.Children.Add(prop);
+            rightPane.Children.Add(layer);
+            rightPane.Children.Add(elem);
+
+            panel.Children.Add(leftPane);
+            panel.Children.Add(docPane);
+            panel.Children.Add(rightPane);
+
+            dock.Layout = root;
+
+            var window = new Window
+            {
+                Width = 1310,
+                Height = 829,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                ShowInTaskbar = false,
+                Content = dock,
+            };
+            window.Show();
+            Pump(300);
+
+            // 非组态态：只留工具箱
+            prop.IsVisible = false;
+            layer.IsVisible = false;
+            elem.IsVisible = false;
+            Pump(300);
+
+            Console.WriteLine(
+                $"[before] right.DockWidth={rightPane.DockWidth} DockMinWidth={rightPane.DockMinWidth} " +
+                $"right.Visible={rightPane.IsVisible} tool.Visible={tool.IsVisible} tool.Hidden={tool.IsHidden} " +
+                $"pane.Children={rightPane.ChildrenCount}");
+            Console.WriteLine($"[before] center.DockWidth={docPane.DockWidth} window={window.ActualWidth:0.#}");
+            DumpRootGrid(dock, "[before]");
+            DumpPaneControls(dock, "[before]");
+
+            tool.IsVisible = false;
+            Pump(500);
+
+            Console.WriteLine(
+                $"[after]  right.DockWidth={rightPane.DockWidth} DockMinWidth={rightPane.DockMinWidth} " +
+                $"right.Visible={rightPane.IsVisible} tool.Visible={tool.IsVisible} tool.Hidden={tool.IsHidden} " +
+                $"tool.AutoHidden={tool.IsAutoHidden} pane.Children={rightPane.ChildrenCount}");
+            Console.WriteLine($"[after]  center.DockWidth={docPane.DockWidth} window={window.ActualWidth:0.#}");
+            DumpRootGrid(dock, "[after] ");
+            DumpPaneControls(dock, "[after] ");
+            Console.WriteLine($"[after]  tool.TabItem={tool.TabItem?.GetType().FullName ?? "null"}");
+            if (tool.TabItem is Control tabControl)
+                Console.WriteLine($"          tabItem template={tabControl.Template?.GetType().Name} actual={tabControl.ActualWidth:0.#}x{tabControl.ActualHeight:0.#}");
+            foreach (Window w in Application.Current.Windows)
+                Console.WriteLine($"          window {w.GetType().FullName} {w.ActualWidth:0.#}x{w.ActualHeight:0.#} visible={w.IsVisible}");
+            foreach (var element in FindAll<FrameworkElement>(dock).Where(e => e.GetType().Name.Contains("TabItem")))
+            {
+                Console.WriteLine($"          dock tab {element.GetType().Name} actual={element.ActualWidth:0.#}x{element.ActualHeight:0.#} " +
+                    $"model={element.GetType().GetProperty("Model")?.GetValue(element)?.GetType().Name}");
+            }
+
+            var shotDir = Path.Combine(@"D:\C#\VM\artifacts\render", DateTime.Now.ToString("yyyyMMdd"));
+            Directory.CreateDirectory(shotDir);
+            Save(Render(dock, (int)dock.ActualWidth, (int)dock.ActualHeight),
+                Path.Combine(shotDir, "right-pane-hide-after.png"));
+            Console.WriteLine($"  right-pane-hide-after.png  {dock.ActualWidth:0}×{dock.ActualHeight:0}");
+
+            // 复现"点胶囊钉回"：ShowPanel 后工具箱应回到右侧 LayoutAnchorablePane，不能变成中央文档。
+            try
+            {
+                tool.Show();
+                tool.IsSelected = true;
+                tool.IsActive = true;
+                Pump(500);
+                Console.WriteLine(
+                    $"[show] tool.Parent={tool.Parent?.GetType().Name ?? "null"} visible={tool.IsVisible} " +
+                    $"right.Children={rightPane.ChildrenCount} right.Visible={rightPane.IsVisible}");
+                foreach (var doc in FindAll<FrameworkElement>(dock).Where(e => e.GetType().Name.Contains("TabItem")))
+                {
+                    Console.WriteLine(
+                        $"          tab {doc.GetType().Name} model={doc.GetType().GetProperty("Model")?.GetValue(doc)?.GetType().Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[show] 抛异常：{ex.GetType().Name} {ex.Message}");
+            }
+
+            tool.IsVisible = true;
+            Pump(500);
+            Console.WriteLine(
+                $"[restore] right.DockWidth={rightPane.DockWidth} DockMinWidth={rightPane.DockMinWidth} " +
+                $"tool.Visible={tool.IsVisible} tool.AutoHidden={tool.IsAutoHidden}");
+
+            window.Close();
+        }
+
+        /// <summary>打印根布局面板的 3 列实际宽度（左 / 中 / 右），确认空列是否真的收成 0。</summary>
+        private static void DumpRootGrid(DependencyObject root, string tag)
+        {
+            foreach (var grid in FindAll<Grid>(root))
+            {
+                if (grid.ColumnDefinitions.Count != 3 || grid.ActualWidth < 500) continue;
+                var cols = string.Join(" | ", grid.ColumnDefinitions.Select(c => $"{c.Width}:{c.ActualWidth:0.#}"));
+                Console.WriteLine($"{tag} grid {grid.ActualWidth:0.#}x{grid.ActualHeight:0.#} cols[{cols}]");
+            }
+        }
+
+        /// <summary>列出 VS2013 主题里与 AutoHide / Tab 相关的资源键，找可覆盖的 auto-hide tab 样式。</summary>
+        private static void DumpThemeKeys()
+        {
+            var dict = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/AvalonDock.Themes.VS2013;component/LightTheme.xaml"),
+            };
+            DumpDict(dict, "");
+        }
+
+        private static void DumpDict(ResourceDictionary dict, string indent)
+        {
+            foreach (var key in dict.Keys)
+            {
+                var text = key is System.Windows.ComponentResourceKey component
+                    ? component.ResourceId?.ToString()
+                    : key?.ToString();
+                if (text == null) continue;
+                if (text.Contains("AutoHide") || text.Contains("Tab"))
+                    Console.WriteLine($"{indent}{text} -> {dict[key]?.GetType().Name}");
+            }
+
+            foreach (var merged in dict.MergedDictionaries)
+                DumpDict(merged, indent + "  ");
+        }
+
+        /// <summary>打印 tab item / anchorable 的属性与主题模板触发器，找 auto-hide 的判据。</summary>
+        private static void DumpTabProps()
+        {
+            var tabType = typeof(AvalonDock.Controls.LayoutAnchorableTabItem);
+            Console.WriteLine("== LayoutAnchorableTabItem props ==");
+            foreach (var p in tabType.GetProperties())
+                Console.WriteLine($"  {p.PropertyType.Name} {p.Name}");
+
+            Console.WriteLine("== LayoutAnchorable auto/hide props ==");
+            foreach (var p in typeof(AvalonDock.Layout.LayoutAnchorable).GetProperties()
+                .Where(p => p.Name.Contains("Auto") || p.Name.Contains("Hide")
+                    || p.Name.Contains("Visible") || p.Name.Contains("Tab") || p.Name.Contains("Parent")))
+            {
+                Console.WriteLine($"  {p.PropertyType.Name} {p.Name}");
+            }
+
+            var dict = new ResourceDictionary
+            {
+                Source = new Uri("pack://application:,,,/AvalonDock.Themes.VS2013;component/LightTheme.xaml"),
+            };
+            var style = dict[tabType] as Style;
+            Console.WriteLine($"== style for {tabType.Name}: found={style != null} setters={style?.Setters.Count} triggers={style?.Triggers.Count}");
+            if (style == null) return;
+
+            foreach (var setter in style.Setters.OfType<Setter>())
+                Console.WriteLine($"  setter {setter.Property?.Name}");
+
+            var templateSetter = style.Setters.OfType<Setter>()
+                .FirstOrDefault(s => s.Property == System.Windows.Controls.Control.TemplateProperty);
+            if (templateSetter?.Value is not ControlTemplate template) return;
+
+            Console.WriteLine($"  template visual={template.VisualTree?.Type?.Name}");
+            foreach (var trigger in template.Triggers)
+            {
+                var text = trigger.ToString();
+                if (trigger is DataTrigger dataTrigger)
+                    text += $" binding={(dataTrigger.Binding as System.Windows.Data.Binding)?.Path?.Path} value={dataTrigger.Value}";
+                if (trigger is Trigger propertyTrigger)
+                    text += $" property={propertyTrigger.Property?.Name} value={propertyTrigger.Value}";
+                Console.WriteLine($"    trigger {trigger.GetType().Name} {text}");
+            }
+
+            DumpFactory(template.VisualTree, "    ");
+        }
+
+        private static void DumpFactory(FrameworkElementFactory factory, string indent)
+        {
+            if (factory == null) return;
+            Console.WriteLine($"{indent}{factory.Type?.Name} name={factory.Name}");
+            var child = factory.FirstChild;
+            while (child != null)
+            {
+                DumpFactory(child, indent + "  ");
+                child = child.NextSibling;
+            }
+        }
+
+        /// <summary>打印 AvalonDock 各 pane 控件的实际宽度与 Model 子项，确认空 pane 是否收成 0。</summary>
+        private static void DumpPaneControls(DependencyObject root, string tag)
+        {
+            foreach (var element in FindAll<FrameworkElement>(root))
+            {
+                if (!element.GetType().Name.Contains("LayoutAnchorablePaneControl")) continue;
+
+                var model = element.GetType().GetProperty("Model")?.GetValue(element);
+                var ids = model is AvalonDock.Layout.LayoutAnchorablePane pane
+                    ? string.Join(",", pane.Children.Select(c => c.ContentId))
+                    : "(?)";
+                Console.WriteLine(
+                    $"{tag} {element.GetType().Name} actual={element.ActualWidth:0.#} " +
+                    $"visible={element.IsVisible} model={model?.GetType().Name} ids=[{ids}]");
+            }
+        }
+
         // ================================================================ 公共
 
         private static void Capture(string dir, string fileName, int width, int height, Func<FrameworkElement> factory)
@@ -575,6 +890,19 @@ namespace ScadaUiProbe
             };
             stopper.Start();
             Dispatcher.PushFrame(frame);
+        }
+
+        private sealed class ProbeDockTheme : AvalonDock.Themes.DictionaryTheme
+        {
+            public ProbeDockTheme()
+                : base(new ResourceDictionary
+                {
+                    Source = new Uri(
+                        "pack://application:,,,/VisionMaster;component/Themes/DockThemes/FluentLight.xaml",
+                        UriKind.Absolute),
+                })
+            {
+            }
         }
 
         private sealed class FakeRuntimeHost : IScadaRuntimeHost

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A / B 交互细化 · 收起与展开</title>
+<style>
+  :root{
+    --bg:#E9EEF5; --surface:#FFFFFF; --surface-2:#F8FAFC; --surface-3:#F1F5F9;
+    --border:#E2E8F0; --border-soft:#EEF2F7; --border-strong:#CBD5E1;
+    --text:#0F172A; --text-2:#475569; --text-3:#94A3B8; --text-4:#A8ABB2;
+    --primary:#0EA5E9; --primary-strong:#0284C7; --primary-soft:#F0F9FF; --primary-border:#BAE6FD;
+    --success:#22C55E; --success-text:#15803D; --success-soft:#F0FDF4;
+    --danger:#EF4444; --danger-text:#B91C1C; --danger-soft:#FEF2F2;
+    --warning:#F59E0B; --warning-text:#B45309; --warning-soft:#FFF4E5;
+    --violet:#8B5CF6; --violet-soft:#F5F3FF; --violet-border:#DDD6FE;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:radial-gradient(1200px 620px at 50% -12%,#F8FAFC 0%,rgba(248,250,252,0) 62%),var(--bg);
+       color:var(--text);font-family:var(--font);font-size:13px;line-height:1.55;padding:26px 26px 40px;-webkit-font-smoothing:antialiased}
+  .page{width:1076px;margin:0 auto}
+  h1{margin:0 0 4px;font-size:21px;letter-spacing:.2px}
+  h2{margin:26px 0 8px;font-size:16px;display:flex;align-items:center;gap:9px}
+  h2 .num{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+          background:var(--text);color:#fff;font-size:12px;font-weight:700}
+  h3{margin:0 0 8px;font-size:13px;font-weight:600}
+  .sub{margin:0;color:var(--text-2);font-size:12.5px}
+  .sub b{color:var(--text)}
+  .rule{height:1px;background:var(--border);margin:14px 0 4px}
+
+  .machine{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 4px;padding:12px 14px;
+           background:var(--surface);border:1px solid var(--border);border-radius:12px;font-size:11.5px;color:var(--text-2)}
+  .machine .label{font-weight:600;color:var(--text);min-width:74px}
+  .node{height:26px;padding:0 11px;display:flex;align-items:center;border:1px solid var(--border);border-radius:7px;
+        background:var(--surface-2);font-weight:600;color:var(--text)}
+  .node.on{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary-strong)}
+  .node.focus{background:var(--violet-soft);border-color:var(--violet-border);color:#6D28D9}
+  .arrow{color:var(--text-3);font-size:14px}
+  .trig{font-size:10.5px;color:var(--text-3)}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 15px 16px;
+        margin:12px 0;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+  .card-head{display:flex;align-items:center;gap:9px;margin-bottom:4px}
+  .tag{display:inline-flex;align-items:center;height:21px;padding:0 8px;border-radius:6px;font-size:10.5px;font-weight:600}
+  .tag.a{background:var(--primary-soft);color:var(--primary-strong);border:1px solid var(--primary-border)}
+  .tag.b{background:var(--violet-soft);color:#6D28D9;border:1px solid var(--violet-border)}
+  .tag.gray{background:var(--surface-3);color:var(--text-2);border:1px solid var(--border)}
+  .card-title{font-size:13.5px;font-weight:600}
+  .hint{margin:0 0 12px;font-size:11.5px;color:var(--text-3)}
+
+  .row{display:flex;gap:18px;align-items:stretch}
+  .crop-wrap{flex:0 0 760px;border:1px solid var(--border-strong);border-radius:10px;overflow:hidden;background:var(--surface);
+             display:flex;flex-direction:column}
+  .legend{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+  .li{display:flex;gap:7px;font-size:11px;color:var(--text-2);line-height:1.45}
+  .li .n{flex:0 0 17px;height:17px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+         font-size:9.5px;font-weight:700;background:var(--primary-soft);color:var(--primary-strong);border:1px solid var(--primary-border)}
+  .li .n.v{background:var(--violet-soft);color:#6D28D9;border-color:var(--violet-border)}
+  .li b{color:var(--text)}
+  .li code{font-family:var(--mono);font-size:10px;background:var(--surface-3);padding:0 4px;border-radius:3px;color:var(--text)}
+
+  /* 控制台裁切 */
+  .crop-image{flex:1;min-height:22px;background:#0B1220;position:relative}
+  .crop-image:after{content:"视觉图像下沿";position:absolute;left:10px;top:5px;font-size:9px;color:#64748B}
+  .drawer{height:32px;display:flex;align-items:center;gap:10px;padding:0 8px;background:var(--surface-2);
+          border-top:1px solid var(--border);border-bottom:1px solid var(--border);position:relative}
+  .drawer-tabs{display:flex;align-items:center;gap:2px}
+  .dtab{height:24px;padding:0 9px;display:flex;align-items:center;gap:6px;border-radius:4px;font-size:11px;color:var(--text-2)}
+  .dtab.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:0 0 0 1px var(--border)}
+  .dtab i{height:15px;min-width:18px;padding:0 4px;border-radius:8px;background:var(--surface-3);border:1px solid var(--border-soft);
+          display:flex;align-items:center;justify-content:center;font-size:9px;font-style:normal;color:var(--text-2)}
+  .latest{flex:1;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-2);white-space:nowrap;overflow:hidden}
+  .latest .dot{width:6px;height:6px;border-radius:50%;flex:0 0 6px}
+  .latest .src{color:var(--text);font-weight:600}
+  .latest .txt{overflow:hidden;text-overflow:ellipsis}
+  .errchip{height:16px;padding:0 6px;border-radius:8px;background:var(--danger);color:#fff;font-size:9.5px;display:flex;align-items:center}
+  .chev{width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:4px;
+        color:var(--text-2);font-size:12px;background:var(--surface);border:1px solid var(--border)}
+  .hot{outline:1.5px dashed var(--primary);outline-offset:1px;border-radius:4px}
+  .hot.v{outline-color:var(--violet)}
+
+  /* 展开态控制台 */
+  .exp{height:240px;display:flex;flex-direction:column;background:var(--surface);border-top:1px solid var(--border)}
+  .exp-head{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:2px;padding:0 8px;
+            border-bottom:1px solid var(--border-soft);font-size:10.5px;color:var(--text-2);position:relative}
+  .etab{height:27px;display:flex;align-items:center;padding:0 9px;border-bottom:2px solid transparent}
+  .etab.on{color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .collapse{margin-left:auto;height:22px;padding:0 8px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);
+            border-radius:5px;background:var(--surface);color:var(--text-2);font-size:10px}
+  .exp-tool{height:30px;flex:0 0 30px;display:flex;align-items:center;gap:8px;padding:0 10px}
+  .search{flex:1;height:22px;display:flex;align-items:center;gap:5px;padding:0 8px;border:1px solid var(--border);
+          border-radius:6px;color:var(--text-3);font-size:10px;background:var(--surface)}
+  .follow{display:flex;align-items:center;gap:5px;font-size:10px;color:var(--text-2)}
+  .follow .cb{width:13px;height:13px;border-radius:3px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px}
+  .levels{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:6px;padding:0 10px;font-size:9.5px}
+  .lv{height:20px;padding:0 8px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);border-radius:10px;color:var(--text-2);background:var(--surface)}
+  .lv.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:600}
+  .lv .d{width:5px;height:5px;border-radius:50%}
+  .log{flex:1;min-height:0;display:flex;flex-direction:column;gap:1px;padding:2px 10px;font-size:10px;color:var(--text-2)}
+  .logrow{height:22px;display:flex;align-items:center;gap:8px;white-space:nowrap;overflow:hidden}
+  .logrow .t{font-family:var(--mono);font-size:9px;color:var(--text-3)}
+  .logrow.warn{background:var(--warning-soft);border-left:3px solid var(--warning);padding-left:7px;color:var(--warning-text)}
+  .exp-foot{height:22px;flex:0 0 22px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;
+            border-top:1px solid var(--border-soft);font-size:9px;color:var(--text-3)}
+  .drag{position:relative}
+  .drag:before{content:"";position:absolute;left:0;right:0;top:-3px;height:4px;background:var(--primary);opacity:.55;border-radius:2px}
+  .drag:after{content:"拖拽调整高度 120~480";position:absolute;right:8px;top:-22px;font-size:9px;color:var(--primary-strong);
+              background:var(--primary-soft);border:1px solid var(--primary-border);border-radius:4px;padding:1px 6px;white-space:nowrap}
+
+  /* 文档标签裁切 */
+  .doctabs{height:34px;display:flex;align-items:stretch;padding:0 8px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+  .doc{display:flex;align-items:center;padding:0 12px;font-size:11px;color:var(--text-2);border-bottom:2px solid transparent}
+  .doc.on{background:var(--surface);color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .doc-tools{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-3)}
+  .focus-btn{height:22px;padding:0 8px;display:flex;align-items:center;gap:4px;border:1px solid var(--border);
+             border-radius:5px;background:var(--surface);color:var(--text-2);font-size:10px}
+  .focus-btn.on{background:var(--primary-soft);border-color:var(--primary-border);color:var(--primary-strong);font-weight:600}
+
+  /* 专注整帧 */
+  .frame-wrap{width:891px;height:564px;overflow:hidden;border:1px solid var(--border-strong);border-radius:10px;background:var(--surface);position:relative}
+  .frame{width:1310px;height:829px;transform:scale(.68);transform-origin:top left;display:flex;flex-direction:column;background:var(--surface);font-size:11px;overflow:hidden}
+  .titlebar{height:36px;flex:0 0 36px;display:flex;align-items:center;padding-left:10px;border-bottom:1px solid var(--border);position:relative}
+  .tb-left{display:flex;align-items:center;gap:3px}
+  .ico{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--text-2);font-size:13px}
+  .sep{width:1px;height:18px;background:var(--border);margin:0 6px}
+  .modes{display:flex;height:24px;padding:2px;background:var(--surface-3);border-radius:6px}
+  .mode{height:20px;padding:0 10px;display:flex;align-items:center;font-size:11px;color:var(--text-2);border:1px solid transparent;border-radius:4px}
+  .mode.on{background:var(--primary-soft);color:var(--primary-strong);border-color:var(--primary-border);font-weight:600}
+  .tb-center{position:absolute;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;white-space:nowrap}
+  .tb-right{margin-left:auto;display:flex;height:36px}
+  .winbtn{width:46px;height:36px;display:flex;align-items:center;justify-content:center;color:var(--text-2);font-size:12px}
+  .runbar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid var(--border)}
+  .run-state{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--text-3)}
+  .run-sep{width:1px;height:16px;background:var(--border);margin:0 4px}
+  .run-meta{font-size:11.5px;color:var(--text-2)}
+  .run-actions{margin-left:auto;display:flex;align-items:center;gap:6px}
+  .rbtn{height:26px;padding:0 9px;border:1px solid var(--border);border-radius:6px;display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-3)}
+  .rbtn.danger{border-color:#FECACA;background:var(--danger-soft);color:var(--danger-text);font-weight:600}
+  .main{flex:1;display:flex;min-height:0;position:relative}
+  .center{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+  .viewport{flex:1;min-height:0;position:relative;background:#0B1220;overflow:hidden}
+  .image-sim{position:absolute;inset:8px;border:1px solid #1E293B;border-radius:4px;
+             background:linear-gradient(rgba(148,163,184,.07) 1px,transparent 1px) 0 0/28px 28px,
+                        linear-gradient(90deg,rgba(148,163,184,.07) 1px,transparent 1px) 0 0/28px 28px,
+                        radial-gradient(circle at 50% 46%,#101B2C 0%,#0B1220 70%)}
+  .board{position:absolute;left:6%;right:6%;top:7%;bottom:8%;border:1px solid #263449;border-radius:6px;
+         background:linear-gradient(135deg,#111C2E 0%,#0E1726 55%,#101B2C 100%)}
+  .board:before{content:"";position:absolute;inset:12% 14%;border:1px dashed rgba(148,163,184,.28);border-radius:3px}
+  .roi{position:absolute;left:36%;top:26%;width:26%;height:36%;border:1.5px dashed #22C55E;border-radius:2px}
+  .roi:after{content:"ROI";position:absolute;left:0;top:-17px;font-size:9px;color:#22C55E;font-family:var(--mono)}
+  .vp-label{position:absolute;left:10px;bottom:9px;display:flex;align-items:center;gap:6px;padding:3px 7px;
+            border:1px solid rgba(148,163,184,.22);border-radius:4px;background:rgba(15,23,42,.72);color:#CBD5E1;font-size:9.5px}
+  .vp-label b{color:#E2E8F0;font-family:var(--mono)}
+  .pill-exit{position:absolute;right:12px;top:12px;height:26px;padding:0 10px;display:flex;align-items:center;gap:6px;
+             border:1px solid rgba(148,163,184,.35);border-radius:13px;background:rgba(15,23,42,.78);color:#E2E8F0;font-size:10px;
+             box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  .pill-exit .k{font-family:var(--mono);font-size:9px;color:#94A3B8;border:1px solid #334155;border-radius:3px;padding:0 3px}
+  .edge{position:absolute;top:0;bottom:0;width:6px;background:rgba(148,163,184,.16);z-index:3}
+  .edge.left{left:0}
+  .edge.right{right:0}
+  .edge .tab{position:absolute;top:44%;width:24px;height:72px;display:flex;align-items:center;justify-content:center;
+             background:var(--surface);border:1px solid var(--border-strong);color:var(--text-2);font-size:12px;
+             box-shadow:0 2px 8px rgba(15,23,42,.18);border-radius:0 6px 6px 0}
+  .edge.left .tab{left:0}
+  .edge.right .tab{right:0;border-radius:6px 0 0 6px}
+  .console{height:200px;flex:0 0 200px;display:flex;flex-direction:column;border-top:1px solid var(--border);background:var(--surface)}
+  .con-tabs{height:28px;flex:0 0 28px;display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--border-soft);font-size:10.5px;color:var(--text-2)}
+  .con-tab{height:27px;display:flex;align-items:center;padding:0 9px;border-bottom:2px solid transparent}
+  .con-tab.on{color:var(--text);font-weight:600;border-bottom-color:var(--primary)}
+  .con-pin{margin-left:auto;color:var(--text-3);font-size:10px}
+  .statusbar{height:26px;flex:0 0 26px;display:flex;align-items:center;gap:8px;padding:0 10px;border-top:1px solid var(--border);
+             background:var(--surface-2);font-size:9.5px;color:var(--text-2)}
+  .statusbar .right{margin-left:auto;display:flex;gap:10px;color:var(--text-3);font-size:9px}
+
+  /* 边缘手柄三态 */
+  .edgecards{display:flex;gap:14px;margin-top:2px}
+  .edgecard{flex:1;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface)}
+  .edgecard .stage{height:150px;position:relative;background:#0B1220;overflow:hidden}
+  .edgecard .cap{padding:7px 10px;font-size:10.5px;color:var(--text-2);border-top:1px solid var(--border-soft)}
+  .edgecard .cap b{color:var(--text)}
+  .stage .img{position:absolute;inset:6px;background:linear-gradient(rgba(148,163,184,.07) 1px,transparent 1px) 0 0/24px 24px,
+              linear-gradient(90deg,rgba(148,163,184,.07) 1px,transparent 1px) 0 0/24px 24px,#0B1220}
+  .stage .line{position:absolute;left:0;top:0;bottom:0;width:4px;background:#334155}
+  .stage .handle{position:absolute;left:0;top:38%;width:24px;height:72px;display:flex;align-items:center;justify-content:center;
+                 background:var(--surface);border:1px solid var(--border-strong);border-right:0;border-radius:0 6px 6px 0;
+                 color:var(--text-2);font-size:12px;box-shadow:2px 2px 8px rgba(15,23,42,.25)}
+  .stage .tip{position:absolute;left:30px;top:40%;padding:4px 7px;border-radius:5px;background:#0F172A;color:#E2E8F0;
+              font-size:9.5px;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  .stage .mini-nav{position:absolute;left:0;top:0;bottom:0;width:112px;background:var(--surface);border-right:1px solid var(--border);
+                   padding:7px;display:flex;flex-direction:column;gap:4px}
+  .stage .mini-nav .h{height:14px;background:var(--surface-3);border-radius:3px}
+  .stage .mini-nav .c{height:18px;border:1px solid var(--border);border-radius:4px;background:var(--surface-2)}
+  .stage .mini-nav .c.on{background:var(--primary-soft);border-color:var(--primary-border)}
+
+  table{width:100%;border-collapse:collapse;margin-top:10px;background:var(--surface);border:1px solid var(--border);
+        border-radius:10px;overflow:hidden}
+  th,td{padding:8px 11px;text-align:left;font-size:11px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+  th{background:var(--surface-2);color:var(--text-2);font-weight:600;font-size:10.5px}
+  tr:last-child td{border-bottom:0}
+  td code{font-family:var(--mono);font-size:10px;background:var(--surface-3);padding:0 4px;border-radius:3px}
+  .ok{color:var(--success-text);font-weight:600}
+  .warn{color:var(--warning-text);font-weight:600}
+
+  .two{display:flex;gap:14px}
+  .two > .card{flex:1;margin:8px 0}
+  .notes{margin-top:10px;padding:12px 14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
+         font-size:11px;color:var(--text-2)}
+  .notes b{color:var(--text)}
+  .notes ul{margin:6px 0 0 16px;padding:0}
+  .notes li{margin:3px 0}
+  .foot{margin-top:14px;font-size:10.5px;color:var(--text-3)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>A / B 交互细化：控制台怎么收、专注怎么退</h1>
+  <p class="sub">A = 控制台 <b>32 ⇄ 240</b>；B = 专注图像时左右栏 <b>0 ⇄ 340/320</b>。两套动作互不干扰：专注只动左右栏，控制台保持进入前的状态。</p>
+  <p class="sub" style="margin-top:3px">设计媒介，不是交付物（R126）。尺寸按 1310×829 DIP；控制台裁切为 1:1，专注整帧按 0.68。</p>
+  <div class="rule"></div>
+
+  <div class="machine">
+    <span class="label">A 控制台</span>
+    <span class="node on">展开 240</span><span class="arrow">⇄</span><span class="node">收起 32</span>
+    <span class="trig">展开：点页签 / 箭头 / 摘要区 / Ctrl+`　收起：页签条「收起」/ Ctrl+` / 双击页签条</span>
+  </div>
+  <div class="machine" style="margin-top:8px">
+    <span class="label">B 专注</span>
+    <span class="node">常规</span><span class="arrow">→</span><span class="node focus">专注图像</span><span class="arrow">→</span><span class="node">常规</span>
+    <span class="trig">进入：文档标签「专注图像」/ Ctrl+Shift+F　退出：Esc / 浮动 pill / 标签 / 左右边缘手柄 / 切文档 / 切模式</span>
+  </div>
+
+  <!-- ==================== A ==================== -->
+  <h2><span class="num">A</span>控制台：32 与 240 之间</h2>
+
+  <section class="card">
+    <div class="card-head"><span class="tag a">A1</span><span class="card-title">收起态 32px：抽屉条</span></div>
+    <p class="hint">只占 32px，保留"最近一条 + 计数 + 两个页签入口"。整条摘要区可点（新增），不用非得瞄准小箭头。</p>
+    <div class="row">
+      <div class="crop-wrap">
+        <div class="crop-image"></div>
+        <div class="drawer">
+          <div class="drawer-tabs">
+            <span class="dtab on hot">控制台 <i>45</i></span>
+            <span class="dtab hot">监控栏 <i>6</i></span>
+          </div>
+          <div class="latest hot"><span class="dot" style="background:var(--warning)"></span><span class="src">通讯</span><span class="txt">0/1 条连接正常，异常：Plc1(不可达)</span></div>
+          <span class="errchip hot">6 错误</span>
+          <span class="chev hot">▴</span>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="li"><span class="n">1</span><span><b>控制台页签</b>：点它 → 展开并停在日志页（不是"只展开"）。</span></div>
+        <div class="li"><span class="n">2</span><span><b>监控栏页签</b>：点它 → 展开并停在监控页；与日志页同一套抽屉。</span></div>
+        <div class="li"><span class="n">3</span><span><b>最近一条</b>：等级点 + 来源 + 正文；超长省略，悬停看全文。</span></div>
+        <div class="li"><span class="n">4</span><span><b>错误计数</b>：只在 &gt;0 时出现；点它等同点控制台页签。</span></div>
+        <div class="li"><span class="n">5</span><span><b>展开箭头</b>：展开到上次停留的页签；<code>Ctrl+`</code> 同效。</span></div>
+        <div class="li"><span class="n">6</span><span><b>整条摘要区</b>（新增）：点空白处也展开；页签/计数/箭头各自保留原动作。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><span class="tag a">A2</span><span class="card-title">展开态 240px：页签条 + 拖拽手柄</span></div>
+    <p class="hint">展开态的关键缺口：现在只有状态栏「控制台」和命令面板能收起，控制台自己头上没有「收起」。这里补一个。</p>
+    <div class="row">
+      <div class="crop-wrap">
+        <div class="crop-image" style="height:18px"></div>
+        <div class="exp drag">
+          <div class="exp-head">
+            <span class="etab on">控制台</span><span class="etab">监控栏</span>
+            <span class="collapse hot">⌄ 收起</span>
+          </div>
+          <div class="exp-tool"><div class="search">⌕ 正文或来源</div><div class="follow"><span class="cb">✓</span>跟随最新</div></div>
+          <div class="levels">
+            <span class="lv on">全部 45</span>
+            <span class="lv"><span class="d" style="background:#0EA5E9"></span>信息 39</span>
+            <span class="lv"><span class="d" style="background:#22C55E"></span>成功 0</span>
+            <span class="lv"><span class="d" style="background:#F59E0B"></span>警告 6</span>
+            <span class="lv"><span class="d" style="background:#EF4444"></span>错误 0</span>
+          </div>
+          <div class="log">
+            <div class="logrow warn"><span class="t">09:53:11.157</span><span>[启动自检] 通讯连通性 警告：0/1 条连接正常，异常：Plc1(不可达)</span></div>
+            <div class="logrow"><span class="t">09:53:11.201</span><span>[启动自检] 插件扫描完成，共 32 个程序集</span></div>
+            <div class="logrow"><span class="t">09:53:12.004</span><span>[图像] 等待相机触发…</span></div>
+          </div>
+          <div class="exp-foot"><span>显示 45 / 共 45 条</span><span>完整历史：Logs\yyyy-MM-dd.log</span></div>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="li"><span class="n">1</span><span><b>页签</b>：控制台 / 监控栏，与收起态同一份状态。</span></div>
+        <div class="li"><span class="n">2</span><span><b>「收起」按钮</b>（新增）：页签条右端，<code>⌄ 收起</code>；点它回 32。</span></div>
+        <div class="li"><span class="n">3</span><span><b>顶部拖拽手柄</b>：控制台上沿 4px，<code>SizeNS</code>；拖 120~480。</span></div>
+        <div class="li"><span class="n">4</span><span><b>双击页签条</b>：收起；再双击抽屉条展开。拖过的高度记住。</span></div>
+        <div class="li"><span class="n">5</span><span><b>Ctrl+`</b>：展开 ⇄ 收起；焦点在控制台里也生效，不抢输入框。</span></div>
+        <div class="li"><span class="n">6</span><span><b>状态栏「控制台」</b>：保留为第三条路径，不删。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><span class="tag gray">A3</span><span class="card-title">状态与记忆</span></div>
+    <table>
+      <tr><th style="width:18%">动作</th><th style="width:30%">触发</th><th>结果</th></tr>
+      <tr><td>展开到指定页</td><td>点抽屉条「控制台」/「监控栏」</td><td>展开 240，停在对应页</td></tr>
+      <tr><td>展开到上次页</td><td>点抽屉条箭头 / 摘要区；<code>Ctrl+`</code></td><td>展开 240，停在收起前那一页</td></tr>
+      <tr><td>收起</td><td>展开态页签条「⌄ 收起」；<code>Ctrl+`</code>；双击页签条</td><td>32px 抽屉条，保留计数与最近一条</td></tr>
+      <tr><td>调高度</td><td>拖顶部 4px 手柄</td><td>120~480 之间；松手记住，本次会话与 Layout.xml 一致</td></tr>
+      <tr><td>复位高度</td><td>双击顶部手柄</td><td>回到 240</td></tr>
+      <tr><td>模式差异</td><td>切到运行 / 组态</td><td>运行默认展开 240；组态整块隐藏（无抽屉条）；调试/自由默认 32（新布局）</td></tr>
+      <tr><td>重启</td><td>应用重启</td><td>按 Layout.xml 恢复上次状态与高度；没有布局文件时按模式默认</td></tr>
+    </table>
+    <div class="notes">
+      <b>实现落点：</b>
+      <ul>
+        <li>「收起」按钮放 <code>LogView</code>/<code>MonitorView</code> 的工具条右端，或 Shell 在控制台右上角覆盖一个 24×24 按钮；不改 AvalonDock 页签模板。</li>
+        <li>抽屉条已有展开命令；新增"摘要区点击"只加一层透明 Button，页签/计数/箭头保持自己的命令，避免嵌套按钮。</li>
+        <li><code>Ctrl+`</code> 放 Shell 的 InputBindings；双击页签条/手柄需要 handler，拖拽沿用 AvalonDock 分隔条。</li>
+        <li>组态模式不显示抽屉条，也不接受 <code>Ctrl+`</code>（没有控制台可展开）。</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ==================== B ==================== -->
+  <h2><span class="num">B</span>专注图像：左右栏藏了怎么回来</h2>
+
+  <section class="card">
+    <div class="card-head"><span class="tag b">B1</span><span class="card-title">入口：文档标签右侧「专注图像」</span></div>
+    <p class="hint">只在「视觉图像」文档显示；进入后按钮变「退出专注」并高亮。快捷键 <code>Ctrl+Shift+F</code>。</p>
+    <div class="row">
+      <div class="crop-wrap" style="flex-basis:760px">
+        <div class="doctabs">
+          <span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+          <div class="doc-tools"><span>适应视口</span><span>1:1</span><span class="focus-btn hot">⤢ 专注图像</span></div>
+        </div>
+        <div style="height:40px;background:#0B1220"></div>
+      </div>
+      <div class="legend">
+        <div class="li"><span class="n v">1</span><span><b>入口按钮</b>：视觉图像标签右侧；其他文档不显示。</span></div>
+        <div class="li"><span class="n v">2</span><span><b>进入后</b>：按钮变 <code>⤡ 退出专注</code>，浅底高亮。</span></div>
+        <div class="li"><span class="n v">3</span><span><b>快捷键</b>：<code>Ctrl+Shift+F</code> 进入/退出；不抢输入框。</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><span class="tag b">B2</span><span class="card-title">专注中：左右栏 0，三个退出入口</span></div>
+    <p class="hint">左右栏不是"关闭"，是收起为 0；宽度、页签、滚动位置都记住。控制台保持进入前的状态（A 的机制照常）。</p>
+    <div class="frame-wrap">
+      <div class="frame">
+        <div class="titlebar">
+          <div class="tb-left">
+            <span class="ico">☰</span><span class="sep"></span>
+            <span class="ico">🗋</span><span class="ico">🗀</span><span class="ico">🖫</span><span class="sep"></span>
+            <div class="modes"><span class="mode on">调试</span><span class="mode">运行</span><span class="mode">组态</span><span class="mode">自由</span></div>
+            <span class="sep"></span>
+            <span class="ico">⌕</span><span class="ico">&lt;/&gt;</span><span class="ico">▦</span><span class="ico">☰</span>
+          </div>
+          <div class="tb-center">▣ 智能装配检测线</div>
+          <div class="tb-right"><span class="winbtn">—</span><span class="winbtn">□</span><span class="winbtn">✕</span></div>
+        </div>
+        <div class="runbar">
+          <div class="run-state"><span class="dot"></span>未启动</div><span class="run-sep"></span>
+          <span class="run-meta">未选择流程</span>
+          <div class="run-actions"><span class="rbtn">编译</span><span class="rbtn">运行主流程</span><span class="rbtn">暂停</span><span class="rbtn">单步</span><span class="rbtn danger">停止</span></div>
+        </div>
+        <div class="main">
+          <div class="center">
+            <div class="doctabs">
+              <span class="doc on">视觉图像</span><span class="doc">流程画布</span>
+              <div class="doc-tools"><span>适应视口</span><span>1:1</span><span class="focus-btn on">⤡ 退出专注</span></div>
+            </div>
+            <div class="viewport">
+              <div class="image-sim">
+                <div class="board"></div>
+                <div class="roi"></div>
+                <div class="vp-label">视觉图像 · 适应视口 <b>1264×464</b></div>
+                <div class="pill-exit">⤡ 退出专注 <span class="k">Esc</span></div>
+              </div>
+              <div class="edge left"><div class="tab">›</div></div>
+              <div class="edge right"><div class="tab">‹</div></div>
+            </div>
+            <div class="console">
+              <div class="con-tabs"><span class="con-tab on">控制台</span><span class="con-tab">监控栏</span><span class="con-pin">▾</span></div>
+              <div style="flex:1;display:flex;align-items:center;padding:0 10px;font-size:10px;color:var(--text-2)">
+                09:53:11.157　[启动自检] 通讯连通性 警告：0/1 条连接正常，异常：Plc1(不可达)
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="statusbar">
+          <span>● 未启动</span><span>|</span><span>节拍 —</span><span>|</span><span>OK —</span><span>|</span><span>NG —</span><span>|</span><span>告警 —</span><span>|</span><span>未登录</span><span>|</span><span>方案 智能装配检测线</span>
+          <span class="right"><span>专注图像</span><span>CPU 3.3%</span><span>09:53</span></span>
+        </div>
+      </div>
+    </div>
+    <div class="legend" style="display:grid;grid-template-columns:1fr 1fr;gap:7px 18px;margin-top:10px">
+      <div class="li"><span class="n v">1</span><span><b>浮动「退出专注 Esc」</b>：图像右上角，始终可见；深色半透明底，悬停变亮。</span></div>
+      <div class="li"><span class="n v">2</span><span><b>左边缘手柄</b>：悬停出 24×72 的 <code>›</code> 标签；点它退出专注并恢复左右栏。</span></div>
+      <div class="li"><span class="n v">3</span><span><b>右边缘手柄</b>：镜像，<code>‹</code>；点它同样恢复两侧。</span></div>
+      <div class="li"><span class="n v">4</span><span><b>文档标签「退出专注」</b>：与入口同一颗按钮，状态高亮。</span></div>
+      <div class="li"><span class="n v">5</span><span><b>控制台不变</b>：进入前是 32 就还是 32，是 240 就还是 240。</span></div>
+      <div class="li"><span class="n v">6</span><span><b>状态栏</b>：可选加一枚「专注图像」文字提示，不抢退出入口。</span></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><span class="tag b">B3</span><span class="card-title">边缘手柄：静止 / 悬停 / 点击</span></div>
+    <p class="hint">左右边缘各 6px 热区；静止不画东西，悬停才出标签。点击 = 退出专注并恢复两侧（点击侧成为活动页签），不做"只恢复一侧"的半专注态。</p>
+    <div class="edgecards">
+      <div class="edgecard">
+        <div class="stage"><div class="img"></div><div class="line"></div></div>
+        <div class="cap"><b>静止</b>：只有 4px 分隔线；不占图像宽度</div>
+      </div>
+      <div class="edgecard">
+        <div class="stage"><div class="img"></div><div class="line"></div><div class="handle">›</div><div class="tip">展开流程导航（Esc 退出专注）</div></div>
+        <div class="cap"><b>悬停</b>：24×72 标签 + 提示；<code>Hand</code> 光标</div>
+      </div>
+      <div class="edgecard">
+        <div class="stage"><div class="img" style="left:112px"></div><div class="mini-nav"><div class="h"></div><div class="c on"></div><div class="c"></div><div class="c"></div><div class="c"></div><div class="c"></div></div></div>
+        <div class="cap"><b>点击</b>：退出专注，左右栏按记忆宽度回来</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><span class="tag gray">B4</span><span class="card-title">状态、退出与边界</span></div>
+    <table>
+      <tr><th style="width:16%">动作</th><th style="width:30%">触发</th><th>结果</th></tr>
+      <tr><td>进入</td><td>「⤢ 专注图像」/ <code>Ctrl+Shift+F</code></td><td>左右栏收起为 0；记住 340/320、当前页签、滚动位置；控制台不变</td></tr>
+      <tr><td>退出</td><td><code>Esc</code> / 浮动 pill / 文档标签 / 左·右边缘手柄</td><td>恢复进入前的左右栏与宽度；点击边缘时该侧成为活动页签</td></tr>
+      <tr><td>切文档</td><td>点「流程画布」/「组态画面」/「运行驾驶舱」</td><td>先退出专注，再切文档（专注只属于视觉图像）</td></tr>
+      <tr><td>切模式</td><td>调试 / 运行 / 组态 / 自由</td><td>先退出专注，再按新模式收敛面板；不把"专注"带进新模式</td></tr>
+      <tr><td>重启</td><td>应用重启</td><td><b>不恢复专注</b>：专注是瞬态视图状态，不写 Layout.xml</td></tr>
+      <tr><td>Esc 优先级</td><td>专注中打开对话框/弹窗</td><td>Esc 先关最上层弹窗；没有弹窗时才退出专注</td></tr>
+      <tr><td>进入时某侧已隐藏</td><td>右栏原本被用户收起</td><td>退出只恢复进入前可见的那一侧；另一侧保持隐藏</td></tr>
+      <tr><td>窗口缩放</td><td>专注中拖窗口</td><td>图像随视口；退出时左右栏回到记忆宽度，不按当前窗口比例重算</td></tr>
+      <tr><td>浮动文档</td><td>视觉图像被拖出主窗口</td><td>不进入专注（专注只作用于主窗口停靠的视觉图像）</td></tr>
+    </table>
+    <div class="notes">
+      <b>实现落点：</b>
+      <ul>
+        <li>Shell 新增 <code>IsImageFocusMode</code>；进入时记下左右 pane 的 <code>DockWidth</code>、可见页签、选中页，再按现有 <code>HidePanel</code> 收起两侧全部 anchorable；退出按相反顺序 <code>ShowPanel</code> 并还原宽度。</li>
+        <li>浮动 pill 与边缘手柄是 Shell 停靠区上的覆盖层（<code>Grid.Row=2</code>），只在 <code>IsImageFocusMode</code> 时可见；不要写进 AvalonDock 模板。</li>
+        <li><code>Esc</code> 用窗口级 <code>KeyBinding</code>，并在有模态窗口时让路；<code>Ctrl+Shift+F</code> 只在视觉图像文档选中时生效。</li>
+        <li>退出专注必须走在 <code>ApplyShellMode</code> 之前，否则模式收敛会与恢复逻辑互相覆盖。</li>
+      </ul>
+    </div>
+  </section>
+
+  <p class="foot">设计稿只表达交互与状态，不代替真机像素级验收（R129/R132）。A 的抽屉条与 B 的左右栏恢复都要在真窗口上验一次：进入/退出各一次、切模式各一次、重启一次。</p>
+</div>
+</body>
+</html>

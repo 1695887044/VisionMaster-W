@@ -9,6 +9,7 @@
 |---|---|
 | [`skills/`](skills/README.md) | 可复用排查/实现范式（`vm-property-grid`、`wpf-ui-debug`），2026-10-24 从 `.zcode/skills/` 迁入 |
 | [`操作计划/`](../AI操作计划/) | 跨会话的 AI 协作计划与执行记录（另见上级目录地图） |
+| [`测试身份契约`](../AI操作计划/测试身份契约.md) | 桌面端测试两身份（planner/runner）的职责边界与交接格式；角色文件在 `.zcode/agents/` |
 
 ## 为什么有这一层
 
@@ -21,5 +22,7 @@
    与"用哪个客户端"无关，所以放在 `docs/` 下、任何客户端都能读。
 4. **镜像只做单向**：`AGENTS.md → %USERPROFILE%\.zcode\AGENTS.md` 的硬约束镜像由
    [`tools/sync_constraints.ps1`](../../tools/sync_constraints.ps1) 负责，禁止手改镜像侧。
+
+当前 ZCode 侧的两个测试身份定义在 `.zcode/agents/vm-test-planner.md` 与 `vm-test-runner.md`（客户端机制，不进 `docs/`）；仓库只保留它们的交接契约 [`测试身份契约.md`](../AI操作计划/测试身份契约.md)。DSH 若要复用，读契约即可，不要复制角色文件。
 
 返回：[`docs/README.md`](../README.md)

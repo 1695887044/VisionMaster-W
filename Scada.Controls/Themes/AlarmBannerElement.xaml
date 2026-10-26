@@ -108,6 +108,28 @@
                                     Fill="{StaticResource HmiBorderBrush}" />
 
                                 <Grid Grid.Row="2">
+                                    <!--
+                                        单行跑马灯（2026-10-25）：所有"触发条件为 ON"的报警拼成一行，
+                                        从右往左滚；不带确认状态（确认是报警汇总表的事）。
+                                        位移由 AlarmBannerElement.ApplyTicker 每拍按累计时长算。
+                                    -->
+                                    <Border
+                                        x:Name="TickerHost"
+                                        ClipToBounds="True"
+                                        Visibility="Collapsed">
+                                        <TextBlock
+                                            x:Name="PART_TickerText"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{TemplateBinding FontFamily}"
+                                            FontSize="{TemplateBinding FontSize}"
+                                            FontWeight="{TemplateBinding FontWeight}"
+                                            TextTrimming="None">
+                                            <TextBlock.RenderTransform>
+                                                <TranslateTransform />
+                                            </TextBlock.RenderTransform>
+                                        </TextBlock>
+                                    </Border>
+
                                     <ScrollViewer
                                         x:Name="ListScroll"
                                         HorizontalContentAlignment="Stretch"

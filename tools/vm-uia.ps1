@@ -17,6 +17,13 @@ param(
     [int]$Y = 0
 )
 
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public class UiaDpi { [DllImport("user32.dll")] public static extern bool SetProcessDPIAware(); }
+'@
+[void][UiaDpi]::SetProcessDPIAware()
+
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 
@@ -85,9 +92,12 @@ public class Mouse {
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint d, IntPtr e);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
 }
 '@
         [void][Mouse]::SetProcessDPIAware()
+        [void][Mouse]::SetForegroundWindow($script:proc.MainWindowHandle)
+        Start-Sleep -Milliseconds 300
         [void][Mouse]::SetCursorPos($X, $Y)
         Start-Sleep -Milliseconds 120
         [Mouse]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)  # LEFTDOWN

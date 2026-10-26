@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -167,8 +168,13 @@ namespace VisionMaster.ScadaWeb
         /// <summary>登录用户名；<c>null</c> = 匿名只读观众</summary>
         public string? UserName => Grant.UserName;
 
-        /// <summary>角色（匿名观众为操作员）</summary>
-        public ScadaRole Role => Grant.Role;
+        /// <summary>用户组 Id（B3 起身份的唯一分组载体；匿名/未分组为空串）</summary>
+        public string GroupId => Grant.GroupId;
+
+        public string GroupName => Grant.GroupName;
+
+        /// <summary>登录那一刻复制的权限 Key 快照（组改了不影响已登录会话）</summary>
+        public IReadOnlyList<string> Permissions => Grant.Permissions;
 
         /// <summary>是否已登录（匿名观众为 false）</summary>
         public bool IsAuthenticated => !Grant.IsAnonymous;

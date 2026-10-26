@@ -194,9 +194,7 @@ namespace VisionMaster.Scada.Controls
 
             SetValue(UnacknowledgedCountPropertyKey, context?.Alarms.UnacknowledgedCount ?? 0);
 
-            bool allowed = context != null
-                           && (Element?.RequiredRole is not { } required
-                               || context.AccessPolicy.CanOperate(required, out _));
+            bool allowed = context != null && context.AccessPolicy.CanElement(Element);
 
             SetValue(CanOperatePropertyKey, allowed);
 

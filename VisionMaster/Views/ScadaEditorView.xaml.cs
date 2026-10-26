@@ -111,6 +111,13 @@ namespace VisionMaster.Views
 
         private void OnActualSize(object sender, RoutedEventArgs e) => Canvas.ZoomToActualSize();
 
+    /// <summary>
+    /// 「计划表」：方案级的时间/事件计划管理器。
+    /// 入口刻意留在组态工具栏——它配的是"这个方案怎么自动跑"，与主界面的工程/插件不是一层。
+    /// </summary>
+    private void OnSchedules(object sender, RoutedEventArgs e)
+        => (DataContext as ScadaEditorViewModel)?.OpenSchedules();
+
         // ---- 顶栏折行 ----
         // 顶栏的排布意图只有一句话："宽屏一行、窄屏折行"。WPF 没有"先按自然宽度排、排不下再整组换行"
         // 的现成面板，所以折行位置由这里现算：

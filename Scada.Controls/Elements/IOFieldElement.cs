@@ -222,6 +222,22 @@ namespace VisionMaster.Scada.Controls
         /// <summary>框里显示的完整数值串（只读；= 数值按格式串格式化 + 单位）</summary>
         public static readonly DependencyProperty ValueTextProperty = ValueTextPropertyKey.DependencyProperty;
 
+        private static readonly DependencyPropertyKey ValueOnlyTextPropertyKey = DependencyProperty.RegisterReadOnly(
+            nameof(ValueOnlyText), typeof(string), typeof(IOFieldElement),
+            new PropertyMetadata(string.Empty));
+
+        /// <summary>
+        /// 只有数值、不带单位的串（只读）。
+        ///
+        /// 为什么与 <see cref="ValueText"/> 并存而不是替换它
+        /// ---------
+        /// 模板把数值与单位分成两列显示：数值列右对齐、单位列固定宽左对齐，
+        /// 一列域上下扫读时小数点才对得齐（2026-10-25 评审 §2）。
+        /// 但 <see cref="ValueText"/>（含单位）是既有只读属性，别的代码与断言按它取"完整串"，
+        /// 语义不能悄悄改——所以新增这一条给模板用，老的那条保持原样。
+        /// </summary>
+        public static readonly DependencyProperty ValueOnlyTextProperty = ValueOnlyTextPropertyKey.DependencyProperty;
+
         private static readonly DependencyPropertyKey DisplayBrushPropertyKey = DependencyProperty.RegisterReadOnly(
             nameof(DisplayBrush), typeof(Brush), typeof(IOFieldElement),
             new PropertyMetadata(ScadaBrushes.Frozen("#FF202020")));
@@ -290,6 +306,9 @@ namespace VisionMaster.Scada.Controls
 
         /// <summary>框里显示的完整数值串（只读；见 <see cref="ValueTextProperty"/>）</summary>
         public string? ValueText => (string?)GetValue(ValueTextProperty);
+
+        /// <summary>只有数值、不带单位的串（只读；模板用它做数值列，单位另起一列）</summary>
+        public string? ValueOnlyText => (string?)GetValue(ValueOnlyTextProperty);
 
         /// <summary>数值文字的当前颜色（只读；见 <see cref="DisplayBrushProperty"/>）</summary>
         public Brush? DisplayBrush => (Brush?)GetValue(DisplayBrushProperty);
@@ -603,6 +622,10 @@ namespace VisionMaster.Scada.Controls
             var text = FormatNumber(display);
             var unit = Unit;
 
+            // 数值列与单位列分开放：模板用 ValueOnlyText + Unit 两列（小数点才对得齐），
+            // ValueText 仍是"数值 + 单位"的完整串，供旧调用方与断言取。
+            SetValue(ValueOnlyTextPropertyKey, text);
+
             if (!string.IsNullOrEmpty(unit))
                 text = text + " " + unit;
 
@@ -649,8 +672,7 @@ namespace VisionMaster.Scada.Controls
         /// 一律放行——口径与领域层那条闸门逐字一致，不在这里另立一套。
         /// </summary>
         private bool CanOperate
-            => Element?.RequiredRole is not { } required
-               || RuntimeContext?.AccessPolicy.CanOperate(required, out _) == true;
+            => RuntimeContext?.AccessPolicy.CanElement(Element) == true;
 
         /// <summary>
         /// 显示域的值 → 显示串。十六进制/二进制按整数出（工业画面里的位状态、字状态、设备地址都当整数看），

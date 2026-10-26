@@ -56,6 +56,16 @@
     <!--  计数徽标底：与分隔线同族，比面板底深一点，11px 的字压上去仍清楚  -->
     <SolidColorBrush x:Key="ScadaBadgeBackgroundBrush" Color="#E6EBF2" />
 
+    <!--  用户管理弹窗（Element 口径）：浅底 / 行分隔线 / 底边线 / 弹窗标题栏  -->
+    <!--  浅底：列表列头、只读字段、行悬停共用同一档——三处若各写各的，改一次色要改三遍  -->
+    <SolidColorBrush x:Key="ScadaSubtleFillBrush" Color="#F5F7FA" />
+    <!--  行分隔线：比列头底边再浅一档，只做"分开"，不做"框住"  -->
+    <SolidColorBrush x:Key="ScadaRowDividerBrush" Color="#F2F3F5" />
+    <!--  底边线：列头下沿、弹窗标题栏下沿  -->
+    <SolidColorBrush x:Key="ScadaHeaderDividerBrush" Color="#EBEEF5" />
+    <!--  弹窗标题栏底：比列头再浅一档，让标题条与内容区之间有层次  -->
+    <SolidColorBrush x:Key="ScadaDialogTitleBarBrush" Color="#F8F9FA" />
+
     <!--  文字：正文 / 标签 / 次要说明 / 占位与禁用  -->
     <SolidColorBrush x:Key="ScadaTextBrush" Color="#303133" />
     <SolidColorBrush x:Key="ScadaLabelTextBrush" Color="#606266" />
@@ -65,6 +75,10 @@
     <SolidColorBrush x:Key="ScadaSecondaryTextBrush" Color="#66708A" />
     <SolidColorBrush x:Key="ScadaFaintTextBrush" Color="#A8ABB2" />
     <SolidColorBrush x:Key="ScadaDisabledTextBrush" Color="#C0C4CC" />
+    <!--  占位/空态灰：用户管理弹窗沿用的 Element 口径 #909399。
+         它比 ScadaFaintTextBrush（#A8ABB2）深、比 ScadaSecondaryTextBrush（#66708A）浅，
+         是"这里没内容"而不是"这是一句说明"——语义不同，所以不并进上面两档。  -->
+    <SolidColorBrush x:Key="ScadaPlaceholderTextBrush" Color="#909399" />
 
     <!--  交互：悬停底 / 选中蓝 / 选中底 / 主按钮底 / 主按钮上的字  -->
     <SolidColorBrush x:Key="ScadaHoverBrush" Color="#E3EEF9" />
@@ -72,6 +86,13 @@
     <SolidColorBrush x:Key="ScadaAccentSoftBrush" Color="#1A3B82F6" />
     <SolidColorBrush x:Key="ScadaPrimaryButtonBrush" Color="#409EFF" />
     <SolidColorBrush x:Key="ScadaOnAccentTextBrush" Color="#FFFFFF" />
+    <!--  强调色用作线条/文字（选中行描边、描边按钮的边与字）：与 ScadaPrimaryButtonBrush 同值不同用，
+         一个是"填充"一个是"线条"。合成一个键的话，将来把主按钮改成深一档会连带把描边也改深。  -->
+    <SolidColorBrush x:Key="ScadaAccentLineBrush" Color="#409EFF" />
+    <!--  选中行底：浅蓝，与 ScadaAccentLineBrush 的描边成对出现  -->
+    <SolidColorBrush x:Key="ScadaSelectedRowBrush" Color="#ECF5FF" />
+    <!--  次要按钮描边（白底 + 浅灰边）：取消/关闭/重置一类  -->
+    <SolidColorBrush x:Key="ScadaButtonBorderBrush" Color="#DCDFE6" />
 
     <!--
         组态编辑器工作台（design.html v2 §组态画面）。
@@ -96,11 +117,18 @@
     <!--  浮出工具条的投影色：DropShadowEffect.Color 要 Color 不是 Brush，单列一条  -->
     <Color x:Key="ScadaToolbarShadowColor">#0F172A</Color>
 
-    <!--  语义色：非法（红）/ 警示（橙）/ 色块描边  -->
+    <!--  语义色：非法（红）/ 警示（橙）/ 成功（绿）/ 色块描边  -->
     <SolidColorBrush x:Key="ScadaDangerBrush" Color="#E05B5B" />
     <SolidColorBrush x:Key="ScadaInvalidBackgroundBrush" Color="#FDF0F0" />
     <SolidColorBrush x:Key="ScadaWarningBrush" Color="#E6A23C" />
     <SolidColorBrush x:Key="ScadaSwatchBorderBrush" Color="#C0C4CC" />
+    <!--  警告条（浅橙底 + 橙边）：用户管理弹窗里"当前不是管理员"的提示条  -->
+    <SolidColorBrush x:Key="ScadaWarningSoftBrush" Color="#FDF6EC" />
+    <SolidColorBrush x:Key="ScadaWarningBorderBrush" Color="#F5DAB1" />
+    <!--  危险按钮（红边红字的描边态 + 红底白字的确认态）  -->
+    <SolidColorBrush x:Key="ScadaDangerOutlineBrush" Color="#F56C6C" />
+    <!--  成功提示文字（保存成功那一行）  -->
+    <SolidColorBrush x:Key="ScadaSuccessTextBrush" Color="#67C23A" />
 
     <!--  已绑变量：ƒx 按钮 / 变量带底与描边 / ƒ 记号 / 变量带上的 ✕  -->
     <SolidColorBrush x:Key="ScadaBoundBrush" Color="#2A6BB5" />    <SolidColorBrush x:Key="ScadaBoundChipBrush" Color="#EAF3FF" />

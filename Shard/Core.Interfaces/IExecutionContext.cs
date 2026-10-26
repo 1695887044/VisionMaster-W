@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using Core.Interfaces.Assets;
 using Core.Interfaces.Database;
 using Core.Interfaces.Io;
 
@@ -101,5 +102,20 @@ namespace Core.Interfaces
         IDatabaseAccess Database => NullDatabaseAccess.Instance;
 
         IDictionary<string, object> LocalVariables { get; }
+
+        /// <summary>
+        /// 方案级标定资产目录（「标定」步骤按 Id/名字读写；下游「标定引用」同源）。
+        ///
+        /// 与 <see cref="GlobalVariables"/> 同一范式：由上下文递送，没有方案工作区时
+        /// 返回 <see cref="NullCalibrationCatalog"/>（读取失败、写入失败并说明原因）。
+        /// 默认实现让所有既有 IExecutionContext 实现者无需改动。
+        /// </summary>
+        ICalibrationCatalog Calibrations => NullCalibrationCatalog.Instance;
+
+        /// <summary>
+        /// 方案内容资产目录（模板 / 模型 / 图像 / 标定 / 配方）的只读解析入口。
+        /// 插件用 AssetId 取文件路径；没有方案时回落实空实现。
+        /// </summary>
+        IProjectAssetResolver Assets => NullProjectAssetResolver.Instance;
     }
 }

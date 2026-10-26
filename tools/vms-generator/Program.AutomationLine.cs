@@ -107,7 +107,7 @@ internal static partial class Program
         AddRange(forBody, CallStation("am:st5", "St5_Surface", 60000, "St5 表面设备故障"));
         AddRange(forBody, CallStation("am:st6", "St6_Trace", 60000, "St6 追溯设备故障"));
         AddRange(forBody, CallStation("am:st7", "St7_Function", 30000, "St7 功能设备故障"));
-        forBody.Add(ImgFile("am:displayImg", "产线显示图", DIR_BOARD + @"\board-01.png", 0));
+        forBody.Add(ImgFile("am:displayImg", "产线显示图", IMG_BOARD_01, 0));
         forBody.Add(ResultDisplay("am:display", "产线结果显示", new[]
         {
             ("r1", "尺寸", "am:st4run", "调用St4_Dimension", "Invoked"),
@@ -159,7 +159,7 @@ internal static partial class Program
         cycle.Add(ratio);
         cycle.Add(percent);
         cycle.Add(VarAssign("am:yield", "写良率", "YieldRate", LStep(percent, "Result", "良率百分比"), "Global", null));
-        cycle.Add(CsvRecord("am:csv", "产线节拍记录"));
+        cycle.Add(CcgCsvRecord("am:csv", "产线节拍记录", DefaultCsvColumns()));
         cycle.Add(Delay("am:cycleDelay", "节拍延时", 500));
 
         var triggerIf = IfStep("am:trigger", "触发判断", "Trigger >= 1", G("am:var:trigger"), "Trigger", "System.Int32",
@@ -244,7 +244,7 @@ internal static partial class Program
     {
         var steps = new JArray
         {
-            ImgFile("s2:acq", "采集板卡图", DIR_BOARD + @"\board-01.png", 0),
+            ImgFile("s2:acq", "采集板卡图", IMG_BOARD_01, 0),
             PreProcess("s2:pre", "图像预处理", new JArray
             {
                 Op("gauss", ("Size", "5")),
@@ -278,7 +278,7 @@ internal static partial class Program
     {
         var steps = new JArray
         {
-            ImgFile("s3:acq", "采集装配图", DIR_BOARD + @"\board-02.png", 0),
+            ImgFile("s3:acq", "采集装配图", IMG_BOARD_02, 0),
             MotionEnable("s3:enZ", "Z使能", "Z", true, 10000),
             MotionMove("s3:zDown", "Z压装", "Z", "Absolute", 5, 10),
             Delay("s3:press", "压装保持", 300),
@@ -311,10 +311,10 @@ internal static partial class Program
         var branchB = CaliperSet("s4b", 41, 241, 201, 201, 90.5);
         var branchC = new JArray
         {
-            ImgFile("s4c:acq1", "采集宽度图", DIR_CALIPER + @"\1-宽度40px.png", 0),
+            ImgFile("s4c:acq1", "采集宽度图", IMG_CALIPER_1, 0),
             Caliper("s4c:w", "宽度测量", "s4c:acq1", "采集宽度图", "Width",
                 new[] { Reg("宽度区", "Rectangle", 240, 300, 0, 80, 100) }, 5, 30, 40, 0.5, -0.5, 1),
-            ImgFile("s4c:acq4", "采集圆图", DIR_CALIPER + @"\4-圆直径200px.png", 0),
+            ImgFile("s4c:acq4", "采集圆图", IMG_CALIPER_4, 0),
             Caliper("s4c:dia", "圆直径测量", "s4c:acq4", "采集圆图", "CircleDiameter",
                 new[] { Reg("圆搜索区", "Circle", 240, 320, 100) }, 16, 30, 200, 1, -1, 1),
             Logic("s4c:and", "尺寸综合C", "s4c:w", "宽度测量", "s4c:dia", "圆直径测量", "IsOk", "IsOk"),
@@ -342,21 +342,21 @@ internal static partial class Program
     {
         var steps = new JArray
         {
-            ImgFile(p + ":acq1", "采集宽度图", DIR_CALIPER + @"\1-宽度40px.png", 0),
+            ImgFile(p + ":acq1", "采集宽度图", IMG_CALIPER_1, 0),
             Caliper(p + ":w", "宽度测量", p + ":acq1", "采集宽度图", "Width",
                 new[] { Reg("宽度区", "Rectangle", 240, 300, 0, 80, 100) }, 5, 30, w, 0.5, -0.5, 1),
-            ImgFile(p + ":acq2", "采集两点距图", DIR_CALIPER + @"\2-两点距240px.png", 0),
+            ImgFile(p + ":acq2", "采集两点距图", IMG_CALIPER_2, 0),
             Caliper(p + ":pp", "两点距测量", p + ":acq2", "采集两点距图", "PointToPoint",
                 new[] { Reg("左条", "Rectangle", 240, 100, 0, 60, 80), Reg("右条", "Rectangle", 240, 340, 0, 60, 80) },
                 5, 30, pp, 0.5, -0.5, 1),
-            ImgFile(p + ":acq3", "采集点线距图", DIR_CALIPER + @"\3-点到线距200px.png", 0),
+            ImgFile(p + ":acq3", "采集点线距图", IMG_CALIPER_3, 0),
             Caliper(p + ":pl", "点到线距测量", p + ":acq3", "采集点线距图", "PointToLineDistance",
                 new[] { Reg("点区", "Rectangle", 250, 300, 0, 60, 60), Reg("线区", "Rectangle", 250, 100, 0, 60, 80) },
                 5, 30, pl, 0.5, -0.5, 1),
-            ImgFile(p + ":acq4", "采集圆图", DIR_CALIPER + @"\4-圆直径200px.png", 0),
+            ImgFile(p + ":acq4", "采集圆图", IMG_CALIPER_4, 0),
             Caliper(p + ":dia", "圆直径测量", p + ":acq4", "采集圆图", "CircleDiameter",
                 new[] { Reg("圆搜索区", "Circle", 240, 320, 100) }, 16, 30, dia, 1, -1, 1),
-            ImgFile(p + ":acq5", "采集角度图", DIR_CALIPER + @"\5-角度90.png", 0),
+            ImgFile(p + ":acq5", "采集角度图", IMG_CALIPER_5, 0),
             Caliper(p + ":ang", "角度测量", p + ":acq5", "采集角度图", "Angle",
                 new[] { Reg("竖线区", "Rectangle", 120, 240, 1.5708, 60, 80), Reg("横线区", "Rectangle", 240, 440, 0, 60, 80) },
                 5, 30, ang, 0.5, -0.5, 1),
@@ -377,7 +377,7 @@ internal static partial class Program
     {
         var pre = new JArray
         {
-            ImgFile("s5:acq", "采集板卡图", DIR_BOARD + @"\board-01.png", 0),
+            ImgFile("s5:acq", "采集板卡图", IMG_BOARD_01, 0),
             PreProcess("s5:pre", "图像预处理", new JArray
             {
                 Op("gauss", ("Size", "5")),
@@ -444,7 +444,7 @@ internal static partial class Program
     {
         var steps = new JArray
         {
-            ImgFile("s6:ocrAcq", "采集批号图", @"D:\C#\VM\Image\images\ocr\lot_number_01.png", 0),
+            ImgFile("s6:ocrAcq", "采集批号图", IMG_LOT, 0),
             Ocr("s6:ocr", "OCR识别", new double[] { 272, 320, 0, 170, 40 }, 0, "s6:ocrAcq", "采集批号图", true),
             ImgFile("s6:qrAcq", "采集二维码图", IMG_QR, 0),
             Action("s6:qr", "二维码读取", "图像处理", P_CODE, "二维码读取", "\uf029", new JObject

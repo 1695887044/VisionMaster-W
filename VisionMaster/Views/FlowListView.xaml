@@ -26,6 +26,33 @@
             </ResourceDictionary.MergedDictionaries>
 
             <ui:BindingProxy x:Key="MyViewModelProxy" Data="{Binding}" />
+
+            <!--  底栏「全部 ›」文字链接：本视图不引 Dialog 分册（断言宿主无 App 级字典）  -->
+            <Style x:Key="FlowFootLink" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="Transparent">
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Foreground" Value="{StaticResource DialogAccentBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -68,25 +95,36 @@
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ListBoxItem">
-                                    <Border
-                                        x:Name="ItemBorder"
-                                        Height="22"
-                                        Padding="6,0"
-                                        Background="{StaticResource DialogSurfaceBrush}"
-                                        BorderBrush="{StaticResource DialogBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="4">
-                                        <ContentPresenter VerticalAlignment="Center" />
-                                    </Border>
+                                    <Grid>
+                                        <Border
+                                            x:Name="ItemBorder"
+                                            Height="24"
+                                            Padding="7,0"
+                                            Background="{StaticResource DialogSurfaceBrush}"
+                                            BorderBrush="{StaticResource DialogBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="6">
+                                            <ContentPresenter VerticalAlignment="Center" />
+                                        </Border>
+                                        <!--  选中左条：2px，上下内缩 3px，贴着圆角内侧  -->
+                                        <Border
+                                            x:Name="SelBar"
+                                            Width="2"
+                                            Margin="1,3,0,3"
+                                            HorizontalAlignment="Left"
+                                            Background="{StaticResource DialogAccentBrush}"
+                                            CornerRadius="1"
+                                            Visibility="Collapsed" />
+                                    </Grid>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
                                             <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
                                             <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
                                         </Trigger>
                                         <Trigger Property="IsSelected" Value="True">
-                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
-                                            <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
-                                            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+                                            <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                            <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                            <Setter TargetName="SelBar" Property="Visibility" Value="Visible" />
                                         </Trigger>
                                         <!--  键盘焦点必须可见（R115）  -->
                                         <Trigger Property="IsKeyboardFocused" Value="True">
@@ -102,7 +140,7 @@
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <!--  单行：状态点 + 名称 + 角色徽标 + 运行脉冲点 + 步数  -->
-                        <Grid Background="Transparent" ToolTip="{Binding Description}">
+                        <Grid x:Name="PillRoot" Background="Transparent" ToolTip="{Binding Description}">
                             <Grid.ContextMenu>
                                 <ContextMenu FontFamily="{StaticResource Icon}">
                                     <MenuItem Header="流程" Icon="&#xf0e8;">
@@ -171,19 +209,24 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <!--  状态点只表达"启用/禁用"（运行态在后面的脉冲点）  -->
-                            <Ellipse
-                                x:Name="FlowDot"
+                            <!--  角色/调用徽标合一：零 / 主 / 尾 / 外部 / 子 / 循环（角色优先）  -->
+                            <Border
+                                x:Name="KindBadge"
                                 Grid.Column="0"
-                                Width="6"
-                                Height="6"
+                                Height="14"
                                 Margin="0,0,5,0"
+                                Padding="3,0"
                                 VerticalAlignment="Center"
-                                Fill="{StaticResource FlowCanvasSuccessBrush}" />
+                                BorderThickness="1"
+                                CornerRadius="3"
+                                Visibility="Collapsed">
+                                <TextBlock
+                                    x:Name="KindText"
+                                    FontSize="9"
+                                    Text="" />
+                            </Border>
 
                             <TextBlock
                                 x:Name="NameText"
@@ -194,49 +237,12 @@
                                 Text="{Binding FlowName}"
                                 TextTrimming="CharacterEllipsis" />
 
-                            <!--  角色徽标：Home/Main/End 三条骨架流程各一个字，完整名称进 ToolTip  -->
-                            <Border
-                                x:Name="RoleBadge"
-                                Grid.Column="2"
-                                Margin="4,0,0,0"
-                                Padding="3,0"
-                                VerticalAlignment="Center"
-                                CornerRadius="2"
-                                Visibility="Collapsed">
-                                <TextBlock
-                                    x:Name="RoleText"
-                                    FontSize="9"
-                                    Text="" />
-                            </Border>
-
-                            <!--
-                                调用关系徽标：与角色徽标分开表达“能不能直接拉起”。
-                                · 循环 = 主流程，工具栏「循环运行主流程」可直接启动；
-                                · 外部 = 定时/变量/HTTP，可被对应触发源直接拉起；
-                                · 子   = 仅勾了子程序且无外部触发，只能由其它流程调用。
-                                颜色与角色徽标同族（复用现有令牌，不新增全局资源）。
-                            -->
-                            <Border
-                                x:Name="CallBadge"
-                                Grid.Column="3"
-                                Margin="3,0,0,0"
-                                Padding="4,0"
-                                VerticalAlignment="Center"
-                                CornerRadius="2"
-                                ToolTip="{Binding CallBadgeToolTip}"
-                                Visibility="Collapsed">
-                                <TextBlock
-                                    x:Name="CallText"
-                                    FontSize="9"
-                                    Text="{Binding CallBadgeText}" />
-                            </Border>
-
-                            <!--  运行标记：6px 脉冲点（单行式没有第二行放"运行中"三个字）  -->
+                            <!--  运行/暂停标记：5px；失败点需要运行期失败数据，本轮不实现  -->
                             <Ellipse
                                 x:Name="RunDot"
-                                Grid.Column="4"
-                                Width="6"
-                                Height="6"
+                                Grid.Column="2"
+                                Width="5"
+                                Height="5"
                                 Margin="4,0,0,0"
                                 VerticalAlignment="Center"
                                 Fill="{StaticResource FlowCanvasSuccessBrush}"
@@ -244,7 +250,7 @@
 
                             <TextBlock
                                 x:Name="CountText"
-                                Grid.Column="5"
+                                Grid.Column="3"
                                 Margin="5,0,0,0"
                                 VerticalAlignment="Center"
                                 FontFamily="Consolas"
@@ -254,90 +260,84 @@
                         </Grid>
                         <!--  禁用态放 DataTemplate.Triggers：本仓库实测 ControlTemplate.Triggers 里的 DataTrigger 对模板内元素静默失效  -->
                         <DataTemplate.Triggers>
-                            <!--  角色徽标：三种角色各自着色（复用逻辑容器族，不新增令牌）  -->
-                            <DataTrigger Binding="{Binding Role}" Value="Home">
-                                <Setter TargetName="RoleBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicCaseSoftBrush}" />
-                                <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicCaseBorderBrush}" />
-                                <Setter TargetName="RoleBadge" Property="BorderThickness" Value="1" />
-                                <Setter TargetName="RoleText" Property="Foreground" Value="{StaticResource LogicCaseTextBrush}" />
-                                <Setter TargetName="RoleText" Property="Text" Value="零" />
-                                <Setter TargetName="RoleBadge" Property="ToolTip" Value="回零（Home）" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Role}" Value="Main">
-                                <Setter TargetName="RoleBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
-                                <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
-                                <Setter TargetName="RoleBadge" Property="BorderThickness" Value="1" />
-                                <Setter TargetName="RoleText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
-                                <Setter TargetName="RoleText" Property="Text" Value="主" />
-                                <Setter TargetName="RoleBadge" Property="ToolTip" Value="主流程 · 工具栏「循环运行主流程」可直接启动" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Role}" Value="End">
-                                <Setter TargetName="RoleBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicWhileSoftBrush}" />
-                                <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicWhileBorderBrush}" />
-                                <Setter TargetName="RoleBadge" Property="BorderThickness" Value="1" />
-                                <Setter TargetName="RoleText" Property="Foreground" Value="{StaticResource LogicWhileTextBrush}" />
-                                <Setter TargetName="RoleText" Property="Text" Value="尾" />
-                                <Setter TargetName="RoleBadge" Property="ToolTip" Value="收尾（End）" />
-                            </DataTrigger>
-
-                            <!--  调用关系徽标：循环 / 外部 / 子；空串保持 Collapsed  -->
+                            <!--  调用徽标先写，角色徽标后写：两者同时命中时角色优先（主 > 外部 > 子 > 循环）  -->
                             <DataTrigger Binding="{Binding CallBadgeText}" Value="循环">
-                                <Setter TargetName="CallBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="CallBadge" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
-                                <Setter TargetName="CallBadge" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
-                                <Setter TargetName="CallBadge" Property="BorderThickness" Value="1" />
-                                <Setter TargetName="CallText" Property="Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
+                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                                <Setter TargetName="KindText" Property="Text" Value="循环" />
+                                <Setter TargetName="KindBadge" Property="ToolTip" Value="{Binding CallBadgeToolTip}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding CallBadgeText}" Value="外部">
-                                <Setter TargetName="CallBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="CallBadge" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
-                                <Setter TargetName="CallBadge" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-                                <Setter TargetName="CallBadge" Property="BorderThickness" Value="1" />
-                                <Setter TargetName="CallText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                <Setter TargetName="KindText" Property="Text" Value="外部" />
+                                <Setter TargetName="KindBadge" Property="ToolTip" Value="{Binding CallBadgeToolTip}" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding CallBadgeText}" Value="子">
-                                <Setter TargetName="CallBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="CallBadge" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
-                                <Setter TargetName="CallBadge" Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
-                                <Setter TargetName="CallBadge" Property="BorderThickness" Value="1" />
-                                <Setter TargetName="CallText" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
-                            </DataTrigger>
-                            <!--
-                                Main 已经由角色徽标“主”（绿色）表达“可循环”，单行 22px 放不下第二个徽标；
-                                这里显式收起 CallBadge，避免“主 + 循环”互相挤占把流程名截断。
-                                必须排在“循环”触发器之后（后者先把 CallBadge 置为 Visible）。
-                            -->
-                            <DataTrigger Binding="{Binding IsDirectlyLoopable}" Value="True">
-                                <Setter TargetName="CallBadge" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                                <Setter TargetName="KindText" Property="Text" Value="子" />
+                                <Setter TargetName="KindBadge" Property="ToolTip" Value="{Binding CallBadgeToolTip}" />
                             </DataTrigger>
 
-                            <!--  运行中：名称加粗 + 绿脉冲点  -->
+                            <!--  角色徽标：Home/Main/End 三条骨架流程各一个字；排在调用徽标之后，命中即覆盖  -->
+                            <DataTrigger Binding="{Binding Role}" Value="Home">
+                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource LogicCaseSoftBrush}" />
+                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource LogicCaseBorderBrush}" />
+                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource LogicCaseTextBrush}" />
+                                <Setter TargetName="KindText" Property="Text" Value="零" />
+                                <Setter TargetName="KindBadge" Property="ToolTip" Value="回零（Home）" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="Main">
+                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                <Setter TargetName="KindText" Property="Text" Value="主" />
+                                <Setter TargetName="KindBadge" Property="ToolTip" Value="主流程 · 工具栏「循环运行主流程」可直接启动" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Role}" Value="End">
+                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource LogicWhileSoftBrush}" />
+                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource LogicWhileBorderBrush}" />
+                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource LogicWhileTextBrush}" />
+                                <Setter TargetName="KindText" Property="Text" Value="尾" />
+                                <Setter TargetName="KindBadge" Property="ToolTip" Value="收尾（End）" />
+                            </DataTrigger>
+
+                            <!--  选中：名称半粗（底色/左条在 ItemContainerStyle 里）  -->
+                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
+                            </DataTrigger>
+
+                            <!--  运行中：名称加粗 + 绿点  -->
                             <DataTrigger Binding="{Binding RunState}" Value="Running">
                                 <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
                                 <Setter TargetName="RunDot" Property="Visibility" Value="Visible" />
                                 <Setter TargetName="RunDot" Property="ToolTip" Value="运行中" />
                             </DataTrigger>
-                            <!--  已暂停：点与文字转主色  -->
+                            <!--  已暂停：点转主色  -->
                             <DataTrigger Binding="{Binding RunState}" Value="Paused">
                                 <Setter TargetName="NameText" Property="FontWeight" Value="SemiBold" />
-                                <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
                                 <Setter TargetName="RunDot" Property="Visibility" Value="Visible" />
                                 <Setter TargetName="RunDot" Property="Fill" Value="{StaticResource DialogAccentBrush}" />
                                 <Setter TargetName="RunDot" Property="ToolTip" Value="已暂停" />
                             </DataTrigger>
 
-                            <!--  禁用：点灰 + 删除线 + 去饱和；运行标记强制隐藏（禁用流程不可能在跑）  -->
+                            <!--  禁用：整枚 55% + 删除线；运行标记强制隐藏（禁用流程不可能在跑）  -->
                             <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                                <Setter TargetName="FlowDot" Property="Fill" Value="{StaticResource ScadaDisabledTextBrush}" />
+                                <Setter TargetName="PillRoot" Property="Opacity" Value="0.55" />
                                 <Setter TargetName="NameText" Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
                                 <Setter TargetName="NameText" Property="TextDecorations" Value="Strikethrough" />
                                 <Setter TargetName="CountText" Property="Foreground" Value="{StaticResource ScadaDisabledTextBrush}" />
                                 <Setter TargetName="RunDot" Property="Visibility" Value="Collapsed" />
-                                <Setter TargetName="RoleBadge" Property="Opacity" Value="0.5" />
-                                <Setter TargetName="CallBadge" Property="Opacity" Value="0.5" />
                             </DataTrigger>
                         </DataTemplate.Triggers>
                     </DataTemplate>
@@ -376,10 +376,10 @@
             </Border>
         </Grid>
 
-        <!--  底栏：流程条数 + 当前选中  -->
+        <!--  底栏：流程条数 + 全部入口 + 当前选中（22px：与胶囊 24px 一起凑出 112/224 的高度账）  -->
         <Border
             Grid.Row="1"
-            Height="26"
+            Height="22"
             Padding="8,0"
             Background="{StaticResource DialogRowAlternateBrush}"
             BorderBrush="{StaticResource DialogBorderBrush}"
@@ -406,6 +406,15 @@
                         FontSize="10.5"
                         Foreground="{StaticResource DialogTextTertiaryBrush}"
                         Text="条流程" />
+                    <Button
+                        Height="18"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding FlowCommand}"
+                        CommandParameter="{x:Static enums:FlowAction.Manager}"
+                        Content="全部 ›"
+                        Style="{StaticResource FlowFootLink}"
+                        ToolTip="打开流程管理" />
                 </StackPanel>
 
                 <TextBlock

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
@@ -70,6 +71,16 @@ namespace VisionMaster.ViewModels
         private ScadaElement? _selectedElement;
 
         /// <summary>
+        /// 本视图模型归属的那条 UI 线程（构造期捕获）。
+        ///
+        /// 用途只有一个：<see cref="OnHistoryChanged"/> 收到的通知可能来自<b>别的线程</b>
+        /// （撤销栈是静态全局的，谁改文档谁压栈），那种时候必须投递回来再摸 UI 绑定状态。
+        /// 为什么不在需要时现取 <c>Dispatcher.CurrentDispatcher</c>：那拿到的永远是"当前线程"的，
+        /// 恰恰就是要避开的那个错线程。
+        /// </summary>
+        private readonly Dispatcher? _uiDispatcher;
+
+        /// <summary>
         /// 当前选中的<b>全部</b>图元（画布双向同步）。
         ///
         /// 与 <see cref="SelectedElement"/> 的关系见 <c>ScadaCanvas.SelectedElements</c> 的注释：
@@ -93,6 +104,9 @@ namespace VisionMaster.ViewModels
             _runtime = runtime;
             _dialogService = dialogService;
             _workspaceChanged = workspace as INotifyPropertyChanged;
+
+            // 归属线程在构造期钉死：撤销栈的 Changed 可能在任意线程上回调（见 OnHistoryChanged）
+            _uiDispatcher = Dispatcher.CurrentDispatcher;
 
             AddPageCommand = new DelegateCommand(OnAddPage, () => Document != _fallback);
             AddBasePageCommand = new DelegateCommand(OnAddBasePage, () => Document != _fallback);
@@ -220,6 +234,13 @@ namespace VisionMaster.ViewModels
 
         /// <summary>是否已经打开了方案（用于属性面板区分“无方案”与“有方案但没有画面”）</summary>
         public bool HasSolution => _workspace.CurrentSolution != null;
+
+        /// <summary>
+        /// 当前方案文件路径（未保存过为 null）。
+        /// 属性面板的「从账本导入列」用它定位 History 目录——与运行态报表取数同一个出处
+        /// （<c>SolutionPaths.GetHistoryDirectory</c>），不另开一套目录推断。
+        /// </summary>
+        public string? CurrentSolutionFilePath => _workspace.CurrentSolution?.SolutionFilePath;
 
         /// <summary>当前是否选中了画面</summary>
         public bool HasPage => SelectedPage != null;
@@ -397,6 +418,42 @@ namespace VisionMaster.ViewModels
                     out _)
                 ? image
                 : null;
+
+        /// <summary>
+        /// 打开「计划表」管理器（方案级：时间/事件触发 + 动作）。
+        ///
+        /// 入口放在 <b>SCADA 组态</b>里而不是主界面顶栏：计划表是画面/运行态的一部分，
+        /// 与"这个方案怎么跑"绑在一起；主界面管的是工程与插件，不该混进方案级自动化配置。
+        ///
+        /// 提交语义：整个弹窗期间算<b>一次</b>编辑（一个变更作用域 → 一条撤销记录）；
+        /// 「取消」时把打开前的 JSON 备份写回，并作废这次作用域（不留"什么都没改"的撤销）。
+        /// </summary>
+        public void OpenSchedules()
+        {
+            var document = Document;
+            var backup = Newtonsoft.Json.JsonConvert.SerializeObject(document.Schedules);
+
+            using (ScadaChangeScope.Begin("编辑计划表"))
+            {
+                var view = new VisionMaster.Views.DialogViews.ScadaScheduleManagerView(document);
+
+                if (UI.CustomControl.EasyDialog.ShowSync("计划表", view))
+                    return;
+
+                RestoreSchedules(document, backup);
+                ScadaChangeScope.AbortCurrent();
+            }
+        }
+
+        private static void RestoreSchedules(ScadaDocument document, string json)
+        {
+            var restored = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Collections.Generic.List<ScadaSchedule>>(json)
+                           ?? new System.Collections.Generic.List<ScadaSchedule>();
+
+            document.Schedules.Clear();
+            foreach (var schedule in restored)
+                document.Schedules.Add(schedule);
+        }
 
         /// <summary>
         /// 方案图片原始字节解析器（相对路径 → 文件内容），交给画布注入给 Hmi.Gif。
@@ -978,9 +1035,33 @@ namespace VisionMaster.ViewModels
                 ApplySelection(survivors);
         }
 
-        /// <summary>栈变了就刷按钮：可用态与提示文案都跟着变（DelegateCommand 不自动重查，必须显式 raise）</summary>
+        /// <summary>
+        /// 栈变了就刷按钮：可用态与提示文案都跟着变（DelegateCommand 不自动重查，必须显式 raise）。
+        ///
+        /// <b>为什么这里要过一道线程封送</b>：撤销栈是<b>静态全局</b>的（<see cref="ScadaEditHistory"/>），
+        /// 谁改文档谁压栈——模型层没有任何线程约束。而本处理器碰的全是 UI 绑定状态
+        /// （命令的 <c>CanExecuteChanged</c>、<see cref="BasePageOptions"/> 这类集合）。
+        /// 一旦通知来自后台线程，<c>RaiseCanExecuteChanged</c> 会去摸别的线程上的按钮，抛
+        /// "调用线程无法访问此对象"；而后台线程的未处理异常会终止进程——App 层的
+        /// <c>DispatcherUnhandledException</c> 兜不住它（那只管 UI 线程）。
+        ///
+        /// 断言宿主里踩过一次：一次性 STA 线程上建好 VM 与按钮后线程退出，主线程压栈即崩
+        /// （见 docs/code-changes/2026-10-26-撤销栈跨线程审查（静态事件与UI线程边界）.md）。
+        /// </summary>
         private void OnHistoryChanged(object? sender, EventArgs e)
         {
+            if (_uiDispatcher != null && !_uiDispatcher.CheckAccess())
+            {
+                // 归属线程已经没了（一次性线程跑完）：这份 UI 状态没有意义。
+                // 不能同步摸（跨线程），也不该往停摆的 Dispatcher 上投递——
+                // 对已关闭的 Dispatcher 调 BeginInvoke 会抛另一种异常，比原缺陷更隐蔽。
+                if (_uiDispatcher.HasShutdownStarted || _uiDispatcher.HasShutdownFinished)
+                    return;
+
+                _uiDispatcher.BeginInvoke(new Action(() => OnHistoryChanged(sender, e)));
+                return;
+            }
+
             UndoCommand.RaiseCanExecuteChanged();
             RedoCommand.RaiseCanExecuteChanged();
             RaisePropertyChanged(nameof(UndoLabel));

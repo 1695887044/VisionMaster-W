@@ -1,5 +1,17 @@
 # SCADA 运行态 Web 客户端方案说明书（M0–M3）
 
+> **B3/B4 口径变更（2026-10-25，**覆盖本文所有旧口径**）**
+> 账号本改成「方案级 + 用户组 + 权限 Key」之后，Web 端的授权模型同步换过一次，**旧的点击策略已整体删除**：
+> 1. **`ScadaWeb.ClickPolicy` / `ScadaWebClickPolicy` 已从配置模型移除**；`HighestRoleOnly` 与 `AllOperators` 不再存在。
+> 2. **`ScadaRole` 不再参与任何 Web 判权**：`ScadaWebTicketGrant` / `ScadaWebSessionGrant` / `ScadaWebSession` / `ScadaWebSessionInfo` / `ScadaWebPresenceEntry` 上都没有 `Role`；presence 改给 `GroupId`/`GroupName`。
+> 3. **判权只看权限 Key**：`ScadaWebAccessPolicy.Can(session, requiredKey)`；`Evaluate(session, settings, …)` 只管"总闸 / 认证 / 显式只读"。图元按 `RequiredPermission` 判，旧 `.vms` 的 `RequiredRole` 折成 Key，运动/停止族按 `ScadaRuntime.RequiredPermissionFor` 兜底。
+> 4. **没有"谁比谁高"**：同一 Key 的多个会话可同时操作；要"同一时刻一个人动手"用操作权租约。
+> 5. **§8.2/§8.3/§8.4/§8.5 已按新模型重写**；"五项监管闸门才允许 `AllOperators`"这道闸门随策略一起删除（`RequireAudit=true` 的硬约束保留）。
+> 6. **方案级会话（B4）**：票与 8 小时会话令牌都盖 `(SolutionId, Epoch)` 身份戳；切方案后旧票/旧令牌一律 `E_SOLUTION_CHANGED`（与 `E_SESSION_REVOKED`、`E_SESSION_EXPIRED` 三分）；无方案时 `POST /api/ticket` 503 `E_NO_SOLUTION` 且零 PBKDF2、零默认密码判定；`RevokeAll` 清三张表并把令牌记进"因换方案失效"表。
+> 7. **现行断言**：`Web\ScadaWebChecks` **190 PASS / 0 FAIL**（含 SW1–SW9 共 42 条方案级会话断言），已进 `tools\run_gates.ps1`。
+>
+> 本文后文出现的 `ClickPolicy` / `HighestRoleOnly` / `AllOperators` 字样，凡在 §8 之外的，都是**历史叙述或已作废口径**；不得据此实现。
+
 > 状态：**M1c 收尾——M1 只读核心 PASS、M1 验收矩阵未全跑**。证据：`Web\ScadaWebChecks` **33 PASS / 0 FAIL**（`_m1c_webchecks33b.log`，协议层断言宿主，已入 `VisionMaster.sln`）、`_WebProbe6` **31 PASS / 0 FAIL**（Debug + Release，Agent S 报告）、全量 `ScadaChecks` **2276 通过 / 0 失败**（`_m1c_sc.log`）。M1b 五条 blocking 已在 M1c 关闭（§17.5）。**矩阵 261 条仍未执行**，所以**不写"M1 全绿"**；M2 可开工，M1 全量矩阵待补。M0.2 的结论仍见 §17.1（`B40` / `A01–A09` / `F23` / `F24` 的运行时证据仍欠，M1c 只补了 B40 首帧与 F23/F24 的换票/旧票 401）。执行台账见 `docs\SCADA运行态Web客户端\结果台账.md` §2.7。
 > **M2a 状态（2026-10-21 12:33）**：**地基 PASS（有条件）**——`Web\ScadaWebChecks` Release **97 PASS / 0 FAIL**（33 基线 + 4 静态资产 + 11 动作过滤 + 19 安全 + 26 命令 + 4 回归；日志 `_m2a_webchecks13.log` `AA8A43733714`，DLL `E91456D97780`），`ScadaChecks` Release **2332 通过 / 0 失败**（`_m2a_scadachecks3.log` `92F0CF616A04`），Release 全量重建 0 错误且符号已核。**两轮终审 FAIL 后六条 P0 + 第二轮 P0-1/P1-1 已关闭；C68–C80 未全执行（C68/C69/C70/C72 已于 13:19 补跑，见 §17.7），`AllowCommands=false` 不变。** 真实浏览器 E2E、WS 4403、`E_CAPACITY` 握手、租约、`caps` 热更新仍无运行时证据。**`AllowCommands` 保持默认 `false`，写路径不对现场开放；M2b 可开工（§17.7）。** 第一轮 89/89（`_m2a_webchecks3.log` `CF142B22F99A`）为历史证据。**（补记：真实浏览器双角色 E2E 与租约已于 13:06/13:25 补证（HighestRoleOnly + AllOperators 两种策略）、C68/C69/C70/C72 于 13:19 补跑，见 §17.7「M2b 进展」；前面「仍无运行时证据」「未全执行」是 12:33 时点状态。）**
 > **A′ 第一批（2026-10-22，当前生效口径）**：按 R1–R3 三轮评审落地——多基座（服务端遍历 `BasePages` + 客户端逐层渲染）、结构键/快照缓存（runGeneration/页面标量/有序基座/弹窗）、增量值帧 + keyframe（baseline-on-success）、帧预算（约 45KB/帧/会话，配置 120KiB 会被夹取）、A 范围（硬排除 `StartFlow/RunFlowOnce/ResumeFlow`，Web 轴只读）、45 秒死连接（双条件）、渲染器覆盖度闸。证据：`Web\ScadaWebChecks` **119/0**、`ScadaChecks` **2438/0**。**已封**：Web 写变量触发流程（`IScadaFlowTriggerQuery` + `E_FLOW_TRIGGER`，M2-13f/g）。**未做**：`cmd.result`、快照分片、24 槽准入；29 类图元渲染器已齐全（ChartTrend/ImageView/Axis/DataGrid 均已实现）；详见 `docs\meetings\2026-10-22-SCADA-Web-v4-评审-R3.md` 与 `docs\code-changes\2026-10-22-SCADA运行态Web-A-prime第一批（多基座-结构缓存-增量帧-预算-A范围）.md`。**本文后文出现的“50/100 客户端”“2MiB/120KB”以本块为准：当前生效预算是 45KB/帧/会话，`MaxSessions` 仍 16；3000 图元/16 客户端的压测尚未执行。**
@@ -211,7 +223,7 @@ containerRegistry.RegisterSingleton<IScadaRunHub>(c => c.Resolve<ScadaRuntimeHos
 | `SessionId` | `string` | 服务端生成（32 hex），进日志与审计 `说明` 列的 `[web s=…]` 前缀；**只对服务端可见，绝不下发给其它会话** |
 | `SessionRef` | `string` | **不透明**的对外标识（16 hex，随连接生成、断开即废），只用于 `presence` 与界面"我在看谁"；**不可用于任何命令/审计/鉴权**，也反查不出 `SessionId`（§9.3） |
 | `ConnectionId` | `Guid` | Watson `WebSocketSession` 标识 |
-| `UserName` / `Role` / `IsAuthenticated` | `string?` / `ScadaRole` / `bool` | 认证态；未登录 `Role=Operator` 但 `IsAuthenticated=false` |
+| `UserName` / `GroupId` / `GroupName` / `Permissions` / `IsAuthenticated` | `string?` / `string` / `string` / `IReadOnlyList<string>` / `bool` | 认证态与权限快照；未登录时 `IsAuthenticated=false`、组与权限为空 |
 | `RemoteIp` / `UserAgent` | `string` | 审计用；IP 取 Watson 连接的远端地址；`(ua, ip)` 同时是 resume 的绑定键（§8.9） |
 | `LastSeenUtc` / `ConnectedAtUtc` | `DateTime` | 空闲回收 |
 | `ViewMirror` | `{ runGeneration, pageId, pageVersion, basePageVersion, pageKey, lastSeq }` | 服务端记住的"这个会话已经拿到哪一版"；M1b 的实现字段是 `CurrentPageKey`（`pageId@pageVersion@basePageVersion`），`basePageVersion` 是 M1c 目标字段（§9.4） |
@@ -493,14 +505,14 @@ CreateShell()
 | `MaxElementsPerPage` | int | `2000` | 100–20000 | 超限拒绝加载并报 `E_PAGE_TOO_LARGE`（不静默截断） |
 | `SnapshotMaxBytes` | int | `2097152`（2MiB） | 256KB–64MB | 快照 JSON 上限；超限报错并建议拆页。M1 门槛按 2MiB 判（矩阵 M4/E04）；调大必须同时说明"首屏预算怎么守住" |
 | `FrameBudgetBytes` | int | `122880`（120KB） | 32KB–1MB | 单帧值帧 JSON 上限（1000 图元全变、每图元 3 字段的实测预算）；超限先降 `FrameRateHz`、再按图元分组拆帧，**不许截断字段** |
-| `ClickPolicy` | enum | `HighestRoleOnly` | `HighestRoleOnly` / `AllOperators` | 见 §8.3；运行期可改（推 `policyVersion`） |
-| `RequireOnlineUsers` | bool | `true` | — | **`AllOperators` 的监管开关①**：必须能给出在线列表（`presence`）。为 false 时**拒绝启用 `AllOperators`**（§8.4） |
-| `RequireAudit` | bool | `true` | **固定 `true`** | **监管开关②**：命令级 + 动作级两层审计必须可写。配置成 `false` 属于非法配置：**加载时把值夹回 `true` 并写一条 Error**（文案含配置键名），且不启用 `AllOperators`（C65 守门）。夹取发生在**加载期**、不是运行期 |
-| `RequireRateLimit` | bool | `true` | — | **监管开关③**：`CommandRatePerSecond` + `ElementRatePerSecond` 必须生效。为 false 时拒绝启用 `AllOperators` |
-| `RequireConfirmForDangerous` | bool | `true` | — | **监管开关④**：危险动作必须走 `confirmToken`。为 false 时拒绝启用 `AllOperators` |
-| `OperationLeaseEnabled` | bool | `false` | — | 监管开关⑤（可选）：操作权租约（§8.6）。**默认关**——"多人同时操作"要单人接管时再开 |
+| ~~`ClickPolicy`~~ | — | — | — | **已删除（B3）**：权限改为按 Key 判定，不存在"谁比谁高"的策略枚举。见 §8.3 |
+| `RequireOnlineUsers` | bool | `true` | — | 浏览器是否显示在线列表（`presence`）。关掉只是看不到列表，不影响判权 |
+| `RequireAudit` | bool | `true` | **固定 `true`** | 命令级 + 动作级两层审计必须可写。配置成 `false` 属于非法配置：**加载时把值夹回 `true` 并写一条 Error**（文案含配置键名）。夹取发生在**加载期**、不是运行期（C65 守门）。**与任何策略无关，独立成立** |
+| `RequireRateLimit` | bool | `true` | — | `CommandRatePerSecond` + `ElementRatePerSecond` 是否生效。关掉即不限速，不影响判权 |
+| `RequireConfirmForDangerous` | bool | `true` | — | 危险动作是否必须走 `confirmToken`。关掉即不要求二次确认，不影响判权 |
+| `OperationLeaseEnabled` | bool | `false` | — | 操作权租约（§8.6）。**默认关**——"多人同时操作"要单人接管时再开 |
 | `OperationLeaseSeconds` | int | `60` | 10–600 | 租约有效期；到期自动释放 |
-| `AllOperatorsRequiresLease` | bool | `false` | — | **`AllOperators` 的可选加强项**（不是启用闸门）：为 `true` 时 `AllOperators` 下必须持租约才能点，未持租约一律 `E_LEASE_HELD`；为 `false` 时退化为"都可点 + 串行 + 审计 + 限速 + 二次确认"。**为 `true` 但 `OperationLeaseEnabled=false` 属非法组合：加载即 Error 并把本项夹回 `false`** |
+| `AllOperatorsRequiresLease` | bool | `false` | — | 租约加强开关：为 `true` 时**必须持租约才能点**，未持租约一律 `E_LEASE_HELD`；为 `false` 时租约只是展示/协作信息。**为 `true` 但 `OperationLeaseEnabled=false` 属非法组合：加载即 Error 并把本项夹回 `false`** |
 | `CommandRatePerSecond` | int | `5` | 1–50 | **每会话**命令速率上限；超出 `E_RATE_LIMITED`（0/负数按 1 处理，不许关掉限流） |
 | `ElementRatePerSecond` | int | `2` | 1–20 | **每元素**命令速率上限（同一 `elementId`），**跨会话共享**：会话 A 与 B 在同一秒各写同一元素 1 条，合计 2/s 已满，第 3 条（不论来自哪个会话）`E_RATE_LIMITED` + `retryAfterMs`、不执行。会话级 `CommandRatePerSecond=5` 则是**每会话独立**。C45/C61/C64 按这个口径判 |
 | `ImageTokenSeconds` | int | `45` | **30–60** | `/img` 的 `imageToken` 有效期（§6.1/§8.9）；每 `TTL/3` 轮换一次，旧 token 保留到自己的 `expiresAt`，**同一会话同时最多 3 个存活**（E29 的上限按"会话数 × 3"判） |
@@ -518,9 +530,9 @@ CreateShell()
 | `ImageFormat` | enum | `Png` | `Png` / `Jpeg` | 工艺图/文字截图用 PNG；相机图用 JPEG 省带宽 |
 | `ImageCacheEntries` | int | `32` | 4–256 | 编码结果 LRU |
 | `StaticAssetCacheSeconds` | int | `300` | 0–86400 | 静态资源 `Cache-Control: max-age` |
-| `ShowOnlineUsers` | bool | `true` | — | 浏览器是否显示在线用户列表（审计与监管仍照常；为 false 时 `AllOperators` 不可启用） |
+| `ShowOnlineUsers` | bool | `true` | — | 浏览器是否显示在线用户列表（审计与判权仍照常） |
 
-**字段落点（M2a as-built，2026-10-21 09:10 复核）**：`ScadaWebSettings` 现在**已有**：`Enabled` / `Port` / `BindAddress` / `RequireLogin` / `AllowAnonymousView` / **`AllowCommands`（`:378`）** / **`ConfirmTokenSeconds`（`:388`）** / **`TicketRatePerMinute`（`:398`）** / `MaxSessions` / `SessionInboundQueueCapacity` / `ClickPolicy` / `AllowMotionCommands` / `OperationLeaseEnabled` / `CommandRatePerSecond` / `SnapshotMaxBytes` / `FrameBudgetBytes` / **`RequireOnlineUsers`（`:465`）/ `RequireAudit`（`:471`）/ `RequireRateLimit`（`:477`）/ `RequireConfirmForDangerous`（`:483`）/ `AllOperatorsRequiresLease`（`:491`）/ `ElementRatePerSecond`（`:497`）/ `ImageTokenSeconds`（`:504`）**（均在 `Core\Models\AppConfigModel.cs`）。**仍未落地**（现在写进 `AppConfig.json` 会被 Newtonsoft 静默忽略、既不报错也不生效）：`PublicBaseUrl`、`SessionOutboundQueueCapacity`、`FrameRateHz`、`FullRateSessionLimit`、`MaxElementsPerPage`、`OperationLeaseSeconds`、`LoginMaxFailures`/`LoginAttemptWindowSeconds`/`LoginLockoutSeconds`、`SessionIdleTimeoutSeconds`、`HeartbeatSeconds`、`OriginAllowList`、`AllowedActions`、`AutoFollowNewRun`、图像编码/缓存四键、`StaticAssetCacheSeconds`、`ShowOnlineUsers`。**落地时必须同步本节与矩阵 M11/M13。**
+**字段落点（M2a as-built，2026-10-21 09:10 复核）**：`ScadaWebSettings` 现在**已有**：`Enabled` / `Port` / `BindAddress` / `RequireLogin` / `AllowAnonymousView` / **`AllowCommands`（`:378`）** / **`ConfirmTokenSeconds`（`:388`）** / **`TicketRatePerMinute`（`:398`）** / `MaxSessions` / `SessionInboundQueueCapacity` / `AllowMotionCommands` / `OperationLeaseEnabled` / `CommandRatePerSecond` / `SnapshotMaxBytes` / `FrameBudgetBytes` / **`RequireOnlineUsers`（`:465`）/ `RequireAudit`（`:471`）/ `RequireRateLimit`（`:477`）/ `RequireConfirmForDangerous`（`:483`）/ `AllOperatorsRequiresLease`（`:491`）/ `ElementRatePerSecond`（`:497`）/ `ImageTokenSeconds`（`:504`）**（均在 `Core\Models\AppConfigModel.cs`）。**仍未落地**（现在写进 `AppConfig.json` 会被 Newtonsoft 静默忽略、既不报错也不生效）：`PublicBaseUrl`、`SessionOutboundQueueCapacity`、`FrameRateHz`、`FullRateSessionLimit`、`MaxElementsPerPage`、`OperationLeaseSeconds`、`LoginMaxFailures`/`LoginAttemptWindowSeconds`/`LoginLockoutSeconds`、`SessionIdleTimeoutSeconds`、`HeartbeatSeconds`、`OriginAllowList`、`AllowedActions`、`AutoFollowNewRun`、图像编码/缓存四键、`StaticAssetCacheSeconds`、`ShowOnlineUsers`。**落地时必须同步本节与矩阵 M11/M13。**
 
 **M2a 的三个新键已经进配置类**（不再是"目标字段"）：`AllowCommands`（总闸）、`TicketRatePerMinute`（取票限速）、`ConfirmTokenSeconds`（确认令牌有效期）。**不许**用 `RequireLogin` / `AllowAnonymousView` 兼作总闸（语义不同：前两者管"能不能看"，`AllowCommands` 管"能不能写"）；也不许把 `TicketRatePerMinute` 读成"按用户名"（它是**按来源 IP**）。
 
@@ -716,20 +728,20 @@ CreateShell()
 
 ## 8. 权限模型与监管
 
-### 8.1 身份与角色
+### 8.1 身份：用户组 + 权限 Key
 
-【事实】`ScadaRole` 三档：`Operator=1 < Engineer=2 < Administrator=3`；`Undefined=0` 是非法值，判定侧一律拒绝（`Scada\Models\ScadaRole.cs`）。**高角色含低角色**（`ScadaRoleExtensions.Satisfies`）。唯一的判定实现是 `ScadaRoleExtensions.Allows`。
+【事实】B3 起账号本是「方案级 + 用户组 + 权限 Key」：账号只属于一个组（`ScadaGroupInfo`），组上挂一组 Key（`ScadaPermissionKeys`，15 条内置 + 现场自定义，上限 32；`Always` 是系统级恒放行、不进目录）。登录成功时 `IScadaUserAuthenticator.TryValidate` 返回 `ScadaUserInfo(Name, GroupId, Permissions, GroupName)`，Web 把它**复制**进票与会话快照。**没有角色档位**：权限之间不存在大小关系，判定实现只有一处 `ScadaWebAccessPolicy.Can(session, requiredKey)`。
 
 【决策】**web 的"未登录"与桌面的"未登录"不同**：
 
 | | 桌面运行窗口 | Web 会话 |
 | --- | --- | --- |
-| 未登录 | `Operator`（"任何在场的人都有的那部分权限"） | **只能看基础页**：`IsAuthenticated=false` → 不加载运行画面（M1b 无 ticket 只能看登录卡片；M2 不允许 `view.attach`）、不允许任何操作命令 |
+| 未登录 | 未登录时按"现场有人"的口径放行基础操作（`ScadaAccessPolicy` 的既有语义） | **只能看基础页**：`IsAuthenticated=false` → 不加载运行画面（M1b 无 ticket 只能看登录卡片；M2 不允许 `view.attach`）、不允许任何操作命令 |
 | 理由 | 现场开机自动运行、无人值守，`Loaded` 钩子要能跑 | R132A"默认只读"；浏览器是远程入口，不能把"没登录"当成"现场有人" |
 
 **未登录只能看基础页**（`/` 的登录卡片；见 §6.2 `Unauthorized`）。`AllowAnonymousView` 默认 **false**；只有现场显式打开它，未登录才允许加载运行画面进 `ReadOnly`（M2 的 `view.attach`；M1b 是空体取票）——这是例外，不是默认口径。
 
-**两套身份互不影响（必须写进实现注释）**：web 登录**不**改桌面 `ScadaAccessPolicy` 的登录态，桌面登录也**不**改任何 web 会话的角色。理由是 `ScadaAccessPolicy` 是"这一台桌面机前坐着谁"的单值状态（`VisionMaster\Services\ScadaAccessPolicy.cs:32`，UI 线程单例），把它当成"所有浏览器共用的登录态"会让 16 个用户互相顶号。代价是：桌面状态栏看不到 web 用户，web 也看不到桌面登录者——两边各自有在线列表/状态栏，审计里靠 `说明` 列的 `[web s=… ip=…]` 前缀区分（§8.7）。
+**两套身份互不影响（必须写进实现注释）**：web 登录**不**改桌面 `ScadaAccessPolicy` 的登录态，桌面登录也**不**改任何 web 会话的权限快照。理由是 `ScadaAccessPolicy` 是"这一台桌面机前坐着谁"的单值状态（`VisionMaster\Services\ScadaAccessPolicy.cs`，UI 线程单例），把它当成"所有浏览器共用的登录态"会让 16 个用户互相顶号。代价是：桌面状态栏看不到 web 用户，web 也看不到桌面登录者——两边各自有在线列表/状态栏，审计里靠 `说明` 列的 `[web s=… ip=…]` 前缀区分（§8.7）。
 
 ### 8.2 闸门分层与顺序（逐命令、服务端，M2a as-built）
 
@@ -742,71 +754,77 @@ CreateShell()
 ② 速率：每会话 5/s + 每元素 2/s（跨会话共享）→ E_RATE_LIMITED + retryAfterMs
 ```
 
-**权限层（`ScadaWebAccessPolicy.Evaluate`，四道，顺序是刻意的）**：
+**权限层（`ScadaWebAccessPolicy`，两道函数，顺序是刻意的）**：
 
 ```
+Evaluate(session, settings)：只管"要不要管"和"你是谁"
 ① 总闸：AllowCommands == true                 否则 E_POLICY（"当前为只读模式（ScadaWeb.AllowCommands=false）"）
-② 会话：ReadOnly == false                     否则 E_POLICY（"当前会话为只读（ReadOnly）"）
-        IsAuthenticated == true                否则 E_UNAUTHENTICATED（"未登录会话不可操作"）
-③ 角色：RequiredRole 经 ScadaRoleExtensions.Allows
-                                               否则 E_ROLE（原因逐字来自 Allows）
-④ 策略：ClickPolicy
-        HighestRoleOnly：在线已认证会话的最高档可点（平局都可点）；无人登录 → 全员只读
-        AllOperators：①②③ 过即允许
-                                               否则 E_POLICY
+② 认证：IsAuthenticated == true               否则 E_UNAUTHENTICATED（"未登录会话不可操作"）
+③ 会话：显式只读（ExplicitReadOnly ?? ReadOnly）== false
+                                               否则 E_POLICY（"当前会话为只读（ReadOnly）"）
+
+Can(session, requiredKey)：Evaluate 通过后再答"这个对象要求什么"
+④ 权限 Key：requiredKey 为空或 Always → 放行
+             否则 requiredKey ∈ session.Permissions
+                                               否则 E_POLICY（逐字"需要「<中文名>」权限"）
+   （`OperationLeaseEnabled` + `AllOperatorsRequiresLease` 都为 true 时，
+     再叠一道租约闸：非 holder → E_LEASE_HELD）
 ```
 
-**顺序不许换**：路由层先答"这条命令是不是打在当前这一轮、这一页、这一版"（否则会拿旧页的按钮去动新页的对象），权限层再答"要不要管"（总闸）、"你是谁"（会话）、"这个对象要求什么"（角色）、"此刻谁有权点"（策略）。**总闸排在角色之前**——"关掉命令"这件事与你是谁无关；反过来先比角色，会把"只读模式"报成"角色不足"，现场照着日志去加权限，越改越乱（`ScadaWebAccessPolicy.cs:13-21` 逐字写了这条理由）。③ 的原因文案必须原样透传（`需要「工程师」权限，当前是「操作员」`），不许在 web 侧重写措辞——那句话是 `ScadaRoleExtensions.Allows` 的唯一出处。
+**顺序不许换**：路由层先答"这条命令是不是打在当前这一轮、这一页、这一版"（否则会拿旧页的按钮去动新页的对象），权限层再答"要不要管"（总闸）、"你是谁"（认证/只读）、"这个对象要求什么"（权限 Key）。**总闸排在身份之前**——"关掉命令"这件事与你是谁无关；反过来先判身份，会把"只读模式"报成"权限不足"，现场照着日志去加权限，越改越乱（`ScadaWebAccessPolicy.cs` 类注释逐字写了这条理由）。④ 的原因文案必须原样透传（`需要「停止」权限`），不许在 web 侧重写措辞——那句话是 `ScadaPermissionKeys.DisplayName` 的唯一出处。
 
-**`AllowCommands` 是总闸，不是 `ClickPolicy` 的一个值**：前者管"这个部署到底开不开写路径"，后者管"多人里谁能点"。M1 是编译期只读（`E_UNSUPPORTED`），M2a 起是配置期只读（`E_POLICY`），两者**不许混用**（C12 vs C79）。**运行期改 `AllowCommands` 后**：所有会话重算 `caps`（`policyVersion` 取当前 `Environment.TickCount64`）、推 `toast`（"已切换为只读/可操作"）；已在队列里的命令**按执行时的值判**（不按入队时）。
+**`AllowCommands` 是总闸，与权限 Key 正交**：前者管"这个部署到底开不开写路径"，后者管"这个对象要求哪种能力"。M1 是编译期只读（`E_UNSUPPORTED`），M2a 起是配置期只读（`E_POLICY`），两者**不许混用**（C12 vs C79）。**运行期改 `AllowCommands` 后**：所有会话重算 `caps`（`policyVersion` 取当前 `Environment.TickCount64`）、推 `toast`（"已切换为只读/可操作"）；已在队列里的命令**按执行时的值判**（不按入队时）。
 
 **闸门与 `caps` 的关系**：`caps` 只表达权限层 ①–④ 的结果（逐图元 `canOperate` + `reason`，§9.4），**不表达路由层的三闸与速率**——那些只能在执行期判，客户端看到 caps 允许也可能因版本过期/限速被拒。反过来 caps 说不能点，服务端一定也拒绝（两层判据同源，C76/C55 守门）。
 
-### 8.3 `ClickPolicy`
+### 8.3 谁能点：权限 Key（B3 起，没有角色档位）
 
-| 值 | 语义 | 判定 |
+账号本从「机器级 + 三档角色」改成「方案级 + 用户组 + 权限 Key 集合」之后，Web 端的授权模型只有一条：
+
+| 概念 | 定义 | 判定 |
 | --- | --- | --- |
-| `HighestRoleOnly`（默认） | 只有**当前在线已认证用户中的最高角色**可点 | 取所有在线已认证会话的最大 `Role`；等于该角色的会话可点；其余只读并显示原因 |
-| `AllOperators` | 所有已认证且有操作权限的用户可点 | 只要权限层 ①②③ 过就允许（总闸/会话/角色）；监管靠 §8.4 |
+| 用户组 | 一组权限 Key 的载体（`ScadaGroupInfo`），账号只属于一个组 | 登录时把该组的 Key 集合**复制**进会话快照 |
+| 权限 Key | 一条能力名（15 条内置 + 现场自定义，上限 32 条）；`Always` 是系统级恒放行、不进目录 | `session.Permissions.Contains(key)` |
+| 图元要求 | `ScadaElement.RequiredPermission`（空 = 不额外限制） | 旧 `.vms` 只有 `RequiredRole` 时按 `ScadaPermissionKeys.LegacyRolePermission` 折成 Key；未配 Key 的图元按本次事件兜底（非停运动族 → `AxisJog`、停止族 → `Stop`） |
+| 登录快照 | 权限在**登录那一刻**复制，组改了不影响已登录会话 | 组变更由协调器撤销该组会话（客户端拿 `E_SESSION_REVOKED`），重登后生效 |
 
-**默认取 `HighestRoleOnly`**（更保守的一档）：现场要"多人同时操作"时再显式改 `AllOperators`，改完必须按 §8.4 的六条监管逐项验收——默认放开等于让一台没人盯的浏览器也能写变量。
+**没有"谁比谁高"这回事**（这是删除旧 `ClickPolicy` 的直接原因）：权限之间不存在大小关系——「能点停止」与「能点启动」是两件独立的事，没有一把尺子能量出谁更高。所以：
 
-**参数在桌面端**（`AppConfig.json` 的 `ScadaWeb.ClickPolicy`；设置页入口是可选交付），**浏览器端不可改**：客户端拿到的只是 `caps` 结果，改不了策略本身。
+- **同一 Key 的多个会话可以同时操作**；不做"最高档才能点"、不做"最早连接优先 / `sessionId` 序数最小"的裁决。
+- 要"同一时刻只有一个人能动手"，用**操作权租约**（§8.6）：它是 Key 有权限的人之间再分一层"此刻轮到谁"，与 Key 正交。
+- 旧口径（`ClickPolicy=HighestRoleOnly` / `AllOperators`）在按 Key 的模型里无法定义，留着只会让现场分不清"我没权限"到底是 Key 没配还是角色不够高。
+
+**参数在桌面端**（`AppConfig.json` 的 `ScadaWeb` 节；组与 Key 在用户管理页），**浏览器端不可改**：客户端拿到的只是 `caps` 结果，改不了权限本身。
 
 **判定时机两处，缺一不可**：
 
 1. **快照/策略变化时**算 `caps`（给界面置灰 + 显示原因）；
-2. **命令执行时**再判一次（防 TOCTOU：caps 是几秒前的，用户可能刚被降权/别人刚登录）。
+2. **命令执行时**再判一次（防 TOCTOU：caps 是几秒前的，用户可能刚被改组/被撤销）。
 
-`HighestRoleOnly` 下角色变化、登录/登出、租约变化、`AllowCommands` 改动、`ClickPolicy` 改动、**图元 `RequiredRole` 改动或切页** → 重算并给**所有**会话推新的 `caps`（不是重发快照）。**`caps`/`presence` 广播固定 2 秒一拍**（`ScadaWebHost.cs:2097-2113`：在线列表与 `caps` 同一循环），所以上述变化最迟 2 秒内到达客户端；`policyVersion` 每次广播取 `Environment.TickCount64`（`ScadaWebHost.cs:2188`），是**单调时钟戳而不是自增计数**，客户端只应用比本地大的那份。**逐图元下发**：`caps.elements[]` 每条 `{elementId, canOperate, reason}`，`reason` 逐字来自 `Allows` 或固定文案（`当前为只读模式（ScadaWeb.AllowCommands=false）` / `当前会话为只读（ReadOnly）` / `当前没有已登录的操作者，全员只读` / `只读：当前只有「管理员」可以操作（张三 是「工程师」）`）；`reason` 在 `canOperate=true` 时为空串，**不许写"允许"**（客户端只用它做 tooltip，不解析语义）。C76 是这条的守门人。
+登录/登出、改组（含协调器撤销会话）、租约变化、`AllowCommands` 改动、**图元 `RequiredPermission` 改动或切页** → 重算并给**所有**会话推新的 `caps`（不是重发快照）。**`caps`/`presence` 广播固定 2 秒一拍**（`ScadaWebHost.cs` 里在线列表与 `caps` 同一循环），所以上述变化最迟 2 秒内到达客户端；`policyVersion` 每次广播取 `Environment.TickCount64`，是**单调时钟戳而不是自增计数**，客户端只应用比本地大的那份。**逐图元下发**：`caps.elements[]` 每条 `{elementId, canOperate, reason}`，`reason` 逐字来自权限判定或固定文案（`当前为只读模式（ScadaWeb.AllowCommands=false）` / `当前会话为只读（ReadOnly）` / `需要「停止」权限`）；`reason` 在 `canOperate=true` 时为空串，**不许写"允许"**（客户端只用它做 tooltip，不解析语义）。C76 是这条的守门人。
 
 **`AllowCommands=false` 时的 caps**：所有图元 `canOperate=false`、`reason="当前为只读模式（ScadaWeb.AllowCommands=false）"`、`policyVersion` 仍随每次广播更新（`TickCount64`）；`hello.readOnly=true`（客户端据此显示"只读"徽标）。此时**不隐藏任何控件**——置灰保留布局（§8.5），否则画面与桌面不一致、视觉 oracle 过不了。
 
-**平局**：多个会话同为最高角色 → **都可点**（除非开了租约）。这是刻意的：工业现场常见"两个工程师同时在场"，强行只让一个人点会变成人为故障。**不引入任何"最早连接优先 / `sessionId` 序数最小"的平局裁决**——那等于让"谁先打开浏览器"决定谁能操作，既与"都可点"的语义冲突，也无法在角色变化后稳定重算（矩阵 C24/C48 按"都可点"判定）。要单人操作就开租约（§8.6）。
+**未登录的边界**：未登录者永远不能操作（§8.1 的 ②），所以"没人登录 = 全员只读"，与登录了谁无关。
 
-**无人登录的边界**：`HighestRoleOnly` 下"最高角色"只在**已认证在线会话**里取；一个都没有时 → 所有人只读（`caps.default=false`，原因"当前没有已登录的操作者"）。`AllOperators` 同理——未登录者永远不能操作（§8.1），所以"没人登录 = 全员只读"。
+### 8.4 监管项（各自独立生效，不再充当"启用策略"的前置条件）
 
-### 8.4 `AllOperators` 的监管方式（必须全部实现并测试）
+旧口径里"五项监管全开才允许 `AllOperators`"这道闸门**随策略一起删除**。现在每一项都是独立的现场开关，缺哪项就少哪层护栏，但**不再有"配置看着放开了、实际没有护栏"这种组合失效**——因为不存在"一个开关把所有人都放开"这回事：能不能点由 Key 决定。
 
-**启用闸门（M0.1 裁定：没有监管开关就不许启用 `AllOperators`）**
-
-`ClickPolicy=AllOperators` 不是"改一个枚举值"就能生效的——它必须同时满足下面五项配置。**任一不满足 → 拒绝启用该策略**：`ClickPolicy` 回落到 `HighestRoleOnly`、写一条 Error 并**逐项指出缺哪一条**（不许静默降级、也不许"先跑起来再说"）。矩阵 C44/C65 是这条的守门人，C66 是正向配对。
-
-| 配置 | 默认 | 允许值 | 不满足时 |
+| 配置 | 默认 | 作用 | 不满足时 |
 | --- | --- | --- | --- |
-| `RequireOnlineUsers` | `true` | `true` | 拒绝启用 `AllOperators`（"在线列表被关闭：`ScadaWeb.RequireOnlineUsers=false`"） |
-| `RequireAudit` | `true` | **只能是 `true`** | 配置成 `false` 视为非法配置：**加载时夹回 `true` 并写 Error**（不是只报错留 `false`）+ 拒绝启用（审计是"谁按的"唯一凭证，不许关） |
-| `RequireRateLimit` | `true` | `true` | 拒绝启用（"速率限制被关闭：`ScadaWeb.RequireRateLimit=false`"） |
-| `RequireConfirmForDangerous` | `true` | `true` | 拒绝启用（"危险动作二次确认被关闭：`ScadaWeb.RequireConfirmForDangerous=false`"） |
-| `ShowOnlineUsers` | `true` | `true` | 拒绝启用（浏览器看不到在线列表 = 操作员互不知道对方在按） |
+| `RequireAudit` | `true` | 命令级 + 动作级两层审计（"谁按的"唯一凭证） | 配置成 `false` 视为**非法配置**：**加载时夹回 `true` 并写 Error**（不是只报错留 `false`）。这条纪律独立于任何策略（C65） |
+| `RequireOnlineUsers` / `ShowOnlineUsers` | `true` | 浏览器显示在线列表（`presence`） | 关掉只是看不到在线列表；不影响判权 |
+| `RequireRateLimit` | `true` | 双层限速（会话 5/s + 元素 2/s） | 关掉即不限速；不影响判权 |
+| `RequireConfirmForDangerous` | `true` | 危险动作走 `confirmToken` | 关掉即不要求二次确认；不影响判权 |
 
-`OperationLeaseEnabled`（默认 `false`）是**可选项**，不参与闸门：关着时退化为"都可点 + 串行 + 审计"。另有 `AllOperatorsRequiresLease`（默认 `false`）作为**可选加强**：为 `true` 时 `AllOperators` 下只有租约 holder 可点（因此必须同时 `OperationLeaseEnabled=true`，否则加载即 Error 并把本项夹回 `false`）；它**不改变**五项闸门的判定，也不出现在"缺项拒绝启用"的清单里。
+`OperationLeaseEnabled`（默认 `false`）是"同一时刻一个主操作员"的可选机制；`AllOperatorsRequiresLease`（默认 `false`）是它的加强开关：为 `true` 时只有租约 holder 可点，因此必须同时 `OperationLeaseEnabled=true`，否则加载即 Error 并把本项夹回 `false`。
 
 | # | 监管手段 | 实现 | 测试 |
 | --- | --- | --- | --- |
 | 1 | **命令全局串行** | 单 `Channel` + 单消费者（§4.3） | C56：20 个会话（`MaxSessions>=20`）同时按同一按钮 → 执行顺序 == 入队顺序，命令级审计 20 条 |
 | 2 | **审计（两层）** | 每条命令一条**命令级** `ScadaAuditEntry` + dispatcher 的**动作级**行；`说明` 列带 `[web s=… ip=…]` 前缀，**前缀只在 `ScadaAuditWriter.Append(string,…)` 一处拼**（§8.7） | C19/C20/C49/C67 |
-| 3 | **在线用户列表** | WS `presence` 消息（2 秒一拍）：字段**只有** `sessionRef` / `user` / `role` / `ip` / `connectedAtUtc` / `lastSeenUtc` / `canOperate`（`ScadaWebHost.cs:2123-2146`）；**每行只带不透明 `sessionRef`，不带 `sessionId`**；`ReadOnly`/`OperateReason`/租约状态**不在这一帧**（租约归 M2b） | C25/C55 |
+| 3 | **在线用户列表** | WS `presence` 消息（2 秒一拍）：字段**只有** `sessionRef` / `user` / `groupId` / `groupName` / `ip` / `connectedAtUtc` / `lastSeenUtc` / `canOperate` / `operateReason`；**每行只带不透明 `sessionRef`，不带 `sessionId`，也没有 `role`**；租约状态**不在这一帧**（租约归 M2b） | C25/C55 |
 | 4 | **操作权租约（可选）** | §8.6；`OperationLeaseEnabled=false` 时退化为"都可点 + 串行 + 审计" | C47（acquire → request → approve/reject → 30s 超时 → holder 断线释放 全链路） |
 | 5 | **速率限制（双层）** | 每会话 `CommandRatePerSecond`（默认 5/s，**按会话独立**）+ **每元素 `ElementRatePerSecond`（默认 2/s，同一 `elementId` 跨会话共享）**；超限 `E_RATE_LIMITED` + `retryAfterMs`，不执行、不写成功审计 | C45（同一会话 1 秒 6 条不同元素 → 前 5 条执行、第 6 条限速；同一元素 1 秒 3 条 → 第 3 条限速）、C61（100 会话写同一元素 → 全秒合计只执行 2 条）、C64（不同元素 2/s 不误伤） |
 | 6 | **危险动作二次确认** | web `confirmToken`（§8.4.1），**不用桌面模态框** | C46（无 token / 默认 30s 内单次成功 / 重放 / 过期 / 他人 token） |
@@ -833,11 +851,11 @@ CreateShell()
 
 **为什么不用桌面模态**：`Confirm` 同步阻塞 UI 线程（桌面有人在屏幕前，等一会儿没问题），web 用户不在那台机器前——弹框会把**所有会话**的命令泵一起卡住，直到桌面前有人点掉；而且它把"浏览器里谁按的"变成"桌面前的人确认"，审计主体错位。C46 是这条的守门人。
 
-### 8.5 `HighestRoleOnly` 的显示规则
+### 8.5 权限 Key 的显示规则
 
 - 不可点的控件：**置灰但保留布局**（不许 `display:none`，否则画面与桌面不一致，视觉 oracle 过不了）；
-- 悬停/点击给出原因（tooltip + 顶部 toast），文案逐字取 `caps.elements[].reason`；**前端不许自己拼原因**（拼一份就多一份口径，且与 `Allows` 分叉）；
-- 顶部常驻一行"当前：张三（工程师）｜ 可操作者：李四（管理员）"；
+- 悬停/点击给出原因（tooltip + 顶部 toast），文案逐字取 `caps.elements[].reason`；**前端不许自己拼原因**（拼一份就多一份口径，且与 `ScadaPermissionKeys.DisplayName` 分叉）；
+- 顶部常驻一行"当前：张三（产线操作员）｜ 可操作者：李四（模板·管理员）"——身份显示**用户组名，不是角色**；
 - 未登录时显示"未登录（只读）"；
 - **禁用判据只认 `canOperate`**：`canOperate=false` → `pointer-events:none` + `aria-disabled="true"` + 置灰类；`canOperate=true` → 恢复。**不许**用"有没有配钩子"决定置灰（没配钩子的图元点击后回 `E_NOT_OPERABLE`，不是"禁用"——两者的用户含义不同）；
 - **失败反馈**：命令回 `error` 时 toast 显示 `message`（中文原因）+ 稳定 `code`（小字），**控件回到命令前的状态**（不做乐观更新，所以不需要回滚动画；`TextField` 例外：保留用户输入与编辑态，只显示原因，见 §10.4）；
@@ -956,7 +974,7 @@ WS 线程：收 cmd.* → 大小/协议校验（≤64KB）→ 每会话入站队
   ④ 权限层（ScadaWebAccessPolicy，四道）：
        AllowCommands=false → E_POLICY（"当前为只读模式（ScadaWeb.AllowCommands=false）"）
        会话 ReadOnly → E_POLICY；未登录 → E_UNAUTHENTICATED
-       角色不足 → E_ROLE（原因逐字来自 Allows）；ClickPolicy 不允许 → E_POLICY
+       缺权限 Key → E_POLICY（原因逐字来自 ScadaPermissionKeys.DisplayName）；未登录 → E_UNAUTHENTICATED
   ⑤ 钩子/可输入：图元存在但没配该事件钩子 / 不可输入 → E_NOT_OPERABLE
   ⑥ 租约（M2 后续批）：OperationLeaseEnabled 时判 holder → E_LEASE_HELD
   ⑦ 确认：危险动作校验 confirmToken（绑定 session+element+action、默认 30s、单次）→ E_CONFIRM
@@ -998,7 +1016,7 @@ WS 线程：收 cmd.* → 大小/协议校验（≤64KB）→ 每会话入站队
 | 5 | **会话/用户撤销** | 会话级撤销：`RevokeSession` 清表 + 记撤销表，宿主先失效令牌再按 **4403** 关匹配 WS（`ScadaWebHost.cs:2247-2266` / `:1677-1688`）；用户级撤销：`RevokeUser` 使该用户**全部**令牌与未核销 ticket 失效；撤销后换票 **`E_SESSION_REVOKED`** | 已建立的连接关闭码 **4403**；后续命令 **`E_SESSION_REVOKED`**（`TryValidateSessionAlive`，`:1545-1549`；不是 `E_UNAUTHENTICATED`） | `Web 登出` / `Success`，detail `reason=revoked`（用户级带 `scope=user`） | C71（与 C36 分工：C36 测踢人/降权/改密的效果，C71 测撤销表本身）。**代码已落地；浏览器实际 4403 未取** |
 | 6 | **会话表上限** | `MaxSessionTokens` 默认 **4096**；满了**拒绝新会话**（`E_CAPACITY`），**不挤掉在线的、不排队**；过期条目按 `SessionLifetime` 老化清理 | **`/api/ticket` 503 `E_CAPACITY`**（登录/匿名这两条会新签令牌的路径，`ScadaWebHost.cs:1076-1085`）；**WS 握手 401 `E_CAPACITY`**（Watson 的 `AuthResult` 只有 401 语义，表达不了 503）；活跃 WS 连接超 `MaxSessions` 仍是 `AtCapacity`/1013（两张表，别混）；WS 容量拒绝会**回收**本次核销的 8h 令牌 | `Web 会话` / `Denied`，detail `reason=session-table-full` | C72 |
 
-**M2a 的默认口径（写死在文档里，实现不许改默认值）**：`AllowCommands=false`、`ClickPolicy=HighestRoleOnly`、`AllowMotionCommands=false`、`OperationLeaseEnabled=false`。**要打开 `AllOperators` 仍必须过 §8.4 的五项监管闸门**；`AllowCommands=true` 只表示"允许写"，不表示"允许所有人写"。
+**M2a 的默认口径（写死在文档里，实现不许改默认值）**：`AllowCommands=false`、`AllowMotionCommands=false`、`OperationLeaseEnabled=false`、`RequireAudit=true`。**能不能点由账号的权限 Key 决定**（§8.3）；`AllowCommands=true` 只表示"允许写"，不表示"允许所有人写"。
 
 **状态口径（2026-10-21 12:33）**：M2a 的六项安全前置与命令面**已全部落地并接线到 `ScadaWebHost`**（`POST /api/ticket` 三闸、WS 握手、收帧 → 泵、`ack/error`、`caps/presence` 广播、撤销 4403、容量拒绝回收令牌）。验证：`Web\ScadaWebChecks` Release **97 PASS / 0 FAIL**（33 基线 + 4 静态资产 + 11 动作过滤 + 19 安全 + 26 命令 + 4 回归；日志 `_m2a_webchecks13.log` `AA8A43733714`，DLL `E91456D97780`）、`ScadaChecks` Release **2332 通过 / 0 失败**（`_m2a_scadachecks3.log` `92F0CF616A04`），Release 全量重建 0 错误且符号已核；宿主接线冒烟 12/12（Agent 报告，无仓内日志）。**两轮终审 FAIL 后六条 P0 + 第二轮 P0-1/P1-1 已关闭**（新 P0 见 §17.6.1）；第一轮 89/89（`CF142B22F99A`）为历史证据。**矩阵 C68–C80 未全跑（C68/C69/C70/C72 已跑，其余 9 条未执行）**，WS 4403、`E_CAPACITY` 握手、`caps` 热更新仍无运行时证据（真实浏览器双角色 E2E 与租约已于 13:06/13:25 补证（HighestRoleOnly + AllOperators）、HTTP 端到端 4/4 于 13:19 补跑，见 §17.7「M2b 进展」）。所以：台账 M2a 行记 **`地基 PASS（有条件）`**，**不许出现"通过"**；矩阵 C68–C80 在跑出证据之前一律按未执行计（R38）。**`AllowCommands` 保持默认 `false`，写路径不对现场开放。**
 
@@ -1186,7 +1204,7 @@ WS 线程：收 cmd.* → 大小/协议校验（≤64KB）→ 每会话入站队
 | `E_NOT_FOUND` | WS | `elementId` 不在当前页快照（已删除/切页/隐藏图层不是理由） | 忽略该次点击 + 等 `page`；**`E_UNKNOWN_ELEMENT` 作废**（M1 草案，从未实现） | M2a |
 | `E_NOT_OPERABLE` | WS | 图元存在，但没配该事件的钩子 / 不可输入 / 图元类型不匹配该命令 | toast（"该控件没有配置动作"） | M2a |
 | `E_ROLE` | WS | `RequiredRole` 不满足（原因逐字来自 `Allows`） | 置灰 + 显示 `message` | M2a |
-| `E_POLICY` | WS | `AllowCommands=false`（逐字 `当前为只读模式（ScadaWeb.AllowCommands=false）`）、会话只读、或 `ClickPolicy` 不允许 | 置灰 + 顶部只读原因 | M2a |
+| `E_POLICY` | WS | `AllowCommands=false`（逐字 `当前为只读模式（ScadaWeb.AllowCommands=false）`）、会话只读、或缺少图元要求的权限 Key（逐字 `需要「停止」权限`） | 置灰 + 顶部只读原因 | M2a |
 | `E_LEASE_HELD` | WS | 操作租约在别人手里 | 显示 holder + "申请接管" | M2 后续 |
 | `E_ACTION_FORBIDDEN` | WS | 动作不在 `AllowedActions`（含运动默认禁用） | toast + 审计已记 | M2a |
 | `E_CONFIRM` | WS | 危险动作缺/错/过期/已用/他人 `confirmToken` | 重新 `cmd.confirm.request` 后重试一次 | M2a |
@@ -1566,10 +1584,10 @@ _pumpTask = Task.Run(async () =>
 | ID | 断言 | 通过标准 |
 | --- | --- | --- |
 | W2-01 | 未登录点击 | `E_UNAUTHENTICATED`；审计 Denied；不执行任何动作 |
-| W2-02 | `HighestRoleOnly` | 只有 admin 在线 → 仅 admin `caps` 允许；admin 登出 → 所有会话 `caps` 变 false，`policyVersion+1` |
-| W2-03 | `AllOperators` 串行 | 20 个并发点击 → 执行顺序 == 入队顺序；审计 20 条、顺序一致 |
+| W2-02 | 权限 Key 判权 | 图元要求 `Stop`；A 组有 `Stop`、B 组只有 `ViewRuntime` → A 的 `caps` 允许、B 的 `deny` 带 `需要「停止」权限`；把 A 也移出 `Stop` 后 A 的 `caps` 变 false，`policyVersion` 变化 |
+| W2-03 | 并发串行 | 20 个并发点击 → 执行顺序 == 入队顺序；审计 20 条、顺序一致 |
 | W2-04 | 租约 | A 持有 → B `E_LEASE_HELD`；B 申请 → A 批准 → B 可点；A 断线 → 自动释放 |
-| W2-05 | 角色不足 | 原因逐字等于 `ScadaRoleExtensions.Allows` 的输出 |
+| W2-05 | 缺权限 Key | 原因逐字等于 `需要「<ScadaPermissionKeys.DisplayName>」权限` |
 | W2-06 | 写变量审计 | `detail` 含"变量：旧值 → 新值"；与桌面同一次操作格式一致 |
 | W2-07 | `Navigate` 跳过 | 含 `Navigate` 的钩子：其它动作执行、`Navigate` 不执行、审计 `Skipped/mirror-mode` |
 | W2-08 | 运动默认禁用 | `AllowMotionCommands=false` → `E_ACTION_FORBIDDEN` + 审计 |
@@ -1629,7 +1647,7 @@ _pumpTask = Task.Run(async () =>
 | --- | --- | --- |
 | W1-14 全量帧 | 只发变化图元、不给基线（模拟差异帧但没有 `full`） | 断言红（首帧缺绑定/字段数不足） |
 | W1-10 切页一次 | 让 web 也调 `RaisePageEvent` | `Loaded` 执行次数 == 2 → 红 |
-| W2-02 策略 | 把 `HighestRoleOnly` 写成 `AllOperators` | caps 断言红 |
+| W2-02 判权 | 把图元的 `RequiredPermission` 清空（等于不限制） | caps 断言红（该图元不该进 deny） |
 | W2-05 角色 | 在 web 侧重写原因文案 | 逐字断言红 |
 | W1-21 派生量 | 改 `NeedleAngle` 公式 +1° | 对照红 |
 | W1-25 静态资源 | 允许 `..` | 穿越断言红 |
@@ -1717,7 +1735,7 @@ _pumpTask = Task.Run(async () =>
 | R-22 | 未实现图元占位被现场当成"网页坏了" | 误报缺陷、信任度下降 | M1 只支持 10 图元 | 固定提示文案 + 每类型一次 Warn + 手册写明"网页暂不支持该图元"；像素 oracle 显式记录排除块数 | 新增（M0.1）；用户 + 文档 |
 | R-23 | 把 10 图元视觉/派生量提前到 M1 会拉长 M1 工期 | M1 延期 | 字体度量差异导致像素对照长期红 | 判据分层：派生量逐值相等（先红）、几何 ≤1px、主色 ΔE ≤3、文字允许 ≤2px 偏移但内容逐字相等；确实无法消除的差异进 `已知偏差.md`；**不许**把这两条闸门推迟到 M3 | 新增（M0.1）；用户（验收口径） |
 | R-24 | `imageToken` 校验漏了"元素/版本绑定" | 拿到一个合法 token 就能枚举/回放别人的图 | 只校验 token 存在与未过期 | 三件事一起判（会话归属 + `elementId` 在当前快照 + `version` 等于当前 `imageVersion`）；他人会话 403、过期版本 403；B37 是守门人 | 新增（M0.1 复评）；实现 + 测试 |
-| R-25 | 现场把监管开关关掉后 `AllOperators` 照跑 | "多人可点"退化成无审计/无限速 | 只改 `ClickPolicy` 不看监管配置 | 启用闸门（§8.4）：缺项即拒绝启用并逐项报缺；`RequireAudit` 固定 true；C44/C65 守门，C66 反向确认"全开可启用" | 新增（M0.1 复评）；实现 + 测试 |
+| R-25 | 现场把监管开关关掉后仍有人能点 | 退化成无审计/无限速 | 以为"关掉某个策略"就不会有人操作 | 判权只看 Key、与监管项正交；`RequireAudit` 固定 true（加载期夹回）；C65 守门 | 已闭环（B3） |
 | R-26 | 跨页比较 `pageVersion` 造成误判 | 切到低版本页时被当成"版本回退"反复全量重载 | 客户端只存一个 `pageVersion` 数字 | 改 `PageKey`（`pageId@pageVersion@basePageVersion`）联合判定（§9.6）；切页只比 `pageId`；B38 专测跨页低版本 | 新增（M0.1 复评）；实现 + 测试 |
 | R-27 | **把"M1b/M1c 断言通过"读成"M1 全绿"** | 交付带病进 M1.5/M2；评审五条 blocking 被静默跳过 | 只看到 `_WebProbe6` 31/31、`ScadaWebChecks` 33/33 与 `ScadaChecks` 2276/0 | §13.1 把 M1 拆成 M1b/M1c/M1 三行；§17.5 逐条列 blocking 与状态；台账 §3 明确"矩阵 248 条未执行"；**任何"M1 全绿"写法不成立** | 新增（M1b）；M1c 复核 |
 | R-28 | **协议两份口径并存**（`kind` vs `type`） | 前端按 `kind` 写、后端按 `type` 发，联调时整段消息被忽略 | 文档旧版 `kind` 未清、M2 又引入 `kind` | 全文只认 `type`（§9.1）；M2 扩展也只用 `type`；X04 文档一致性闸门把"出现 `kind`"列为冲突 | 新增（M1b）；docs + 实现 |
@@ -1792,7 +1810,7 @@ _pumpTask = Task.Run(async () =>
 | `Web\VisionMaster.ScadaWeb\ScadaWebActionFilter.cs` | **已落地（M2a，09:07）** | 动作副本过滤：`BuildAllowedCopy(source, allowed, out skipped)` —— 复制 `hook.Actions`、无条件剔除 `Navigate`、不在白名单的剔除、副本 `RequireConfirmation=false`、**原 hook 只读不写**（§7.3/§8.4.1）；断言见 `Web\ScadaWebChecks\M2ActionFilterChecks.cs` |
 | `Web\VisionMaster.ScadaWeb\ScadaWebCommand.cs` | **已落地（M2a，09:09）** | 四条命令常量（`ScadaWebCommandKinds`）、回执码常量（`ScadaWebErrorCodes`）、不可变命令对象（持有 `Session` 引用；`RequestId` 用于回执配对与幂等键，去重表在 `ScadaWebCommandRouter`，M2a-4 已关闭） |
 | `Web\VisionMaster.ScadaWeb\ScadaWebSecurityGate.cs` | **已落地（M2a，09:19）** | 默认密码 gate（`E_DEFAULT_PASSWORD`）、Origin 同源（缺头放行/`null` 拒绝）、取票每 IP 限速（按 `ScadaWebSettings.TicketRatePerMinute`，默认 10/分钟，生效额度夹到 1~600）、`RevokeSession`/`RevokeUser` 委托；断言见 `M2SecurityChecks.cs` |
-| `Web\VisionMaster.ScadaWeb\ScadaWebAccessPolicy.cs` | **已落地（M2a，09:16）** | 权限层四道（`AllowCommands` → 会话只读/未登录 → 角色 → `ClickPolicy`）；`HighestRoleOnly` 平局都可点、无人登录全员只读；caps 与命令共用同一判据 |
+| `Web\VisionMaster.ScadaWeb\ScadaWebAccessPolicy.cs` | **已落地（B3 重写）** | 两道函数：`Evaluate`（总闸 → 认证 → 显式只读）+ `Can`（权限 Key 在不在快照里，叠加可选租约闸）；caps 与命令共用同一判据；**无角色、无点击策略** |
 | `Web\VisionMaster.ScadaWeb\ScadaWebCommandPump.cs` | **已落地（M2a，09:16）** | 全局 `Channel` 1024 + 单消费者（线程池、无 SyncContext）+ 每会话待处理计数（默认 32）+ 逐条 `InvokeAsync`；单条异常 → `E_INTERNAL` 且泵继续；`E_BUSY` 由 `Enqueue` 返回 false |
 | `Web\VisionMaster.ScadaWeb\ScadaWebCommandRouter.cs` | **已落地（M2a，09:19）** | 四条命令的执行体：三闸、图元解析、权限层、动作过滤、命令级审计、`confirmToken` 存储（默认 30s、单次、三元组绑定）；**三闸必填（缺一 `E_BAD_REQUEST`）+ `(SessionId, RequestId)` 幂等去重（M2a-3 / M2a-4 已关闭）** |
 | `Web\VisionMaster.ScadaWeb\ScadaWebPresence.cs` / `ScadaWebRateLimiter.cs` | **已落地（M2a，09:10）** | 在线列表（每行只有 `SessionRef`，无 `SessionId`）与双层限速（会话 5/s、元素 2/s 跨会话共享） |
@@ -1813,7 +1831,7 @@ _pumpTask = Task.Run(async () =>
 | `VisionMaster\Services\ScadaAuditWriter.cs` | **已落地** | 实现 `IScadaAuditSink`；新增 8 参数 `Append`（`:375` 起）——**`[web s=… ip=…]` 前缀的唯一拼装点**；`MapWebOutcome` 把"成功/拒绝/认不出的词"映射成三档（RH8/RH9）；**`_writeGate`（`:248`）罩住"序列化 + 写盘"，任意线程安全、行不撕裂**（RH18：6 线程 × 40 条 = 240 行、每行 7 列）；**CSV 仍是 7 列、表头不动** | 低；既有报表/断言零影响 |
 | `VisionMaster\Services\ScadaUserStore.cs` | **已落地** | 两把锁：`_gate`（内存清单）+ `_writeGate`（改内存→序列化→写盘）；锁序固定 `_writeGate → _gate`；锁外算 PBKDF2；实现 `IScadaUserAuthenticator`（`:60-75`、`:155`、`:165`、`:258-282`）；**`ResetPassword` 走 CAS（`:496-543`，旧密码已变 → "密码已被他人修改"）；`TryValidate` 在 PBKDF2 之后二次进锁复核角色/记录/密码（`:278-341`）** | 中；R-02，UC1–UC18c 守门 |
 | `Scada\Models\ScadaPageSnapshot.cs` / `ScadaPageSnapshotBuilder.cs` | **已落地（M1a/M1b）** | 新增不可变快照 DTO 与构建器（`PageId/PageName/PageVersion/Width/Height/Background/BasePage/Elements`；基座一层；元素全收 + `LayerVisible`）；web 直接消费，不再维护第二份默认值表 | 中；模型字段变化要同步快照 |
-| `Core\Models\AppConfigModel.cs` | **已落地** | 新增 `ScadaWebClickPolicy` 枚举与 `ScadaWebSettings` 节（`:256-395`），`AppConfigModel.ScadaWeb`（`:586`）。**实际字段以 §5.4 "字段落点"为准**（监管/图片令牌等是 M1 目标字段） | 低；旧配置缺节 → 默认值 |
+| `Core\Models\AppConfigModel.cs` | **已落地（B3 删枚举）** | `ScadaWebSettings` 节（`AppConfigModel.ScadaWeb`）；**`ScadaWebClickPolicy` 枚举已删除**。**实际字段以 §5.4 "字段落点"为准** | 低；旧配置里的 `ClickPolicy` 键被 Newtonsoft 静默忽略 |
 | `ScadaChecks\ScadaChecks.csproj` | **已落地** | **去掉对 `VM.Scada.Controls` 的直接引用**，只引用 `VisionMaster`（传递引用）。理由：两条引用链各构建一次会让 WPF 的 `_wpftmp` 与主工程抢同一个 `obj`，报 **RG1000「BAML 键重复」** | 低；断言工程仍能拿到控件库类型 |
 | `VisionMaster.sln` | **已落地** | 加入 `VisionMaster.ScadaWeb`（`:122`，R62）与 `ScadaWebChecks`（`:126`，M1c；R62 的"不在 sln 里就永远不被重建"同样适用） | 低 |
 | `pack.ps1` | **已落地** | 新增 `3b` 步：把 `VisionMaster\bin\<Configuration>\net9.0-windows\Web` 整目录拷到 `$OutputDir\Web`（`:152-162`）；**`3c` 步校验程序集归属**（`:192-246`）：`Web\` 不许有宿主/契约副本（含 `Prism*.dll`）、`Modules\` 不许有 `VisionMaster.ScadaWeb.dll`，命中即抛错（退出码 1） | 低 |
@@ -1931,8 +1949,8 @@ _pumpTask = Task.Run(async () =>
 5. **吞吐门槛**：50 客户端 p95 ≤ 300ms；100 客户端 p95 ≤ 500ms（E03/M8/C59/E28 统一）；10 客户端/200 绑定仍按 p95 < 150ms（M3/B20/E01）。
 6. **审计**：**7 列 + `说明` 列 `[web s=… ip=…]` 前缀**；前缀**只在 `ScadaAuditWriter.Append(string,…)` 拼一次**，bridge 传裸 detail（C67）；命令级 + 动作级两层计数（C01/C03/C14/C19/C20/C23/C26/C41/C43/C49）。
 7. **`PageKey` 联合判定**：`pageId@pageVersion@basePageVersion`；切页只比 `pageId`；同页才比 `pageVersion`；回退按跳变处理；值帧不带 `baseVersion`（B13/B14/B17–B19/B28/B38/B39）。
-8. **平局**：`HighestRoleOnly` 同角色**都可点**（除非开租约），无"最早连接优先/序数最小"（C24/C48）。
-9. **监管闸门**：`AllOperators` 必须同时满足 `RequireOnlineUsers`/`RequireAudit`（固定 true）/`RequireRateLimit`/`RequireConfirmForDangerous`/`ShowOnlineUsers`；缺项拒绝启用并指出缺哪一项（C44/C65/C66）。
+8. **多人**：同一权限 Key 的多个会话**都可点**（除非开租约），无"最高档/最早连接/序数最小"裁决（C23）。
+9. **监管项**：`RequireAudit` 固定 true（加载期夹回 + Error，C65）；在线列表/限速/二次确认各自独立生效，不再充当"启用某策略"的前置条件。
 10. **身份与在线列表**：presence 只给不透明 `sessionRef`（无 `sessionId`）；命令身份由服务端从连接反查（C50/F04/F24）。
 11. **M1 视觉闸门**：B33 的 DP 清单与 §10.2 逐字一致（含 `IOField.DisplayStroke`、`ProgressBar.ValueText`、`Tank.FillGeometry`、`Valve.FillClipGeometry`、`Gauge.ValueText`）；`Hmi.Text/Rectangle/Panel` 只比属性袋 + 视觉；D21 按 M1 门槛判；B35 只覆盖 M1 的 10 个图元（`SelectorSwitch` 的坏值由 D11 在 M2 验证）。
 
@@ -2066,7 +2084,7 @@ _pumpTask = Task.Run(async () =>
 | §17.2 R00–R05 | §13「轮次门禁与结果台账」（R00–R05 表） |
 | §17.3 结果台账 | §13.2 台账列 + X03 + `docs\SCADA运行态Web客户端\结果台账.md` |
 | §6.1 `imageToken` | B37（图片鉴权负面，**M1.5**）、C42、F11 |
-| §8.4 `AllOperators` 监管闸门 | C44 / C65（缺项拒绝启用）/ C66（全开可启用） |
+| §8.3 权限 Key 判权 | C23（同 Key 多人可点）/ C24（缺 Key 被拒）/ SW2-SW8 |
 | §8.4.1 `confirmToken` | C46 |
 | §8.7 两层审计 + 前缀唯一拼装 | C49（计数）/ C67（不双前缀）/ C19/C20/C26/C43（格式与过滤） |
 | §9.6 `PageKey` | B17–B19、B38（跨页低版本）、B39（基座版本） |
@@ -2164,7 +2182,7 @@ _pumpTask = Task.Run(async () =>
 | `ScadaPage.Version` 语义（单调、不进撤销栈） | `Scada\Models\ScadaPage.cs:250-278` |
 | 可见性判据 `IsElementVisible` | `Scada\Models\ScadaPage.cs:1551` |
 | 图元几何/绑定/动画/权限字段 | `Scada\Models\ScadaElement.cs:74`、`:186`、`:193`、`:232`、`:274`、`:306`、`:344`、`:383` |
-| 角色三档与唯一判定 `Allows` | `Scada\Models\ScadaRole.cs` |
+| 权限 Key 目录与唯一判定 `Can` | `Scada\Models\ScadaPermissionKeys.cs`、`Web\VisionMaster.ScadaWeb\ScadaWebAccessPolicy.cs` |
 | 权限出口契约（未登录=操作员、只读） | `Scada\Models\IScadaAccessPolicy.cs` |
 | 桌面权限实现只在 UI 线程 | `VisionMaster\Services\ScadaAccessPolicy.cs:32` |
 | 账号存储、PBKDF2 十万次、线程口径 | `VisionMaster\Services\ScadaUserStore.cs:59-61`、`:105`、`:184` |
@@ -2240,7 +2258,7 @@ _pumpTask = Task.Run(async () =>
 | 值帧 | 10Hz 的差异值消息（位置数组） |
 | 共享帧 | 镜像模式下所有会话同一份的值帧字节 |
 | 只读 | 能看不能操作；M1 的全局状态 |
-| 操作租约 | `AllOperators` 下"同一时刻一个主操作员"的可选机制 |
+| 操作租约 | "同一时刻一个主操作员"的可选机制（Key 有权限的人之间再分一层） |
 | oracle | 验收基准：WPF 运行窗口的同一屏同一状态 |
 
 ---
@@ -2257,3 +2275,4 @@ _pumpTask = Task.Run(async () =>
 | 2026-10-21 | v1.5 | **M1b 协议/范围/证据链对齐（M1c 整改中）**：①§9 全量改为 as-built——`type` + `hello/hello.ok/snapshot/page/frame/stopped/idle/pong/error/bye`，`snapshot.page` PascalCase、`frame.items` camelCase，**删除 `kind/state/caps/view.attach/auth.login/view.resync`**，M2 扩展点单独标注；②M1 范围收窄为 10 图元/10Hz/只读/10 客户端，1000 图元与 50 客户端归 M3/E（B20/B26 改写）；③动画/坏值角标/`/img` 归 M1.5/M2（§10.2.2/§10.6/B35/B37）；④重连改 `sessionToken`（8h）+ `refreshToken` 换票（§8.9/§9.2）；⑤基座 `BasePageVersion` 进 `PageKey`（§4.4/§9.6/B39，M1c 落地）；⑥帧 `text` 用 `DisplayFormat`（M1c），B33 拆已实现/未实现（新增 B33b）；⑦登录入口=无 ticket 登录卡片（§6.2/B02/B05）；⑧新建 `已知偏差.md`（9 条）；⑨台账补 M1b 行、新建 M1b 记录；⑩§13.1 拆 M1b/M1c/M1，§17.5 列五条 blocking；指标编号 `M1/M1b` → `P-UI/P-CMD` |
 | 2026-10-21 | v1.6 | **M1c 收尾（M1 只读核心 PASS、验收矩阵未全跑）**：①`sessionToken`（8h、不轮换）与 `POST /api/ticket {refreshToken}` 换票落地（§8.9/§9.3），旧票复用 401；②无 ticket 登录卡片 + `sessionStorage` + 断线换票重连 + 401 回登录；③快照信封 `basePageVersion`（无基座为 `0`）与 `PageKey = pageId@pageVersion@basePageVersion`（§4.4/§9.4/§9.6，B39 主体落地）；④帧 `text` 用 `DisplayFormat`（`IFormattable` + InvariantCulture，§4.5/§9.5）；⑤`/elements-process.js` 与 `.css` 及带 `?v=` 的静态路由均 200；⑥证据：`Web\ScadaWebChecks` **33/33**（`_m1c_webchecks33b.log` `C75F4FE9AF80`，DLL `71B953980241`）、`_WebProbe6` **31/31**（无仓内日志）、`ScadaChecks` **2276/0**（`_m1c_sc.log` `CCB425F345BD`，DLL `54A1F9527A99`）；⑦§13.1 M1c 改"已关闭"、M1 改"只读核心 PASS / 矩阵未全跑"，新增 §16.11，§17.5 五条全部关闭；⑧已知偏差 9 → 11 条（登录卡片与演示标记、演示页棒图配色）；⑨**矩阵 248 条仍未执行**，B 阶段仅部分覆盖 5 条，**M2 可开工但 M1 全量矩阵待补** |
 | 2026-10-21 | v1.7 | **M2a 设计定稿（代码已开始落地、未接线/未验证）**：①§8 权限/监管按 as-built 重写——权限层四道（`AllowCommands` → 会话只读/未登录 → 角色 → `ClickPolicy`）、`AllowCommands` 默认 `false` 总闸、`caps` 逐图元 `canOperate/reason`、`HighestRoleOnly` 平局都可点/无人登录全员只读、`AllOperators` 五项闸门 + `AllOperatorsRequiresLease` 可选加强；②§8.12 新增**安全前置六项**（默认密码 gate `E_DEFAULT_PASSWORD` / Origin / `TicketRatePerMinute=10` / 匿名令牌不续期 `E_SESSION_EXPIRED` / `RevokeSession`·`RevokeUser` → `E_SESSION_REVOKED` / `MaxSessionTokens=4096` → `E_CAPACITY`）；③§9 协议：四条命令（`cmd.element`/`cmd.input`/`cmd.alarm.ack`/`cmd.confirm.request`）、`caps`/`ack`/`presence`/`toast`、`E_NOT_FOUND` 取代 `E_UNKNOWN_ELEMENT`、错误码表按层重写、新增 §9.9 时序（登录 → caps → 命令 → ack/error）；④§4.3/§11.4 命令泵：每会话 32 → 全局 1024 → 线程池消费者（无 SyncContext）→ UI 逐条、单条异常隔离 `E_INTERNAL`、两级 `E_BUSY`；**as-built 不做幂等去重（M2a-4）**；⑤§10.4 六图元补只读/禁用/失败反馈；⑥§12.4 断言 W2-19~W2-31、§13.1 拆出 M2a 行、§15 补 8 个已落地类、§17.6 五条 blocking（宿主未接线/安全未验证/三闸可省略/无幂等/矩阵未跑）；⑦矩阵 C 阶段 **67 → 80 条**（新增 C68–C80），全仓 **248 → 261 条**（P0 191 / P1 65 / P2 5）；⑧**M2a 不计通过，`AllowCommands` 保持 `false`** |
+| 2026-10-25 | v2.0 | **B3/B4 口径切换**：①**删除 `ScadaWeb.ClickPolicy` / `ScadaWebClickPolicy`**（`HighestRoleOnly`、`AllOperators` 两个成员不再存在）；②**Web 全链去 `ScadaRole`**——票/会话/DTO/presence 都没有 `Role`，presence 改给 `GroupId`/`GroupName`；③判权改为 `ScadaWebAccessPolicy.Can(session, requiredKey)`，`Evaluate` 只保留总闸/认证/显式只读三道；图元按 `RequiredPermission` 判，旧 `.vms` 的 `RequiredRole` 折成 Key，运动/停止族按 `ScadaRuntime.RequiredPermissionFor` 兜底；④**§8.1/§8.2/§8.3/§8.4/§8.5 全部重写**——"五项监管闸门才允许 AllOperators"随策略删除，`RequireAudit=true` 的硬约束保留并独立成立；⑤§5.4 配置表删 `ClickPolicy` 行、`RequireOnlineUsers`/`RequireRateLimit`/`RequireConfirmForDangerous`/`ShowOnlineUsers` 改为独立开关说明；⑥§8.1 身份表、§4 会话契约、W2-02/W2-03/W2-05/W2-28、R-25、§17.6 映射表、§20 术语表同步；⑦**新增方案级会话（B4）**：票与 8 小时令牌盖 `(SolutionId, Epoch)` 身份戳、切方案 `E_SOLUTION_CHANGED` 三分、无方案 503 `E_NO_SOLUTION`（零 PBKDF2、零默认密码判定）、`RevokeAll` 清三张表并记第四张"因换方案失效"表。实跑：`Web\ScadaWebChecks` **190 PASS / 0 FAIL**（含 SW1–SW9 共 42 条），已进 `tools\run_gates.ps1`；三处突变反证（关 epoch 闸→SW3-c 红、关 `_solutionRevoked`→SW3-d 红、`ListOnline` 回退冻结只读→SW5-d 红） |

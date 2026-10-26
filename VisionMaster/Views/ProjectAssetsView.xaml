@@ -1,0 +1,1110 @@
+<UserControl
+    x:Class="VisionMaster.Views.ProjectAssetsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="1280"
+    Height="850"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="Width" Value="1280" />
+            <Setter Property="Height" Value="850" />
+            <Setter Property="MinWidth" Value="1180" />
+            <Setter Property="MinHeight" Value="760" />
+            <Setter Property="SizeToContent" Value="Manual" />
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="CanResize" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <UserControl.Resources>
+        <Style x:Key="PanelCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+
+        <Style x:Key="SectionCaptionStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+        </Style>
+
+        <Style x:Key="FactKeyStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+        </Style>
+
+        <Style x:Key="FactValueStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="TypeTabItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            <Setter Property="Padding" Value="12,0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border
+                            x:Name="TabBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0,0,0,2">
+                            <ContentPresenter
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                TextElement.Foreground="{TemplateBinding Foreground}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AssetRowItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Height" Value="62" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border
+                            x:Name="RowBorder"
+                            Background="Transparent"
+                            BorderBrush="{StaticResource DialogBorderLightBrush}"
+                            BorderThickness="3,0,0,1">
+                            <ContentPresenter
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                <Setter TargetName="RowBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FilterButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Padding" Value="6,0" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="FilterBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="FilterBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="FilterBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TypeChipStyle" TargetType="Border">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+
+        <Style x:Key="StatusChipStyle" TargetType="Border">
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="8,0" />
+            <Setter Property="HorizontalAlignment" Value="Left" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusKind}" Value="ok">
+                    <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="check">
+                    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusKind}" Value="lock">
+                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="IconTileStyle" TargetType="Border">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="30" />
+            <Setter Property="CornerRadius" Value="7" />
+            <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="template">
+                    <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="model">
+                    <Setter Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="recipe">
+                    <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="image">
+                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                    <Setter Property="TextElement.Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ImpactChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="7,3" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="TextElement.Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Border Background="{StaticResource DialogBackgroundBrush}">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--  Dialog chrome -->
+            <Grid
+                Grid.Row="0"
+                Margin="20,0"
+                ui:WindowDragBehavior.IsWindowDraggable="True">
+                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                    <Border
+                        Width="30"
+                        Height="30"
+                        Background="{StaticResource AccentBrush}"
+                        CornerRadius="8">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="14"
+                            Foreground="{StaticResource ScadaOnAccentTextBrush}"
+                            Text="&#xf0ad;" />
+                    </Border>
+                    <StackPanel Margin="11,0,0,0" VerticalAlignment="Center">
+                        <TextBlock
+                            FontSize="18"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                            Text="项目资产管理" />
+                        <TextBlock
+                            Margin="0,1,0,0"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="标定 / 模板 / 模型 / 配方 / 图像 · 当前方案真实数据" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Button
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Command="{Binding CloseCommand}"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    Style="{StaticResource DialogQuietButton}">
+                    <Viewbox Width="12" Height="12">
+                        <Path
+                            Data="M2,2 L10,10 M10,2 L2,10"
+                            Stroke="{StaticResource DialogTextTertiaryBrush}"
+                            StrokeEndLineCap="Round"
+                            StrokeStartLineCap="Round"
+                            StrokeThickness="1.4" />
+                    </Viewbox>
+                    <Button.ToolTip>
+                        <ToolTip Content="关闭" Style="{StaticResource DialogToolTipStyle}" />
+                    </Button.ToolTip>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="1" Margin="20,0,20,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="36" />
+                    <RowDefinition Height="34" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!--  Page actions -->
+                <Grid Grid.Row="0">
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <Border
+                            Padding="8,3"
+                            Background="{StaticResource DialogAccentSoftBrush}"
+                            BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="4">
+                            <TextBlock
+                                FontSize="10"
+                                Foreground="{StaticResource DialogAccentTextBrush}"
+                                Text="当前方案真实数据 · 只读投影" />
+                        </Border>
+                        <TextBlock
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                            Text="{Binding ActionMessage}" />
+                    </StackPanel>
+                    <StackPanel
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <Button
+                            Height="32"
+                            Margin="0,0,8,0"
+                            Padding="12,0"
+                            Command="{Binding ImportAssetCommand}"
+                            Content="导入资产"
+                            Style="{StaticResource DialogSecondaryButton}"
+                            ToolTip="在模板 / 模型 / 图像页签导入文件到当前方案" />
+                        <Button
+                            Height="32"
+                            Padding="12,0"
+                            Command="{Binding RefreshCommand}"
+                            Content="刷新列表"
+                            Style="{StaticResource DialogPrimaryButton}" />
+                    </StackPanel>
+                </Grid>
+
+                <!--  Type tabs -->
+                <ListBox
+                    Grid.Row="1"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ItemsSource="{Binding TypeTabs}"
+                    SelectedItem="{Binding SelectedTypeTab, Mode=TwoWay}"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemContainerStyle>
+                        <Style BasedOn="{StaticResource TypeTabItemStyle}" TargetType="ListBoxItem" />
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock VerticalAlignment="Center" FontSize="12.5" FontWeight="SemiBold" Text="{Binding Label}" />
+                                <Border
+                                    MinWidth="20"
+                                    Height="18"
+                                    Margin="6,0,0,0"
+                                    Padding="4,0"
+                                    VerticalAlignment="Center"
+                                    Background="{StaticResource DialogAccentLightBrush}"
+                                    CornerRadius="9">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource DialogAccentTextBrush}"
+                                        Text="{Binding Count}" />
+                                </Border>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <!--  Workspace -->
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="200" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="360" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  Filters -->
+                    <Border
+                        Grid.Column="0"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource PanelCardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="12,12,12,8">
+                                    <TextBox
+                                        Height="32"
+                                        Margin="0,0,0,10"
+                                        Style="{StaticResource DialogSearchInput}"
+                                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                        ToolTip="筛选当前资产名称 / 类型 / 工位" />
+
+                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="资产类型" />
+                                    <ItemsControl Margin="0,5,0,12" ItemsSource="{Binding TypeFilters}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button
+                                                    Command="{Binding DataContext.SelectTypeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding Kind}"
+                                                    Style="{StaticResource FilterButtonStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="18" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource AccentBrush}"
+                                                            Text="{Binding CheckGlyph}" />
+                                                        <TextBlock
+                                                            Grid.Column="1"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="11"
+                                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                            Text="{Binding Label}" />
+                                                        <TextBlock
+                                                            Grid.Column="2"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="10"
+                                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                            Text="{Binding Count}" />
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="生命周期" />
+                                    <StackPanel Margin="0,5,0,12">
+                                        <Grid Height="26">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DialogSuccessBrush}" />
+                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="有效" />
+                                            <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ValidCount}" />
+                                        </Grid>
+                                        <Grid Height="26">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DialogWarningBrush}" />
+                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="待处理" />
+                                            <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding PendingCount}" />
+                                        </Grid>
+                                        <Grid Height="26">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="18" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DialogTextMutedBrush}" />
+                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="已归档" />
+                                            <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ArchivedCount}" />
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="保护" />
+                                    <Grid Height="26" Margin="0,5,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="18" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Ellipse Width="7" Height="7" Fill="{StaticResource DialogTextMutedBrush}" />
+                                        <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="已冻结" />
+                                        <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding LockedCount}" />
+                                    </Grid>
+
+                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="相机" />
+                                    <StackPanel Margin="0,5,0,12">
+                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="•  全部相机" />
+                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="•  NET-STATION-02" />
+                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="•  SIM-LINE-01" />
+                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="•  HK-STATION-03" />
+                                    </StackPanel>
+
+                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="标签" />
+                                    <WrapPanel Margin="0,5,0,0">
+                                        <Border Margin="0,0,5,5" Style="{StaticResource TypeChipStyle}"><TextBlock VerticalAlignment="Center" FontSize="9.5" Text="产线" /></Border>
+                                        <Border Margin="0,0,5,5" Style="{StaticResource TypeChipStyle}"><TextBlock VerticalAlignment="Center" FontSize="9.5" Text="换型" /></Border>
+                                        <Border Margin="0,0,5,5" Style="{StaticResource TypeChipStyle}"><TextBlock VerticalAlignment="Center" FontSize="9.5" Text="待复核" /></Border>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Border
+                                Grid.Row="1"
+                                Margin="12,0,12,8"
+                                Padding="7,6,7,5"
+                                Background="{StaticResource DialogRowAlternateBrush}"
+                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="52" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border
+                                        Width="36"
+                                        Height="36"
+                                        Background="{StaticResource DialogAccentSoftBrush}"
+                                        CornerRadius="18">
+                                        <TextBlock
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontSize="14"
+                                            FontWeight="Bold"
+                                            Foreground="{StaticResource DialogAccentTextBrush}"
+                                            Text="{Binding HealthPercent}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                                        <TextBlock FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="当前页签健康度" />
+                                        <TextBlock
+                                            Margin="0,3,0,0"
+                                            FontSize="9.5"
+                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                            Text="{Binding HealthText}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!--  Asset list -->
+                    <Border
+                        Grid.Column="1"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource PanelCardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="48" />
+                                <RowDefinition Height="34" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="34" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="14,0">
+                                <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                    <TextBlock FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding ListTitle}" />
+                                    <TextBlock Margin="7,0,0,0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ListCountText}" />
+                                </StackPanel>
+                                <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                                    <Button Height="26" Margin="0,0,6,0" Padding="8,0" Content="最近更新" Style="{StaticResource DialogGhostButton}" />
+                                    <Button Height="26" Padding="8,0" Content="筛选" Style="{StaticResource DialogGhostButton}" />
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1" Background="{StaticResource DialogRowAlternateBrush}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="130" />
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="80" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="62" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Margin="14,0,0,0" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="资产" />
+                                <TextBlock Grid.Column="1" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="工位 · 相机" />
+                                <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="类型" />
+                                <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="状态" />
+                                <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="引用" />
+                                <TextBlock Grid.Column="5" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="更新" />
+                            </Grid>
+
+                            <ListBox
+                                Grid.Row="2"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                ItemsSource="{Binding VisibleAssets}"
+                                SelectedItem="{Binding SelectedAsset, Mode=TwoWay}"
+                                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                <ListBox.ItemContainerStyle>
+                                    <Style BasedOn="{StaticResource AssetRowItemStyle}" TargetType="ListBoxItem" />
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="10,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="130" />
+                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="80" />
+                                                <ColumnDefinition Width="70" />
+                                                <ColumnDefinition Width="62" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Grid.Column="0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="30" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <Border Style="{StaticResource IconTileStyle}">
+                                                    <TextBlock
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        FontFamily="{StaticResource Icon}"
+                                                        FontSize="13"
+                                                        Text="{Binding IconGlyph}" />
+                                                </Border>
+                                                <StackPanel Grid.Column="1" Margin="9,0,0,0" VerticalAlignment="Center">
+                                                    <TextBlock
+                                                        FontSize="11.5"
+                                                        FontWeight="SemiBold"
+                                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                        Text="{Binding Name}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        Margin="0,3,0,0"
+                                                        FontSize="9.5"
+                                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                        TextTrimming="CharacterEllipsis">
+                                                        <Run Text="{Binding Version, Mode=OneWay}" />
+                                                        <Run Text=" · " />
+                                                        <Run Text="{Binding ShortId, Mode=OneWay}" />
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Grid>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <TextBlock FontSize="10" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Scope}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Camera}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                            <Border Grid.Column="2" Style="{StaticResource TypeChipStyle}" HorizontalAlignment="Left">
+                                                <TextBlock VerticalAlignment="Center" FontSize="9.5" Text="{Binding TypeLabel}" TextTrimming="CharacterEllipsis" />
+                                            </Border>
+                                            <Border Grid.Column="3" Style="{StaticResource StatusChipStyle}">
+                                                <TextBlock VerticalAlignment="Center" FontSize="9.5" Text="{Binding Status}" />
+                                            </Border>
+                                            <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="{Binding RefsSummary}" />
+                                            <StackPanel Grid.Column="5" VerticalAlignment="Center">
+                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="{Binding Updated}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding UpdatedSub}" TextTrimming="CharacterEllipsis" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+
+                            <Border Grid.Row="3" BorderBrush="{StaticResource DialogBorderLightBrush}" BorderThickness="0,1,0,0">
+                                <TextBlock
+                                    Margin="14,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="9.5"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="{Binding FooterText}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!--  Detail -->
+                    <Border
+                        Grid.Column="2"
+                        Style="{StaticResource PanelCardStyle}"
+                        Visibility="{Binding HasSelectedAsset, Converter={ui:BooleanToVisibilityConverter}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0" Margin="14,7,12,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Style="{StaticResource IconTileStyle}" Width="36" Height="36">
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontFamily="{StaticResource Icon}"
+                                        FontSize="15"
+                                        Text="{Binding SelectedAsset.IconGlyph}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="10,0,8,0">
+                                    <TextBlock
+                                        FontSize="17"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                        Text="{Binding SelectedAsset.Name}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <TextBlock
+                                        Margin="0,3,0,0"
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding SelectedAsset.Id}"
+                                        TextTrimming="CharacterEllipsis" />
+                                    <StackPanel Margin="0,7,0,0" Orientation="Horizontal">
+                                        <Border Style="{StaticResource TypeChipStyle}" Margin="0,0,5,0">
+                                            <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding SelectedAsset.Version}" />
+                                        </Border>
+                                        <Border Style="{StaticResource TypeChipStyle}" Margin="0,0,5,0">
+                                            <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding SelectedAsset.TypeLabel}" />
+                                        </Border>
+                                        <Border Style="{StaticResource TypeChipStyle}" Margin="0,0,5,0">
+                                            <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding SelectedAsset.Ownership}" />
+                                        </Border>
+                                        <Border Style="{StaticResource StatusChipStyle}" Margin="0,0,5,0">
+                                            <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding SelectedAsset.Status}" />
+                                        </Border>
+                                        <Border Style="{StaticResource TypeChipStyle}" Visibility="{Binding SelectedAsset.IsFrozen, Converter={ui:BooleanToVisibilityConverter}}">
+                                            <TextBlock VerticalAlignment="Center" FontSize="9" Text="冻结" />
+                                        </Border>
+                                        <Border Style="{StaticResource TypeChipStyle}" Margin="5,0,0,0" Visibility="{Binding SelectedAsset.IsDefault, Converter={ui:BooleanToVisibilityConverter}}">
+                                            <TextBlock VerticalAlignment="Center" FontSize="9" Text="默认" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock
+                                        Margin="0,6,0,0"
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding SelectedAsset.Scope, StringFormat=作用域：{0}}" />
+                                </StackPanel>
+                                <Button
+                                    Grid.Column="2"
+                                    Width="30"
+                                    Height="30"
+                                    Padding="0"
+                                    Command="{Binding CopyIdCommand}"
+                                    Style="{StaticResource DialogIconButton}"
+                                    ToolTip="复制资产 Id">
+                                    <TextBlock FontFamily="{StaticResource Icon}" FontSize="12" Text="&#xf0c5;" />
+                                </Button>
+                            </Grid>
+
+                            <TabControl
+                                Grid.Row="1"
+                                Margin="8,0,8,0"
+                                SelectedIndex="{Binding SelectedDetailTabIndex, Mode=TwoWay}"
+                                Style="{StaticResource DialogTabControl}">
+                                <TabItem Style="{StaticResource DialogTabItem}">
+                                    <TabItem.Header>
+                                        <TextBlock FontSize="11" Text="概览" />
+                                    </TabItem.Header>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="0,10,0,8">
+                                            <Border
+                                                Padding="10"
+                                                Background="{StaticResource DialogRowAlternateBrush}"
+                                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="7">
+                                                <Grid Height="112">
+                                                    <StackPanel Visibility="{Binding SelectedAsset.IsCalibration, Converter={ui:BooleanToVisibilityConverter}}">
+                                                        <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="标定图预览 · 只读" />
+                                                        <Viewbox Height="88" Margin="0,4,0,0" Stretch="Uniform">
+                                                            <Canvas Width="280" Height="80">
+                                                                <Line X1="18" Y1="62" X2="262" Y2="62" Stroke="{StaticResource DialogBorderStrongBrush}" StrokeThickness="1" />
+                                                                <Line X1="18" Y1="6" X2="18" Y2="62" Stroke="{StaticResource DialogBorderStrongBrush}" StrokeThickness="1" />
+                                                                <Ellipse Canvas.Left="92" Canvas.Top="38" Width="8" Height="8" Fill="{StaticResource AccentBrush}" />
+                                                                <Ellipse Canvas.Left="162" Canvas.Top="38" Width="8" Height="8" Fill="{StaticResource AccentBrush}" />
+                                                                <Line X1="98" Y1="42" X2="164" Y2="42" Stroke="{StaticResource AccentBrush}" StrokeDashArray="2,2" StrokeThickness="1" />
+                                                                <TextBlock Canvas.Left="62" Canvas.Top="54" FontSize="8" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="A (R240, C100) px" />
+                                                                <TextBlock Canvas.Left="136" Canvas.Top="54" FontSize="8" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="B (R240, C300) px" />
+                                                                <TextBlock Canvas.Left="18" Canvas.Top="68" FontSize="8" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="图像坐标：原点左上 · Row 向下" />
+                                                                <TextBlock Canvas.Left="184" Canvas.Top="68" FontSize="8" Foreground="{StaticResource DialogAccentTextBrush}" Text="基线 200.00 px ↔ 10.000 mm" />
+                                                            </Canvas>
+                                                        </Viewbox>
+                                                    </StackPanel>
+                                                    <StackPanel
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="{Binding SelectedAsset.IsNotCalibration, Converter={ui:BooleanToVisibilityConverter}}">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            FontFamily="{StaticResource Icon}"
+                                                            FontSize="26"
+                                                            Foreground="{StaticResource DialogAccentTextBrush}"
+                                                            Text="{Binding SelectedAsset.IconGlyph}" />
+                                                        <TextBlock
+                                                            Margin="0,7,0,0"
+                                                            HorizontalAlignment="Center"
+                                                            FontSize="11"
+                                                            FontWeight="SemiBold"
+                                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                                            Text="{Binding SelectedAsset.PreviewTitle}" />
+                                                        <TextBlock
+                                                            Margin="0,3,0,0"
+                                                            HorizontalAlignment="Center"
+                                                            FontSize="9.5"
+                                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                            Text="{Binding SelectedAsset.PreviewSub}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+
+                                            <Border Margin="0,9,0,0" Style="{StaticResource PanelCardStyle}">
+                                                <ItemsControl Margin="9,8" ItemsSource="{Binding SelectedAsset.Overview}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,7,7" Padding="7,5" Background="{StaticResource DialogInputBackgroundBrush}" CornerRadius="5">
+                                                                <StackPanel>
+                                                                    <TextBlock Style="{StaticResource FactKeyStyle}" Text="{Binding Key}" />
+                                                                    <TextBlock Margin="0,3,0,0" Style="{StaticResource FactValueStyle}" Text="{Binding Value}" />
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Border>
+
+                                            <Border Margin="0,9,0,0" Style="{StaticResource PanelCardStyle}">
+                                                <StackPanel Margin="9,8">
+                                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="关联对象 · 静态 · 方案内" />
+                                                    <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding SelectedAsset.Associations}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Margin="0,0,7,7" Padding="7,5" Background="{StaticResource DialogRowAlternateBrush}" CornerRadius="5">
+                                                                    <StackPanel>
+                                                                        <TextBlock FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Label}" />
+                                                                        <TextBlock Margin="0,2,0,0" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Value}" TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock Margin="0,2,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Sub}" TextTrimming="CharacterEllipsis" />
+                                                                    </StackPanel>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <TabItem Style="{StaticResource DialogTabItem}">
+                                    <TabItem.Header>
+                                        <TextBlock FontSize="11" Text="技术参数" />
+                                    </TabItem.Header>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl Margin="0,10,0,8" ItemsSource="{Binding SelectedAsset.TechGroups}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Margin="0,0,0,8" Style="{StaticResource PanelCardStyle}">
+                                                        <StackPanel Margin="9,8">
+                                                            <Grid>
+                                                                <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="{Binding Title}" />
+                                                                <TextBlock HorizontalAlignment="Right" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Right}" />
+                                                            </Grid>
+                                                            <ItemsControl Margin="0,6,0,0" ItemsSource="{Binding Fields}">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Margin="0,0,7,6" Padding="7,5" Background="{StaticResource DialogInputBackgroundBrush}" CornerRadius="5">
+                                                                            <StackPanel>
+                                                                                <TextBlock Style="{StaticResource FactKeyStyle}" Text="{Binding Key}" />
+                                                                                <TextBlock Margin="0,2,0,0" Style="{StaticResource FactValueStyle}" Text="{Binding Value}" />
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <TabItem Style="{StaticResource DialogTabItem}">
+                                    <TabItem.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontSize="11" Text="引用" />
+                                            <Border MinWidth="16" Height="16" Margin="5,0,0,0" Background="{StaticResource DialogAccentLightBrush}" CornerRadius="8">
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogAccentTextBrush}" Text="{Binding SelectedAsset.References.Count}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </TabItem.Header>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="0,10,0,8">
+                                            <WrapPanel>
+                                                <Border Style="{StaticResource ImpactChipStyle}">
+                                                    <TextBlock FontSize="10"><Run Text="引用 " /><Run FontWeight="Bold" Text="{Binding SelectedAsset.References.Count, Mode=OneWay}" /></TextBlock>
+                                                </Border>
+                                                <Border Style="{StaticResource ImpactChipStyle}">
+                                                    <TextBlock FontSize="10" Text="生产读取 / 标定写入 / 调试入口" />
+                                                </Border>
+                                            </WrapPanel>
+                                            <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedAsset.References}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,0,0,6" Padding="8,6" Background="{StaticResource DialogSurfaceBrush}" BorderBrush="{StaticResource DialogBorderBrush}" BorderThickness="1" CornerRadius="6">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="22" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock
+                                                                    VerticalAlignment="Top"
+                                                                    FontFamily="{StaticResource Icon}"
+                                                                    FontSize="11"
+                                                                    Foreground="{StaticResource DialogAccentTextBrush}"
+                                                                    Text="&#xf0c1;" />
+                                                                <StackPanel Grid.Column="1" Margin="6,0,6,0">
+                                                                    <TextBlock FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                                                    <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Sub}" TextWrapping="Wrap" />
+                                                                </StackPanel>
+                                                                <Border Grid.Column="2" Style="{StaticResource TypeChipStyle}" VerticalAlignment="Top">
+                                                                    <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding Kind}" />
+                                                                </Border>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Border Padding="8,6" Background="{StaticResource DialogAccentSoftBrush}" BorderBrush="{StaticResource DialogAccentBorderBrush}" BorderThickness="1" CornerRadius="5">
+                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="引用索引当前尚未落地；冻结/删除前需要先处理写引用。" TextWrapping="Wrap" />
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+
+                                <TabItem Style="{StaticResource DialogTabItem}">
+                                    <TabItem.Header>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock FontSize="11" Text="版本" />
+                                            <Border MinWidth="16" Height="16" Margin="5,0,0,0" Background="{StaticResource DialogAccentLightBrush}" CornerRadius="8">
+                                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogAccentTextBrush}" Text="{Binding SelectedAsset.Versions.Count}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </TabItem.Header>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <StackPanel Margin="0,10,0,8">
+                                            <ItemsControl ItemsSource="{Binding SelectedAsset.Versions}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,0,0,7" Padding="9,7" Background="{StaticResource DialogSurfaceBrush}" BorderBrush="{StaticResource DialogBorderBrush}" BorderThickness="1" CornerRadius="6">
+                                                            <StackPanel>
+                                                                <Grid>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock FontSize="12" FontWeight="Bold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Version}" />
+                                                                        <Border Margin="6,0,0,0" Padding="5,1" Background="{StaticResource DialogSuccessSubtleBrush}" CornerRadius="4">
+                                                                            <TextBlock FontSize="8.5" Foreground="{StaticResource DialogSuccessTextBrush}" Text="{Binding Tag}" />
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                    <TextBlock HorizontalAlignment="Right" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Time}" />
+                                                                </Grid>
+                                                                <TextBlock Margin="0,5,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Meta}" TextWrapping="Wrap" />
+                                                                <Border Margin="0,6,0,0" Padding="6,4" Background="{StaticResource DialogInputBackgroundBrush}" CornerRadius="4">
+                                                                    <TextBlock FontSize="9" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="{Binding Diff}" TextWrapping="Wrap" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <Border
+                                                Padding="8,6"
+                                                Background="{StaticResource DialogAccentSoftBrush}"
+                                                BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Visibility="{Binding SelectedAsset.HasNoVersions, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="尚未保存版本历史；当前版本来自方案文件。" />
+                                            </Border>
+                                            <Border
+                                                Margin="0,7,0,0"
+                                                Padding="8,6"
+                                                Background="{StaticResource DialogAccentSoftBrush}"
+                                                BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="5">
+                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="版本只在内容变化时递增；回滚前会校验引用版本与复核权限。" TextWrapping="Wrap" />
+                                            </Border>
+                                        </StackPanel>
+                                    </ScrollViewer>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Column="2">
+                        <Border.Style>
+                            <Style BasedOn="{StaticResource PanelCardStyle}" TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedAsset}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel
+                            MaxWidth="280"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="28"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="&#xf187;" />
+                            <TextBlock
+                                Margin="0,12,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="当前页签暂无资产" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                HorizontalAlignment="Center"
+                                FontSize="9.5"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="模板 / 模型资产需要先导入真实文件；导入后保存方案即可落盘。"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+
+            <!--  Fixed action footer: root overlay, independent of page/detail height -->
+            <Grid
+                Grid.Row="1"
+                Width="360"
+                Margin="0,0,20,24"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Panel.ZIndex="10">
+                <Border Height="68" Style="{StaticResource PanelCardStyle}">
+                    <Grid Margin="8,4,8,4">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="28" />
+                            <RowDefinition Height="28" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Button
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            Height="28"
+                            MinHeight="0"
+                            Margin="0,0,4,2"
+                            Padding="6,0"
+                            Command="{Binding SetDefaultCommand}"
+                            Content="设为默认"
+                            FontSize="12"
+                            Style="{StaticResource DialogPrimaryButton}" />
+                        <Button
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            Height="28"
+                            MinHeight="0"
+                            Margin="4,0,0,2"
+                            Padding="6,0"
+                            Command="{Binding ToggleFreezeCommand}"
+                            Content="冻结版本"
+                            FontSize="12"
+                            Style="{StaticResource DialogSecondaryButton}" />
+                        <Button
+                            Grid.Row="1"
+                            Grid.Column="0"
+                            Height="28"
+                            MinHeight="0"
+                            Margin="0,2,4,0"
+                            Padding="6,0"
+                            Command="{Binding ExportCommand}"
+                            Content="导出资产包"
+                            FontSize="12"
+                            Style="{StaticResource DialogSecondaryButton}" />
+                        <Button
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            Height="28"
+                            MinHeight="0"
+                            Margin="4,2,0,0"
+                            Padding="6,0"
+                            Command="{Binding CopyIdCommand}"
+                            Content="复制 Id"
+                            FontSize="12"
+                            Style="{StaticResource DialogSecondaryButton}" />
+                    </Grid>
+                </Border>
+            </Grid>
+
+        </Grid>
+    </Border>
+</UserControl>

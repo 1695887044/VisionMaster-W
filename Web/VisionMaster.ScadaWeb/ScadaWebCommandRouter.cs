@@ -252,7 +252,7 @@ namespace VisionMaster.ScadaWeb
             var eventType = command.Event.Value;
 
             // ① 角色 + 策略（先于限速，理由见类注释）
-            if (!_policy.CanOperate(command.Session, element.RequiredRole, out var denyCode, out var denyReason))
+            if (!_policy.Can(command.Session, ScadaRuntime.RequiredPermissionFor(element, eventType), out var denyCode, out var denyReason))
                 return Deny(command, denyCode, denyReason, element.Name, eventType.ToString());
 
             // ② 限速（图元额度跨会话共享）
@@ -263,9 +263,35 @@ namespace VisionMaster.ScadaWeb
             var hooks = CollectHooks(element, eventType);
             if (hooks.Count == 0)
             {
-                return Deny(command, ScadaWebErrorCodes.NotOperable,
-                    $"图元「{element.Name}」没有为事件「{eventType}」配置动作",
-                    element.Name, eventType.ToString());
+                // 与桌面同一条口径（ScadaRuntime.RaiseElementEvent 的第三道闸）：
+                // 「事件没配钩子」= 0 次回调，**不算失败**。
+                //
+                // 为什么不能一律回 E_NOT_OPERABLE（2026-10-25 真机发现）：
+                // 按钮在网页上是 Pressed + Released 两个半事件，现场通常只给 Pressed 配动作，
+                // 于是每次点击的松手那一下都会弹一条红字「没有为事件 Released 配置动作」——
+                // 动作其实已经执行成功了，红条只会让人以为点失败。桌面端这时什么都不提示。
+                //
+                // 但"整块图元一个事件都没配"要留住提示：那是控件本身是死的，
+                // 而"点了没反应"恰恰是现场最难自查的一类问题（ScadaRuntime 的那段注释就是这么写的）。
+                if (!HasAnyHook(element))
+                {
+                    return Deny(command, ScadaWebErrorCodes.NotOperable,
+                        $"图元「{element.Name}」没有配置任何事件动作",
+                        element.Name, eventType.ToString());
+                }
+
+                Audit(command, element.Name, "Web 操作", eventType.ToString(), "跳过",
+                    $"hooks=0 actions=0 ok=0 skipped=0 failed=0 details=事件「{eventType}」未配钩子（按桌面口径静默忽略）");
+
+                return ScadaWebCommandResult.Success(new
+                {
+                    actions = 0,
+                    succeeded = 0,
+                    skipped = 0,
+                    failed = 0,
+                    hooks = 0,
+                    details = Array.Empty<string>()
+                });
             }
 
             // A 范围：事件动作里若有"写流程触发变量"，同样会经变量上升沿启动流程。
@@ -478,7 +504,9 @@ namespace VisionMaster.ScadaWeb
                 }
             }
 
-            if (!_policy.CanOperate(command.Session, element.RequiredRole, out var denyCode, out var denyReason))
+            // 写值不是事件：没有"本次事件的运动/停止兜底"，只看图元显式配置的 Key
+            //（旧 .vms 只写了 RequiredRole 时由 RequiredPermissionOf 折成 Key）。
+            if (!_policy.Can(command.Session, element.RequiredPermissionOf(), out var denyCode, out var denyReason))
                 return Deny(command, denyCode, denyReason, element.Name, "输入");
 
             if (!TryRateLimit(command, ElementKey(element), element.Name, "输入", out var limited))
@@ -566,7 +594,7 @@ namespace VisionMaster.ScadaWeb
             if (!TryResolveContext(command, out var runtime, out var page, out var failure))
                 return failure;
 
-            // 报警确认可以来自某个图元（AckButton，按它的 RequiredRole 判权），
+            // 报警确认可以来自某个图元（AckButton，按它的权限 Key 判），
             // 也可以来自顶部工具条（没有图元 → 只要求"已登录 + 策略允许"）。
             ScadaElement? element = null;
 
@@ -578,7 +606,7 @@ namespace VisionMaster.ScadaWeb
                         command.ElementId!, "确认报警");
             }
 
-            if (!_policy.CanOperate(command.Session, element?.RequiredRole, out var denyCode, out var denyReason))
+            if (!_policy.Can(command.Session, element?.RequiredPermissionOf(), out var denyCode, out var denyReason))
                 return Deny(command, denyCode, denyReason, element?.Name ?? "报警", "确认报警");
 
             if (!TryRateLimit(command, element == null ? null : ElementKey(element),
@@ -656,7 +684,9 @@ namespace VisionMaster.ScadaWeb
                     "cmd.confirm.request 缺少 event 字段（如 Pressed / Released）",
                     element.Name, "申请确认");
 
-            if (!_policy.CanOperate(command.Session, element.RequiredRole, out var denyCode, out var denyReason))
+            if (!_policy.Can(command.Session,
+                    ScadaRuntime.RequiredPermissionFor(element, command.Event.Value),
+                    out var denyCode, out var denyReason))
                 return Deny(command, denyCode, denyReason, element.Name, "申请确认");
 
             if (!TryRateLimit(command, ElementKey(element), element.Name, "申请确认", out var limited))
@@ -871,6 +901,23 @@ namespace VisionMaster.ScadaWeb
             }
 
             return hooks;
+        }
+
+        /// <summary>
+        /// 这个图元有没有<b>任何</b>事件配了动作（不分事件类型）。
+        ///
+        /// 用途只有一个：区分"半事件"与"死控件"。前者（只配了 Pressed、没配 Released）
+        /// 按桌面口径静默忽略；后者是控件根本没接动作，值得回一句
+        /// <c>E_NOT_OPERABLE</c> 告诉现场"这个按钮是死的"。
+        /// </summary>
+        private static bool HasAnyHook(ScadaElement element)
+        {
+            foreach (var hook in element.EventHooks)
+            {
+                if (hook != null && hook.Actions.Count > 0) return true;
+            }
+
+            return false;
         }
 
         /// <summary>

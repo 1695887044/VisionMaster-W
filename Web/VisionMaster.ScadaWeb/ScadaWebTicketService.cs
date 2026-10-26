@@ -23,8 +23,31 @@ namespace VisionMaster.ScadaWeb
         /// <summary>登录用户名；<c>null</c> = 匿名只读观众</summary>
         public string? UserName { get; init; }
 
-        /// <summary>校验通过的角色（匿名观众为 <see cref="ScadaRole.Operator"/>）</summary>
-        public ScadaRole Role { get; init; }
+        /// <summary>
+        /// 签票那一刻的方案 id；<c>null</c> = 这个宿主<b>没有方案概念</b>（断言宿主 / 探针 / 压测工具）。
+        ///
+        /// <b>为什么是 <c>Guid?</c></b>：<see cref="IScadaSolutionContext.SolutionId"/> 本身可空
+        /// （未打开方案 / 绑定失败 fail-closed 时为 null），而「没有方案」必须与
+        /// 「有一个恰好等于 Guid.Empty 的方案」区分得开。
+        /// </summary>
+        public Guid? SolutionId { get; init; }
+
+        /// <summary>
+        /// 签票那一刻的会话边界代数。与 <see cref="SolutionId"/> 一起构成「这枚票属于哪一代」。
+        ///
+        /// 只比对 <see cref="SolutionId"/> 不够：同一个方案被重新打开（或保存后重绑）时 id 不变，
+        /// 但那是一次真实的重绑，旧票应当失效。<see cref="Epoch"/> 只增不减，正好表达这件事。
+        /// </summary>
+        public long Epoch { get; init; }
+
+        /// <summary>B3：用户组 Id（匿名/旧票为空串）。</summary>
+        public string GroupId { get; init; } = string.Empty;
+
+        /// <summary>B3：用户组显示名。</summary>
+        public string GroupName { get; init; } = string.Empty;
+
+        /// <summary>B3：登录时复制的权限快照。</summary>
+        public IReadOnlyList<string> Permissions { get; init; } = Array.Empty<string>();
 
         /// <summary>
         /// 只读标记。M1a 全局只读（任何 ticket 都是 <c>true</c>）；
@@ -110,8 +133,15 @@ namespace VisionMaster.ScadaWeb
         /// <summary>登录用户名；<c>null</c> = 匿名只读观众</summary>
         public string? UserName { get; init; }
 
-        /// <summary>角色</summary>
-        public ScadaRole Role { get; init; }
+        /// <summary>签发这枚会话令牌时的方案 id（含义同 <see cref="ScadaWebTicketGrant.SolutionId"/>）</summary>
+        public Guid? SolutionId { get; init; }
+
+        /// <summary>签发这枚会话令牌时的会话边界代数（含义同 <see cref="ScadaWebTicketGrant.Epoch"/>）</summary>
+        public long Epoch { get; init; }
+
+        public string GroupId { get; init; } = string.Empty;
+        public string GroupName { get; init; } = string.Empty;
+        public IReadOnlyList<string> Permissions { get; init; } = Array.Empty<string>();
 
         /// <summary>只读标记（与签发时的 ticket 一致）</summary>
         public bool ReadOnly { get; init; }
@@ -198,6 +228,21 @@ namespace VisionMaster.ScadaWeb
         /// <summary>会话令牌表已满</summary>
         public const string ErrorCapacity = "E_CAPACITY";
 
+        /// <summary>
+        /// 桌面端还没打开任何方案，Web 一律不发票。
+        /// 与 <see cref="ErrorCapacity"/> 等并列成「取票家族」错误码（不走 <see cref="TryRedeem"/> 的统一 401 出口）。
+        /// </summary>
+        public const string ErrorNoSolution = "E_NO_SOLUTION";
+
+        /// <summary>
+        /// 票/令牌属于另一个方案代（切方案、或方案被重新绑定）。
+        ///
+        /// <b>这是对「核销失败不区分原因」的一次有意破例</b>，理由见
+        /// <see cref="TryResolveSession(string?, string?, out ScadaWebSessionGrant?, out string?)"/> 里那段注释：
+        /// 客户端必须区分「被管理员下线」与「方案换了」才能给出正确文案。
+        /// </summary>
+        public const string ErrorSolutionChanged = "E_SOLUTION_CHANGED";
+
         private readonly Dictionary<string, ScadaWebTicketGrant> _live = new(StringComparer.Ordinal);
         private readonly Dictionary<string, ScadaWebTicketGrant> _handoff = new(StringComparer.Ordinal);
         private readonly Dictionary<string, ScadaWebSessionGrant> _sessions = new(StringComparer.Ordinal);
@@ -205,10 +250,50 @@ namespace VisionMaster.ScadaWeb
         /// <summary>被撤销的会话令牌 → 撤销时刻（只用来在日志/响应里区分"过期"与"被撤销"）</summary>
         private readonly Dictionary<string, DateTime> _revokedTokens = new(StringComparer.Ordinal);
 
+        /// <summary>
+        /// <b>第四张表</b>：因「方案换了」而失效的会话令牌 → 失效时刻。
+        ///
+        /// <b>为什么必须单独一张表，而不能靠调整检查顺序</b>
+        /// ---------
+        /// <see cref="RevokeAll"/> 会清掉 <c>_sessions</c>，令牌对应的 grant（连同它身上的
+        /// <see cref="ScadaWebSessionGrant.Epoch"/>）当场蒸发。此后核对 epoch 的那一行根本走不到，
+        /// 请求只会命中 <c>_revokedTokens</c> → 客户端拿到 <see cref="ErrorSessionRevoked"/>，
+        /// 浏览器显示「您已被管理员下线」——文案是错的，而且现场会去查「谁踢的人」，查不到。
+        ///
+        /// 所以这里记的是「这枚令牌是因为换方案而失效的」。老化口径复用
+        /// <see cref="SessionLifetime"/>（超过原有效期就没有区分意义了）。
+        /// </summary>
+        private readonly Dictionary<string, DateTime> _solutionRevoked = new(StringComparer.Ordinal);
+
+        /// <summary>会话边界的读取口（<c>null</c> = 这个宿主没有方案概念，见类注释）</summary>
+        private readonly IScadaSolutionContext? _solution;
+
         /// <summary>被整账号撤销的用户名 → 撤销时刻（撤销后该用户<b>所有</b>会话失效）</summary>
         private readonly Dictionary<string, DateTime> _revokedUsers = new(StringComparer.OrdinalIgnoreCase);
 
         private readonly object _gate = new();
+
+        /// <summary>
+        /// 无参构造：这个票表<b>没有方案概念</b>（断言宿主 / 探针 / 压测工具那 9 处纯 <c>new</c>）。
+        /// 不盖方案戳、不校验 epoch、<see cref="RevokeAll"/> 仍然可用（那是一次性的"全撤"）。
+        /// 产品路径由 <see cref="ScadaWebHost"/> 传方案上下文进来。
+        /// </summary>
+        public ScadaWebTicketService()
+        {
+        }
+
+        /// <summary>
+        /// 带方案上下文的构造：票与会话令牌都盖「哪一代方案」的戳，跨代一律失效。
+        ///
+        /// <b>为什么参数可空而不是重载</b>：现存 9 处纯 <c>new ScadaWebTicketService()</c> 全在
+        /// 断言/探针里，<c>null</c> 语义是「这个宿主没有方案概念」。若把「没有方案上下文就拒票」
+        /// 做成 ctor 默认行为，那 9 处会当场全红，而它们与方案毫无关系。
+        /// 产品路径的 fail-closed 落在 <c>ScadaWebModule.Initialize</c>（解析不到上下文就不启动 HTTP）。
+        /// </summary>
+        public ScadaWebTicketService(IScadaSolutionContext? solutionContext)
+        {
+            _solution = solutionContext;
+        }
 
         /// <summary>
         /// 会话令牌表上限（<c>&lt;= 0</c> 按 <see cref="DefaultMaxSessionTokens"/> 处理）。
@@ -256,9 +341,14 @@ namespace VisionMaster.ScadaWeb
 
         /// <summary>
         /// 签发一张一次性票。返回的对象同时是"核销后交给 WS handler 的身份"。
+        ///
+        /// <b>身份只有三样：用户名、用户组、权限 Key 快照</b>。没有角色档位——
+        /// 见 <see cref="ScadaWebAccessPolicy"/> 的类注释。
         /// </summary>
         /// <param name="userName">登录用户名；<c>null</c> = 匿名只读观众</param>
-        /// <param name="role">角色</param>
+        /// <param name="groupId">用户组 Id（匿名/未分组为空）</param>
+        /// <param name="groupName">用户组显示名</param>
+        /// <param name="permissions">登录那一刻复制的权限 Key 快照（组改了不影响已登录会话）</param>
         /// <param name="readOnly">调用方直接指定的只读标记（<c>true</c> 恒只读）</param>
         /// <param name="boundIp">绑定 IP（<c>null</c> = 不绑定）</param>
         /// <param name="allowCommands">
@@ -268,8 +358,10 @@ namespace VisionMaster.ScadaWeb
         /// </param>
         public ScadaWebTicketGrant Issue(
             string? userName,
-            ScadaRole role,
-            bool readOnly,
+            string? groupId = null,
+            string? groupName = null,
+            IReadOnlyList<string>? permissions = null,
+            bool readOnly = false,
             string? boundIp = null,
             bool allowCommands = true)
         {
@@ -280,7 +372,13 @@ namespace VisionMaster.ScadaWeb
             {
                 Ticket = Guid.NewGuid().ToString("N"),
                 UserName = effectiveUserName,
-                Role = role,
+                GroupId = groupId ?? string.Empty,
+                GroupName = groupName ?? string.Empty,
+                Permissions = permissions ?? Array.Empty<string>(),
+                // 方案身份戳在这里一次写定：调用点（续期 / 匿名 / 登录三处）看不见方案概念，
+                // 这正是把 _solution 放进票表而不是放进宿主的理由。
+                SolutionId = _solution?.SolutionId,
+                Epoch = _solution?.Epoch ?? 0,
                 ReadOnly = readOnly || !allowCommands || effectiveUserName == null,
                 ExplicitReadOnly = readOnly,
                 BoundIp = string.IsNullOrWhiteSpace(boundIp) ? null : boundIp,
@@ -360,6 +458,15 @@ namespace VisionMaster.ScadaWeb
                 {
                     // 三种情况共用一条原因：不存在 / 已过期（已被 Prune 移除）/ 已被使用。
                     // 对客户端一律 401，原因只进服务端日志（不区分 = 不给枚举口子）。
+                    //
+                    // ★★ 有意破例：方案变了要回一个**不同的码**（E_SOLUTION_CHANGED）★★
+                    // 下面「共用一条原因」的纪律对「切方案」不适用，理由是客户端必须靠错误码
+                    // 决定文案：E_SESSION_REVOKED =「被管理员下线」、E_SESSION_EXPIRED =「到点了，请重新登录」、
+                    // E_SOLUTION_CHANGED =「方案已切换，请重新登录」。这里泄露的是「方案换了」，
+                    // 不是「这个账号存不存在」，所以不构成账号/票面枚举口子。
+                    //
+                    // 下一位维护者读到「三种情况共用一条原因」时**不要**顺手把方案分支合并回去——
+                    // 症状是「切了方案但浏览器还挂着旧方案的会话」，属最难查的一类。
                     reason = "ticket 不存在、已过期或已被使用";
                     return false;
                 }
@@ -369,6 +476,16 @@ namespace VisionMaster.ScadaWeb
                 if (found.IsExpired(now))
                 {
                     reason = "ticket 已过期";
+                    return false;
+                }
+
+                // ① 方案代闸：签票时与核销时的 (SolutionId, Epoch) 必须一致。
+                //    票只有 30 秒，但「取票→握手」正好横跨一次切方案是可能的；
+                //    放它过去就等于新方案下用着旧方案的权限快照。
+                if (IsStaleSolution(found.SolutionId, found.Epoch))
+                {
+                    reason = "取票后方案已切换（ticket 属于旧方案代）";
+                    errorCode = ErrorSolutionChanged;
                     return false;
                 }
 
@@ -453,11 +570,20 @@ namespace VisionMaster.ScadaWeb
                 if (found.IsExpired(now))
                     return false;
 
+                // 方案代闸（与 TryRedeem / TryResolveSession 同一判据）：
+                // 「取票 → 握手」之间切了方案时，这张已核销的票不许完成握手。
+                if (IsStaleSolution(found.SolutionId, found.Epoch))
+                {
+                    if (found.Session != null) AbandonHandoffSessionLocked(found, now);
+                    return false;
+                }
+
                 // 撤销必须覆盖 handoff：票已经核销、WS 还没取走身份时，令牌可能已被
                 // RevokeSession/RevokeUser 撤销。只查过期会让"被踢的会话"再完成一次握手
                 // 并继续收帧到第一条命令（2026-10-21 终审 P1-1）。
                 if (found.Session != null
                     && (_revokedTokens.ContainsKey(found.Session.Token)
+                        || _solutionRevoked.ContainsKey(found.Session.Token)
                         || (!string.IsNullOrEmpty(found.UserName) && _revokedUsers.ContainsKey(found.UserName))))
                 {
                     _sessions.Remove(found.Session.Token);
@@ -514,6 +640,17 @@ namespace VisionMaster.ScadaWeb
             {
                 PruneLocked(now);
 
+                // ① 第四张表：因换方案而失效的令牌排在最前。
+                //    它解决的是「切方案走了 RevokeAll()」这条主路径——此时 grant 已经没了，
+                //    只有这张表还记得「这枚令牌是因为换方案而失效的」。
+                //    排在 _revokedTokens 之前是硬要求：两边都记着时，语义上「方案变了」优先，
+                //    否则客户端会看见「您已被管理员下线」而去查一个不存在的踢人操作。
+                if (_solutionRevoked.ContainsKey(token))
+                {
+                    errorCode = ErrorSolutionChanged;
+                    return false;
+                }
+
                 if (_revokedTokens.ContainsKey(token))
                 {
                     errorCode = ErrorSessionRevoked;
@@ -523,6 +660,19 @@ namespace VisionMaster.ScadaWeb
                 if (!_sessions.TryGetValue(token, out var found))
                 {
                     errorCode = ErrorSessionExpired;   // 不存在 / 已过期（已被 Prune 移除）
+                    return false;
+                }
+
+                // ② grant 上的 epoch 闸：解决「方案换了但没人调 RevokeAll()」这条路径
+                //    （宿主自己重启了 holder、或将来新增一条不经模块的切换入口）。
+                //    与 ① 互补而不是重复：删掉 ①，主路径退化成 E_SESSION_REVOKED；
+                //    删掉 ②，「静默换方案」这条路径没人拦。
+                if (IsStaleSolution(found.SolutionId, found.Epoch))
+                {
+                    _sessions.Remove(token);
+                    // 顺手记进第四张表：下次再来时①会先命中，语义保持一致。
+                    _solutionRevoked[token] = now;
+                    errorCode = ErrorSolutionChanged;
                     return false;
                 }
 
@@ -610,6 +760,22 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>
+        /// 清空撤销记录（<b>停服时调用</b>）。停服会把整张会话表清掉，
+        /// "被撤销"与"不存在"已经没有区别，留着只会让下一次启动带着上一轮的账。
+        /// </summary>
+        public void ClearRevocations()
+        {
+            lock (_gate)
+            {
+                _revokedTokens.Clear();
+                _revokedUsers.Clear();
+                // 方案代撤销记录与上面两张表同生共死：停服后重来一遍，上一轮的"换过方案"
+                // 不该影响新一轮的令牌（令牌本身也全没了）。
+                _solutionRevoked.Clear();
+            }
+        }
+
+        /// <summary>
         /// 撤销一个账号的<b>全部</b>会话令牌（<b>改密 / 降权 / 删号</b>之后必须调用）。
         ///
         /// 三件事一起做，少一件都会留下"改了密码但老页面还能看"的窗口：
@@ -676,17 +842,71 @@ namespace VisionMaster.ScadaWeb
         }
 
         /// <summary>
-        /// 清空撤销记录（<b>停服时调用</b>）。停服会把整张会话表清掉，
-        /// "被撤销"与"不存在"已经没有区别，留着只会让下一次启动带着上一轮的账。
+        /// 这枚票/令牌是不是属于「另一代方案」。
+        ///
+        /// <b>没有方案概念的宿主一律返回 false</b>（断言宿主 / 探针 / 压测）——
+        /// 它们的 <see cref="SolutionId"/> 与 <see cref="Epoch"/> 都是默认值，
+        /// 而 <c>_solution == null</c> 表示「根本没有方案这回事」，不是「方案被清空了」。
+        ///
+        /// 判据是 (SolutionId, Epoch) 二元组：只比 id 不够——同一个方案被重新打开或保存后重绑时
+        /// id 不变，但那是一次真实的重绑，旧票必须失效。
         /// </summary>
-        public void ClearRevocations()
+        private bool IsStaleSolution(Guid? grantSolutionId, long grantEpoch)
         {
+            if (_solution == null)
+                return false;
+
+            return grantSolutionId != _solution.SolutionId || grantEpoch != _solution.Epoch;
+        }
+
+        /// <summary>
+        /// 丢掉一条 handoff 上挂着的、本次新签的会话令牌（调用方必须已持有 <c>_gate</c>）。
+        ///
+        /// 与 <see cref="PruneLocked"/> 里那段 handoff 过期回收同一口径：
+        /// <b>续期票挂的是客户端正在用的那枚，不许回收</b>（回收会把用户其它标签页一起登出）。
+        /// </summary>
+        private void AbandonHandoffSessionLocked(ScadaWebTicketGrant grant, DateTime nowUtc)
+        {
+            if (grant.Session == null || grant.SessionReused) return;
+
+            _sessions.Remove(grant.Session.Token);
+            _revokedTokens[grant.Session.Token] = nowUtc;
+        }
+
+        /// <summary>
+        /// 撤销<b>全部</b>会话与票（切方案时由宿主调用）。
+        ///
+        /// <b>三张表都要清</b>：只清 <c>_sessions</c> 会漏掉 <c>_handoff</c> 里那些
+        /// 「已核销、WS 还没取走身份」的票——它们仍能完成一次握手
+        /// （这正是 2026-10-21 终审 P1-1 在 <see cref="TryTakeHandoff"/> 里补撤销检查的同一个洞，
+        /// 只是这次从源头清）。
+        ///
+        /// 清 <c>_sessions</c> 之前必须把每枚令牌写进 <c>_solutionRevoked</c>，
+        /// 否则客户端拿到的是 <see cref="ErrorSessionRevoked"/>（「被管理员下线」）而不是
+        /// <see cref="ErrorSolutionChanged"/>（「方案已切换」）。
+        /// </summary>
+        /// <returns>被撤销的会话令牌数</returns>
+        public int RevokeAll()
+        {
+            var now = DateTime.UtcNow;
+
             lock (_gate)
             {
-                _revokedTokens.Clear();
-                _revokedUsers.Clear();
+                PruneLocked(now);
+
+                var sessionCount = _sessions.Count;
+
+                foreach (var pair in _sessions)
+                    _solutionRevoked[pair.Key] = now;
+
+                _sessions.Clear();
+                _live.Clear();
+                _handoff.Clear();
+
+                return sessionCount;
             }
         }
+
 
         /// <summary>
         /// 清空全部票与会话令牌（服务停止时调用）。<b>只清内存</b>，没有落盘也没有撤销广播——
@@ -702,6 +922,7 @@ namespace VisionMaster.ScadaWeb
                 _sessions.Clear();
                 _revokedTokens.Clear();
                 _revokedUsers.Clear();
+                _solutionRevoked.Clear();
             }
         }
 
@@ -714,7 +935,13 @@ namespace VisionMaster.ScadaWeb
             {
                 Token = Guid.NewGuid().ToString("N"),
                 UserName = ticket.UserName,
-                Role = ticket.Role,
+                GroupId = ticket.GroupId,
+                GroupName = ticket.GroupName,
+                Permissions = ticket.Permissions,
+                // 方案代随票一起复制：会话令牌是 8 小时的可复用凭据，
+                // 它的「属于哪一代」必须与签发它的那张票一致，不能续期时重新读当前方案。
+                SolutionId = ticket.SolutionId,
+                Epoch = ticket.Epoch,
                 ReadOnly = ticket.ReadOnly,
                 ExplicitReadOnly = ticket.ExplicitReadOnly,
                 // 不绑定 IP：现场常有反向代理/多网卡，绑死 IP 会让"换了个网段就重连不上"。
@@ -792,6 +1019,9 @@ namespace VisionMaster.ScadaWeb
             // 那枚令牌本来也已经过期，"被撤销"与"已过期"对客户端没有区别。
             PruneRevocationsLocked(_revokedTokens, nowUtc);
             PruneRevocationsLocked(_revokedUsers, nowUtc);
+            // 第四张表同一口径：RevokeAll 一次最多写 MaxSessionTokens 条（4096），
+            // 与 RevokeUser 量级相同，不需要额外的容量判据。
+            PruneRevocationsLocked(_solutionRevoked, nowUtc);
         }
 
         private static void PruneRevocationsLocked(Dictionary<string, DateTime> table, DateTime nowUtc)
