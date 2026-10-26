@@ -232,6 +232,7 @@ namespace VisionMaster.Services
                 IconGlyph = IconForKind(kind),
                 PreviewTitle = string.IsNullOrWhiteSpace(relative) ? asset.Name : Path.GetFileName(relative),
                 PreviewSub = string.IsNullOrWhiteSpace(relative) ? "未绑定文件" : relative,
+                Thumbnail = ProjectAssetExporter.TryLoadThumbnail(absolute),
                 SourcePath = "SolutionModel." + (kind switch
                 {
                     "template" => "TemplateAssets",
@@ -540,6 +541,7 @@ namespace VisionMaster.Services
                     IconGlyph = IconForKind("image"),
                     PreviewTitle = name,
                     PreviewSub = path,
+                    Thumbnail = ProjectAssetExporter.TryLoadThumbnail(absolute),
                     SourcePath = "ImageAcquisitionPlugin.FilePath",
                     FilePath = path,
                     ContentHash = hash,

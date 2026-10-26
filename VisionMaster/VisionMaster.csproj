@@ -59,6 +59,12 @@
     <Reference Include="HalconDotNet">
       <HintPath>..\DLL\Halcon\halcondotnet.dll</HintPath>
     </Reference>
+    <!-- 项目资产页导入 ONNX 时读输入尺寸/标签：只读元数据、不跑推理。
+         托管程序集走 HintPath；onnxruntime.dll 是原生库，已由 Plugin.Yolo 投递到宿主目录，
+         这里不再 <Reference>（原生 DLL 进 Reference 会编译期报错）。 -->
+    <Reference Include="Microsoft.ML.OnnxRuntime">
+      <HintPath>..\DLL\OnnxRuntime\Microsoft.ML.OnnxRuntime.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
   <ItemGroup>

@@ -69,6 +69,8 @@ namespace ProjectAssetsUiProbe
                     "真实图像资产数量 = 14（流程引用）", ref failures);
                 RunImportChecks(ref failures);
                 RunLifecycleChecks(ref failures);
+                RunFilterSortChecks(ref failures);
+                RunExportChecks(ref failures);
                 var view = new ProjectAssetsView
                 {
                     DataContext = vm,
@@ -152,6 +154,137 @@ namespace ProjectAssetsUiProbe
                 Console.WriteLine("RESULT: FAIL");
                 Console.WriteLine(ex);
                 return 1;
+            }
+        }
+
+        /// <summary>筛选与排序必须真的改变 VisibleAssets，而不是只换按钮文案。</summary>
+        private static void RunFilterSortChecks(ref int failures)
+        {
+            try
+            {
+                var workspace = new WorkspaceContext();
+                var solutionService = new SolutionService();
+                var solutionPath = @"D:\C#\VM\解决方案\智能装配检测线\智能装配检测线.vms";
+                var load = solutionService.LoadAsync(solutionPath).GetAwaiter().GetResult();
+                if (!load.Success || load.Data == null)
+                {
+                    Check(false, "筛选断言：加载方案失败：" + load.Message, ref failures);
+                    return;
+                }
+                load.Data.SolutionFilePath = solutionPath;
+                workspace.SwitchSolution(load.Data);
+
+                var vm = new ProjectAssetsViewModel(workspace);
+
+                vm.SelectTypeCommand.Execute("image");
+                var imageTotal = vm.VisibleAssets.Count;
+                Check(imageTotal > 0, $"图像页有 {imageTotal} 条可筛选", ref failures);
+                Check(vm.CameraFilterOptions.Count == 1,
+                    $"图像资产没有相机值时相机下拉只有「全部」（实际 {vm.CameraFilterOptions.Count}）", ref failures);
+                Check(vm.CameraFilterOptions.First().Label == "全部相机",
+                    "下拉首项文案是「全部相机」（不是空白）", ref failures);
+                Check(vm.SelectedCameraOption?.Label == "全部相机",
+                    "默认选中「全部相机」而不是空", ref failures);
+
+                vm.SelectTypeCommand.Execute("calibration");
+                Check(vm.VisibleAssets.Count > 0, "标定页有数据", ref failures);
+                var cameraOptions = vm.CameraFilterOptions.Select(o => o.Value).ToArray();
+                Check(cameraOptions.Contains("NET-STATION-02"),
+                    "相机下拉出现真实相机 NET-STATION-02（不是硬编码）", ref failures);
+
+                vm.CameraFilter = "NET-STATION-02";
+                Check(vm.VisibleAssets.Count > 0 && vm.VisibleAssets.All(a => a.Camera == "NET-STATION-02"),
+                    "相机筛选真的过滤了列表", ref failures);
+
+                vm.CameraFilter = "";
+                var baseline = vm.VisibleAssets.Count;
+
+                var tagOptions = vm.TagFilterOptions.Select(o => o.Value).Where(v => v.Length > 0).ToArray();
+                Check(tagOptions.Length > 0, "标签下拉来自作用域", ref failures);
+                Check(vm.TagFilterOptions.First().Label == "全部标签",
+                    "标签下拉首项文案是「全部标签」", ref failures);
+                if (tagOptions.Length > 0)
+                {
+                    vm.TagFilter = tagOptions[0];
+                    Check(vm.VisibleAssets.Count > 0, $"标签筛选 {tagOptions[0]} 后仍有数据", ref failures);
+                }
+
+                vm.ClearFiltersCommand.Execute();
+                Check(vm.CameraFilter.Length == 0 && vm.TagFilter.Length == 0 && vm.SearchText.Length == 0,
+                    "清除筛选命令清空三处条件", ref failures);
+                Check(vm.VisibleAssets.Count == baseline, "清除筛选后恢复全量", ref failures);
+
+                var beforeSort = vm.VisibleAssets.Select(a => a.Name).ToArray();
+                vm.ToggleSortCommand.Execute();
+                Check(vm.SortButtonText == "名称排序", "排序按钮文案切到「名称排序」", ref failures);
+                var afterSort = vm.VisibleAssets.Select(a => a.Name).ToArray();
+                Check(afterSort.SequenceEqual(afterSort.OrderBy(n => n, StringComparer.OrdinalIgnoreCase)),
+                    "名称排序结果确实是升序", ref failures);
+                Check(beforeSort.Length == afterSort.Length, "排序不丢条目", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "筛选/排序断言异常：" + ex.Message, ref failures);
+            }
+        }
+
+        /// <summary>导出必须真的产出 zip，且里面含 manifest 与文件本体。</summary>
+        private static void RunExportChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-export-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetExport",
+                    SolutionFilePath = Path.Combine(temp, "AssetExport.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var imageSource = Path.Combine(sourceDir, "board.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                Check(importer.TryImport(imageSource, "image", out var imageId, out _),
+                    "导出前置：图像导入", ref failures);
+
+                var exporter = new ProjectAssetExporter(workspace);
+                var zipPath = Path.Combine(temp, "package.zip");
+                Check(exporter.TryExport(new[] { imageId }, zipPath, out var fileCount, out var manifest, out var error),
+                    "导出资产包成功" + (string.IsNullOrEmpty(error) ? string.Empty : "：" + error), ref failures);
+                Check(File.Exists(zipPath), "zip 文件已生成", ref failures);
+                Check(fileCount == 1, $"zip 含 1 个文件（实际 {fileCount}）", ref failures);
+                Check(manifest.Contains("manifest") == false && manifest.Contains("SHA-256"),
+                    "manifest 含 SHA-256 列", ref failures);
+
+                using (var archive = System.IO.Compression.ZipFile.OpenRead(zipPath))
+                {
+                    Check(archive.GetEntry("manifest.tsv") != null, "zip 含 manifest.tsv", ref failures);
+                    Check(archive.Entries.Any(e => e.FullName.StartsWith("files/image/", StringComparison.OrdinalIgnoreCase)),
+                        "zip 含 files/image 文件本体", ref failures);
+                }
+
+                // 标定/配方没有独立文件，导出应明确拒绝而不是产出空包。
+                Check(!exporter.TryExport(new[] { Guid.NewGuid() }, Path.Combine(temp, "none.zip"), out _, out _, out var emptyError),
+                    "无资产时导出被拒绝", ref failures);
+                Check(emptyError.Contains("没有可导出"), "拒绝原因说明没有可导出资产", ref failures);
+
+                var thumb = ProjectAssetExporter.TryLoadThumbnail(Path.Combine(temp, "Image", "board.png"), 120);
+                Check(thumb != null && thumb.PixelWidth <= 120, "缩略图可解码且已缩放", ref failures);
+                Check(ProjectAssetExporter.TryLoadThumbnail(Path.Combine(temp, "nope.png")) == null,
+                    "文件不存在时缩略图为 null", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "导出断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
             }
         }
 

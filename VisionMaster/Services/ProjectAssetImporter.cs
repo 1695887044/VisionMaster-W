@@ -113,6 +113,12 @@ namespace VisionMaster.Services
                 var now = DateTime.UtcNow;
                 var user = Environment.UserName;
 
+                // ONNX 元数据：导入时读一次，资产页就能显示输入尺寸与标签；
+                // 读不出来不算导入失败（非 ONNX、模型缺 metadata 都合法）。
+                var onnx = kind == "model" && extension.Equals(".onnx", StringComparison.OrdinalIgnoreCase)
+                    ? ReadOnnxMetadata(targetPath)
+                    : null;
+
                 SolutionAssetBase asset = kind switch
                 {
                     "template" => new TemplateAsset
@@ -124,6 +130,9 @@ namespace VisionMaster.Services
                     {
                         Name = UniqueAssetName(solution.ModelAssets.Select(a => a.Name), Path.GetFileNameWithoutExtension(targetName)),
                         ModelKind = extension.Equals(".onnx", StringComparison.OrdinalIgnoreCase) ? "ONNX" : "模型文件",
+                        InputWidth = onnx?.InputWidth ?? 0,
+                        InputHeight = onnx?.InputHeight ?? 0,
+                        Labels = onnx?.Labels ?? string.Empty,
                     },
                     _ => new ImageAsset
                     {
@@ -232,8 +241,88 @@ namespace VisionMaster.Services
             return Convert.ToHexString(sha.ComputeHash(stream));
         }
 
-        private static int ReadImageWidth(string path)
+        /// <summary>
+        /// 读 ONNX 输入尺寸与标签。**用反射调用 ONNX Runtime**，不建立编译期依赖：
+        /// 断言宿主 / 精简部署里没有 Microsoft.ML.OnnxRuntime 时，这里静默返回 null，
+        /// 不让"读元数据"把导入弄挂（模型文件本身是好的，只是没人能读它的形状）。
+        /// </summary>
+        private static (int InputWidth, int InputHeight, string Labels)? ReadOnnxMetadata(string path)
         {
+            try
+            {
+                var runtimeType = Type.GetType(
+                    "Microsoft.ML.OnnxRuntime.InferenceSession, Microsoft.ML.OnnxRuntime", throwOnError: false);
+                if (runtimeType == null) return null;
+
+                var optionsType = Type.GetType(
+                    "Microsoft.ML.OnnxRuntime.SessionOptions, Microsoft.ML.OnnxRuntime", throwOnError: false);
+                var options = optionsType == null ? null : Activator.CreateInstance(optionsType);
+
+                object session;
+                try
+                {
+                    session = options == null
+                        ? Activator.CreateInstance(runtimeType, path)!
+                        : Activator.CreateInstance(runtimeType, path, options)!;
+                }
+                finally
+                {
+                    (options as IDisposable)?.Dispose();
+                }
+
+                try
+                {
+                    var inputMeta = runtimeType.GetProperty("InputMetadata")?.GetValue(session) as System.Collections.IDictionary;
+                    var dims = Array.Empty<int>();
+                    if (inputMeta != null)
+                    {
+                        foreach (System.Collections.DictionaryEntry entry in inputMeta)
+                        {
+                            var meta = entry.Value;
+                            var shape = meta?.GetType().GetProperty("Dimensions")?.GetValue(meta) as int[];
+                            if (shape != null && shape.Length > 0) { dims = shape; break; }
+                        }
+                    }
+
+                    var spatial = dims.Where(d => d > 1).OrderByDescending(d => d).ToArray();
+                    var width = spatial.Length > 0 ? spatial[0] : 0;
+                    var height = spatial.Length > 1 ? spatial[1] : width;
+
+                    var labels = string.Empty;
+                    var modelMeta = runtimeType.GetProperty("ModelMetadata")?.GetValue(session);
+                    var custom = modelMeta?.GetType().GetProperty("CustomMetadataMap")?.GetValue(modelMeta)
+                                 as IDictionary<string, string>;
+                    if (custom != null)
+                    {
+                        foreach (var key in new[] { "names", "classes", "labels" })
+                        {
+                            if (!custom.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+                                continue;
+
+                            // 常见两种写法：{0: 'person', 1: 'car'} 或 ['person', 'car']
+                            var quoted = System.Text.RegularExpressions.Regex
+                                .Matches(raw, "'([^']+)'|\"([^\"]+)\"")
+                                .Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value)
+                                .ToArray();
+                            labels = quoted.Length > 0 ? string.Join(",", quoted) : raw.Trim();
+                            break;
+                        }
+                    }
+
+                    return (width, height, labels);
+                }
+                finally
+                {
+                    (session as IDisposable)?.Dispose();
+                }
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static int ReadImageWidth(string path)        {
             try
             {
                 using var stream = File.OpenRead(path);

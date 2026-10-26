@@ -820,11 +820,25 @@ namespace FlowCanvasChecks
                 card.Connect();
                 EnableAxis(card, 0);
 
-                using (var first = Move(0, 80, velocity: 20))
+                // 先等状态轮询真的产出一帧：刚连上时状态缓存是空的，
+                // Home 的前置门禁读不到轴状态时会放行（fail-open），
+                // 于是"运动中 Home 被拒"根本进不到判据里（2026-10-26 实测 1 红）。
+                WaitFor(() => card.GetAxisStatus(0) != null, 5000);
+
+                // 运动命令必须活到判据之后：放在 using 块里会让它在 Home 入队前就被释放，
+                // 释放 = 取消这条命令 = 轴停下，Home 自然被接受（假失败）。
+                using var first = Move(0, 80, velocity: 20);
+                var started = false;
+                for (var attempt = 0; attempt < 3 && !started; attempt++)
                 {
-                    card.Enqueue(first);
-                    WaitFor(() => card.GetAxisStatus(0) is { Moving: true }, 2000);
+                    if (card.Enqueue(first) == MotionCommandResult.Accepted)
+                        started = WaitFor(() => card.GetAxisStatus(0) is { Moving: true }, 2000);
+                    else
+                        Thread.Sleep(120);
                 }
+
+                Check("前置：单轴已经动起来（否则下面的 Home 判据没有意义）", started,
+                    $"状态={card.GetAxisStatus(0)}");
 
                 using var home = Home(0);
                 var result = card.Enqueue(home);

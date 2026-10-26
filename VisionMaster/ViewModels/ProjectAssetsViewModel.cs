@@ -24,6 +24,7 @@ namespace VisionMaster.ViewModels
         private readonly IReadOnlyWorkspaceContext _workspace;
         private readonly SolutionProjectAssetCatalog _catalog;
         private readonly ProjectAssetImporter _importer;
+        private readonly ProjectAssetExporter _exporter;
         private readonly ProjectAssetService? _assetService;
         private readonly List<ProjectAssetItem> _allAssets = new();
 
@@ -39,6 +40,7 @@ namespace VisionMaster.ViewModels
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _catalog = new SolutionProjectAssetCatalog(workspace);
             _importer = new ProjectAssetImporter(workspace);
+            _exporter = new ProjectAssetExporter(workspace);
             _assetService = assetService;
 
             TypeTabs = new ObservableCollection<AssetTypeTab>
@@ -62,6 +64,8 @@ namespace VisionMaster.ViewModels
             SelectTypeCommand = new DelegateCommand<string>(kind => SelectType(string.IsNullOrWhiteSpace(kind) ? "all" : kind));
             ImportAssetCommand = new DelegateCommand(ImportAsset);
             RefreshCommand = new DelegateCommand(ReloadAssets);
+            ToggleSortCommand = new DelegateCommand(ToggleSort);
+            ClearFiltersCommand = new DelegateCommand(ClearFilters);
             SetDefaultCommand = new DelegateCommand(SetDefault);
             ToggleFreezeCommand = new DelegateCommand(ToggleFreeze);
             RollbackCommand = new DelegateCommand(RollbackVersion);
@@ -137,6 +141,8 @@ namespace VisionMaster.ViewModels
         public DelegateCommand<string> SelectTypeCommand { get; }
         public DelegateCommand ImportAssetCommand { get; }
         public DelegateCommand RefreshCommand { get; }
+        public DelegateCommand ToggleSortCommand { get; }
+        public DelegateCommand ClearFiltersCommand { get; }
         public DelegateCommand SetDefaultCommand { get; }
         public DelegateCommand ToggleFreezeCommand { get; }
         public DelegateCommand RollbackCommand { get; }
@@ -157,6 +163,7 @@ namespace VisionMaster.ViewModels
             _allAssets.Clear();
             _allAssets.AddRange(_catalog.Build());
             RefreshCounts();
+            RefreshFilterOptions();
 
             if (_selectedTypeTab == null)
                 _selectedTypeTab = TypeTabs.FirstOrDefault(t => t.Kind == "calibration") ?? TypeTabs[0];
@@ -180,12 +187,137 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(SelectedTypeTab));
             foreach (var filter in TypeFilters)
                 filter.IsSelected = filter.Kind == kind;
+            RefreshFilterOptions();
             ApplyFilter();
+        }
+
+        private string _cameraFilter = string.Empty;
+        /// <summary>相机筛选（空 = 全部）。选项来自当前页签里真实出现的相机值。</summary>
+        public string CameraFilter
+        {
+            get => _cameraFilter;
+            set
+            {
+                if (!SetProperty(ref _cameraFilter, value ?? string.Empty)) return;
+                ApplyFilter();
+            }
+        }
+
+        /// <summary>
+        /// 下拉绑定用 SelectedItem（不是 SelectedValue）：WPF 里 `SelectedValue=""` 常被当成
+        /// "未选择"，空项就显示成空白框 —— 用户看不到"全部相机"这几个字。
+        /// </summary>
+        public FilterOption? SelectedCameraOption
+        {
+            get => CameraFilterOptions.FirstOrDefault(o => o.Value == _cameraFilter)
+                   ?? CameraFilterOptions.FirstOrDefault();
+            set => CameraFilter = value?.Value ?? string.Empty;
+        }
+
+        public FilterOption? SelectedTagOption
+        {
+            get => TagFilterOptions.FirstOrDefault(o => o.Value == _tagFilter)
+                   ?? TagFilterOptions.FirstOrDefault();
+            set => TagFilter = value?.Value ?? string.Empty;
+        }
+
+        /// <summary>下拉项（空值 = 全部）。</summary>
+        public ObservableCollection<FilterOption> CameraFilterOptions { get; } = new();
+        public ObservableCollection<FilterOption> TagFilterOptions { get; } = new();
+
+        private string _tagFilter = string.Empty;
+        /// <summary>标签筛选（空 = 全部）。标签取自资产作用域首段（ST1/ST2/… 或整线）。</summary>
+        public string TagFilter
+        {
+            get => _tagFilter;
+            set
+            {
+                if (!SetProperty(ref _tagFilter, value ?? string.Empty)) return;
+                ApplyFilter();
+            }
+        }
+
+        private void RefreshFilterOptions()
+        {
+            // 选项必须来自**当前页签**的资产：全量取会让"图像页出现相机下拉、选中后 0 条"，
+            // 用户只看到空列表却不知道为什么。
+            var scoped = _allAssets.Where(a => _selectedType == "all" || a.Kind == _selectedType).ToList();
+
+            var cameras = scoped
+                .Select(a => a.Camera)
+                .Where(c => !string.IsNullOrWhiteSpace(c) && c != "—")
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(c => c, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var tags = scoped
+                .Select(TagOf)
+                .Where(t => !string.IsNullOrWhiteSpace(t))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            CameraFilterOptions.Clear();
+            CameraFilterOptions.Add(new FilterOption(string.Empty, "全部相机"));
+            foreach (var camera in cameras)
+                CameraFilterOptions.Add(new FilterOption(camera, camera));
+
+            TagFilterOptions.Clear();
+            TagFilterOptions.Add(new FilterOption(string.Empty, "全部标签"));
+            foreach (var tag in tags)
+                TagFilterOptions.Add(new FilterOption(tag, tag));
+
+            // 选项消失时回落到"全部"，避免筛出空列表却看不出原因。
+            if (!CameraFilterOptions.Any(o => o.Value == _cameraFilter)) _cameraFilter = string.Empty;
+            if (!TagFilterOptions.Any(o => o.Value == _tagFilter)) _tagFilter = string.Empty;
+            RaisePropertyChanged(nameof(CameraFilter));
+            RaisePropertyChanged(nameof(TagFilter));
+            RaisePropertyChanged(nameof(SelectedCameraOption));
+            RaisePropertyChanged(nameof(SelectedTagOption));
+        }
+
+        /// <summary>排序键：updated = 最近更新优先；name = 名称升序。</summary>
+        private string _sortMode = "updated";
+        public string SortButtonText => _sortMode == "updated" ? "最近更新" : "名称排序";
+
+        private void ToggleSort()
+        {
+            _sortMode = _sortMode == "updated" ? "name" : "updated";
+            RaisePropertyChanged(nameof(SortButtonText));
+            ApplyFilter();
+        }
+
+        private void ClearFilters()
+        {
+            _searchText = string.Empty;
+            _cameraFilter = string.Empty;
+            _tagFilter = string.Empty;
+            RaisePropertyChanged(nameof(SearchText));
+            RaisePropertyChanged(nameof(CameraFilter));
+            RaisePropertyChanged(nameof(TagFilter));
+            ApplyFilter();
+            ActionMessage = "已清除搜索 / 相机 / 标签筛选";
+        }
+
+        /// <summary>作用域首段当标签：`ST3 · 精密测量` → `ST3`，`整线` → `整线`。</summary>
+        private static string TagOf(ProjectAssetItem item)
+        {
+            var scope = (item.Scope ?? string.Empty).Trim();
+            if (scope.Length == 0) return string.Empty;
+            var cut = scope.IndexOfAny(new[] { '·', ' ', '/', '\\' });
+            return cut > 0 ? scope[..cut].Trim() : scope;
         }
 
         private void ApplyFilter()
         {
             var source = _allAssets.Where(a => _selectedType == "all" || a.Kind == _selectedType).ToList();
+
+            if (!string.IsNullOrWhiteSpace(CameraFilter))
+                source = source.Where(a => string.Equals(a.Camera, CameraFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
+            if (!string.IsNullOrWhiteSpace(TagFilter))
+                source = source.Where(a => string.Equals(TagOf(a), TagFilter, StringComparison.OrdinalIgnoreCase)).ToList();
+
             var filtered = string.IsNullOrWhiteSpace(SearchText)
                 ? source
                 : source.Where(a => a.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase)
@@ -194,7 +326,15 @@ namespace VisionMaster.ViewModels
                     || a.Camera.Contains(SearchText, StringComparison.OrdinalIgnoreCase)).ToList();
 
             VisibleAssets.Clear();
-            foreach (var item in filtered) VisibleAssets.Add(item);
+
+            // 排序只作用于展示集合，不改目录顺序（目录来自方案顺序，重排会打乱稳定 Id 观感）。
+            var ordered = _sortMode == "name"
+                ? filtered.OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase).ToList()
+                : filtered.OrderByDescending(a => a.Updated, StringComparer.Ordinal)
+                          .ThenBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                          .ToList();
+
+            foreach (var item in ordered) VisibleAssets.Add(item);
 
             ListTitle = _selectedType switch
             {
@@ -394,27 +534,52 @@ namespace VisionMaster.ViewModels
         private void ExportAsset()
         {
             if (SelectedAsset == null) return;
-            var text = new StringBuilder()
-                .AppendLine("项目资产")
-                .AppendLine("Name: " + SelectedAsset.Name)
-                .AppendLine("Id: " + SelectedAsset.Id)
-                .AppendLine("Kind: " + SelectedAsset.Kind)
-                .AppendLine("Version: " + SelectedAsset.Version)
-                .AppendLine("Status: " + SelectedAsset.Status)
-                .AppendLine("Source: " + SelectedAsset.SourcePath)
-                .AppendLine("File: " + SelectedAsset.FilePath)
-                .AppendLine("Hash: " + SelectedAsset.ContentHash)
-                .ToString();
-            try
+
+            var dialog = new SaveFileDialog
             {
-                Clipboard.SetText(text);
-                ActionMessage = "资产元数据已复制到剪贴板";
-            }
-            catch
+                Title = "导出资产包",
+                Filter = "资产包 (*.zip)|*.zip",
+                FileName = Sanitize(SelectedAsset.Name) + "-v" + Math.Max(1, ParseVersion(SelectedAsset.Version)) + ".zip",
+                AddExtension = true,
+                DefaultExt = ".zip",
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            if (!_exporter.TryExport(
+                    new[] { ParseGuid(SelectedAsset.Id) },
+                    dialog.FileName,
+                    out var fileCount,
+                    out _,
+                    out var error))
             {
-                ActionMessage = "复制失败";
+                ActionMessage = error;
+                try
+                {
+                    // 导出失败也把清单放剪贴板：至少用户能拿到 Id/路径去手查。
+                    Clipboard.SetText(SelectedAsset.Id + " " + SelectedAsset.FilePath);
+                }
+                catch { }
+                return;
             }
+
+            ActionMessage = fileCount > 0
+                ? $"已导出 {SelectedAsset.Name}（{fileCount} 个文件）→ {dialog.FileName}"
+                : $"已导出清单，但文件不存在或没有文件：{dialog.FileName}";
         }
+
+        private static string Sanitize(string name)
+        {
+            var cleaned = (name ?? "asset").Trim();
+            foreach (var ch in Path.GetInvalidFileNameChars())
+                cleaned = cleaned.Replace(ch, '_');
+            return string.IsNullOrWhiteSpace(cleaned) ? "asset" : cleaned;
+        }
+
+        private static int ParseVersion(string text)
+            => int.TryParse((text ?? string.Empty).TrimStart('v', 'V'), out var v) ? v : 1;
+
+        private static Guid ParseGuid(string text)
+            => Guid.TryParse(text, out var id) ? id : Guid.Empty;
 
         private void CopyId()
         {
@@ -431,8 +596,27 @@ namespace VisionMaster.ViewModels
         }
     }
 
-    public sealed class AssetTypeTab : BindableBase
+    /// <summary>筛选下拉项：Value 是筛选键，Label 是界面文案（空 Value = 全部）。</summary>
+    public sealed class FilterOption
     {
+        public FilterOption(string value, string label)
+        {
+            Value = value ?? string.Empty;
+            Label = label ?? string.Empty;
+        }
+
+        public string Value { get; }
+        public string Label { get; }
+
+        /// <summary>
+        /// 必须重写：ComboBox 的选中项（SelectionBoxItem）与下拉项都靠它出文案。
+        /// 只写 DisplayMemberPath 在本仓的 DialogCombo 自定义模板下不生效 ——
+        /// 界面上会出现 `VisionMaster.ViewModels.FilterOption` 这种类型全名。
+        /// </summary>
+        public override string ToString() => Label;
+    }
+
+    public sealed class AssetTypeTab : BindableBase    {
         private int _count;
         public AssetTypeTab(string kind, string label) { Kind = kind; Label = label; }
         public string Kind { get; }
@@ -496,6 +680,11 @@ namespace VisionMaster.ViewModels
         public string PreviewSub { get; set; } = string.Empty;
         public bool IsCalibration { get; set; }
         public bool IsNotCalibration => !IsCalibration;
+
+        /// <summary>真缩略图（图像/图片模板有；其它为 null，界面回落图标）。</summary>
+        public System.Windows.Media.ImageSource? Thumbnail { get; set; }
+        public bool HasThumbnail => Thumbnail != null;
+        public bool HasNoThumbnail => Thumbnail == null;
 
         public bool IsFrozen
         {

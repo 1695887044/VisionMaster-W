@@ -487,19 +487,24 @@
                                     </Grid>
 
                                     <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="相机" />
-                                    <StackPanel Margin="0,5,0,12">
-                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="•  全部相机" />
-                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="•  NET-STATION-02" />
-                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="•  SIM-LINE-01" />
-                                        <TextBlock Margin="0,3" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="•  HK-STATION-03" />
-                                    </StackPanel>
+                                    <ComboBox
+                                        Height="28"
+                                        Margin="0,5,0,12"
+                                        Padding="8,0"
+                                        DisplayMemberPath="Label"
+                                        ItemsSource="{Binding CameraFilterOptions}"
+                                        SelectedItem="{Binding SelectedCameraOption, Mode=TwoWay}"
+                                        Style="{StaticResource DialogCombo}" />
 
                                     <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="标签" />
-                                    <WrapPanel Margin="0,5,0,0">
-                                        <Border Margin="0,0,5,5" Style="{StaticResource TypeChipStyle}"><TextBlock VerticalAlignment="Center" FontSize="9.5" Text="产线" /></Border>
-                                        <Border Margin="0,0,5,5" Style="{StaticResource TypeChipStyle}"><TextBlock VerticalAlignment="Center" FontSize="9.5" Text="换型" /></Border>
-                                        <Border Margin="0,0,5,5" Style="{StaticResource TypeChipStyle}"><TextBlock VerticalAlignment="Center" FontSize="9.5" Text="待复核" /></Border>
-                                    </WrapPanel>
+                                    <ComboBox
+                                        Height="28"
+                                        Margin="0,5,0,0"
+                                        Padding="8,0"
+                                        DisplayMemberPath="Label"
+                                        ItemsSource="{Binding TagFilterOptions}"
+                                        SelectedItem="{Binding SelectedTagOption, Mode=TwoWay}"
+                                        Style="{StaticResource DialogCombo}" />
                                 </StackPanel>
                             </ScrollViewer>
 
@@ -561,8 +566,21 @@
                                     <TextBlock Margin="7,0,0,0" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ListCountText}" />
                                 </StackPanel>
                                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                                    <Button Height="26" Margin="0,0,6,0" Padding="8,0" Content="最近更新" Style="{StaticResource DialogGhostButton}" />
-                                    <Button Height="26" Padding="8,0" Content="筛选" Style="{StaticResource DialogGhostButton}" />
+                                    <Button
+                                        Height="26"
+                                        Margin="0,0,6,0"
+                                        Padding="8,0"
+                                        Command="{Binding ToggleSortCommand}"
+                                        Content="{Binding SortButtonText}"
+                                        Style="{StaticResource DialogGhostButton}"
+                                        ToolTip="在「最近更新 / 名称」之间切换排序" />
+                                    <Button
+                                        Height="26"
+                                        Padding="8,0"
+                                        Command="{Binding ClearFiltersCommand}"
+                                        Content="清除筛选"
+                                        Style="{StaticResource DialogGhostButton}"
+                                        ToolTip="清空搜索、相机、标签筛选" />
                                 </StackPanel>
                             </Grid>
 
@@ -782,12 +800,24 @@
                                                         HorizontalAlignment="Center"
                                                         VerticalAlignment="Center"
                                                         Visibility="{Binding SelectedAsset.IsNotCalibration, Converter={ui:BooleanToVisibilityConverter}}">
+                                                        <Border
+                                                            MaxWidth="220"
+                                                            MaxHeight="76"
+                                                            HorizontalAlignment="Center"
+                                                            Visibility="{Binding SelectedAsset.HasThumbnail, Converter={ui:BooleanToVisibilityConverter}}">
+                                                            <Image
+                                                                MaxWidth="220"
+                                                                MaxHeight="76"
+                                                                Source="{Binding SelectedAsset.Thumbnail}"
+                                                                Stretch="Uniform" />
+                                                        </Border>
                                                         <TextBlock
                                                             HorizontalAlignment="Center"
                                                             FontFamily="{StaticResource Icon}"
                                                             FontSize="26"
                                                             Foreground="{StaticResource DialogAccentTextBrush}"
-                                                            Text="{Binding SelectedAsset.IconGlyph}" />
+                                                            Text="{Binding SelectedAsset.IconGlyph}"
+                                                            Visibility="{Binding SelectedAsset.HasNoThumbnail, Converter={ui:BooleanToVisibilityConverter}}" />
                                                         <TextBlock
                                                             Margin="0,7,0,0"
                                                             HorizontalAlignment="Center"
