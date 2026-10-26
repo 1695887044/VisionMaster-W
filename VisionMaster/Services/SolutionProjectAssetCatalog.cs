@@ -87,14 +87,14 @@ namespace VisionMaster.Services
                     {
                         reads++;
                         readFlows.Add(step.Flow);
-                        refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取"));
+                        refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取", step.Flow, step.Step));
                     }
 
                     if (Bool(step, "SaveToCatalog"))
                     {
                         writes++;
                         writeFlows.Add(step.Flow);
-                        refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "写入"));
+                        refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "写入", step.Flow, step.Step));
                     }
                 }
 
@@ -203,7 +203,7 @@ namespace VisionMaster.Services
                     continue;
 
                 reads++;
-                refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取"));
+                refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取", step.Flow, step.Step));
             }
 
             var relative = NormalizeRelative(asset.RelativePath);
@@ -479,7 +479,7 @@ namespace VisionMaster.Services
                     item.Associations.Add(new AssetAssociation("流程", step.Flow + " / " + step.Step, "读取"));
                     item.Associations.Add(new AssetAssociation("设备", "—", "由步骤消费"));
                     item.Associations.Add(new AssetAssociation("SCADA", "—", "未建立绑定"));
-                    item.References.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取"));
+                    item.References.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取", step.Flow, step.Step));
                     items.Add(item);
                 }
             }
@@ -569,7 +569,7 @@ namespace VisionMaster.Services
                 item.Associations.Add(new AssetAssociation("相机", "—", "未绑定设备"));
                 item.Associations.Add(new AssetAssociation("SCADA", "—", "未建立绑定"));
                 foreach (var step in refs)
-                    item.References.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取"));
+                    item.References.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取", step.Flow, step.Step));
 
                 items.Add(item);
             }
@@ -583,7 +583,7 @@ namespace VisionMaster.Services
                 if (!string.Equals(Text(step, "DefaultRecipeName"), name, StringComparison.OrdinalIgnoreCase)
                     && !Text(step, "RecipeLibraryJson").Contains(name, StringComparison.OrdinalIgnoreCase))
                     continue;
-                refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取"));
+                refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取", step.Flow, step.Step));
             }
             return refs;
         }

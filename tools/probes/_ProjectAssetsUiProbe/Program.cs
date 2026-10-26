@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Newtonsoft.Json;
+using Prism.Dialogs;
 using Prism.Mvvm;
 using Core.Interfaces;
 using Core.Interfaces.Assets;
@@ -71,6 +72,8 @@ namespace ProjectAssetsUiProbe
                 RunImportChecks(ref failures);
                 RunLifecycleChecks(ref failures);
                 RunFilterSortChecks(ref failures);
+                RunLifecycleFilterChecks(ref failures);
+                RunReferenceNavigationChecks(ref failures);
                 RunExportChecks(ref failures);
                 RunArchiveDeleteChecks(ref failures);
                 RunArchivedRuntimeChecks(ref failures);
@@ -151,6 +154,16 @@ namespace ProjectAssetsUiProbe
                     Save(tabBitmap, tabPath);
                     Console.WriteLine($"  [render] {tabPath}");
                 }
+
+                // 引用页签：标定资产在真实方案里有 2 条引用，用来确认"引用卡可点"
+                vm.SelectTypeCommand.Execute("calibration");
+                vm.SelectedDetailTabIndex = 2;
+                view.UpdateLayout();
+                Pump(200);
+                var refBitmap = Render(view, (int)Math.Round(view.ActualWidth), (int)Math.Round(view.ActualHeight), 2.0);
+                var refPath = Path.Combine(dir, "wpf-project-assets-references.png");
+                Save(refBitmap, refPath);
+                Console.WriteLine($"  [render] {refPath}");
 
                 window.Close();
                 Pump(100);
@@ -233,6 +246,163 @@ namespace ProjectAssetsUiProbe
             {
                 Check(false, "筛选/排序断言异常：" + ex.Message, ref failures);
             }
+        }
+
+        /// <summary>
+        /// 左侧「有效 / 待处理 / 已归档」必须是真的筛选器，且**筛选与计数共用同一份归桶判据**。
+        /// 判据：点「已归档」后列表只剩归档项、计数与条数对得上、再点一次回到全部。
+        /// </summary>
+        private static void RunLifecycleFilterChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-lifefilter-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetLifeFilter",
+                    SolutionFilePath = Path.Combine(temp, "AssetLifeFilter.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var a = Path.Combine(sourceDir, "a.png");
+                var b = Path.Combine(sourceDir, "b.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", a);
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_02.png", b);
+                importer.TryImport(a, "image", out var idA, out _);
+                importer.TryImport(b, "image", out var idB, out _);
+
+                var policy = new ScadaAccessPolicy();
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy,
+                    new ScadaAuditWriter(Path.Combine(temp, "Audit")));
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+                service.TrySetArchived(idB, true, out _);
+
+                var vm = new ProjectAssetsViewModel(workspace);
+                vm.SelectTypeCommand.Execute("image");
+                var all = vm.VisibleAssets.Count;
+                Check(all == 2, $"全部图像 {all} 条", ref failures);
+                Check(vm.LifecycleFilter == "全部", "默认筛选是「全部」", ref failures);
+
+                vm.SelectLifecycleCommand.Execute("已归档");
+                Check(vm.LifecycleFilter == "已归档", "点「已归档」后筛选生效", ref failures);
+                Check(vm.VisibleAssets.Count == 1 && vm.VisibleAssets.All(x => x.Status == "已归档"),
+                    $"只剩归档项（实际 {vm.VisibleAssets.Count}）", ref failures);
+                Check(vm.ArchivedCount == vm.VisibleAssets.Count,
+                    $"归档计数与列表条数一致（{vm.ArchivedCount} vs {vm.VisibleAssets.Count}）", ref failures);
+
+                vm.SelectLifecycleCommand.Execute("有效");
+                Check(vm.VisibleAssets.Count == 1 && vm.VisibleAssets.All(x => x.Status == "有效"),
+                    "点「有效」只剩有效项", ref failures);
+                Check(vm.ValidCount == 1, $"有效计数 1（实际 {vm.ValidCount}）", ref failures);
+
+                // 再点同一个桶 = 取消筛选。
+                vm.SelectLifecycleCommand.Execute("有效");
+                Check(vm.LifecycleFilter == "全部" && vm.VisibleAssets.Count == all,
+                    "再点同一个桶回到全部", ref failures);
+
+                // 待处理桶：没有待处理资产时必须筛出 0 条，而不是把全部当待处理。
+                vm.SelectLifecycleCommand.Execute("待处理");
+                Check(vm.VisibleAssets.Count == 0 && vm.PendingCount == 0,
+                    $"没有待处理资产时筛出 0 条（实际 {vm.VisibleAssets.Count}）", ref failures);
+
+                // 清除筛选必须把生命周期一起清掉。
+                vm.SelectLifecycleCommand.Execute("已归档");
+                vm.ClearFiltersCommand.Execute();
+                Check(vm.LifecycleFilter == "全部" && vm.VisibleAssets.Count == all,
+                    "清除筛选同时复位生命周期", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "生命周期筛选断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 引用卡必须能跳到真实步骤：流程/步骤都对得上、容器分支里的步骤也能找到。
+        /// 找不到时必须说清原因，不许静默什么都不做。
+        /// </summary>
+        private static void RunReferenceNavigationChecks(ref int failures)
+        {
+            try
+            {
+                var workspace = new WorkspaceContext();
+                var solutionService = new SolutionService();
+                var solutionPath = @"D:\C#\VM\解决方案\智能装配检测线\智能装配检测线.vms";
+                var load = solutionService.LoadAsync(solutionPath).GetAwaiter().GetResult();
+                if (!load.Success || load.Data == null)
+                {
+                    Check(false, "引用跳转：加载方案失败：" + load.Message, ref failures);
+                    return;
+                }
+                load.Data.SolutionFilePath = solutionPath;
+                workspace.SwitchSolution(load.Data);
+
+                var vm = new ProjectAssetsViewModel(workspace);
+                vm.SelectTypeCommand.Execute("calibration");
+
+                var asset = vm.VisibleAssets.FirstOrDefault();
+                Check(asset != null && asset.References.Count > 0,
+                    $"标定资产有 {asset?.References.Count ?? 0} 条引用", ref failures);
+
+                var reference = asset?.References.FirstOrDefault(r => r.CanNavigate);
+                Check(reference != null, "引用带可跳转的流程/步骤名", ref failures);
+                if (reference == null) return;
+
+                IDialogResult? closeResult = null;
+                AttachCloseListener(vm, r => closeResult = r);
+                vm.GoToReferenceCommand.Execute(reference);
+
+                Check(closeResult != null, "跳转后弹窗请求关闭（用户才看得到选中步骤）", ref failures);
+                Check(workspace.CurrentFlow != null
+                      && string.Equals(workspace.CurrentFlow.FlowName, reference.FlowName, StringComparison.Ordinal),
+                    $"当前流程切到 {reference.FlowName}（实际 {workspace.CurrentFlow?.FlowName}）", ref failures);
+                Check(workspace.CurrentStep != null
+                      && string.Equals(workspace.CurrentStep.StepName, reference.StepName, StringComparison.Ordinal),
+                    $"当前步骤选中 {reference.StepName}（实际 {workspace.CurrentStep?.StepName}）", ref failures);
+
+                // 找不到时必须给出原因，不能静默。
+                var bogus = new AssetReference("flow", "不存在 / 也不存在", "读取", "NoSuchFlow", "NoSuchStep");
+                vm.GoToReferenceCommand.Execute(bogus);
+                Check(vm.ActionMessage.Contains("找不到流程"),
+                    $"流程不存在时说明原因（实际：{vm.ActionMessage}）", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "引用跳转断言异常：" + ex.Message, ref failures);
+            }
+        }
+
+        /// <summary>
+        /// DialogCloseListener 的构造函数是 internal（Prism 的设计），断言里只能反射造一个。
+        /// 与 RecipeChecks.MakeDialogCloseListener 同一手法。
+        /// </summary>
+        private static void AttachCloseListener(
+            ProjectAssetsViewModel vm, Action<IDialogResult> onClosed)
+        {
+            var property = typeof(ProjectAssetsViewModel).GetProperty(nameof(ProjectAssetsViewModel.RequestClose))!;
+            var ctor = property.PropertyType.GetConstructor(
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                binder: null,
+                types: new[] { typeof(Action<IDialogResult>) },
+                modifiers: null);
+
+            if (ctor == null)
+                throw new MissingMethodException(property.PropertyType.FullName, ".ctor(Action<IDialogResult>)");
+
+            property.SetValue(vm, ctor.Invoke(new object[] { onClosed }));
         }
 
         /// <summary>导出必须真的产出 zip，且里面含 manifest 与文件本体。</summary>
@@ -918,6 +1088,8 @@ namespace ProjectAssetsUiProbe
                 var auditPath = Path.Combine(OutputDirectory(Array.Empty<string>()), "wpf-project-assets-audit.png");
                 Save(auditBitmap, auditPath);
                 Console.WriteLine($"  [render] {auditPath}");
+
+                // 引用页签的可点性由主渲染（真实方案标定资产）出图，这里不重复截。
 
                 // 回到版本页签（带选中记录 + 差异面板）再截一张
                 vm.SelectedDetailTabIndex = 3;

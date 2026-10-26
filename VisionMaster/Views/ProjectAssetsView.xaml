@@ -440,38 +440,74 @@
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
 
-                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="生命周期" />
+                                    <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="生命周期（点一下筛选）" />
                                     <StackPanel Margin="0,5,0,12">
-                                        <Grid Height="26">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="18" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DialogSuccessBrush}" />
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="有效" />
-                                            <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ValidCount}" />
-                                        </Grid>
-                                        <Grid Height="26">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="18" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DialogWarningBrush}" />
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="待处理" />
-                                            <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding PendingCount}" />
-                                        </Grid>
-                                        <Grid Height="26">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="18" />
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-                                            <Ellipse Width="7" Height="7" Fill="{StaticResource DialogTextMutedBrush}" />
-                                            <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="已归档" />
-                                            <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ArchivedCount}" />
-                                        </Grid>
+                                        <Button
+                                            Height="26"
+                                            Command="{Binding SelectLifecycleCommand}"
+                                            CommandParameter="有效"
+                                            Style="{StaticResource FilterButtonStyle}"
+                                            ToolTip="只看有效资产（再点一次取消）">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="18" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Width="7" Height="7" Fill="{StaticResource DialogSuccessBrush}" />
+                                                <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="有效" />
+                                                <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ValidCount}" />
+                                            </Grid>
+                                        </Button>
+                                        <Button
+                                            Height="26"
+                                            Command="{Binding SelectLifecycleCommand}"
+                                            CommandParameter="待处理"
+                                            Style="{StaticResource FilterButtonStyle}"
+                                            ToolTip="只看待处理资产（再点一次取消）">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="18" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Width="7" Height="7" Fill="{StaticResource DialogWarningBrush}" />
+                                                <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="待处理" />
+                                                <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding PendingCount}" />
+                                            </Grid>
+                                        </Button>
+                                        <Button
+                                            Height="26"
+                                            Command="{Binding SelectLifecycleCommand}"
+                                            CommandParameter="已归档"
+                                            Style="{StaticResource FilterButtonStyle}"
+                                            ToolTip="只看已归档资产（再点一次取消）">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="18" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Ellipse Width="7" Height="7" Fill="{StaticResource DialogTextMutedBrush}" />
+                                                <TextBlock Grid.Column="1" Margin="7,0,0,0" FontSize="11" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="已归档" />
+                                                <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding ArchivedCount}" />
+                                            </Grid>
+                                        </Button>
+
+                                        <!--  当前筛选是哪一个：用一行文字说清，避免"列表变少了不知道为什么"  -->
+                                        <Border
+                                            Margin="0,4,0,0"
+                                            Padding="7,4"
+                                            Background="{StaticResource DialogAccentSoftBrush}"
+                                            BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4">
+                                            <TextBlock FontSize="9" Foreground="{StaticResource DialogTextSecondaryBrush}" TextWrapping="Wrap">
+                                                <Run Text="当前筛选：" />
+                                                <!--  Run.Text 默认 TwoWay（R159）：绑只读属性必须显式 OneWay，否则加载期抛异常  -->
+                                                <Run FontWeight="SemiBold" Text="{Binding LifecycleFilter, Mode=OneWay}" />
+                                            </TextBlock>
+                                        </Border>
                                     </StackPanel>
 
                                     <TextBlock Style="{StaticResource SectionCaptionStyle}" Text="保护" />
@@ -937,33 +973,45 @@
                                             <ItemsControl Margin="0,8,0,0" ItemsSource="{Binding SelectedAsset.References}">
                                                 <ItemsControl.ItemTemplate>
                                                     <DataTemplate>
-                                                        <Border Margin="0,0,0,6" Padding="8,6" Background="{StaticResource DialogSurfaceBrush}" BorderBrush="{StaticResource DialogBorderBrush}" BorderThickness="1" CornerRadius="6">
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="22" />
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <TextBlock
-                                                                    VerticalAlignment="Top"
-                                                                    FontFamily="{StaticResource Icon}"
-                                                                    FontSize="11"
-                                                                    Foreground="{StaticResource DialogAccentTextBrush}"
-                                                                    Text="&#xf0c1;" />
-                                                                <StackPanel Grid.Column="1" Margin="6,0,6,0">
-                                                                    <TextBlock FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                                                                    <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Sub}" TextWrapping="Wrap" />
-                                                                </StackPanel>
-                                                                <Border Grid.Column="2" Style="{StaticResource TypeChipStyle}" VerticalAlignment="Top">
-                                                                    <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding Kind}" />
-                                                                </Border>
-                                                            </Grid>
-                                                        </Border>
+                                                        <Button
+                                                            Margin="0,0,0,6"
+                                                            Padding="0"
+                                                            HorizontalContentAlignment="Stretch"
+                                                            Background="Transparent"
+                                                            BorderThickness="0"
+                                                            Command="{Binding DataContext.GoToReferenceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Cursor="Hand"
+                                                            IsEnabled="{Binding CanNavigate}"
+                                                            ToolTip="跳到这个步骤">
+                                                            <Border Padding="8,6" Background="{StaticResource DialogSurfaceBrush}" BorderBrush="{StaticResource DialogBorderBrush}" BorderThickness="1" CornerRadius="6">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="22" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <TextBlock
+                                                                        VerticalAlignment="Top"
+                                                                        FontFamily="{StaticResource Icon}"
+                                                                        FontSize="11"
+                                                                        Foreground="{StaticResource DialogAccentTextBrush}"
+                                                                        Text="&#xf0c1;" />
+                                                                    <StackPanel Grid.Column="1" Margin="6,0,6,0">
+                                                                        <TextBlock FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                                                                        <TextBlock Margin="0,3,0,0" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding Sub}" TextWrapping="Wrap" />
+                                                                    </StackPanel>
+                                                                    <Border Grid.Column="2" Style="{StaticResource TypeChipStyle}" VerticalAlignment="Top">
+                                                                        <TextBlock VerticalAlignment="Center" FontSize="9" Text="{Binding Kind}" />
+                                                                    </Border>
+                                                                </Grid>
+                                                            </Border>
+                                                        </Button>
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                             <Border Padding="8,6" Background="{StaticResource DialogAccentSoftBrush}" BorderBrush="{StaticResource DialogAccentBorderBrush}" BorderThickness="1" CornerRadius="5">
-                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="引用索引当前尚未落地；冻结/删除前需要先处理写引用。" TextWrapping="Wrap" />
+                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="点引用卡可直接跳到对应步骤（弹窗会关闭）。引用来自插件配置里的资产 Id / 标定名匹配。" TextWrapping="Wrap" />
                                             </Border>
                                         </StackPanel>
                                     </ScrollViewer>

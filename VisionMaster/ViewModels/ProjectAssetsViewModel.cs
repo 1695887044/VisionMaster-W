@@ -80,6 +80,8 @@ namespace VisionMaster.ViewModels
             ToggleArchiveCommand = new DelegateCommand(ToggleArchive);
             DeleteAssetCommand = new DelegateCommand(DeleteAsset);
             RefreshAuditCommand = new DelegateCommand(RefreshAudit);
+            SelectLifecycleCommand = new DelegateCommand<string>(kind => SelectLifecycle(string.IsNullOrWhiteSpace(kind) ? "全部" : kind));
+            GoToReferenceCommand = new DelegateCommand<AssetReference>(GoToReference);
             ExportCommand = new DelegateCommand(ExportAsset);
             CopyIdCommand = new DelegateCommand(CopyId);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -235,6 +237,8 @@ namespace VisionMaster.ViewModels
         public DelegateCommand ToggleArchiveCommand { get; }
         public DelegateCommand DeleteAssetCommand { get; }
         public DelegateCommand RefreshAuditCommand { get; }
+        public DelegateCommand<string> SelectLifecycleCommand { get; }
+        public DelegateCommand<AssetReference> GoToReferenceCommand { get; }
         public DelegateCommand ExportCommand { get; }
         public DelegateCommand CopyIdCommand { get; }
         public DelegateCommand CloseCommand { get; }
@@ -384,8 +388,9 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(SearchText));
             RaisePropertyChanged(nameof(CameraFilter));
             RaisePropertyChanged(nameof(TagFilter));
+            LifecycleFilter = "全部";
             ApplyFilter();
-            ActionMessage = "已清除搜索 / 相机 / 标签筛选";
+            ActionMessage = "已清除搜索 / 相机 / 标签 / 生命周期筛选";
         }
 
         /// <summary>作用域首段当标签：`ST3 · 精密测量` → `ST3`，`整线` → `整线`。</summary>
@@ -397,9 +402,99 @@ namespace VisionMaster.ViewModels
             return cut > 0 ? scope[..cut].Trim() : scope;
         }
 
+        /// <summary>生命周期筛选：全部 / 有效 / 已归档。左侧三行计数点一下切这里。</summary>
+        private string _lifecycleFilter = "全部";
+        public string LifecycleFilter
+        {
+            get => _lifecycleFilter;
+            private set
+            {
+                if (!SetProperty(ref _lifecycleFilter, value ?? "全部")) return;
+                RaisePropertyChanged(nameof(IsAllLifecycle));
+                RaisePropertyChanged(nameof(IsValidLifecycle));
+                RaisePropertyChanged(nameof(IsArchivedLifecycle));
+                ApplyFilter();
+            }
+        }
+
+        public bool IsAllLifecycle => _lifecycleFilter == "全部";
+        public bool IsValidLifecycle => _lifecycleFilter == "有效";
+        public bool IsArchivedLifecycle => _lifecycleFilter == "已归档";
+
+        private void SelectLifecycle(string filter)
+        {
+            // 再点一次当前项 = 取消筛选（比"必须点全部"少一步）。
+            LifecycleFilter = _lifecycleFilter == filter ? "全部" : filter;
+        }
+
+        private void GoToReference(AssetReference? reference)
+        {
+            if (reference == null) return;
+            if (!reference.CanNavigate)
+            {
+                ActionMessage = "这条引用没有可跳转的步骤";
+                return;
+            }
+
+            var solution = _workspace.CurrentSolution;
+            if (solution == null)
+            {
+                ActionMessage = "当前没有打开方案";
+                return;
+            }
+
+            var flow = solution.Flows.FirstOrDefault(f =>
+                string.Equals(f.FlowName, reference.FlowName, StringComparison.Ordinal));
+            if (flow == null)
+            {
+                ActionMessage = $"找不到流程「{reference.FlowName}」";
+                return;
+            }
+
+            var step = FindStepDeep(flow.Steps, reference.StepName!);
+            if (step == null)
+            {
+                ActionMessage = $"流程「{reference.FlowName}」里找不到步骤「{reference.StepName}」";
+                return;
+            }
+
+            // VM 只持有只读工作区上下文（断言宿主也用它）；真正切流程/步骤要走可写的那份。
+            if (_workspace is not IWorkspaceManager manager)
+            {
+                ActionMessage = "当前环境不支持跳转到步骤（没有可写工作区）";
+                return;
+            }
+
+            manager.SwitchFlow(flow);
+            manager.SwitchStep(step);
+            // 资产页是弹窗：不关掉的话用户看不到刚选中的步骤。
+            RequestClose.Invoke(ButtonResult.OK);
+        }
+
+        /// <summary>容器步骤（If/For/While/Parallel）的子步骤也要能找到——引用可能来自分支内部。</summary>
+        private static StepModel? FindStepDeep(IEnumerable<StepModel> steps, string name)
+        {
+            foreach (var step in steps)
+            {
+                if (string.Equals(step.StepName, name, StringComparison.Ordinal)) return step;
+                if (step is not IContainerStep container) continue;
+
+                foreach (var branch in container.Children)
+                {
+                    var found = FindStepDeep(branch.Steps, name);
+                    if (found != null) return found;
+                }
+            }
+
+            return null;
+        }
+
         private void ApplyFilter()
         {
             var source = _allAssets.Where(a => _selectedType == "all" || a.Kind == _selectedType).ToList();
+
+            if (!string.IsNullOrWhiteSpace(LifecycleFilter) && LifecycleFilter != "全部")
+                source = source.Where(a => LifecycleGroupOf(a) == LifecycleFilter).ToList();
 
             if (!string.IsNullOrWhiteSpace(CameraFilter))
                 source = source.Where(a => string.Equals(a.Camera, CameraFilter, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -446,12 +541,24 @@ namespace VisionMaster.ViewModels
             RefreshHealth(source);
         }
 
+        /// <summary>
+        /// 把资产自身的 Status 归到左侧三个桶里。**筛选与计数必须共用这一份判据**，
+        /// 否则会出现"点『待处理』筛出 0 条、而计数写着 3"这种自相矛盾。
+        /// </summary>
+        private static string LifecycleGroupOf(ProjectAssetItem item) => item.Status switch
+        {
+            "有效" or "派生" or "内嵌" => "有效",
+            "待复核" or "待学习" => "待处理",
+            "已归档" => "已归档",
+            _ => "其他",
+        };
+
         private void RefreshHealth(IReadOnlyCollection<ProjectAssetItem> source)
         {
             var total = source.Count;
-            var valid = source.Count(a => a.Status == "有效" || a.Status == "派生" || a.Status == "内嵌");
-            var pending = source.Count(a => a.Status == "待复核" || a.Status == "待学习");
-            var archived = source.Count(a => a.Status == "已归档");
+            var valid = source.Count(a => LifecycleGroupOf(a) == "有效");
+            var pending = source.Count(a => LifecycleGroupOf(a) == "待处理");
+            var archived = source.Count(a => LifecycleGroupOf(a) == "已归档");
             var unbound = source.Count(a => a.Status == "未配置" || a.Status == "缺失");
             var locked = source.Count(a => a.IsFrozen);
             var pct = total == 0 ? 0 : (int)Math.Round(valid * 100.0 / total);
@@ -959,10 +1066,29 @@ namespace VisionMaster.ViewModels
 
     public sealed class AssetReference
     {
-        public AssetReference(string kind, string title, string sub) { Kind = kind; Title = title; Sub = sub; }
+        public AssetReference(string kind, string title, string sub)
+            : this(kind, title, sub, null, null)
+        {
+        }
+
+        public AssetReference(string kind, string title, string sub, string? flowName, string? stepName)
+        {
+            Kind = kind;
+            Title = title;
+            Sub = sub;
+            FlowName = flowName;
+            StepName = stepName;
+        }
+
         public string Kind { get; }
         public string Title { get; }
         public string Sub { get; }
+
+        /// <summary>可跳转时给的原始流程名（不是显示用的友好名）与步骤名；不可跳转时为 null。</summary>
+        public string? FlowName { get; }
+        public string? StepName { get; }
+
+        public bool CanNavigate => !string.IsNullOrWhiteSpace(FlowName) && !string.IsNullOrWhiteSpace(StepName);
     }
 
     public sealed class AssetVersion
