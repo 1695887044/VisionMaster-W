@@ -565,7 +565,7 @@ namespace VisionMaster.ViewModels
         private static string LifecycleGroupOf(ProjectAssetItem item) => item.Status switch
         {
             "有效" or "派生" or "内嵌" => "有效",
-            "待复核" or "待学习" => "待处理",
+            "待复核" or "待学习" or "配置冲突" => "待处理",
             "已归档" => "已归档",
             _ => "其他",
         };
@@ -913,6 +913,15 @@ namespace VisionMaster.ViewModels
             recipe.TextContent = text;
             recipe.UpdatedAtUtc = DateTime.UtcNow;
             recipe.UpdatedBy = Environment.UserName;
+
+            // 保存后必须仍自洽：给文本配方写内容的同时还留着参数条目 = 两份内容抢一份解析。
+            var conflict = recipe.ValidateContent();
+            if (conflict != null)
+            {
+                recipe.TextContent = SelectedAsset.RecipeContent;
+                ActionMessage = conflict;
+                return;
+            }
 
             if (!_assetService.TryRecordVersion(assetId, "改内容", "配方内容编辑", out var versionError))
             {

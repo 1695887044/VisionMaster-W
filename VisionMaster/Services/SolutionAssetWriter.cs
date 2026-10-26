@@ -181,7 +181,15 @@ namespace VisionMaster.Services
             var stored = FindStored(assetId);
             return stored == null
                 ? string.Empty
-                : AssetVersionLog.Snapshot(new { stored.RelativePath, stored.ContentHash, stored.Version, stored.FileSize });
+                : AssetVersionLog.Snapshot(new
+                {
+                    stored.Name,
+                    stored.Status,
+                    stored.RelativePath,
+                    stored.ContentHash,
+                    stored.Version,
+                    stored.FileSize,
+                });
         }
 
         /// <summary>

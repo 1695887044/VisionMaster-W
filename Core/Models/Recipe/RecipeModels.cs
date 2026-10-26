@@ -313,6 +313,32 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 两种形态同时有内容 = 配置冲突。插件按 ContentFormat 取一种解析，
+        /// 另一份内容会被静默忽略——用户以为改了、其实没生效，所以必须能报出来。
+        /// </summary>
+        public bool HasConflictingContent
+            => !string.IsNullOrWhiteSpace(TextContent)
+               && ((Entries?.Count ?? 0) > 0 || (Points?.Count ?? 0) > 0);
+
+        /// <summary>内容形态自检：返回 null 表示没问题，否则是给人看的原因。</summary>
+        public string? ValidateContent()
+        {
+            if (HasConflictingContent)
+            {
+                return $"配方「{Name}」同时有文本内容与 {Entries?.Count ?? 0} 条参数 / {Points?.Count ?? 0} 个点位；"
+                     + "两种形态只能留一种（插件只会按 ContentFormat 解析其中一份）";
+            }
+
+            if (!string.IsNullOrWhiteSpace(ContentFormat)
+                && string.IsNullOrWhiteSpace(TextContent))
+            {
+                return $"配方「{Name}」声明为 {ContentFormat} 形态，但内容为空";
+            }
+
+            return null;
+        }
+
+        /// <summary>
         /// 冻结：冻结后内容不应再改，只能解冻后编辑。与标定的 <c>IsLocked</c>、
         /// 文件资产的 <c>IsFrozen</c> 同一语义，字段名沿用各自既有命名。
         /// </summary>

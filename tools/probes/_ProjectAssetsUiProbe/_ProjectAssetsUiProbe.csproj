@@ -21,6 +21,10 @@
     <ProjectReference Include="..\..\..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.Matching\Plugin.Matching.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.Ocr\Plugin.Ocr.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Yolo\Plugin.Yolo.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.DlAnomaly\Plugin.DlAnomaly.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.DlClassify\Plugin.DlClassify.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.DlSegment\Plugin.DlSegment.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.ColorCheck\Plugin.ColorCheck.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />

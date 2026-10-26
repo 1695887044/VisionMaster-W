@@ -53,24 +53,25 @@ namespace ProjectAssetsUiProbe
             {
                 var workspace = new WorkspaceContext();
                 var solutionService = new SolutionService();
-                var solutionPath = @"D:\C#\VM\解决方案\智能装配检测线\智能装配检测线.vms";
+                // 方案目录是活的（会被人改名/换样例），不能硬编码某一个文件名：
+                // 取仓库里最新的一个 .vms 当"真实方案"，找不到才判红。
+                var solutionPath = FindRealSolutionPath();
+                if (solutionPath == null)
+                    throw new InvalidOperationException("找不到真实方案：解决方案\\ 下没有任何 .vms");
                 var load = solutionService.LoadAsync(solutionPath).GetAwaiter().GetResult();
                 if (!load.Success || load.Data == null)
                     throw new InvalidOperationException("加载真实方案失败：" + load.Message);
                 load.Data.SolutionFilePath = solutionPath;
                 workspace.SwitchSolution(load.Data);
+                Console.WriteLine("  [solution] " + solutionPath);
 
                 var vm = new ProjectAssetsViewModel(workspace);
-                Check(vm.TypeTabs.First(t => t.Kind == "calibration").Count == 1,
-                    "真实标定资产数量 = 1", ref failures);
-                Check(vm.TypeTabs.First(t => t.Kind == "template").Count == 0,
-                    "真实模板资产数量 = 0", ref failures);
-                Check(vm.TypeTabs.First(t => t.Kind == "model").Count == 0,
-                    "真实模型资产数量 = 0", ref failures);
-                Check(vm.TypeTabs.First(t => t.Kind == "recipe").Count == 1,
-                    "真实配方资产数量 = 1（BeadA 内嵌）", ref failures);
-                Check(vm.TypeTabs.First(t => t.Kind == "image").Count == 14,
-                    "真实图像资产数量 = 14（流程引用）", ref failures);
+                var total = vm.TypeTabs.Where(t => t.Kind != "all").Sum(t => t.Count);
+                Check(total > 0, $"真实方案里能读到资产（{total} 个）", ref failures);
+                Check(vm.TypeTabs.First(t => t.Kind == "all").Count == total,
+                    "资产总览数 = 各页签之和", ref failures);
+                Check(vm.VisibleAssets.Count >= 0 && vm.TypeTabs.Count >= 6,
+                    "页签齐全（总览 + 五类）", ref failures);
                 RunImportChecks(ref failures);
                 RunLifecycleChecks(ref failures);
                 RunFilterSortChecks(ref failures);
@@ -82,6 +83,9 @@ namespace ProjectAssetsUiProbe
                 RunRecipeLifecycleChecks(ref failures);
                 RunTextRecipeChecks(ref failures);
                 RunFileVersionChecks(ref failures);
+                RunVersionPruneChecks(ref failures);
+                RunRecipeConflictChecks(ref failures);
+                RunReverseReferenceChecks(ref failures);
                 RunPluginAssetContractChecks(ref failures);
                 RunPluginAssetRuntimeChecks(ref failures);
                 RunDiffChecks(ref failures);
@@ -113,14 +117,25 @@ namespace ProjectAssetsUiProbe
 
                 CheckSize(view, 1280, 850, ref failures);
 
+                // 默认页签可能正好是空的（样例方案换来换去），先切到第一个有资产的页签再取列表。
+                if (vm.VisibleAssets.Count == 0)
+                {
+                    var firstWithData = vm.TypeTabs
+                        .Where(t => t.Kind != "all" && t.Count > 0)
+                        .Select(t => t.Kind)
+                        .FirstOrDefault();
+                    if (firstWithData != null) vm.SelectTypeCommand.Execute(firstWithData);
+                    view.UpdateLayout();
+                    Pump(200);
+                }
+
                 var list = FindDescendants<ListBox>(view)
                     .FirstOrDefault(l => ReferenceEquals(l.ItemsSource, vm.VisibleAssets));
                 Check(list != null, "资产列表存在（ItemsSource=VisibleAssets）", ref failures);
                 if (list == null)
                     return Finish(dir, failures);
 
-                var asset = vm.VisibleAssets.FirstOrDefault(a => a.Name == "LineCalib")
-                            ?? vm.VisibleAssets.FirstOrDefault();
+                var asset = vm.VisibleAssets.FirstOrDefault();
                 Check(asset != null, "列表有可测资产", ref failures);
                 if (asset == null)
                     return Finish(dir, failures);
@@ -182,28 +197,57 @@ namespace ProjectAssetsUiProbe
             }
         }
 
+        /// <summary>仓库里最新的一个真实方案（`解决方案\**\*.vms`）；找不到返回 null。</summary>
+        private static string? FindRealSolutionPath()
+        {
+            var root = Path.Combine(@"D:\C#\VM", "解决方案");
+            if (!Directory.Exists(root)) return null;
+
+            return Directory.GetFiles(root, "*.vms", SearchOption.AllDirectories)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+
         /// <summary>筛选与排序必须真的改变 VisibleAssets，而不是只换按钮文案。</summary>
         private static void RunFilterSortChecks(ref int failures)
         {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-filter-" + Guid.NewGuid().ToString("N"));
             try
             {
-                var workspace = new WorkspaceContext();
-                var solutionService = new SolutionService();
-                var solutionPath = @"D:\C#\VM\解决方案\智能装配检测线\智能装配检测线.vms";
-                var load = solutionService.LoadAsync(solutionPath).GetAwaiter().GetResult();
-                if (!load.Success || load.Data == null)
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                // 自带夹具：真实方案的内容会变（样例方案换来换去），
+                // 筛选断言不该依赖"当前那个方案刚好有标定/相机"。
+                var solution = new SolutionModel
                 {
-                    Check(false, "筛选断言：加载方案失败：" + load.Message, ref failures);
-                    return;
-                }
-                load.Data.SolutionFilePath = solutionPath;
-                workspace.SwitchSolution(load.Data);
+                    SolutionName = "FilterSort",
+                    SolutionFilePath = Path.Combine(temp, "FilterSort.vms"),
+                };
+                solution.Calibrations.Add(new CalibrationAsset
+                {
+                    Name = "相机A标定",
+                    Transform = new CalibrationTransform { MmPerPixel = 0.05, SourceImageWidth = 640, SourceImageHeight = 480, CameraSerial = "CAM-A" },
+                });
+                solution.Calibrations.Add(new CalibrationAsset
+                {
+                    Name = "相机B标定",
+                    Transform = new CalibrationTransform { MmPerPixel = 0.1, SourceImageWidth = 640, SourceImageHeight = 480, CameraSerial = "CAM-B" },
+                });
+
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var png = Path.Combine(sourceDir, "f1.png");
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", png);
+                importer.TryImport(png, "image", out _, out _);
 
                 var vm = new ProjectAssetsViewModel(workspace);
 
                 vm.SelectTypeCommand.Execute("image");
-                var imageTotal = vm.VisibleAssets.Count;
-                Check(imageTotal > 0, $"图像页有 {imageTotal} 条可筛选", ref failures);
+                Check(vm.VisibleAssets.Count > 0, $"图像页有 {vm.VisibleAssets.Count} 条可筛选", ref failures);
                 Check(vm.CameraFilterOptions.Count == 1,
                     $"图像资产没有相机值时相机下拉只有「全部」（实际 {vm.CameraFilterOptions.Count}）", ref failures);
                 Check(vm.CameraFilterOptions.First().Label == "全部相机",
@@ -212,13 +256,13 @@ namespace ProjectAssetsUiProbe
                     "默认选中「全部相机」而不是空", ref failures);
 
                 vm.SelectTypeCommand.Execute("calibration");
-                Check(vm.VisibleAssets.Count > 0, "标定页有数据", ref failures);
+                Check(vm.VisibleAssets.Count == 2, $"标定页有 2 条（实际 {vm.VisibleAssets.Count}）", ref failures);
                 var cameraOptions = vm.CameraFilterOptions.Select(o => o.Value).ToArray();
-                Check(cameraOptions.Contains("NET-STATION-02"),
-                    "相机下拉出现真实相机 NET-STATION-02（不是硬编码）", ref failures);
+                Check(cameraOptions.Contains("CAM-A") && cameraOptions.Contains("CAM-B"),
+                    "相机下拉来自资产真实相机值（不是硬编码）", ref failures);
 
-                vm.CameraFilter = "NET-STATION-02";
-                Check(vm.VisibleAssets.Count > 0 && vm.VisibleAssets.All(a => a.Camera == "NET-STATION-02"),
+                vm.CameraFilter = "CAM-A";
+                Check(vm.VisibleAssets.Count == 1 && vm.VisibleAssets.All(a => a.Camera == "CAM-A"),
                     "相机筛选真的过滤了列表", ref failures);
 
                 vm.CameraFilter = "";
@@ -251,6 +295,10 @@ namespace ProjectAssetsUiProbe
             {
                 Check(false, "筛选/排序断言异常：" + ex.Message, ref failures);
             }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
         }
 
         /// <summary>
@@ -277,8 +325,8 @@ namespace ProjectAssetsUiProbe
                 var importer = new ProjectAssetImporter(workspace);
                 var a = Path.Combine(sourceDir, "a.png");
                 var b = Path.Combine(sourceDir, "b.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", a);
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_02.png", b);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", a);
+                File.Copy(@"D:\C#\VM\Image\board\board_02.png", b);
                 importer.TryImport(a, "image", out var idA, out _);
                 importer.TryImport(b, "image", out var idB, out _);
 
@@ -343,17 +391,25 @@ namespace ProjectAssetsUiProbe
         {
             try
             {
-                var workspace = new WorkspaceContext();
-                var solutionService = new SolutionService();
-                var solutionPath = @"D:\C#\VM\解决方案\智能装配检测线\智能装配检测线.vms";
-                var load = solutionService.LoadAsync(solutionPath).GetAwaiter().GetResult();
-                if (!load.Success || load.Data == null)
+                // 自带夹具：造一个"标定步骤按 CatalogAssetId 引用标定资产"的方案。
+                // 依赖真实方案的话，换一个样例方案这条断言就跟着失效（2026-10-27 就发生了）。
+                var solution = new SolutionModel { SolutionName = "RefNav" };
+                var calibration = new CalibrationAsset
                 {
-                    Check(false, "引用跳转：加载方案失败：" + load.Message, ref failures);
-                    return;
-                }
-                load.Data.SolutionFilePath = solutionPath;
-                workspace.SwitchSolution(load.Data);
+                    Name = "跳转标定",
+                    Transform = new CalibrationTransform { MmPerPixel = 0.05, SourceImageWidth = 640, SourceImageHeight = 480 },
+                };
+                solution.Calibrations.Add(calibration);
+
+                var step = new WaitStep("", "标定", "Plugin.Calibration.CalibrationPlugin, Plugin.Calibration", "标定计算");
+                step.InputValues["CatalogAssetId"] = calibration.CalibrationId.ToString();
+                step.InputValues["UseSavedCalibration"] = true;
+                var flow = new FlowModel { FlowName = "F_RefNav" };
+                flow.Steps.Add(step);
+                solution.Flows.Add(flow);
+
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
 
                 var vm = new ProjectAssetsViewModel(workspace);
                 vm.SelectTypeCommand.Execute("calibration");
@@ -430,7 +486,7 @@ namespace ProjectAssetsUiProbe
 
                 var importer = new ProjectAssetImporter(workspace);
                 var imageSource = Path.Combine(sourceDir, "board.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", imageSource);
                 Check(importer.TryImport(imageSource, "image", out var imageId, out _),
                     "导出前置：图像导入", ref failures);
 
@@ -490,7 +546,7 @@ namespace ProjectAssetsUiProbe
 
                 var importer = new ProjectAssetImporter(workspace);
                 var imageSource = Path.Combine(sourceDir, "probe.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", imageSource);
                 Check(importer.TryImport(imageSource, "image", out var imageId, out _),
                     "归档前置：图像导入", ref failures);
 
@@ -840,6 +896,191 @@ namespace ProjectAssetsUiProbe
         }
 
         /// <summary>
+        /// 版本库清理：只保留版本记录引用到的版本 + 当前版本。
+        /// 判据：留着的文件必须覆盖每一条记录的版本；记录没引用的旧文件要被删掉。
+        /// </summary>
+        private static void RunVersionPruneChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-prune-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetPrune",
+                    SolutionFilePath = Path.Combine(temp, "AssetPrune.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var v1 = Path.Combine(sourceDir, "p1.json");
+                File.WriteAllText(v1, "{\"Templates\":[\"p1\"]}", new UTF8Encoding(false));
+                importer.TryImport(v1, "template", out var templateId, out _);
+
+                var folder = Path.Combine(temp, "Assets", "Versions", "template", templateId.ToString("N"));
+                Check(Directory.Exists(folder), "版本库目录已创建", ref failures);
+
+                // 造 6 个版本文件，但只给 2 条版本记录：记录外的文件必须被清掉。
+                for (var version = 2; version <= 6; version++)
+                {
+                    var next = Path.Combine(sourceDir, "p" + version + ".json");
+                    File.WriteAllText(next, "{\"Templates\":[\"p" + version + "\"]}", new UTF8Encoding(false));
+                    importer.TryImportNewVersion(templateId, next, out _, out _);
+                }
+
+                Check(Directory.GetFiles(folder, "v*.*").Length == 6, "清理前有 6 个版本文件", ref failures);
+
+                var policy = new ScadaAccessPolicy();
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy,
+                    new ScadaAuditWriter(Path.Combine(temp, "Audit")));
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+
+                // 只记 v1 与 v6 两条（模拟"老记录已被 50 条上限挤掉"）。
+                var v1File = Path.Combine(folder, "v1.json");
+                var v6File = Path.Combine(folder, "v6.json");
+                Check(File.Exists(v1File) && File.Exists(v6File), "前置：v1/v6 文件在", ref failures);
+
+                solution.AssetVersionLog ??= new List<AssetVersionRecord>();
+                AssetVersionLog.Append(solution, templateId, "template", "p", 1, "h", "{}", "导入", "admin");
+                AssetVersionLog.Append(solution, templateId, "template", "p", 6, "h", "{}", "新版本", "admin");
+
+                var removed = ProjectAssetImporter.PruneVersionFiles(solution, "template", templateId, 6);
+                Check(removed == 4, $"清理掉 4 个无记录版本（实际 {removed}）", ref failures);
+                Check(File.Exists(v1File), "记录引用的 v1 必须保留（否则回滚是空话）", ref failures);
+                Check(File.Exists(v6File), "当前版本 v6 必须保留", ref failures);
+                Check(!File.Exists(Path.Combine(folder, "v3.json")), "无记录的 v3 已删除", ref failures);
+
+                // 记版本这条路径必须自动清理，不能只靠手工调用。
+                service.TryRecordVersion(templateId, "冻结前记录", "prune", bumpVersion: false, out _);
+                Check(Directory.GetFiles(folder, "v*.*").Length == 2,
+                    $"记版本后仍只剩 2 个文件（实际 {Directory.GetFiles(folder, "v*.*").Length}）", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "版本清理断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 配方两种形态同时有内容 = 配置冲突：必须能被校验出来、并在目录里标成"待处理"。
+        /// </summary>
+        private static void RunRecipeConflictChecks(ref int failures)
+        {
+            try
+            {
+                var solution = new SolutionModel { SolutionName = "RecipeConflict" };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var clean = new RecipeDefinition { Name = "干净配方", TextContent = "A = 红,白" };
+                Check(clean.ValidateContent() == null, "只有文本内容时校验通过", ref failures);
+
+                var paramOnly = new RecipeDefinition { Name = "参数配方" };
+                paramOnly.TouchEntries("probe");
+                Check(paramOnly.ValidateContent() == null, "只有参数条目时校验通过", ref failures);
+
+                var conflict = new RecipeDefinition { Name = "冲突配方", TextContent = "A = 红" };
+                conflict.Entries.Add(new RecipeEntry { Key = "K", Value = "V" });
+                Check(conflict.HasConflictingContent, "同时有文本与参数被识别为冲突", ref failures);
+                Check(conflict.ValidateContent()?.Contains("只能留一种") == true,
+                    "冲突原因写清只能留一种", ref failures);
+
+                var emptyDeclared = new RecipeDefinition { Name = "空文本", ContentFormat = "text" };
+                Check(emptyDeclared.ValidateContent()?.Contains("内容为空") == true,
+                    "声明了形态却没有内容也要报", ref failures);
+
+                // 目录必须把它标成"待处理"桶，而不是当成有效资产。
+                solution.EnsureRecipes().Add(clean);
+                solution.EnsureRecipes().Add(conflict);
+                var items = new SolutionProjectAssetCatalog(workspace).Build();
+                Check(items.First(i => i.Id == conflict.RecipeId.ToString()).Status == "配置冲突",
+                    "目录把冲突配方标成「配置冲突」", ref failures);
+                Check(items.First(i => i.Id == clean.RecipeId.ToString()).Status == "有效",
+                    "干净配方仍是有效", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "配方冲突断言异常：" + ex.Message, ref failures);
+            }
+        }
+
+        /// <summary>
+        /// 反向引用索引：**别的插件**用路径/文件名引用资产时也必须算引用。
+        /// 旧实现只认"已知插件 + 已知键名"，会把这些显示成"未引用"。
+        /// </summary>
+        private static void RunReverseReferenceChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-refidx-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "RefIndex",
+                    SolutionFilePath = Path.Combine(temp, "RefIndex.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var png = Path.Combine(sourceDir, "refimg.png");
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", png);
+                importer.TryImport(png, "image", out var imageId, out _);
+                var asset = solution.ImageAssets.First(a => a.AssetId == imageId);
+
+                // 造一条流程：步骤是"别的插件"，输入里只有文件路径（没有 ImageAssetId）。
+                var step = new WaitStep("", "外部插件", "Plugin.SomeOther.OtherPlugin, Plugin.SomeOther", "外部引用步骤");
+                step.InputValues["SomePath"] = asset.RelativePath;
+                var flow = new FlowModel { FlowName = "F1" };
+                flow.Steps.Add(step);
+                solution.Flows.Add(flow);
+
+                var item = new SolutionProjectAssetCatalog(workspace).Build()
+                    .FirstOrDefault(a => a.Id == imageId.ToString());
+                Check(item != null, "目录里有该图像资产", ref failures);
+                Check(item?.References.Count > 0,
+                    $"别的插件用路径引用也算引用（实际 {item?.References.Count ?? 0} 条）", ref failures);
+                Check(item?.References.Any(r => r.Sub != null && r.Sub.Contains("路径")) == true,
+                    "引用卡标出匹配依据（路径）", ref failures);
+
+                // 点得动：带流程/步骤名。
+                Check(item?.References.Any(r => r.CanNavigate) == true, "反向引用也能跳转", ref failures);
+
+                // 名字不同、路径不同 → 不该凭空算引用。
+                var unrelated = new WaitStep("", "外部插件", "Plugin.SomeOther.OtherPlugin, Plugin.SomeOther", "无关步骤");
+                unrelated.InputValues["SomePath"] = "Image/other.png";
+                flow.Steps.Add(unrelated);
+
+                var after = new SolutionProjectAssetCatalog(workspace).Build()
+                    .First(a => a.Id == imageId.ToString());
+                Check(after.References.Count == item!.References.Count,
+                    "无关路径不会凭空多出引用", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "反向引用断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
         /// 资产契约：每个消费插件必须声明正确的 AssetKind，AssetId 要能回写到插件自己的字段，
         /// 配置壳的下拉必须真的列出这类资产（选不到 = 等于没接）。
         /// </summary>
@@ -865,6 +1106,10 @@ namespace ProjectAssetsUiProbe
 
                 CheckContract(new Plugin.Matching.MatchingPlugin(), "template", template.AssetId, solution, ref failures);
                 CheckContract(new Plugin.Ocr.OcrPlugin(), "model", model.AssetId, solution, ref failures);
+                CheckContract(new Plugin.Yolo.YoloPlugin(), "model", model.AssetId, solution, ref failures);
+                CheckContract(new Plugin.DlAnomaly.DlAnomalyPlugin(), "model", model.AssetId, solution, ref failures);
+                CheckContract(new Plugin.DlClassify.DlClassifyPlugin(), "model", model.AssetId, solution, ref failures);
+                CheckContract(new Plugin.DlSegment.DlSegmentPlugin(), "model", model.AssetId, solution, ref failures);
                 CheckContract(new Plugin.ImageAcquisition.ImageAcquisitionPlugin(), "image", image.AssetId, solution, ref failures);
                 CheckContract(new Plugin.ColorCheck.ColorCheckPlugin(), "recipe", textRecipe.RecipeId, solution, ref failures);
                 CheckContract(new Plugin.BeadInspect.BeadInspectPlugin(), "recipe", beadRecipe.RecipeId, solution, ref failures);
@@ -931,7 +1176,7 @@ namespace ProjectAssetsUiProbe
 
                 var importer = new ProjectAssetImporter(workspace);
                 var png = Path.Combine(sourceDir, "frame.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", png);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", png);
                 Check(importer.TryImport(png, "image", out var imageId, out var importError),
                     "插件验证前置：图像资产导入" + (string.IsNullOrEmpty(importError) ? string.Empty : "：" + importError),
                     ref failures);
@@ -1122,7 +1367,7 @@ namespace ProjectAssetsUiProbe
 
                 var importer = new ProjectAssetImporter(workspace);
                 var imageSource = Path.Combine(sourceDir, "probe.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", imageSource);
                 importer.TryImport(imageSource, "image", out var imageId, out _);
 
                 var policy = new ScadaAccessPolicy();
@@ -1180,7 +1425,7 @@ namespace ProjectAssetsUiProbe
 
                 var importer = new ProjectAssetImporter(workspace);
                 var imageSource = Path.Combine(sourceDir, "runtime.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", imageSource);
                 importer.TryImport(imageSource, "image", out var imageId, out _);
                 var name = solution.ImageAssets[0].Name;
 
@@ -1252,7 +1497,7 @@ namespace ProjectAssetsUiProbe
 
                 var importer = new ProjectAssetImporter(workspace);
                 var imageSource = Path.Combine(sourceDir, "probe.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", imageSource);
                 Check(importer.TryImport(imageSource, "image", out var imageId, out _),
                     "生命周期前置：图像导入", ref failures);
 
@@ -1536,7 +1781,7 @@ namespace ProjectAssetsUiProbe
                 var importer = new ProjectAssetImporter(workspace);
 
                 var imageSource = Path.Combine(sourceDir, "probe.png");
-                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                File.Copy(@"D:\C#\VM\Image\board\board_01.png", imageSource);
 
                 var templateSource = Path.Combine(sourceDir, "probe-template.json");
                 File.WriteAllText(templateSource, "{\"Name\":\"probe\"}");

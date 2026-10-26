@@ -116,6 +116,8 @@ namespace VisionMaster.Services
                 ContentHash(assetId, asset), _writer.SnapshotOf(assetId), action,
                 _policy.CurrentUserName, note);
 
+            PruneVersionsIfStored(kind, assetId, version);
+
             Audit(asset.Name, action, ScadaAuditOutcome.Success, note);
             return true;
         }
@@ -156,10 +158,14 @@ namespace VisionMaster.Services
                     return false;
                 }
 
+                // 名称/状态也属于"这条记录当时的样子"，一并还原；AssetId 不动（它是身份）。
+                TryRestoreStoredMetadata(assetId, record.SnapshotJson);
+
                 var newVersion = _writer.VersionOf(assetId);
                 AssetVersionLog.Append(_writer.Solution, assetId, kind, asset.Name, newVersion,
                     _writer.ContentHashOf(assetId), _writer.SnapshotOf(assetId), "回滚",
                     _policy.CurrentUserName, $"回滚到 v{sourceVersion}");
+                PruneVersionsIfStored(kind, assetId, newVersion);
 
                 Audit(asset.Name, "回滚", ScadaAuditOutcome.Success, $"回滚到 v{sourceVersion}");
                 return true;
@@ -380,8 +386,51 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 配方回滚：按快照还原文本配方原文与参数配方条目/点位。
-        /// 只还原内容，不还原 Name/Code（改名是资产身份，不该被一次回滚带走）。
+        /// 文件资产记完版本后清理版本库（只留记录引用到的版本 + 当前版本）。
+        /// 标定/配方没有版本文件，直接跳过。
+        /// </summary>
+        private void PruneVersionsIfStored(string kind, Guid assetId, int currentVersion)
+        {
+            if (!string.Equals(kind, "template", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(kind, "model", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(kind, "image", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            ProjectAssetImporter.PruneVersionFiles(_writer.Solution, kind, assetId, currentVersion);
+        }
+
+        /// <summary>
+        /// 文件资产回滚时还原"记录当时"的名称与状态。AssetId 不动——它是身份，
+        /// 改了等于把引用全部打断。快照里没有这两个键（早期记录）就保持现状。
+        /// </summary>
+        private void TryRestoreStoredMetadata(Guid assetId, string? snapshotJson)
+        {
+            if (string.IsNullOrWhiteSpace(snapshotJson)) return;
+
+            try
+            {
+                var snapshot = Newtonsoft.Json.Linq.JObject.Parse(snapshotJson);
+                var solution = _writer.Solution;
+                var asset = solution.TemplateAssets.Cast<SolutionAssetBase>()
+                    .Concat(solution.ModelAssets)
+                    .Concat(solution.ImageAssets)
+                    .FirstOrDefault(a => a.AssetId == assetId);
+                if (asset == null) return;
+
+                if ((string?)snapshot["Name"] is { Length: > 0 } name)
+                    asset.Name = name;
+                if ((string?)snapshot["Status"] is { Length: > 0 } status)
+                    asset.Status = status;
+            }
+            catch
+            {
+                // 快照损坏不该让"文件已经回滚成功"变成整体失败。
+            }
+        }
+
+        /// <summary>
+        /// 配方回滚：按快照还原文本配方原文、参数配方条目/点位，以及名称与代码。
+        /// 内容形态冲突（文本 + 参数同时有）直接拒绝，不做"半还原"。
         /// </summary>
         private bool TryRollbackRecipe(
             Guid assetId, string kind, ProjectAssetRef asset, AssetVersionRecord record, out string error)
@@ -398,6 +447,13 @@ namespace VisionMaster.Services
             {
                 var snapshot = Newtonsoft.Json.Linq.JObject.Parse(record.SnapshotJson);
                 recipe.TextContent = (string?)snapshot["TextContent"] ?? string.Empty;
+
+                // 名称与代码也还原：它们随版本一起被改过，回滚就该回到当时的名字。
+                // （AssetId 不动——它是身份，改了等于把引用全部打断。）
+                if ((string?)snapshot["Name"] is { Length: > 0 } restoredName)
+                    recipe.Name = restoredName;
+                if ((string?)snapshot["Code"] is { Length: > 0 } restoredCode)
+                    recipe.Code = restoredCode;
 
                 var entries = new List<RecipeEntry>();
                 if (snapshot["Entries"] is Newtonsoft.Json.Linq.JArray entryArray)
@@ -444,6 +500,14 @@ namespace VisionMaster.Services
 
                 recipe.Entries = entries;
                 recipe.Points = points;
+
+                var conflict = recipe.ValidateContent();
+                if (conflict != null)
+                {
+                    error = "回滚后的配方内容不自洽：" + conflict;
+                    return false;
+                }
+
                 recipe.ContentVersion = Math.Max(1, recipe.ContentVersion) + 1;
                 recipe.UpdatedAtUtc = DateTime.UtcNow;
                 recipe.UpdatedBy = _policy.CurrentUserName;

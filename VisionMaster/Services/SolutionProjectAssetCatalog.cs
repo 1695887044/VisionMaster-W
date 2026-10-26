@@ -197,14 +197,24 @@ namespace VisionMaster.Services
             var refs = new List<AssetReference>();
             var reads = 0;
 
+            // 强匹配（插件 + 已知键名）与反向索引（任何输入值里出现 Id/路径/文件名）取并集：
+            // 前者能抓到"名字匹配"这类语义引用，后者能抓到"换了个插件、用路径引用"这类漏网。
             foreach (var step in steps)
             {
                 if (!MatchesStoredAsset(step, asset, kind))
                     continue;
 
-                reads++;
                 refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取", step.Flow, step.Step));
             }
+
+            foreach (var reference in FindReferences(solution, steps, asset))
+            {
+                if (refs.Any(r => string.Equals(r.Title, reference.Title, StringComparison.Ordinal)))
+                    continue;
+                refs.Add(reference);
+            }
+
+            reads = refs.Count;
 
             var relative = NormalizeRelative(asset.RelativePath);
             var absolute = ResolvePath(solution, relative);
@@ -326,6 +336,14 @@ namespace VisionMaster.Services
 
             if (kind == "template")
             {
+                // 可形变模板是单条目 DeformableTemplateEntry，不是 Matching 的模板库数组；
+                // 只按 TemplateAssetId 认引用，不要落到 TemplateLibraryJson 的文本匹配。
+                if (step.Plugin.Contains("DeformableMatchingPlugin", StringComparison.Ordinal))
+                {
+                    return Guid.TryParse(Text(step, "TemplateAssetId"), out var deformableId)
+                        && deformableId == asset.AssetId;
+                }
+
                 if (!step.Plugin.Contains("MatchingPlugin", StringComparison.Ordinal)) return false;
                 if (Guid.TryParse(Text(step, "TemplateAssetId"), out var templateId)
                     && templateId == asset.AssetId)
@@ -352,6 +370,73 @@ namespace VisionMaster.Services
             return false;
         }
 
+        /// <summary>
+        /// 反向索引：**任何**步骤的**任何**输入值里出现该资产的 Id / 相对路径 / 文件名 / 绝对路径，
+        /// 都算一条引用。
+        ///
+        /// 为什么不能只按"已知插件 + 已知键名"匹配：那等于把引用关系写死在宿主里，
+        /// 新插件、旧插件换个键名、或者用路径而不是 AssetId 引用资产，全都会被漏掉，
+        /// 界面上显示"未引用"——而它其实正在产线上被用着。
+        /// </summary>
+        private static List<AssetReference> FindReferences(
+            SolutionModel solution, List<StepInfo> steps, SolutionAssetBase asset)
+        {
+            var id = asset.AssetId.ToString();
+            var relative = NormalizeRelative(asset.RelativePath);
+            var fileName = string.IsNullOrWhiteSpace(relative) ? string.Empty : Path.GetFileName(relative);
+            var absolute = ResolvePath(solution, relative);
+
+            var refs = new List<AssetReference>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var step in steps)
+            {
+                var hit = string.Empty;
+                foreach (var pair in step.Inputs)
+                {
+                    var text = Text(pair.Value);
+                    if (string.IsNullOrWhiteSpace(text)) continue;
+
+                    if (text.Contains(id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hit = "资产 Id";
+                        break;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(absolute)
+                        && text.Contains(absolute!, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hit = "绝对路径";
+                        break;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(relative)
+                        && NormalizeRelative(text).Contains(relative!, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hit = "相对路径";
+                        break;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(fileName)
+                        && text.Contains(fileName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        hit = "文件名";
+                        break;
+                    }
+                }
+
+                if (hit.Length == 0) continue;
+
+                var key = step.Flow + "/" + step.Step;
+                if (!seen.Add(key)) continue;
+
+                refs.Add(new AssetReference("flow", step.Flow + " / " + step.Step, "读取 · " + hit,
+                    step.Flow, step.Step));
+            }
+
+            return refs;
+        }
+
         private void AddTopLevelRecipes(SolutionModel solution, List<StepInfo> steps, List<ProjectAssetItem> items)
         {
             foreach (var recipe in solution.RecipesOrEmpty())
@@ -368,7 +453,8 @@ namespace VisionMaster.Services
                     Scope = recipe.Scope.ToString(),
                     Camera = "—",
                     Version = "v" + Math.Max(1, recipe.ContentVersion),
-                    Status = ApplyLifecycle(solution, recipe.RecipeId, "有效"),
+                    Status = ApplyLifecycle(solution, recipe.RecipeId,
+                        recipe.ValidateContent() == null ? "有效" : "配置冲突"),
                     IsFrozen = recipe.IsFrozen,
                     RefsSummary = RefSummary(refs.Count, 0),
                     Updated = FormatTime(recipe.UpdatedAtUtc ?? recipe.CreatedAtUtc),

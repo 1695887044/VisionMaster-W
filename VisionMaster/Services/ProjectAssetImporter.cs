@@ -307,6 +307,55 @@ namespace VisionMaster.Services
                 assetId.ToString("N"),
                 "v" + Math.Max(1, version) + extension);
 
+        /// <summary>
+        /// 清理版本库：只保留**版本记录引用到的版本** + 当前版本，其余文件删掉。
+        ///
+        /// 为什么以版本记录为准：能回滚的前提是"有记录且有文件"。记录本身有 50 条上限，
+        /// 按它对齐等于把文件增长也钉在 50 份以内；而按"最近 N 个文件"删，会把仍然
+        /// 可回滚的记录变成"点回滚才报没有文件本体"。
+        /// </summary>
+        /// <returns>删掉的文件数</returns>
+        public static int PruneVersionFiles(SolutionModel solution, string kind, Guid assetId, int currentVersion)
+        {
+            if (solution == null || assetId == Guid.Empty) return 0;
+            if (string.IsNullOrWhiteSpace(solution.SolutionFilePath)) return 0;
+
+            var root = SolutionPaths.GetSolutionRoot(solution.SolutionFilePath);
+            if (string.IsNullOrWhiteSpace(root)) return 0;
+
+            var folder = Path.Combine(root!,
+                SolutionPaths.AssetsFolderName,
+                SolutionPaths.AssetVersionsFolderName,
+                kind,
+                assetId.ToString("N"));
+            if (!Directory.Exists(folder)) return 0;
+
+            var keep = new HashSet<int> { Math.Max(1, currentVersion) };
+            foreach (var record in AssetVersionLog.Of(solution, assetId))
+                keep.Add(Math.Max(1, record.Version));
+
+            var removed = 0;
+            foreach (var file in Directory.GetFiles(folder, "v*.*"))
+            {
+                var name = Path.GetFileNameWithoutExtension(file);
+                if (!name.StartsWith("v", StringComparison.OrdinalIgnoreCase)) continue;
+                if (!int.TryParse(name.AsSpan(1), out var version)) continue;
+                if (keep.Contains(version)) continue;
+
+                try
+                {
+                    File.Delete(file);
+                    removed++;
+                }
+                catch
+                {
+                    // 文件被占用就留着，下次再清（清理是尽力而为，不该让保存失败）
+                }
+            }
+
+            return removed;
+        }
+
         /// <summary>把某版本的文件放进版本库；已存在同内容就跳过（重复导入不报错）。</summary>
         private static bool ArchiveVersionFile(string root, string kind, Guid assetId, int version, string sourceFile)
             => ArchiveVersionFile(root, kind, assetId, version, sourceFile, out _);
