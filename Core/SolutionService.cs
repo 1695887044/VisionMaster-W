@@ -172,6 +172,7 @@ namespace VisionMaster.Services
                 solution.ImageAssets ??= new List<VisionMaster.Models.Assets.ImageAsset>();
                 solution.AssetVersionLog ??= new List<VisionMaster.Models.Assets.AssetVersionRecord>();
                 solution.AssetDefaults ??= new List<VisionMaster.Models.Assets.AssetDefaultPointer>();
+                solution.AssetLifecycle ??= new List<VisionMaster.Models.Assets.AssetLifecycleState>();
                 foreach (var device in solution.IoDevices)
                 {
                     if (device == null) continue;

@@ -389,6 +389,13 @@ namespace FlowCanvasChecks
                 afterClearResult == MotionCommandResult.Accepted,
                 "返回=" + afterClearResult);
 
+            // 必须等这条 Move 跑完再设报警：带着正在执行的运动去设报警，
+            // 命令会以"轴处于报警状态，无法运动"失败 → 基类打进 SafeStopped，
+            // 后面等 Alarm 的断言永远等不到（2026-10-26 全量 gate 实测 4 红）。
+            Check("前置：清报警后的运动已收尾（否则下面的报警状态机会被安全停机顶掉）",
+                afterClear.Completion.Wait(5000),
+                $"状态={afterClear.State} 原因={afterClear.Error} 卡状态={card.State}");
+
             // ★ 单轴清报警：两根轴都报警，只清 0 号，1 号必须还在。
             //   旧实现无视 PhysicalAxis、永远清整卡，这条会红。
             card.SimulateAlarm = false;

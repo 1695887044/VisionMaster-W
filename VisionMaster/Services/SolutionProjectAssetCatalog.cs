@@ -122,7 +122,7 @@ namespace VisionMaster.Services
                     Scope = scope,
                     Camera = string.IsNullOrWhiteSpace(t.CameraSerial) ? "—" : t.CameraSerial,
                     Version = "v" + Math.Max(1, asset.Version),
-                    Status = "有效",
+                    Status = ApplyLifecycle(solution, asset.CalibrationId, "有效"),
                     IsFrozen = asset.IsLocked,
                     RefsSummary = RefSummary(reads, writes),
                     Updated = FormatTime(t.CreatedAtUtc),
@@ -224,7 +224,7 @@ namespace VisionMaster.Services
                 Scope = string.IsNullOrWhiteSpace(asset.Scope) ? "整线" : asset.Scope,
                 Camera = string.IsNullOrWhiteSpace(asset.Camera) ? "—" : asset.Camera,
                 Version = "v" + Math.Max(1, asset.Version),
-                Status = status,
+                Status = ApplyLifecycle(solution, asset.AssetId, status),
                 IsFrozen = asset.IsFrozen,
                 RefsSummary = RefSummary(reads, 0),
                 Updated = FormatTime(asset.UpdatedAtUtc),
@@ -368,7 +368,7 @@ namespace VisionMaster.Services
                     Scope = recipe.Scope.ToString(),
                     Camera = "—",
                     Version = "v" + Math.Max(1, recipe.ContentVersion),
-                    Status = "有效",
+                    Status = ApplyLifecycle(solution, recipe.RecipeId, "有效"),
                     RefsSummary = RefSummary(refs.Count, 0),
                     Updated = FormatTime(recipe.UpdatedAtUtc ?? recipe.CreatedAtUtc),
                     UpdatedSub = "方案配方",
@@ -622,6 +622,13 @@ namespace VisionMaster.Services
 
         private static bool IsDefaultAsset(SolutionModel solution, Guid assetId)
             => solution.AssetDefaults?.Any(p => p.AssetId != Guid.Empty && p.AssetId == assetId) == true;
+
+        /// <summary>生命周期状态优先于资产自身 Status（有效/已归档）；没有记录 = 有效。</summary>
+        private static string ApplyLifecycle(SolutionModel solution, Guid assetId, string fallback)
+        {
+            var state = solution.AssetLifecycle?.FirstOrDefault(s => s.AssetId == assetId);
+            return state == null || string.IsNullOrWhiteSpace(state.State) ? fallback : state.State;
+        }
 
         private static void AddVersionHistory(SolutionModel solution, ProjectAssetItem item)
         {

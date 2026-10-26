@@ -71,6 +71,9 @@ namespace ProjectAssetsUiProbe
                 RunLifecycleChecks(ref failures);
                 RunFilterSortChecks(ref failures);
                 RunExportChecks(ref failures);
+                RunArchiveDeleteChecks(ref failures);
+                RunDiffChecks(ref failures);
+                RunAuditRowChecks(ref failures);
                 var view = new ProjectAssetsView
                 {
                     DataContext = vm,
@@ -288,6 +291,190 @@ namespace ProjectAssetsUiProbe
             }
         }
 
+        /// <summary>归档/恢复/删除：状态落方案、默认指针清理、文件不删。</summary>
+        private static void RunArchiveDeleteChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-archive-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetArchive",
+                    SolutionFilePath = Path.Combine(temp, "AssetArchive.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var imageSource = Path.Combine(sourceDir, "probe.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                Check(importer.TryImport(imageSource, "image", out var imageId, out _),
+                    "归档前置：图像导入", ref failures);
+
+                var policy = new ScadaAccessPolicy();
+                var auditDir = Path.Combine(temp, "Audit");
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy, new ScadaAuditWriter(auditDir));
+
+                // 未登录：归档/删除都必须被拒。
+                Check(!service.TrySetArchived(imageId, true, out var deniedArchive) && deniedArchive.Contains("权限"),
+                    "未登录时归档被拒", ref failures);
+                Check(!service.TryDelete(imageId, out _, out var deniedDelete) && deniedDelete.Contains("权限"),
+                    "未登录时删除被拒", ref failures);
+
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+
+                Check(service.TrySetArchived(imageId, true, out var archiveError),
+                    "归档成功" + (string.IsNullOrEmpty(archiveError) ? string.Empty : "：" + archiveError), ref failures);
+                Check(solution.AssetLifecycle?.Any(s => s.AssetId == imageId && s.State == "已归档") == true,
+                    "归档状态写入方案", ref failures);
+                Check(solution.ImageAssets.First(a => a.AssetId == imageId).Version == 1,
+                    "归档不改版本号", ref failures);
+
+                // 目录读取必须把归档状态显示出来（生命周期优先）。
+                var catalogItem = new SolutionProjectAssetCatalog(workspace)
+                    .Build().FirstOrDefault(a => a.Id == imageId.ToString());
+                Check(catalogItem?.Status == "已归档",
+                    $"目录读取显示已归档（实际 {catalogItem?.Status}）", ref failures);
+
+                Check(service.TrySetArchived(imageId, false, out var restoreError),
+                    "恢复成功" + (string.IsNullOrEmpty(restoreError) ? string.Empty : "：" + restoreError), ref failures);
+                Check(solution.AssetLifecycle.All(s => s.AssetId != imageId || s.State == "有效"),
+                    "恢复后状态回到有效", ref failures);
+
+                // 冻结时不许归档/删除。
+                service.TryToggleFreeze(imageId, out _, out _);
+                Check(!service.TrySetArchived(imageId, true, out var frozenArchive) && frozenArchive.Contains("冻结"),
+                    "冻结时归档被拒", ref failures);
+                Check(!service.TryDelete(imageId, out _, out var frozenDelete) && frozenDelete.Contains("冻结"),
+                    "冻结时删除被拒", ref failures);
+                service.TryToggleFreeze(imageId, out _, out _);
+
+                // 设默认后再删除：默认指针必须一起清掉。
+                service.TrySetDefault(imageId, out _);
+                Check(solution.AssetDefaults?.Any(p => p.AssetId == imageId) == true,
+                    "删除前置：默认指针存在", ref failures);
+
+                var relativePath = solution.ImageAssets[0].RelativePath;
+                var absolutePath = Path.Combine(temp, relativePath);
+                Check(File.Exists(absolutePath), "删除前置：文件存在", ref failures);
+
+                Check(service.TryDelete(imageId, out var deletedFile, out var deleteError),
+                    "删除成功" + (string.IsNullOrEmpty(deleteError) ? string.Empty : "：" + deleteError), ref failures);
+                Check(solution.ImageAssets.All(a => a.AssetId != imageId), "资产已从方案移除", ref failures);
+                Check(solution.AssetDefaults?.All(p => p.AssetId != imageId) == true, "默认指针已清理", ref failures);
+                Check(solution.AssetLifecycle?.All(s => s.AssetId != imageId) == true, "生命周期记录已清理", ref failures);
+                Check(File.Exists(absolutePath), "磁盘文件仍保留（删除只移除方案记录）", ref failures);
+                Check(!string.IsNullOrWhiteSpace(deletedFile) && deletedFile.Contains("Image"),
+                    "返回值带上被保留的文件路径", ref failures);
+
+                var json = SolutionService.Serialize(solution);
+                Check(json.Contains("\"AssetLifecycle\""), "生命周期状态进入 .vms 序列化", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "归档/删除断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>逐字段 diff：标定矩阵变化要能逐个数值看出来。</summary>
+        private static void RunDiffChecks(ref int failures)
+        {
+            const string before = "{\"Kind\":0,\"MmPerPixel\":0.05,\"Matrix\":[1.0,0.0,0.0,1.0,0.0,0.0],\"SourceImageWidth\":640}";
+            const string after = "{\"Kind\":0,\"MmPerPixel\":0.2,\"Matrix\":[2.0,0.0,0.0,2.0,0.0,0.0],\"SourceImageWidth\":640,\"CameraSerial\":\"HK-03\"}";
+
+            var diffs = ProjectAssetService.DiffSnapshots(before, after);
+            Check(diffs.Count > 0, $"diff 有 {diffs.Count} 条字段", ref failures);
+
+            var mm = diffs.FirstOrDefault(d => d.Field == "MmPerPixel");
+            Check(mm != null && mm.Changed && mm.Before == "0.05" && mm.After == "0.2",
+                "MmPerPixel 差异被识别（0.05 → 0.2）", ref failures);
+
+            var matrix = diffs.FirstOrDefault(d => d.Field == "Matrix[0]");
+            Check(matrix != null && matrix.Changed, "数组按下标展开（Matrix[0] 变化可见）", ref failures);
+
+            var unchanged = diffs.FirstOrDefault(d => d.Field == "SourceImageWidth");
+            Check(unchanged != null && !unchanged.Changed, "未变字段标为未变化", ref failures);
+
+            var added = diffs.FirstOrDefault(d => d.Field == "CameraSerial");
+            Check(added != null && added.Before == "<新增>" && added.After == "HK-03",
+                "新增字段标 <新增> 而不是空串", ref failures);
+
+            var removed = ProjectAssetService.DiffSnapshots(after, before)
+                .FirstOrDefault(d => d.Field == "CameraSerial");
+            Check(removed != null && removed.After == "<移除>",
+                "删除字段标 <移除>", ref failures);
+
+            // 空快照不能崩。
+            Check(ProjectAssetService.DiffSnapshots(null, null).Count == 0, "空快照 diff 为空", ref failures);
+            Check(ProjectAssetService.DiffSnapshots("not-json", "{\"a\":1}").Count > 0,
+                "非法快照当整段比较，不抛", ref failures);
+        }
+
+        /// <summary>页内审计流水：能读到之前写入的记录。</summary>
+        private static void RunAuditRowChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-audit-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetAudit",
+                    SolutionFilePath = Path.Combine(temp, "AssetAudit.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var imageSource = Path.Combine(sourceDir, "probe.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                importer.TryImport(imageSource, "image", out var imageId, out _);
+
+                var policy = new ScadaAccessPolicy();
+                var auditDir = Path.Combine(temp, "Audit");
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy, new ScadaAuditWriter(auditDir));
+
+                var name = solution.ImageAssets[0].Name;
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+                service.TrySetArchived(imageId, true, out _);
+
+                var reader = new ScadaAuditReader(auditDir);
+                var result = reader.Read();
+                Check(result.Rows.Count > 0, $"审计读到 {result.Rows.Count} 条", ref failures);
+
+                var mine = result.Rows.Where(r => r.Subject == name).ToList();
+                Check(mine.Count > 0, $"能按对象名查到「{name}」的记录", ref failures);
+                Check(mine.Any(r => r.ActionText == "归档" && r.OutcomeText == "成功"),
+                    "归档动作与结果可见", ref failures);
+                Check(mine.Any(r => r.Actor == "admin"), "审计记录带操作者", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "审计流水断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
         private static void RunLifecycleChecks(ref int failures)
         {
             var temp = Path.Combine(Path.GetTempPath(), "vm-asset-life-" + Guid.NewGuid().ToString("N"));
@@ -401,7 +588,7 @@ namespace ProjectAssetsUiProbe
                 Check(json.Contains("\"AssetVersionLog\"") && json.Contains("\"AssetDefaults\""),
                     "版本历史与默认指针进入 .vms 序列化", ref failures);
 
-                RenderLifecycleView(workspace, solution, ref failures);
+                RenderLifecycleView(workspace, solution, auditDir, ref failures);
             }
             catch (Exception ex)
             {
@@ -416,9 +603,10 @@ namespace ProjectAssetsUiProbe
         /// <summary>
         /// 用真实写操作产生的方案渲染一次「版本」页签，证明默认/冻结/历史在界面上真的出得来。
         /// </summary>
-        private static void RenderLifecycleView(WorkspaceContext workspace, SolutionModel solution, ref int failures)
+        private static void RenderLifecycleView(
+            WorkspaceContext workspace, SolutionModel solution, string auditDir, ref int failures)
         {
-            var vm = new ProjectAssetsViewModel(workspace);
+            var vm = new ProjectAssetsViewModel(workspace, auditDirectory: auditDir);
             vm.SelectTypeCommand.Execute("image");
             var asset = vm.VisibleAssets.FirstOrDefault(a => a.Name.Contains("probe"));
             Check(asset != null, "生命周期方案里能找到图像资产", ref failures);
@@ -457,6 +645,34 @@ namespace ProjectAssetsUiProbe
                 Check(asset.HasVersions, $"版本页签有 {asset.Versions.Count} 条记录", ref failures);
                 Check(asset.Versions.Any(v => v.CanRollback), "版本卡带可回滚标记", ref failures);
                 Check(asset.IsDefault, "默认标记来自 AssetDefaults", ref failures);
+
+                // 选中一条历史记录 → 字段差异面板必须有内容。
+                vm.SelectedVersion = asset.Versions.FirstOrDefault(v => v.CanRollback);
+                view.UpdateLayout();
+                Pump(150);
+                Check(vm.VersionDiff.Count > 0, $"字段差异面板有 {vm.VersionDiff.Count} 行", ref failures);
+                Check(!string.IsNullOrWhiteSpace(vm.VersionDiffHint), "差异说明非空", ref failures);
+
+                vm.RefreshAuditCommand.Execute();
+                view.UpdateLayout();
+                Pump(150);
+                Check(!string.IsNullOrWhiteSpace(vm.AuditHint), "审计提示非空", ref failures);
+
+                // 审计页签截图（真实读取，不伪造审计目录）
+                vm.SelectedDetailTabIndex = 4;
+                view.UpdateLayout();
+                Pump(200);
+                Console.WriteLine($"  [audit] rows={vm.AuditRows.Count} hint=\"{vm.AuditHint}\"");
+
+                var auditBitmap = Render(view, (int)Math.Round(view.ActualWidth), (int)Math.Round(view.ActualHeight), 2.0);
+                var auditPath = Path.Combine(OutputDirectory(Array.Empty<string>()), "wpf-project-assets-audit.png");
+                Save(auditBitmap, auditPath);
+                Console.WriteLine($"  [render] {auditPath}");
+
+                // 回到版本页签（带选中记录 + 差异面板）再截一张
+                vm.SelectedDetailTabIndex = 3;
+                view.UpdateLayout();
+                Pump(200);
 
                 var bitmap = Render(view, (int)Math.Round(view.ActualWidth), (int)Math.Round(view.ActualHeight), 2.0);
                 var path = Path.Combine(OutputDirectory(Array.Empty<string>()), "wpf-project-assets-versions.png");

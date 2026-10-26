@@ -175,9 +175,180 @@ namespace VisionMaster.Services
             }
         }
 
+        /// <summary>归档 / 恢复。归档不删文件、不动版本号，只切生命周期状态。</summary>
+        public bool TrySetArchived(Guid assetId, bool archived, out string error)
+        {
+            error = string.Empty;
+            var action = archived ? "归档" : "恢复";
+            if (!TryAuthorize(assetId, action, out var asset, out var kind, out _, out error))
+                return false;
+
+            if (archived && IsFrozen(assetId))
+            {
+                error = $"资产「{asset.Name}」已冻结，先解冻再归档";
+                return false;
+            }
+
+            var solution = _writer.Solution;
+            solution.AssetLifecycle ??= new List<AssetLifecycleState>();
+
+            var state = solution.AssetLifecycle.FirstOrDefault(s => s.AssetId == assetId);
+            if (state == null)
+            {
+                state = new AssetLifecycleState { AssetId = assetId, Kind = kind };
+                solution.AssetLifecycle.Add(state);
+            }
+
+            state.Kind = kind;
+            state.State = archived ? "已归档" : "有效";
+            state.ChangedAtUtc = DateTime.UtcNow;
+            state.ChangedBy = _policy.CurrentUserName;
+            state.Note = archived ? "归档（文件保留）" : "恢复";
+
+            AssetVersionLog.Append(solution, assetId, kind, asset.Name, AssetVersion(assetId, asset),
+                ContentHash(assetId, asset), _writer.SnapshotOf(assetId), action,
+                _policy.CurrentUserName, state.Note);
+
+            Audit(asset.Name, action, ScadaAuditOutcome.Success, state.Note);
+            return true;
+        }
+
+        /// <summary>
+        /// 删除：从方案集合移除该资产，并清掉默认指针与生命周期记录。
+        /// **不删磁盘文件**——资产文件可能被其它方案/人引用，物理删除必须是独立动作。
+        /// </summary>
+        public bool TryDelete(Guid assetId, out string deletedFilePath, out string error)
+        {
+            deletedFilePath = string.Empty;
+            error = string.Empty;
+
+            if (!TryAuthorize(assetId, "删除", out var asset, out var kind, out _, out error))
+                return false;
+
+            if (IsFrozen(assetId))
+            {
+                error = $"资产「{asset.Name}」已冻结，先解冻再删除";
+                return false;
+            }
+
+            var solution = _writer.Solution;
+            var removed = kind switch
+            {
+                "calibration" => solution.Calibrations.Remove(
+                    solution.Calibrations.FirstOrDefault(c => c.CalibrationId == assetId)!),
+                "recipe" => solution.EnsureRecipes().Remove(
+                    solution.EnsureRecipes().FirstOrDefault(r => r.RecipeId == assetId)!),
+                "template" => solution.TemplateAssets.RemoveAll(a => a.AssetId == assetId) > 0,
+                "model" => solution.ModelAssets.RemoveAll(a => a.AssetId == assetId) > 0,
+                "image" => solution.ImageAssets.RemoveAll(a => a.AssetId == assetId) > 0,
+                _ => false,
+            };
+
+            if (!removed)
+            {
+                error = "资产不存在或已被移除";
+                return false;
+            }
+
+            solution.AssetDefaults?.RemoveAll(p => p.AssetId == assetId);
+            solution.AssetLifecycle?.RemoveAll(s => s.AssetId == assetId);
+
+            deletedFilePath = asset.RelativePath ?? string.Empty;
+
+            // 删除后历史仍保留（谁在什么时候删了哪份资产是审计事实），但不能靠资产 Id 反查，
+            // 所以最后一条记录带名字与路径。
+            AssetVersionLog.Append(solution, assetId, kind, asset.Name, AssetVersion(assetId, asset),
+                asset.ContentHash ?? string.Empty, string.Empty, "删除", _policy.CurrentUserName,
+                string.IsNullOrWhiteSpace(deletedFilePath) ? "已从方案移除" : "已从方案移除，文件保留：" + deletedFilePath);
+
+            Audit(asset.Name, "删除", ScadaAuditOutcome.Success,
+                string.IsNullOrWhiteSpace(deletedFilePath) ? "已从方案移除" : "文件保留：" + deletedFilePath);
+            return true;
+        }
+
+        /// <summary>
+        /// 两条版本记录的字段级差异。快照是 JSON：逐属性比对，
+        /// 缺一边就标 `<新增>` / `<移除>`（不能当成空串，否则"字段被删"看起来像"改成空"）。
+        /// </summary>
+        public static IReadOnlyList<AssetFieldDiff> DiffSnapshots(string? beforeJson, string? afterJson)
+        {
+            var before = ParseFlat(beforeJson);
+            var after = ParseFlat(afterJson);
+
+            var keys = before.Keys.Union(after.Keys, StringComparer.Ordinal)
+                .OrderBy(k => k, StringComparer.Ordinal)
+                .ToList();
+
+            var diffs = new List<AssetFieldDiff>(keys.Count);
+            foreach (var key in keys)
+            {
+                var hasBefore = before.TryGetValue(key, out var left);
+                var hasAfter = after.TryGetValue(key, out var right);
+                diffs.Add(new AssetFieldDiff(
+                    key,
+                    hasBefore ? left : "<新增>",
+                    hasAfter ? right : "<移除>"));
+            }
+
+            return diffs;
+        }
+
+        /// <summary>把快照 JSON 摊平成 `a.b[0].c → 值`，数组按索引展开。</summary>
+        private static Dictionary<string, string> ParseFlat(string? json)
+        {
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (string.IsNullOrWhiteSpace(json)) return result;
+
+            try
+            {
+                var token = Newtonsoft.Json.Linq.JToken.Parse(json);
+                Flatten(token, string.Empty, result);
+            }
+            catch
+            {
+                // 快照损坏或不是 JSON：整段当一条，别把 diff 弄崩。
+                result["<raw>"] = json!;
+            }
+
+            return result;
+        }
+
+        private static void Flatten(Newtonsoft.Json.Linq.JToken token, string prefix, Dictionary<string, string> sink)
+        {
+            switch (token)
+            {
+                case Newtonsoft.Json.Linq.JObject obj:
+                    foreach (var property in obj.Properties())
+                    {
+                        var key = prefix.Length == 0 ? property.Name : prefix + "." + property.Name;
+                        Flatten(property.Value, key, sink);
+                    }
+                    break;
+
+                case Newtonsoft.Json.Linq.JArray array:
+                    if (array.Count == 0)
+                    {
+                        sink[prefix] = "[]";
+                        break;
+                    }
+                    for (var i = 0; i < array.Count; i++)
+                        Flatten(array[i], prefix + "[" + i + "]", sink);
+                    break;
+
+                case Newtonsoft.Json.Linq.JValue value:
+                    sink[prefix] = value.Type == Newtonsoft.Json.Linq.JTokenType.Null
+                        ? "null"
+                        : value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                    break;
+
+                default:
+                    sink[prefix] = token.ToString(Newtonsoft.Json.Formatting.None);
+                    break;
+            }
+        }
+
         public bool TryAuthorize(
-            Guid assetId,
-            string action,
+            Guid assetId,            string action,
             out ProjectAssetRef asset,
             out string kind,
             out string scope,

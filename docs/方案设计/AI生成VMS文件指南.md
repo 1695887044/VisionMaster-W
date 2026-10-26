@@ -104,6 +104,7 @@ SolutionModel
   "ModelAssets": [],
   "ImageAssets": [],
   "AssetDefaults": [],
+  "AssetLifecycle": [],
   "AssetVersionLog": [],
   "VariableSnapshots": [],
   "VariableGroups": [],
@@ -564,6 +565,16 @@ static Guid G(string seed)
 "AssetDefaults": [
   { "Kind": "calibration", "Scope": "ST3_Measure", "AssetId": "稳定 GUID" }
 ],
+"AssetLifecycle": [
+  {
+    "AssetId": "稳定 GUID",
+    "Kind": "template",
+    "State": "已归档",
+    "ChangedAtUtc": "2026-10-26T00:00:00Z",
+    "ChangedBy": "admin",
+    "Note": "归档（文件保留）"
+  }
+],
 "AssetVersionLog": [
   {
     "RecordId": "稳定 GUID",
@@ -584,7 +595,8 @@ static Guid G(string seed)
 规则：
 
 1. `AssetDefaults` 按 `Kind + Scope` 唯一；同一作用域只能有一个默认。
-2. `AssetVersionLog` 只存元数据与快照：标定快照是 `CalibrationTransform` JSON；文件资产快照是路径/哈希，**不含二进制**。
+2. `AssetLifecycle` 只有"已归档"才需要写；没有记录 = 有效。归档不改版本号、不删文件。
+3. `AssetVersionLog` 只存元数据与快照：标定快照是 `CalibrationTransform` JSON；文件资产快照是路径/哈希，**不含二进制**。
 3. 冻结状态写在资产自身：`CalibrationAsset.IsLocked`、`TemplateAsset/ModelAsset/ImageAsset.IsFrozen`。
 4. 冻结的资产拒绝内容写入；回滚也要求先解冻。
 5. 生成器可以不写这两段（加载时会补空集合），但**不要写指向不存在 Id 的默认指针或版本记录**。

@@ -228,6 +228,10 @@ namespace VisionMaster.Models
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public List<AssetDefaultPointer> AssetDefaults { get; set; } = new();
 
+        /// <summary>资产生命周期状态（归档/恢复）；没有记录 = 有效。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<AssetLifecycleState> AssetLifecycle { get; set; } = new();
+
         /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// E3：变量持久化已统一走 VariableSnapshots（DTO 多态可控），本属性全库无人写入、

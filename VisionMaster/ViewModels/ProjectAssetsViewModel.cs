@@ -9,6 +9,8 @@ using Microsoft.Win32;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
+using VisionMaster.Models;
+using VisionMaster.Models.Assets;
 using VisionMaster.Scada;
 using VisionMaster.Services;
 
@@ -25,6 +27,7 @@ namespace VisionMaster.ViewModels
         private readonly SolutionProjectAssetCatalog _catalog;
         private readonly ProjectAssetImporter _importer;
         private readonly ProjectAssetExporter _exporter;
+        private readonly ScadaAuditReader _auditReader;
         private readonly ProjectAssetService? _assetService;
         private readonly List<ProjectAssetItem> _allAssets = new();
 
@@ -35,12 +38,17 @@ namespace VisionMaster.ViewModels
         private int _selectedDetailTabIndex;
         private string _actionMessage = string.Empty;
 
-        public ProjectAssetsViewModel(IReadOnlyWorkspaceContext workspace, ProjectAssetService? assetService = null)
+        public ProjectAssetsViewModel(
+            IReadOnlyWorkspaceContext workspace,
+            ProjectAssetService? assetService = null,
+            string? auditDirectory = null)
         {
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _catalog = new SolutionProjectAssetCatalog(workspace);
             _importer = new ProjectAssetImporter(workspace);
             _exporter = new ProjectAssetExporter(workspace);
+            // 审计目录可注入：宿主用默认（程序目录 Audit），探针指到临时目录才能验证"页面能看到刚才那条".
+            _auditReader = new ScadaAuditReader(auditDirectory);
             _assetService = assetService;
 
             TypeTabs = new ObservableCollection<AssetTypeTab>
@@ -69,6 +77,9 @@ namespace VisionMaster.ViewModels
             SetDefaultCommand = new DelegateCommand(SetDefault);
             ToggleFreezeCommand = new DelegateCommand(ToggleFreeze);
             RollbackCommand = new DelegateCommand(RollbackVersion);
+            ToggleArchiveCommand = new DelegateCommand(ToggleArchive);
+            DeleteAssetCommand = new DelegateCommand(DeleteAsset);
+            RefreshAuditCommand = new DelegateCommand(RefreshAudit);
             ExportCommand = new DelegateCommand(ExportAsset);
             CopyIdCommand = new DelegateCommand(CopyId);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -138,6 +149,81 @@ namespace VisionMaster.ViewModels
             private set => SetProperty(ref _actionMessage, value);
         }
 
+        /// <summary>当前资产的审计流水（按对象名匹配，见 RefreshAudit）。</summary>
+        public ObservableCollection<AssetAuditRow> AuditRows { get; } = new();
+
+        private string _auditHint = "选中资产后点「刷新审计」";
+        public string AuditHint
+        {
+            get => _auditHint;
+            private set => SetProperty(ref _auditHint, value);
+        }
+
+        /// <summary>版本页当前选中记录的字段级差异（切换记录时重算）。</summary>
+        public ObservableCollection<AssetFieldDiff> VersionDiff { get; } = new();
+
+        private AssetVersion? _selectedVersion;
+        public AssetVersion? SelectedVersion
+        {
+            get => _selectedVersion;
+            set
+            {
+                if (!SetProperty(ref _selectedVersion, value)) return;
+                RefreshVersionDiff();
+            }
+        }
+
+        private string _versionDiffHint = "选中一条版本记录查看逐字段差异";
+        public string VersionDiffHint
+        {
+            get => _versionDiffHint;
+            private set => SetProperty(ref _versionDiffHint, value);
+        }
+
+        private void RefreshVersionDiff()
+        {
+            VersionDiff.Clear();
+
+            if (SelectedAsset == null || SelectedVersion == null)
+            {
+                VersionDiffHint = "选中一条版本记录查看逐字段差异";
+                return;
+            }
+
+            var solution = _workspace.CurrentSolution;
+            if (solution == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                VersionDiffHint = "当前没有方案，无法读版本快照";
+                return;
+            }
+
+            var records = AssetVersionLog.Of(solution, assetId);
+            var current = records.FirstOrDefault(r => r.RecordId.ToString() == SelectedVersion.RecordId);
+            if (current == null)
+            {
+                VersionDiffHint = "这条记录没有快照（早期记录只存动作）";
+                return;
+            }
+
+            // 与"上一条更早的记录"比：history 已按时间倒序，所以往后找第一条。
+            var index = records.ToList().FindIndex(r => r.RecordId == current.RecordId);
+            var previous = index >= 0 && index + 1 < records.Count ? records[index + 1] : null;
+
+            var diffs = ProjectAssetService.DiffSnapshots(previous?.SnapshotJson, current.SnapshotJson);
+            var changed = 0;
+            foreach (var diff in diffs)
+            {
+                VersionDiff.Add(diff);
+                if (diff.Changed) changed++;
+            }
+
+            VersionDiffHint = diffs.Count == 0
+                ? "两条记录都没有可比较的快照"
+                : previous == null
+                    ? $"与空快照比较：{changed} 个字段有值"
+                    : $"与 v{Math.Max(1, previous.Version)}（{previous.Action}）比较：{changed} 个字段变化";
+        }
+
         public DelegateCommand<string> SelectTypeCommand { get; }
         public DelegateCommand ImportAssetCommand { get; }
         public DelegateCommand RefreshCommand { get; }
@@ -146,6 +232,9 @@ namespace VisionMaster.ViewModels
         public DelegateCommand SetDefaultCommand { get; }
         public DelegateCommand ToggleFreezeCommand { get; }
         public DelegateCommand RollbackCommand { get; }
+        public DelegateCommand ToggleArchiveCommand { get; }
+        public DelegateCommand DeleteAssetCommand { get; }
+        public DelegateCommand RefreshAuditCommand { get; }
         public DelegateCommand ExportCommand { get; }
         public DelegateCommand CopyIdCommand { get; }
         public DelegateCommand CloseCommand { get; }
@@ -451,6 +540,107 @@ namespace VisionMaster.ViewModels
             _ => "所有文件 (*.*)|*.*",
         };
 
+        private void ToggleArchive()
+        {
+            if (SelectedAsset == null) return;
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法归档/恢复";
+                return;
+            }
+
+            var archived = SelectedAsset.Status == "已归档";
+            if (!_assetService.TrySetArchived(assetId, !archived, out var error))
+            {
+                ActionMessage = error;
+                return;
+            }
+
+            var kind = SelectedAsset.Kind;
+            ReloadAssets();
+            SelectType(kind);
+            ActionMessage = archived
+                ? $"已恢复：{SelectedAsset?.Name}；保存方案后随 .vms 落盘"
+                : $"已归档：{SelectedAsset?.Name}（文件保留）；保存方案后随 .vms 落盘";
+        }
+
+        private void DeleteAsset()
+        {
+            if (SelectedAsset == null) return;
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法删除";
+                return;
+            }
+
+            // 删除是不可逆的方案内操作（文件仍在磁盘上），必须二次确认。
+            var confirm = MessageBox.Show(
+                $"从方案中移除资产「{SelectedAsset.Name}」？\n\n" +
+                "只移除方案记录，磁盘文件保留。默认指针与生命周期记录会一起清掉，历史版本记录保留。",
+                "删除资产",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.OK) return;
+
+            if (!_assetService.TryDelete(assetId, out var filePath, out var error))
+            {
+                ActionMessage = error;
+                return;
+            }
+
+            var kind = SelectedAsset.Kind;
+            ReloadAssets();
+            SelectType(kind);
+            ActionMessage = string.IsNullOrWhiteSpace(filePath)
+                ? "已从方案移除；保存方案后随 .vms 落盘"
+                : $"已从方案移除，文件保留：{filePath}；保存方案后随 .vms 落盘";
+        }
+
+        private void RefreshAudit()
+        {
+            AuditRows.Clear();
+
+            if (SelectedAsset == null)
+            {
+                AuditHint = "先选中一个资产";
+                return;
+            }
+
+            try
+            {
+                var result = _auditReader.Read();
+                var name = SelectedAsset.Name;
+                var kindLabel = SelectedAsset.Kind;
+
+                // 审计行只记"对象名"，没有资产 Id：按名字 + 类型标签匹配，
+                // 同名不同类可能串（已知边界，界面上标明匹配口径）。
+                var rows = result.Rows
+                    .Where(r => string.Equals(r.Subject, name, StringComparison.Ordinal))
+                    .OrderByDescending(r => r.Timestamp)
+                    .Take(200)
+                    .ToList();
+
+                foreach (var row in rows)
+                {
+                    AuditRows.Add(new AssetAuditRow(
+                        row.Timestamp.ToString("yyyy-MM-dd HH:mm:ss"),
+                        row.Actor,
+                        row.ActionText,
+                        row.OutcomeText,
+                        row.DetailRemainder,
+                        row.OutcomeText));
+                }
+
+                AuditHint = rows.Count == 0
+                    ? $"没有查到「{name}」的审计记录（目录：{_auditReader.Directory}）"
+                    : $"共 {rows.Count} 条（按对象名匹配，目录：{_auditReader.Directory}）";
+            }
+            catch (Exception ex)
+            {
+                AuditHint = "读审计失败：" + ex.Message;
+            }
+        }
+
         private void SetDefault()
         {
             if (SelectedAsset == null) return;
@@ -594,6 +784,27 @@ namespace VisionMaster.ViewModels
                 ActionMessage = "复制失败";
             }
         }
+    }
+
+    /// <summary>页内审计流水的一行（只读展示）。</summary>
+    public sealed class AssetAuditRow
+    {
+        public AssetAuditRow(string time, string actor, string action, string outcome, string detail, string outcomeKind)
+        {
+            Time = time ?? string.Empty;
+            Actor = actor ?? string.Empty;
+            Action = action ?? string.Empty;
+            Outcome = outcome ?? string.Empty;
+            Detail = detail ?? string.Empty;
+            OutcomeKind = outcomeKind ?? string.Empty;
+        }
+
+        public string Time { get; }
+        public string Actor { get; }
+        public string Action { get; }
+        public string Outcome { get; }
+        public string Detail { get; }
+        public string OutcomeKind { get; }
     }
 
     /// <summary>筛选下拉项：Value 是筛选键，Label 是界面文案（空 Value = 全部）。</summary>

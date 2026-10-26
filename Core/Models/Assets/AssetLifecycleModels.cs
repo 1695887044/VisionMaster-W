@@ -34,6 +34,41 @@ namespace VisionMaster.Models.Assets
         public Guid AssetId { get; set; }
     }
 
+    /// <summary>
+    /// 资产生命周期状态（归档/恢复）。**五类资产共用一张表**，不往
+    /// CalibrationAsset / RecipeDefinition 上加字段：那两处是契约类型，
+    /// 加字段会让"状态"出现两份真相（各自 Status 与本表），迟早漂移。
+    /// 目录读取时本表优先，没有记录 = 有效。
+    /// </summary>
+    public sealed class AssetLifecycleState
+    {
+        public Guid AssetId { get; set; }
+        public string Kind { get; set; } = string.Empty;
+
+        /// <summary>有效 / 已归档</summary>
+        public string State { get; set; } = "有效";
+
+        public DateTime ChangedAtUtc { get; set; } = DateTime.UtcNow;
+        public string ChangedBy { get; set; } = string.Empty;
+        public string Note { get; set; } = string.Empty;
+    }
+
+    /// <summary>字段级差异的一条。</summary>
+    public sealed class AssetFieldDiff
+    {
+        public AssetFieldDiff(string field, string before, string after)
+        {
+            Field = field ?? string.Empty;
+            Before = before ?? string.Empty;
+            After = after ?? string.Empty;
+        }
+
+        public string Field { get; }
+        public string Before { get; }
+        public string After { get; }
+        public bool Changed => !string.Equals(Before, After, StringComparison.Ordinal);
+    }
+
     /// <summary>版本历史的统一写入口：保证时间/操作者/快照口径只有一份。</summary>
     public static class AssetVersionLog
     {
