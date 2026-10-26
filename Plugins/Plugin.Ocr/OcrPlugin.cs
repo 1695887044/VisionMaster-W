@@ -51,7 +51,7 @@ namespace Plugin.Ocr
         ShortName = "\uf031"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算
-    public class OcrPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public class OcrPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
     {
         // ==================================================================
         //  常用参数（默认展开）
@@ -119,6 +119,13 @@ namespace Plugin.Ocr
         /// <summary>方案模型资产 Id（优先于 ModelPath；运行期由宿主解析成绝对路径）。</summary>
         [StepConfig]
         public string ModelAssetId { get; set; } = string.Empty;
+
+        public string AssetKind => "model";
+        public string AssetId
+        {
+            get => ModelAssetId;
+            set => ModelAssetId = value ?? string.Empty;
+        }
 
         /// <summary>true = 按列优先排序（竖排文本），false = 按行优先（横排）</summary>
         [StepConfig]

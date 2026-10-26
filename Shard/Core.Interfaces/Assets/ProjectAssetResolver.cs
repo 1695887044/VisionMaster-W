@@ -22,6 +22,13 @@ namespace Core.Interfaces.Assets
         bool TryResolve(Guid assetId, out ProjectAssetRef? asset, out string? error);
     }
 
+    /// <summary>插件配置壳可识别的资产字段（template / model）。</summary>
+    public interface IAssetIdConfig
+    {
+        string AssetKind { get; }
+        string AssetId { get; set; }
+    }
+
     public sealed class NullProjectAssetResolver : IProjectAssetResolver
     {
         public static readonly NullProjectAssetResolver Instance = new();

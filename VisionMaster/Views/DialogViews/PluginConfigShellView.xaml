@@ -210,6 +210,17 @@
                             Grid.Column="2"
                             VerticalAlignment="Center"
                             Orientation="Horizontal">
+                            <ComboBox
+                                Width="210"
+                                Height="28"
+                                Margin="0,0,10,0"
+                                Padding="8,0"
+                                VerticalAlignment="Center"
+                                DisplayMemberPath="Caption"
+                                ItemsSource="{Binding AssetOptions}"
+                                SelectedItem="{Binding SelectedAssetOption, Mode=TwoWay}"
+                                ToolTip="选择当前方案里的模板/模型资产；不选则沿用插件里的路径字段"
+                                Visibility="{Binding HasAssetOptions, Converter={ui:BooleanToVisibilityConverter}}" />
                             <CheckBox
                                 Margin="0,0,10,0"
                                 VerticalAlignment="Center"

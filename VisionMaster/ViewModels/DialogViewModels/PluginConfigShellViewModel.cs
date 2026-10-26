@@ -1,9 +1,12 @@
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using Core.Interfaces.Database;
 using Prism.Commands;
 using Prism.Dialogs;
 using System;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -195,6 +198,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 }
             }
 
+            BuildAssetOptions();
+
             RaisePropertyChanged(nameof(PluginIcon));
             RaisePropertyChanged(nameof(PluginName));
             RaisePropertyChanged(nameof(PluginDescription));
@@ -228,6 +233,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 数据库能力（测试语句用）：与执行期同一个单例，保证"测试"和"真跑"看到同一份配置
                 Database = _database
             };
+        }
+
+        private void BuildAssetOptions()
+        {
+            _loadingAssetOptions = true;
+            AssetOptions.Clear();
+            HasAssetOptions = false;
+
+            if (_plugin is IAssetIdConfig config && _workspace?.CurrentSolution is { } solution)
+            {
+                if (string.Equals(config.AssetKind, "template", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var asset in solution.TemplateAssets)
+                        AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "template"));
+                }
+                else if (string.Equals(config.AssetKind, "model", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var asset in solution.ModelAssets)
+                        AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "model"));
+                }
+
+                AssetOptions.Add(new AssetOption(Guid.Empty, "（不使用资产）", config.AssetKind));
+                SelectedAssetOption = AssetOptions.FirstOrDefault(
+                    option => string.Equals(option.AssetId.ToString(), config.AssetId, StringComparison.OrdinalIgnoreCase))
+                    ?? AssetOptions[0];
+                HasAssetOptions = AssetOptions.Count > 1;
+            }
+
+            _loadingAssetOptions = false;
         }
 
         /// <summary>
@@ -335,6 +369,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         public bool CanExecute => !IsExecuting;
+
+        /// <summary>当前插件可选的方案资产（仅实现 IAssetIdConfig 的插件显示）。</summary>
+        public ObservableCollection<AssetOption> AssetOptions { get; } = new();
+
+        private AssetOption? _selectedAssetOption;
+        public AssetOption? SelectedAssetOption
+        {
+            get => _selectedAssetOption;
+            set
+            {
+                if (!SetProperty(ref _selectedAssetOption, value)) return;
+                if (_loadingAssetOptions) return;
+                if (_plugin is IAssetIdConfig config)
+                {
+                    config.AssetId = value == null || value.AssetId == Guid.Empty
+                        ? string.Empty
+                        : value.AssetId.ToString();
+                }
+            }
+        }
+
+        private bool _hasAssetOptions;
+        public bool HasAssetOptions
+        {
+            get => _hasAssetOptions;
+            private set => SetProperty(ref _hasAssetOptions, value);
+        }
+
+        private bool _loadingAssetOptions;
 
         #endregion
 
@@ -549,5 +612,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 提示服务故障时忽略
             }
         }
+    }
+
+    /// <summary>插件配置壳的资产下拉项（只带展示与 Id，不把方案活对象交给插件）。</summary>
+    public sealed class AssetOption
+    {
+        public AssetOption(Guid assetId, string name, string kind)
+        {
+            AssetId = assetId;
+            Name = name ?? string.Empty;
+            Kind = kind ?? string.Empty;
+        }
+
+        public Guid AssetId { get; }
+        public string Name { get; }
+        public string Kind { get; }
+        public string Caption => AssetId == Guid.Empty
+            ? Name
+            : $"{Name}（{AssetId.ToString("N")[..8]}）";
     }
 }

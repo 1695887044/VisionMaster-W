@@ -42,7 +42,7 @@ namespace Plugin.Matching
         ShortName = "\uf140"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算（EnsureModelLoaded static 但只改本实例条目），可进并行分支
-    public partial class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
     {
         // ==================================================================
         //  配置项（[StepConfig] 随方案落盘）
@@ -61,6 +61,13 @@ namespace Plugin.Matching
         /// </summary>
         [StepConfig]
         public string TemplateAssetId { get; set; } = string.Empty;
+
+        public string AssetKind => "template";
+        public string AssetId
+        {
+            get => TemplateAssetId;
+            set => TemplateAssetId = value ?? string.Empty;
+        }
 
         /// <summary>
         /// 默认模板名：RecipeName 端口未连接/为空时使用。界面"设为默认"按钮写入。

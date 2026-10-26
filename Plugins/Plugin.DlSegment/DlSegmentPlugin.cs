@@ -37,7 +37,7 @@ namespace Plugin.DlSegment
         Description = "用 ONNX 语义分割模型把每个像素判成某一类，输出类别图与各类面积；形状不认识的模型直接拒绝，不猜",
         ShortName = "\uf1fb")]
     [ParallelSafe]
-    public partial class DlSegmentPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class DlSegmentPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
     {
         /// <summary>模型文件路径（.onnx）。</summary>
         [StepConfig]
@@ -49,6 +49,13 @@ namespace Plugin.DlSegment
         [StepConfig]
         [DefaultValue("")]
         public partial string ModelAssetId { get; set; }
+
+        public string AssetKind => "model";
+        public string AssetId
+        {
+            get => ModelAssetId;
+            set => ModelAssetId = value ?? string.Empty;
+        }
 
         partial void OnModelPathChanged(string value) => RefreshModelState();
 

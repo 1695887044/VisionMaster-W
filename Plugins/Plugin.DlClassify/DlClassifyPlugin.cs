@@ -41,7 +41,7 @@ namespace Plugin.DlClassify
         ShortName = "\uf0c3"
     )]
     [ParallelSafe] // 会话带锁、推理无共享可变状态
-    public partial class DlClassifyPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class DlClassifyPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
     {
         // ==================================================================
         //  参数
@@ -58,6 +58,13 @@ namespace Plugin.DlClassify
         /// <summary>方案模型资产 Id（优先于 ModelPath；运行期由宿主解析成绝对路径）。</summary>
         [StepConfig, DefaultValue("")]
         public partial string ModelAssetId { get; set; }
+
+        public string AssetKind => "model";
+        public string AssetId
+        {
+            get => ModelAssetId;
+            set => ModelAssetId = value ?? string.Empty;
+        }
 
         // 模型路径变了 → 重新解析会话并把 ModelState / ModelSummary 一次刷新到位。
         partial void OnModelPathChanged(string value) => RefreshModelState();

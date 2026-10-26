@@ -45,7 +45,7 @@ namespace Plugin.Yolo
         ShortName = "\uf03d"
     )]
     [ParallelSafe] // 二期真并行：YoloSession.Cache 带 CacheLock
-    public partial class YoloPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class YoloPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
     {
         // ==================================================================
         //  参数
@@ -62,6 +62,13 @@ namespace Plugin.Yolo
         /// <summary>方案模型资产 Id（优先于 ModelPath；运行期由宿主解析成绝对路径）。</summary>
         [StepConfig, DefaultValue("")]
         public partial string ModelAssetId { get; set; }
+
+        public string AssetKind => "model";
+        public string AssetId
+        {
+            get => ModelAssetId;
+            set => ModelAssetId = value ?? string.Empty;
+        }
 
         // 模型路径变了 → 重新解析会话并把 ModelState / ModelSummary 一次刷新到位。
         // 注意：这里不直接发 ModelSummary 通知，统一走 RefreshModelState（它先更新状态再通知）。
