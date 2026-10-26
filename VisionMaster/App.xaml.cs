@@ -17,6 +17,7 @@ using VisionMaster.Engine;
 using VisionMaster.Lifetime;
 using VisionMaster.Lifetime.Checks;
 using VisionMaster.Services;
+using VisionMaster.Models;
 using VisionMaster.Services.Hardware;
 using VisionMaster.Services.Help;
 using VisionMaster.Scada;
@@ -874,6 +875,21 @@ namespace VisionMaster
             // ScadaAccessPolicy / IDialogService 必须已经在上面注册好——这也是它们排在这里的原因。
             containerRegistry.RegisterDialog<ScadaLoginView, ScadaLoginViewModel>("ScadaLoginView");
             containerRegistry.RegisterDialog<UserManagementView, UserManagementViewModel>("UserManagementView");
+            // 项目资产：写入口只走 ProjectAssetService（权限 + 版本 + 审计），VM 从工厂注入。
+            // 资产 service 必须是**当前方案**的写入口，不能构造时定死一份方案；
+            // 每次解析时按工作区当前方案新建（资产写是低频操作，不值得缓存）。
+            Func<ProjectAssetService> resolveAssetService = () => new ProjectAssetService(
+                new SolutionAssetWriter(
+                    Container.Resolve<IReadOnlyWorkspaceContext>().CurrentSolution ?? new SolutionModel()),
+                Container.Resolve<IScadaAccessPolicy>(),
+                Container.Resolve<ScadaAuditWriter>(),
+                () => Container.Resolve<SolutionIdentityHolder>().AuditTag);
+            Prism.Mvvm.ViewModelLocationProvider.Register<ProjectAssetsView>(() =>
+                new ProjectAssetsViewModel(
+                    Container.Resolve<IReadOnlyWorkspaceContext>(),
+                    Container.Resolve<IReadOnlyWorkspaceContext>().CurrentSolution == null
+                        ? null
+                        : resolveAssetService()));
             containerRegistry.RegisterDialog<ProjectAssetsView, ProjectAssetsViewModel>("ProjectAssetsView");
             containerRegistry.RegisterDialog<ScadaGroupEditorView, ScadaGroupEditorViewModel>("ScadaGroupEditorView");
             containerRegistry.RegisterDialog<ScadaPermissionCatalogView, ScadaPermissionCatalogViewModel>("ScadaPermissionCatalogView");

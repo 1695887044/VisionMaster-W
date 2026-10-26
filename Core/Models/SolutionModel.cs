@@ -220,6 +220,14 @@ namespace VisionMaster.Models
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public List<ImageAsset> ImageAssets { get; set; } = new();
 
+        /// <summary>资产版本历史（只存元数据与可回滚快照，不存文件本体）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<AssetVersionRecord> AssetVersionLog { get; set; } = new();
+
+        /// <summary>各作用域的默认资产指针（按 Kind + Scope 唯一）。</summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public List<AssetDefaultPointer> AssetDefaults { get; set; } = new();
+
         /// <summary>
         /// 全局变量集合（跟着解决方案走）
         /// E3：变量持久化已统一走 VariableSnapshots（DTO 多态可控），本属性全库无人写入、

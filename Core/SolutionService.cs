@@ -170,6 +170,8 @@ namespace VisionMaster.Services
                 solution.TemplateAssets ??= new List<VisionMaster.Models.Assets.TemplateAsset>();
                 solution.ModelAssets ??= new List<VisionMaster.Models.Assets.ModelAsset>();
                 solution.ImageAssets ??= new List<VisionMaster.Models.Assets.ImageAsset>();
+                solution.AssetVersionLog ??= new List<VisionMaster.Models.Assets.AssetVersionRecord>();
+                solution.AssetDefaults ??= new List<VisionMaster.Models.Assets.AssetDefaultPointer>();
                 foreach (var device in solution.IoDevices)
                 {
                     if (device == null) continue;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Windows;
@@ -8,6 +9,7 @@ using Microsoft.Win32;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
+using VisionMaster.Scada;
 using VisionMaster.Services;
 
 namespace VisionMaster.ViewModels
@@ -15,12 +17,14 @@ namespace VisionMaster.ViewModels
     /// <summary>
     /// 项目资产管理：读取当前方案的真实标定/模板/模型/配方/图像；
     /// 模板/模型/图像支持导入到方案目录，保存方案后随 .vms 落盘。
+    /// 默认/冻结/版本/权限/审计走 ProjectAssetService 单一写入口。
     /// </summary>
     public sealed class ProjectAssetsViewModel : BindableBase, IDialogAware
     {
         private readonly IReadOnlyWorkspaceContext _workspace;
         private readonly SolutionProjectAssetCatalog _catalog;
         private readonly ProjectAssetImporter _importer;
+        private readonly ProjectAssetService? _assetService;
         private readonly List<ProjectAssetItem> _allAssets = new();
 
         private AssetTypeTab? _selectedTypeTab;
@@ -30,11 +34,12 @@ namespace VisionMaster.ViewModels
         private int _selectedDetailTabIndex;
         private string _actionMessage = string.Empty;
 
-        public ProjectAssetsViewModel(IReadOnlyWorkspaceContext workspace)
+        public ProjectAssetsViewModel(IReadOnlyWorkspaceContext workspace, ProjectAssetService? assetService = null)
         {
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _catalog = new SolutionProjectAssetCatalog(workspace);
             _importer = new ProjectAssetImporter(workspace);
+            _assetService = assetService;
 
             TypeTabs = new ObservableCollection<AssetTypeTab>
             {
@@ -59,6 +64,7 @@ namespace VisionMaster.ViewModels
             RefreshCommand = new DelegateCommand(ReloadAssets);
             SetDefaultCommand = new DelegateCommand(SetDefault);
             ToggleFreezeCommand = new DelegateCommand(ToggleFreeze);
+            RollbackCommand = new DelegateCommand(RollbackVersion);
             ExportCommand = new DelegateCommand(ExportAsset);
             CopyIdCommand = new DelegateCommand(CopyId);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -133,6 +139,7 @@ namespace VisionMaster.ViewModels
         public DelegateCommand RefreshCommand { get; }
         public DelegateCommand SetDefaultCommand { get; }
         public DelegateCommand ToggleFreezeCommand { get; }
+        public DelegateCommand RollbackCommand { get; }
         public DelegateCommand ExportCommand { get; }
         public DelegateCommand CopyIdCommand { get; }
         public DelegateCommand CloseCommand { get; }
@@ -256,6 +263,19 @@ namespace VisionMaster.ViewModels
                 return;
             }
 
+            // 导入也是资产写操作：先过同一道权限闸门，避免"能导不能冻结"的分叉。
+            if (_assetService == null)
+            {
+                ActionMessage = "当前没有资产写服务；请先打开方案";
+                return;
+            }
+
+            if (!_assetService.CheckWritePermission("导入资产", out var denyReason))
+            {
+                ActionMessage = denyReason;
+                return;
+            }
+
             var dialog = new OpenFileDialog
             {
                 Title = "导入" + (kind == "template" ? "模板" : kind == "model" ? "模型" : "图像") + "资产",
@@ -269,6 +289,12 @@ namespace VisionMaster.ViewModels
             {
                 ActionMessage = error;
                 return;
+            }
+
+            // 导入即内容变化：写一条版本 + 审计；失败不回滚已复制的文件，但会明确提示。
+            if (!_assetService.TryRecordVersion(assetId, "导入", "文件：" + Path.GetFileName(dialog.FileName), out var versionError))
+            {
+                ActionMessage = "已导入文件，但版本记录失败：" + versionError;
             }
 
             ReloadAssets();
@@ -288,15 +314,81 @@ namespace VisionMaster.ViewModels
         private void SetDefault()
         {
             if (SelectedAsset == null) return;
-            foreach (var item in _allAssets.Where(a => a.Kind == SelectedAsset.Kind && a.Scope == SelectedAsset.Scope))
-                item.IsDefault = false;
-            SelectedAsset.IsDefault = true;
-            ActionMessage = $"已标记为当前会话默认：{SelectedAsset.Name}（默认资产持久化未接入）";
+
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法设为默认";
+                return;
+            }
+
+            if (!_assetService.TrySetDefault(assetId, out var error))
+            {
+                ActionMessage = error;
+                return;
+            }
+
+            ReloadAssets();
+            SelectType(SelectedAsset?.Kind ?? _selectedType);
+            ActionMessage = $"已设为默认并记录版本：{SelectedAsset?.Name}；保存方案后随 .vms 落盘";
         }
 
         private void ToggleFreeze()
         {
-            ActionMessage = "冻结/回滚将在资产生命周期阶段接入；当前只读展示真实数据";
+            if (SelectedAsset == null) return;
+
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法冻结/解冻";
+                return;
+            }
+
+            if (!_assetService.TryToggleFreeze(assetId, out var frozen, out var error))
+            {
+                ActionMessage = error;
+                return;
+            }
+
+            var kind = SelectedAsset.Kind;
+            ReloadAssets();
+            SelectType(kind);
+            ActionMessage = frozen
+                ? $"已冻结：{SelectedAsset?.Name}；保存方案后随 .vms 落盘"
+                : $"已解冻：{SelectedAsset?.Name}；保存方案后随 .vms 落盘";
+        }
+
+        private void RollbackVersion()
+        {
+            if (SelectedAsset == null) return;
+
+            var record = SelectedAsset.Versions.FirstOrDefault(v => v.CanRollback);
+            if (record == null)
+            {
+                ActionMessage = "当前资产没有可回滚的历史版本";
+                return;
+            }
+
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法回滚";
+                return;
+            }
+
+            if (!Guid.TryParse(record.RecordId, out var recordId))
+            {
+                ActionMessage = "版本记录 Id 无效";
+                return;
+            }
+
+            if (!_assetService.TryRollback(assetId, recordId, out var error))
+            {
+                ActionMessage = error;
+                return;
+            }
+
+            var kind = SelectedAsset.Kind;
+            ReloadAssets();
+            SelectType(kind);
+            ActionMessage = $"已回滚到 {record.Version}；保存方案后随 .vms 落盘";
         }
 
         private void ExportAsset()
@@ -478,6 +570,10 @@ namespace VisionMaster.ViewModels
         {
             Version = version; Tag = tag; Time = time; Meta = meta; Diff = diff;
         }
+
+        /// <summary>可回滚记录的 Id（当前只有版本历史记录有；派生版本为空）。</summary>
+        public string RecordId { get; init; } = string.Empty;
+        public bool CanRollback => !string.IsNullOrWhiteSpace(RecordId);
         public string Version { get; }
         public string Tag { get; }
         public string Time { get; }

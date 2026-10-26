@@ -513,15 +513,31 @@ namespace FlowCanvasChecks
                 // 于是拿不到"命令失败后进入安全停机"的证据（2026-10-25 实测两红）。
                 fake.AlarmMessage = "模拟：报警未清除";
                 fake.FailMove = true;
-                MotionCommandResult fakeEnqueued;
-                bool fakeCompleted;
-                using (var failing = Move(0, 10))
+                MotionCommandResult fakeEnqueued = MotionCommandResult.Rejected_NotConnected;
+                bool fakeCompleted = false;
+
+                // 有界重试：Connect 之后状态可能还在 Online↔Connecting 的切换窗口里，
+                // 此时 Enqueue 会被门禁拒成 Rejected_NotConnected，Move 压根没进
+                // ExecuteCommandCore —— 那样就制造不出"命令失败 → 安全停机"，
+                // 断言看到的是状态机没走，不是状态机坏了（2026-10-26 全量 gate 实测 2 红）。
+                // 每次重试前重新等 Online；Accepted 之后才真正等待完成。
+                for (var attempt = 0; attempt < 3; attempt++)
                 {
+                    WaitFor(() => fake.State == MotionCardState.Online, 5000);
+
+                    using var failing = Move(0, 10);
                     fakeEnqueued = fake.Enqueue(failing);
+                    if (fakeEnqueued != MotionCommandResult.Accepted)
+                    {
+                        Thread.Sleep(120);
+                        continue;
+                    }
+
                     // 5s，不是 2s：2026-10-22 全量 gate（六个宿主连着构建+跑）在这两处
                     // 超时判红，空载重跑同一条 exe 是 3298 通过 / 0 失败 —— 2s 量的是
                     // 机器负载，不是状态机。WaitFor 条件一满足就返回，绿灯不付这个余量。
                     fakeCompleted = failing.Completion.Wait(5000);
+                    break;
                 }
 
                 // 失败明细同样带 Enqueue 结果与完成标志：

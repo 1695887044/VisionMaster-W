@@ -168,6 +168,8 @@ namespace VisionMaster.Services
                     item.References.Add(reference);
 
                 item.Versions.Add(new AssetVersion(item.Version, baseline ? "基线" : "当前", FormatTime(t.CreatedAtUtc), "方案文件", "来自 SolutionModel.Calibrations"));
+                AddVersionHistory(solution, item);
+                item.IsDefault = IsDefaultAsset(solution, asset.CalibrationId);
                 items.Add(item);
             }
         }
@@ -305,6 +307,8 @@ namespace VisionMaster.Services
                 item.References.Add(reference);
 
             item.Versions.Add(new AssetVersion(item.Version, "当前", FormatTime(asset.UpdatedAtUtc), "方案资产", "来自 " + item.SourcePath));
+            AddVersionHistory(solution, item);
+            item.IsDefault = IsDefaultAsset(solution, asset.AssetId);
             items.Add(item);
         }
 
@@ -393,6 +397,8 @@ namespace VisionMaster.Services
 
                 foreach (var reference in refs) item.References.Add(reference);
                 item.Versions.Add(new AssetVersion(item.Version, "当前", FormatTime(recipe.UpdatedAtUtc ?? recipe.CreatedAtUtc), "方案配方", "来自 SolutionModel.Recipes"));
+                AddVersionHistory(solution, item);
+                item.IsDefault = IsDefaultAsset(solution, recipe.RecipeId);
                 items.Add(item);
             }
         }
@@ -611,6 +617,30 @@ namespace VisionMaster.Services
 
         private static string NormalizeRelative(string path)
             => string.IsNullOrWhiteSpace(path) ? string.Empty : path.Trim().Replace('/', '\\').TrimStart('.', '\\');
+
+        private static bool IsDefaultAsset(SolutionModel solution, Guid assetId)
+            => solution.AssetDefaults?.Any(p => p.AssetId != Guid.Empty && p.AssetId == assetId) == true;
+
+        private static void AddVersionHistory(SolutionModel solution, ProjectAssetItem item)
+        {
+            if (solution.AssetVersionLog == null || !Guid.TryParse(item.Id, out var assetId))
+                return;
+
+            foreach (var record in solution.AssetVersionLog
+                         .Where(r => r.AssetId == assetId)
+                         .OrderByDescending(r => r.CreatedAtUtc))
+            {
+                item.Versions.Add(new AssetVersion(
+                    "v" + Math.Max(1, record.Version),
+                    record.Action,
+                    FormatTime(record.CreatedAtUtc),
+                    string.IsNullOrWhiteSpace(record.Actor) ? "—" : record.Actor,
+                    string.IsNullOrWhiteSpace(record.Note) ? "—" : record.Note)
+                {
+                    RecordId = record.RecordId.ToString(),
+                });
+            }
+        }
 
         private static string FriendlyFlowName(string flow) => flow switch
         {

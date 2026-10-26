@@ -973,6 +973,14 @@
                                                     </DataTemplate>
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
+                                            <Button
+                                                Height="30"
+                                                Margin="0,2,0,0"
+                                                Padding="12,0"
+                                                Command="{Binding RollbackCommand}"
+                                                Content="回滚到最新记录"
+                                                Style="{StaticResource DialogSecondaryButton}"
+                                                ToolTip="仅标定资产支持内容回滚；需要「改结构」权限，已冻结资产先解冻" />
                                             <Border
                                                 Padding="8,6"
                                                 Background="{StaticResource DialogAccentSoftBrush}"
@@ -989,7 +997,7 @@
                                                 BorderBrush="{StaticResource DialogAccentBorderBrush}"
                                                 BorderThickness="1"
                                                 CornerRadius="5">
-                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="版本只在内容变化时递增；回滚前会校验引用版本与复核权限。" TextWrapping="Wrap" />
+                                                <TextBlock FontSize="9.5" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="设为默认 / 冻结 / 回滚都会写版本历史与审计；需「改结构」权限，结果随 .vms 落盘。" TextWrapping="Wrap" />
                                             </Border>
                                         </StackPanel>
                                     </ScrollViewer>

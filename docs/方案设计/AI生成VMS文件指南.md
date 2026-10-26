@@ -103,6 +103,8 @@ SolutionModel
   "TemplateAssets": [],
   "ModelAssets": [],
   "ImageAssets": [],
+  "AssetDefaults": [],
+  "AssetVersionLog": [],
   "VariableSnapshots": [],
   "VariableGroups": [],
   "WatchItems": [],
@@ -554,7 +556,40 @@ static Guid G(string seed)
 - 模板资产必须是模板库 JSON；模型资产必须是可读文件。
 - 生成器可以只写 `AssetId`，不要再同时复制一份路径；两者都写时以 Id 为准。
 
-### 5.5 系统运动变量
+### 5.5 资产生命周期字段（默认 / 版本 / 冻结）
+
+资产页的「设为默认 / 冻结 / 回滚」都会写两个顶层集合，生成器要写就一起写全：
+
+```json
+"AssetDefaults": [
+  { "Kind": "calibration", "Scope": "ST3_Measure", "AssetId": "稳定 GUID" }
+],
+"AssetVersionLog": [
+  {
+    "RecordId": "稳定 GUID",
+    "AssetId": "稳定 GUID",
+    "Kind": "calibration",
+    "Name": "LineCalib",
+    "Version": 1,
+    "ContentHash": "",
+    "SnapshotJson": "{\"Kind\":0,\"MmPerPixel\":0.05,...}",
+    "Action": "设为默认",
+    "Actor": "admin",
+    "CreatedAtUtc": "2026-10-26T00:00:00Z",
+    "Note": "作用域：ST3_Measure"
+  }
+]
+```
+
+规则：
+
+1. `AssetDefaults` 按 `Kind + Scope` 唯一；同一作用域只能有一个默认。
+2. `AssetVersionLog` 只存元数据与快照：标定快照是 `CalibrationTransform` JSON；文件资产快照是路径/哈希，**不含二进制**。
+3. 冻结状态写在资产自身：`CalibrationAsset.IsLocked`、`TemplateAsset/ModelAsset/ImageAsset.IsFrozen`。
+4. 冻结的资产拒绝内容写入；回滚也要求先解冻。
+5. 生成器可以不写这两段（加载时会补空集合），但**不要写指向不存在 Id 的默认指针或版本记录**。
+
+### 5.6 系统运动变量
 
 SCADA 绑定 `System.Motion.X.Position` 等，ID 不是 `G("var:...")`，而是：
 

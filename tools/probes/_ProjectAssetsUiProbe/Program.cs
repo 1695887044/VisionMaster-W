@@ -10,7 +10,10 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Newtonsoft.Json;
 using Prism.Mvvm;
+using Core.Interfaces;
 using VisionMaster.Models;
+using VisionMaster.Models.Assets;
+using VisionMaster.Scada;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
 using VisionMaster.Views;
@@ -65,6 +68,7 @@ namespace ProjectAssetsUiProbe
                 Check(vm.TypeTabs.First(t => t.Kind == "image").Count == 14,
                     "真实图像资产数量 = 14（流程引用）", ref failures);
                 RunImportChecks(ref failures);
+                RunLifecycleChecks(ref failures);
                 var view = new ProjectAssetsView
                 {
                     DataContext = vm,
@@ -148,6 +152,188 @@ namespace ProjectAssetsUiProbe
                 Console.WriteLine("RESULT: FAIL");
                 Console.WriteLine(ex);
                 return 1;
+            }
+        }
+
+        private static void RunLifecycleChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-life-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetLifecycle",
+                    SolutionFilePath = Path.Combine(temp, "AssetLifecycle.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var imageSource = Path.Combine(sourceDir, "probe.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                Check(importer.TryImport(imageSource, "image", out var imageId, out _),
+                    "生命周期前置：图像导入", ref failures);
+
+                var policy = new ScadaAccessPolicy();
+                var auditDir = Path.Combine(temp, "Audit");
+                var audit = new ScadaAuditWriter(auditDir);
+                var writer = new SolutionAssetWriter(solution);
+                var service = new ProjectAssetService(writer, policy, audit);
+
+                // 未登录：所有写操作必须被拒，且审计里要出现「被拒绝」。
+                Check(!service.TrySetDefault(imageId, out var deniedDefault) && deniedDefault.Contains("权限"),
+                    "未登录时设为默认被拒并说明权限", ref failures);
+                Check(!service.TryToggleFreeze(imageId, out _, out var deniedFreeze) && deniedFreeze.Contains("权限"),
+                    "未登录时冻结被拒并说明权限", ref failures);
+                Check(!service.CheckWritePermission("导入资产", out var deniedImport) && deniedImport.Contains("权限"),
+                    "未登录时导入被拒并说明权限", ref failures);
+
+                // 登录必须带显式权限集：Login(name, role) 只映射一条 Legacy 权限，
+                // 不含「改结构」，用它做断言会得到"登录了仍没权限"的假失败。
+                policy.Login(new ScadaUserInfo(
+                    "admin",
+                    ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(),
+                    "模板·管理员"));
+
+                Check(service.TrySetDefault(imageId, out var defaultError),
+                    "登录后可设为默认" + (string.IsNullOrEmpty(defaultError) ? string.Empty : "：" + defaultError), ref failures);
+                Check(solution.AssetDefaults.Any(p => p.AssetId == imageId),
+                    "默认指针写入方案", ref failures);
+
+                Check(service.TryToggleFreeze(imageId, out var frozen, out var freezeError) && frozen,
+                    "可冻结" + (string.IsNullOrEmpty(freezeError) ? string.Empty : "：" + freezeError), ref failures);
+                Check(solution.ImageAssets[0].IsFrozen, "冻结状态写入方案", ref failures);
+                Check(!service.TryRecordVersion(imageId, "改内容", "冻结后不应允许", out var frozenWriteError)
+                      && frozenWriteError.Contains("冻结"),
+                    "冻结后拒绝内容写入", ref failures);
+
+                Check(service.TryToggleFreeze(imageId, out var unfrozen, out _) && !unfrozen,
+                    "可解冻", ref failures);
+                Check(service.TryRecordVersion(imageId, "改内容", "解冻后允许", out var recordError),
+                    "解冻后可写版本" + (string.IsNullOrEmpty(recordError) ? string.Empty : "：" + recordError), ref failures);
+
+                var history = AssetVersionLog.Of(solution, imageId);
+                Check(history.Count >= 4, $"版本历史累计 ≥4 条（实际 {history.Count}）", ref failures);
+                Check(history.Any(r => r.Action == "设为默认")
+                      && history.Any(r => r.Action == "冻结")
+                      && history.Any(r => r.Action == "解冻"),
+                    "版本历史记录了默认/冻结/解冻", ref failures);
+                Check(history.All(r => !string.IsNullOrWhiteSpace(r.Actor)),
+                    "版本历史每条都有操作者", ref failures);
+
+                // 回滚：文件资产必须明确拒绝，不能假装成功。
+                Check(!service.TryRollback(imageId, history[0].RecordId, out var rollbackError)
+                      && rollbackError.Contains("标定"),
+                    "文件资产回滚被明确拒绝", ref failures);
+
+                // 标定资产可以真回滚。
+                var calibration = new CalibrationAsset
+                {
+                    Name = "LifecycleCalib",
+                    CalibrationId = Guid.Parse("11111111-2222-3333-4444-555555555555"),
+                    Transform = new CalibrationTransform { MmPerPixel = 0.05, SourceImageWidth = 640, SourceImageHeight = 480 },
+                };
+                solution.Calibrations.Add(calibration);
+                Check(service.TryRecordVersion(calibration.CalibrationId, "标定", "首次", out _),
+                    "标定资产写版本记录", ref failures);
+
+                var calibHistory = AssetVersionLog.Of(solution, calibration.CalibrationId);
+                Check(calibHistory.Count == 1, "标定历史 1 条", ref failures);
+
+                calibration.Transform = new CalibrationTransform { MmPerPixel = 0.2, SourceImageWidth = 640, SourceImageHeight = 480 };
+                Check(service.TryRollback(calibration.CalibrationId, calibHistory[0].RecordId, out var calibRollbackError),
+                    "标定资产可回滚" + (string.IsNullOrEmpty(calibRollbackError) ? string.Empty : "：" + calibRollbackError), ref failures);
+                Check(Math.Abs(solution.Calibrations[0].Transform.MmPerPixel - 0.05) < 1e-9,
+                    "回滚后像素当量恢复 0.05", ref failures);
+
+                // 审计：拒绝与允许都要落盘。
+                var auditFile = Directory.Exists(auditDir)
+                    ? Directory.GetFiles(auditDir, "Audit-*.csv").FirstOrDefault()
+                    : null;
+                Check(auditFile != null && File.Exists(auditFile), "审计文件已生成", ref failures);
+                if (auditFile != null)
+                {
+                    var csv = File.ReadAllText(auditFile);
+                    Check(csv.Contains("被拒绝") || csv.Contains("拒绝"), "审计记录包含被拒绝操作", ref failures);
+                    Check(csv.Contains("设为默认") && csv.Contains("冻结"), "审计记录包含允许的操作", ref failures);
+                    Check(csv.Contains("admin"), "审计记录包含操作者", ref failures);
+                }
+
+                var json = SolutionService.Serialize(solution);
+                Check(json.Contains("\"AssetVersionLog\"") && json.Contains("\"AssetDefaults\""),
+                    "版本历史与默认指针进入 .vms 序列化", ref failures);
+
+                RenderLifecycleView(workspace, solution, ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "生命周期断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 用真实写操作产生的方案渲染一次「版本」页签，证明默认/冻结/历史在界面上真的出得来。
+        /// </summary>
+        private static void RenderLifecycleView(WorkspaceContext workspace, SolutionModel solution, ref int failures)
+        {
+            var vm = new ProjectAssetsViewModel(workspace);
+            vm.SelectTypeCommand.Execute("image");
+            var asset = vm.VisibleAssets.FirstOrDefault(a => a.Name.Contains("probe"));
+            Check(asset != null, "生命周期方案里能找到图像资产", ref failures);
+            if (asset == null) return;
+
+            var view = new ProjectAssetsView
+            {
+                DataContext = vm,
+                Width = 1280,
+                Height = 850,
+            };
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                SizeToContent = SizeToContent.Manual,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                Width = 1280,
+                Height = 850,
+                ShowInTaskbar = false,
+                Content = view,
+            };
+
+            try
+            {
+                window.Show();
+                Pump(600);
+                view.UpdateLayout();
+
+                vm.SelectedDetailTabIndex = 3;
+                view.UpdateLayout();
+                Pump(200);
+
+                Check(asset.HasVersions, $"版本页签有 {asset.Versions.Count} 条记录", ref failures);
+                Check(asset.Versions.Any(v => v.CanRollback), "版本卡带可回滚标记", ref failures);
+                Check(asset.IsDefault, "默认标记来自 AssetDefaults", ref failures);
+
+                var bitmap = Render(view, (int)Math.Round(view.ActualWidth), (int)Math.Round(view.ActualHeight), 2.0);
+                var path = Path.Combine(OutputDirectory(Array.Empty<string>()), "wpf-project-assets-versions.png");
+                Save(bitmap, path);
+                Console.WriteLine($"  [render] {path}");
+            }
+            finally
+            {
+                window.Close();
+                Pump(80);
             }
         }
 
