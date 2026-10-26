@@ -164,13 +164,18 @@ namespace VisionMaster.Services
             => FindStored(assetId)?.ContentHash ?? string.Empty;
 
         /// <summary>
-        /// 可回滚快照：标定存 Transform（能真正还原）；文件资产只存路径/哈希（二进制不在快照里）。
+        /// 可回滚快照：标定存 Transform（能真正还原）；配方存条目/点位（能看出改了哪条参数）；
+        /// 文件资产只存路径/哈希（二进制不在快照里）。
         /// </summary>
         public string SnapshotOf(Guid assetId)
         {
             var calibration = Solution.Calibrations.FirstOrDefault(c => c.CalibrationId == assetId);
             if (calibration?.Transform != null)
                 return AssetVersionLog.Snapshot(calibration.Transform);
+
+            var recipe = Solution.RecipesOrEmpty().FirstOrDefault(r => r.RecipeId == assetId);
+            if (recipe != null)
+                return recipe.CreateAssetSnapshot();
 
             var stored = FindStored(assetId);
             return stored == null
@@ -194,6 +199,12 @@ namespace VisionMaster.Services
             var calibration = Solution.Calibrations.FirstOrDefault(c => c.CalibrationId == assetId);
             if (calibration != null)
                 return new CalibrationFreezeAdapter(calibration);
+
+            // 配方也必须能冻结：它和标定一样是"被生产引用的内容"，
+            // 之前只覆盖标定与文件资产，配方点冻结会得到"找不到资产"（2026-10-26 补）。
+            var recipe = Solution.RecipesOrEmpty().FirstOrDefault(r => r.RecipeId == assetId);
+            if (recipe != null)
+                return new RecipeFreezeAdapter(recipe);
 
             var stored = FindStored(assetId);
             return stored == null ? null : new StoredFreezeAdapter(stored);
@@ -231,8 +242,24 @@ namespace VisionMaster.Services
             }
         }
 
-        private sealed class StoredFreezeAdapter : IFreezableAsset
+        private sealed class RecipeFreezeAdapter : IFreezableAsset
         {
+            private readonly RecipeDefinition _recipe;
+            public RecipeFreezeAdapter(RecipeDefinition recipe) => _recipe = recipe;
+            public bool IsFrozen
+            {
+                get => _recipe.IsFrozen;
+                set => _recipe.IsFrozen = value;
+            }
+
+            public DateTime UpdatedAtUtc
+            {
+                get => _recipe.UpdatedAtUtc ?? _recipe.CreatedAtUtc;
+                set => _recipe.UpdatedAtUtc = value;
+            }
+        }
+
+        private sealed class StoredFreezeAdapter : IFreezableAsset        {
             private readonly SolutionAssetBase _asset;
             public StoredFreezeAdapter(SolutionAssetBase asset) => _asset = asset;
             public bool IsFrozen

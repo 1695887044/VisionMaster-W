@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Text;
 using System.Windows.Media.Imaging;
 using VisionMaster.Models;
 using VisionMaster.Models.Assets;
@@ -16,6 +17,7 @@ namespace VisionMaster.Services
     public sealed class ProjectAssetImporter
     {
         private static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
+        private static readonly string[] TextRecipeExtensions = { ".txt", ".csv", ".tbl" };
         private static readonly string[] TemplateExtensions = { ".json", ".tpl", ".tmpl", ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".xml", ".yaml", ".yml", ".txt" };
         private static readonly string[] ModelExtensions = { ".onnx", ".pt", ".pth", ".bin", ".model", ".json", ".engine", ".trt" };
 
@@ -67,6 +69,12 @@ namespace VisionMaster.Services
                 error = $"不支持的文件类型「{extension}」";
                 return false;
             }
+
+            // 文本配方：内容进方案（RecipeDefinition.TextContent），**不拷文件**。
+            // 拷一份文件的话同一份配方会有"方案里的文本"和"磁盘上的文件"两个真相，
+            // 冻结/版本/审计全要同时管两处 —— 而插件运行期只读方案里那一份。
+            if (kind == "recipe")
+                return TryImportTextRecipe(solution, sourcePath, out assetId, out error);
 
             var folder = kind switch
             {
@@ -189,9 +197,69 @@ namespace VisionMaster.Services
                 "image" => ImageExtensions,
                 "template" => TemplateExtensions,
                 "model" => ModelExtensions,
+                "recipe" => TextRecipeExtensions,
                 _ => Array.Empty<string>(),
             };
             return exts.Contains(extension, StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>导入文本配方：读文件内容 → 建 RecipeDefinition → 进方案配方集合。</summary>
+        private static bool TryImportTextRecipe(
+            SolutionModel solution, string sourcePath, out Guid assetId, out string error)
+        {
+            assetId = Guid.Empty;
+            error = string.Empty;
+
+            try
+            {
+                var text = File.ReadAllText(sourcePath, Encoding.UTF8);
+                if (string.IsNullOrWhiteSpace(text))
+                {
+                    error = "配方文件是空的";
+                    return false;
+                }
+
+                var name = Path.GetFileNameWithoutExtension(sourcePath);
+                var recipes = solution.EnsureRecipes();
+                if (recipes.Any(r => string.Equals(r.TextContent, text, StringComparison.Ordinal)))
+                {
+                    error = "相同内容的文本配方已存在";
+                    return false;
+                }
+
+                var now = DateTime.UtcNow;
+                var recipe = new RecipeDefinition
+                {
+                    Name = UniqueRecipeName(recipes.Select(r => r.Name), name),
+                    Code = UniqueRecipeName(recipes.Select(r => r.Code), name),
+                    TextContent = text,
+                    CreatedAtUtc = now,
+                    CreatedBy = Environment.UserName,
+                };
+                recipes.Add(recipe);
+                assetId = recipe.RecipeId;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "导入文本配方失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        private static string UniqueRecipeName(IEnumerable<string> existing, string name)
+        {
+            var taken = new HashSet<string>(existing ?? Enumerable.Empty<string>(), StringComparer.OrdinalIgnoreCase);
+            var candidate = string.IsNullOrWhiteSpace(name) ? "文本配方" : name.Trim();
+            if (!taken.Contains(candidate)) return candidate;
+
+            for (var i = 2; i < 1000; i++)
+            {
+                var next = candidate + " (" + i + ")";
+                if (!taken.Contains(next)) return next;
+            }
+
+            return candidate + " (" + Guid.NewGuid().ToString("N")[..6] + ")";
         }
 
         private static SolutionAssetBase FindByHash(SolutionModel solution, string kind, string hash)

@@ -106,6 +106,7 @@ SolutionModel
   "AssetDefaults": [],
   "AssetLifecycle": [],
   "AssetVersionLog": [],
+  "Recipes": [],
   "VariableSnapshots": [],
   "VariableGroups": [],
   "WatchItems": [],
@@ -596,9 +597,34 @@ static Guid G(string seed)
 
 1. `AssetDefaults` 按 `Kind + Scope` 唯一；同一作用域只能有一个默认。
 2. `AssetLifecycle` 只有"已归档"才需要写；没有记录 = 有效。归档不改版本号、不删文件。
-3. `AssetVersionLog` 只存元数据与快照：标定快照是 `CalibrationTransform` JSON；文件资产快照是路径/哈希，**不含二进制**。
-3. 冻结状态写在资产自身：`CalibrationAsset.IsLocked`、`TemplateAsset/ModelAsset/ImageAsset.IsFrozen`。
-4. 冻结的资产拒绝内容写入；回滚也要求先解冻。
+   **归档资产在运行期会被拒绝解析**（插件拿不到文件/内容），不是只影响界面。
+3. `AssetVersionLog` 只存元数据与快照：标定快照是 `CalibrationTransform` JSON；文件资产快照是路径/哈希，**不含二进制**；配方快照是 `RecipeDefinition.CreateAssetSnapshot()` 的形状。
+4. 冻结状态写在资产自身：`CalibrationAsset.IsLocked`、`TemplateAsset/ModelAsset/ImageAsset.IsFrozen`、`RecipeDefinition.IsFrozen`。
+5. 冻结的资产拒绝内容写入；回滚也要求先解冻。
+
+### 5.6 配方两种形态（参数配方 / 文本配方）
+
+```json
+"Recipes": [
+  {
+    "RecipeId": "稳定 GUID",
+    "Name": "颜色配方",
+    "Code": "COLOR-A",
+    "Scope": "Solution",
+    "ContentVersion": 1,
+    "IsFrozen": false,
+    "TextContent": "红白线 = 红,白\n红黑线 = 红,黑",
+    "Entries": [],
+    "Points": []
+  }
+]
+```
+
+- `TextContent` 非空 = **文本配方**（如颜色配方表，插件按原文解析）；否则是参数配方（`Entries`/`Points`）。
+- 两者互斥，不要同时写内容。
+- 文本配方由项目资产页「配方 → 导入资产」从 `.txt/.csv/.tbl` 生成：内容进方案、**不落文件**。
+- 插件按 AssetId 取配方时：`ProjectAssetRef.ContentKind` 为 `text`（原文）或 `json`（参数快照）；
+  `ColorCheck.RecipeAssetId` 只接受 `text`。
 5. 生成器可以不写这两段（加载时会补空集合），但**不要写指向不存在 Id 的默认指针或版本记录**。
 
 ### 5.6 系统运动变量

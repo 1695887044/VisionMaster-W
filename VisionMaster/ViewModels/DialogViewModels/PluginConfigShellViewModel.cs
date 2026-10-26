@@ -258,6 +258,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     foreach (var asset in solution.ImageAssets)
                         AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "image"));
                 }
+                else if (string.Equals(config.AssetKind, "recipe", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 只列**文本配方**：参数配方没有可被插件解析的文本内容，
+                    // 混进下拉只会让人选中后运行期报"没有内联内容"。
+                    foreach (var recipe in solution.RecipesOrEmpty())
+                    {
+                        if (string.IsNullOrWhiteSpace(recipe.TextContent)) continue;
+                        AssetOptions.Add(new AssetOption(recipe.RecipeId, recipe.Name, "recipe"));
+                    }
+                }
 
                 AssetOptions.Add(new AssetOption(Guid.Empty, "（不使用资产）", config.AssetKind));
                 SelectedAssetOption = AssetOptions.FirstOrDefault(

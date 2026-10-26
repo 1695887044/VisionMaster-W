@@ -30,6 +30,14 @@ namespace VisionMaster.Services
                 return false;
             }
 
+            // 归档 = 退出生产。这里必须拒绝：归档只改界面的活，运行期照用的话
+            // "已归档"就成了一句没有后果的标签（2026-10-26 补）。
+            if (IsArchived(assetId, out var archivedName))
+            {
+                error = $"资产「{archivedName}」已归档，不能用于运行；请在项目资产页恢复后再跑";
+                return false;
+            }
+
             var calibration = _solution.Calibrations.FirstOrDefault(x => x.CalibrationId == assetId);
             if (calibration != null)
             {
@@ -52,6 +60,12 @@ namespace VisionMaster.Services
                     Kind = "recipe",
                     Name = recipe.Name,
                     Version = recipe.ContentVersion,
+                    // 配方内容在方案里：文本配方给原文，参数配方给快照 JSON。
+                    // 插件拿 Content 自行解析（文件资产仍然只给路径）。
+                    Content = string.IsNullOrWhiteSpace(recipe.TextContent)
+                        ? recipe.CreateAssetSnapshot()
+                        : recipe.TextContent,
+                    ContentKind = string.IsNullOrWhiteSpace(recipe.TextContent) ? "json" : "text",
                 };
                 return true;
             }
@@ -67,6 +81,23 @@ namespace VisionMaster.Services
 
             error = $"未找到资产 {assetId}";
             return false;
+        }
+
+        private bool IsArchived(Guid assetId, out string name)
+        {
+            name = string.Empty;
+            var state = _solution.AssetLifecycle?.FirstOrDefault(s => s.AssetId == assetId);
+            if (state == null || !string.Equals(state.State, "已归档", StringComparison.Ordinal))
+                return false;
+
+            // 名字只为把错误写清楚：优先取资产本名，取不到就退回生命周期记录里的。
+            name = _solution.Calibrations.FirstOrDefault(x => x.CalibrationId == assetId)?.Name
+                ?? _solution.RecipesOrEmpty().FirstOrDefault(x => x.RecipeId == assetId)?.Name
+                ?? _solution.TemplateAssets.FirstOrDefault(x => x.AssetId == assetId)?.Name
+                ?? _solution.ModelAssets.FirstOrDefault(x => x.AssetId == assetId)?.Name
+                ?? _solution.ImageAssets.FirstOrDefault(x => x.AssetId == assetId)?.Name
+                ?? assetId.ToString("N")[..8];
+            return true;
         }
 
         private bool TryCreateFileRef(

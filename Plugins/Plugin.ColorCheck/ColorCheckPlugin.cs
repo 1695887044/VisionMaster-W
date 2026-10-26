@@ -8,6 +8,7 @@ using Core.Halcon;
 using Core.Halcon.Color;
 using Core.Halcon.Models;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using Core.Events;
 using HalconDotNet;
 
@@ -56,7 +57,7 @@ namespace Plugin.ColorCheck
         ShortName = "\uf53f"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算
-    public class ColorCheckPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public class ColorCheckPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
     {
         // ==================================================================
         //  配置项
@@ -174,6 +175,28 @@ namespace Plugin.ColorCheck
         /// </summary>
         [StepConfig]
         public string RecipeText { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 方案配方资产 Id（文本配方）。填了就**以资产为准**，覆盖上面手填的配方表：
+        /// 资产能在项目资产页冻结/归档/看版本，手填的字符串不能。
+        ///
+        /// 为什么是"文本配方"而不是参数配方：颜色配方是「产品名 = 颜色1,颜色2」的自由文本表，
+        /// 与参数配方（条目/点位）不是同一套结构；强行映射成条目只会把两种语义搅在一起。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public string RecipeAssetId { get; set; } = string.Empty;
+
+        /// <summary>插件配置壳用：告诉宿主这个 AssetId 指向哪一类资产。</summary>
+        public string AssetKind => "recipe";
+
+        public string AssetId
+        {
+            get => RecipeAssetId;
+            set => RecipeAssetId = value ?? string.Empty;
+        }
+
+        /// <summary>运行期解析出来的配方文本；为空表示用 <see cref="RecipeText"/>。</summary>
+        private string _resolvedRecipeText = string.Empty;
 
         /// <summary>结果投射到哪个视图窗口（1~9；0 = 不投射）</summary>
         [StepConfig]
@@ -575,6 +598,27 @@ namespace Plugin.ColorCheck
                 return;
             }
 
+            // 配方资产优先：先解析一次，后续 TryJudge 读 _resolvedRecipeText。
+            // 解析失败直接报错停流程（与"配方表里没有这个芯数"同一口径：配置问题不是产品不良）。
+            _resolvedRecipeText = string.Empty;
+            if (!string.IsNullOrWhiteSpace(RecipeAssetId))
+            {
+                if (!ProjectAssetPathResolver.TryResolveContent(
+                        context, RecipeAssetId, "recipe", "text", out var content, out var assetError))
+                {
+                    Fail(assetError);
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    Fail($"配方资产「{RecipeAssetId}」没有内容：请在项目资产页确认它是文本配方");
+                    return;
+                }
+
+                _resolvedRecipeText = content;
+            }
+
             if (!TryAnalyze(image, out var result, out var judgement, out string error))
             {
                 Fail(error);
@@ -797,7 +841,9 @@ namespace Plugin.ColorCheck
             }
             else
             {
-                var recipes = RecipeTable.Parse(RecipeText, out string parseError);
+                var recipes = RecipeTable.Parse(
+                    string.IsNullOrWhiteSpace(_resolvedRecipeText) ? RecipeText : _resolvedRecipeText,
+                    out string parseError);
                 if (recipes == null) { error = parseError; return false; }
 
                 var recipe = RecipeTable.MatchByWireCount(recipes, result.Count, result.Warnings);

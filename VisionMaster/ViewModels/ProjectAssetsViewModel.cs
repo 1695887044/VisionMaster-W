@@ -486,9 +486,9 @@ namespace VisionMaster.ViewModels
             }
 
             var kind = _selectedType;
-            if (kind != "template" && kind != "model" && kind != "image")
+            if (kind != "template" && kind != "model" && kind != "image" && kind != "recipe")
             {
-                ActionMessage = "请切换到模板 / 模型 / 图像页签再导入";
+                ActionMessage = "请切换到模板 / 模型 / 图像 / 配方页签再导入";
                 return;
             }
 
@@ -507,7 +507,7 @@ namespace VisionMaster.ViewModels
 
             var dialog = new OpenFileDialog
             {
-                Title = "导入" + (kind == "template" ? "模板" : kind == "model" ? "模型" : "图像") + "资产",
+                Title = "导入" + (kind == "template" ? "模板" : kind == "model" ? "模型" : kind == "recipe" ? "文本配方" : "图像") + "资产",
                 Filter = FilterFor(kind),
                 CheckFileExists = true,
                 Multiselect = false,
@@ -537,6 +537,7 @@ namespace VisionMaster.ViewModels
             "image" => "图片 (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif|所有文件 (*.*)|*.*",
             "template" => "模板文件 (*.json;*.tpl;*.tmpl;*.png;*.jpg;*.bmp;*.xml;*.yaml)|*.json;*.tpl;*.tmpl;*.png;*.jpg;*.bmp;*.xml;*.yaml|所有文件 (*.*)|*.*",
             "model" => "模型文件 (*.onnx;*.pt;*.pth;*.bin;*.model;*.json;*.engine;*.trt)|*.onnx;*.pt;*.pth;*.bin;*.model;*.json;*.engine;*.trt|所有文件 (*.*)|*.*",
+            "recipe" => "文本配方 (*.txt;*.csv;*.tbl)|*.txt;*.csv;*.tbl|所有文件 (*.*)|*.*",
             _ => "所有文件 (*.*)|*.*",
         };
 

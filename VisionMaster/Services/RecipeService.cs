@@ -593,6 +593,13 @@ namespace VisionMaster.Services
                 recipe.LastAppliedBy = ActorName;
                 recipe.LastAppliedContentVersion = recipe.ContentVersion;
 
+                // 「应用」是配方内容真正进产线的那一刻，也是唯一值得记版本历史的里程碑：
+                // 在此之前配方在资产页永远没有版本记录（点冻结还会报"找不到资产"）。
+                VisionMaster.Models.Assets.AssetVersionLog.Append(
+                    solution, recipe.RecipeId, "recipe", recipe.Name, recipe.ContentVersion,
+                    string.Empty, recipe.CreateAssetSnapshot(), "应用", ActorName,
+                    $"写入 {plan.Count} 条参数");
+
                 Audit(recipe.Name, "应用配方", ScadaAuditOutcome.Success,
                     $"配方 {recipe.Name} v{recipe.ContentVersion}，写入 {plan.Count} 条参数");
 

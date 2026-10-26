@@ -369,12 +369,15 @@ namespace VisionMaster.Services
                     Camera = "—",
                     Version = "v" + Math.Max(1, recipe.ContentVersion),
                     Status = ApplyLifecycle(solution, recipe.RecipeId, "有效"),
+                    IsFrozen = recipe.IsFrozen,
                     RefsSummary = RefSummary(refs.Count, 0),
                     Updated = FormatTime(recipe.UpdatedAtUtc ?? recipe.CreatedAtUtc),
                     UpdatedSub = "方案配方",
                     IconGlyph = IconForKind("recipe"),
                     PreviewTitle = "配方 · " + recipe.Code,
-                    PreviewSub = $"{recipe.Entries.Count} 条目 · {recipe.Points.Count} 点位",
+                    PreviewSub = string.IsNullOrWhiteSpace(recipe.TextContent)
+                        ? $"{recipe.Entries.Count} 条目 · {recipe.Points.Count} 点位"
+                        : $"文本配方 · {recipe.TextContent.Split('\n').Length} 行",
                     SourcePath = "SolutionModel.Recipes[" + recipe.RecipeId + "]",
                 };
 

@@ -198,6 +198,8 @@ namespace VisionMaster.Models
         private string _lastAppliedBy = string.Empty;
         private int? _lastAppliedContentVersion;
         private string _notes = string.Empty;
+        private bool _isFrozen;
+        private string _textContent = string.Empty;
         private List<RecipeEntry> _entries = new();
         private List<RecipePoint> _points = new();
 
@@ -279,6 +281,33 @@ namespace VisionMaster.Models
             set => SetProperty(ref _notes, value ?? string.Empty);
         }
 
+        /// <summary>
+        /// 文本配方形态（如颜色检测的「产品名 = 颜色1,颜色2」表）。
+        ///
+        /// 为什么不是一个新资产类型
+        /// ---------
+        /// 参数配方（<see cref="Entries"/>/<see cref="Points"/>）与文本配方是同一件东西的两种
+        /// 表达：都是"被生产引用、要冻结/版本化/审计的内容"。另开一类资产会让资产页多一个
+        /// 页签、导入导出各多一条分支，而冻结/归档/默认/版本这些逻辑完全一样。
+        /// 所以用同一个类型 + 一个可空内容字段区分：<b>TextContent 非空 = 文本配方</b>，
+        /// 此时 Entries/Points 应为空（两者同时有内容属于配置错误）。
+        /// </summary>
+        public string TextContent
+        {
+            get => _textContent;
+            set => SetProperty(ref _textContent, value ?? string.Empty);
+        }
+
+        /// <summary>
+        /// 冻结：冻结后内容不应再改，只能解冻后编辑。与标定的 <c>IsLocked</c>、
+        /// 文件资产的 <c>IsFrozen</c> 同一语义，字段名沿用各自既有命名。
+        /// </summary>
+        public bool IsFrozen
+        {
+            get => _isFrozen;
+            set => SetProperty(ref _isFrozen, value);
+        }
+
         public List<RecipeEntry> Entries
         {
             get => _entries;
@@ -309,6 +338,38 @@ namespace VisionMaster.Models
             ContentVersion = Math.Max(1, ContentVersion) + 1;
             UpdatedAtUtc = DateTime.UtcNow;
             UpdatedBy = actor ?? string.Empty;
+        }
+
+        /// <summary>
+        /// 资产版本快照（JSON）。**唯一出处**：宿主写版本历史与逐字段差异都读这一份，
+        /// 两处各写一份形状迟早漂移，diff 会开始报"字段被移除"这种假变化。
+        /// </summary>
+        public string CreateAssetSnapshot()
+        {
+            return Newtonsoft.Json.JsonConvert.SerializeObject(new
+            {
+                Name,
+                Code,
+                Scope = Scope.ToString(),
+                ContentVersion,
+                IsFrozen,
+                TextContent,
+                Entries = Entries?.Select(e => new
+                {
+                    Kind = e.Kind.ToString(),
+                    e.TargetId,
+                    e.Key,
+                    Value = e.Value?.ToString(Newtonsoft.Json.Formatting.None),
+                }),
+                Points = Points?.Select(p => new
+                {
+                    p.AxisId,
+                    p.Index,
+                    p.PositionMm,
+                    p.SpeedMmPerS,
+                    p.AccelMmPerS2,
+                }),
+            }, Newtonsoft.Json.Formatting.None);
         }
 
         public RecipeEntry? FindEntry(RecipeTargetKind kind, Guid targetId, string key)

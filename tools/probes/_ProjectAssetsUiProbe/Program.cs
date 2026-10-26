@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using Newtonsoft.Json;
 using Prism.Mvvm;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using VisionMaster.Models;
 using VisionMaster.Models.Assets;
 using VisionMaster.Scada;
@@ -72,6 +73,9 @@ namespace ProjectAssetsUiProbe
                 RunFilterSortChecks(ref failures);
                 RunExportChecks(ref failures);
                 RunArchiveDeleteChecks(ref failures);
+                RunArchivedRuntimeChecks(ref failures);
+                RunRecipeLifecycleChecks(ref failures);
+                RunTextRecipeChecks(ref failures);
                 RunDiffChecks(ref failures);
                 RunAuditRowChecks(ref failures);
                 var view = new ProjectAssetsView
@@ -387,6 +391,175 @@ namespace ProjectAssetsUiProbe
             }
         }
 
+        /// <summary>
+        /// 配方也必须能冻结/解冻、能写版本快照。
+        /// 旧实现的 FindFreezable 只覆盖标定与文件资产，配方点冻结会得到"找不到资产"。
+        /// </summary>
+        private static void RunRecipeLifecycleChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-recipe-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetRecipe",
+                    SolutionFilePath = Path.Combine(temp, "AssetRecipe.vms"),
+                };
+                var recipe = new RecipeDefinition { Name = "R1", Code = "R1" };
+                recipe.TouchEntries("probe");
+                solution.EnsureRecipes().Add(recipe);
+
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var policy = new ScadaAccessPolicy();
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy,
+                    new ScadaAuditWriter(Path.Combine(temp, "Audit")));
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+
+                Check(service.TryToggleFreeze(recipe.RecipeId, out var frozen, out var freezeError),
+                    "配方可以冻结" + (string.IsNullOrEmpty(freezeError) ? string.Empty : "：" + freezeError), ref failures);
+                Check(frozen && recipe.IsFrozen, "冻结状态写到配方本身", ref failures);
+                Check(service.IsFrozen(recipe.RecipeId), "服务口径读到配方已冻结", ref failures);
+
+                Check(service.TryToggleFreeze(recipe.RecipeId, out var unfrozen, out var unfreezeError),
+                    "配方可以解冻" + (string.IsNullOrEmpty(unfreezeError) ? string.Empty : "：" + unfreezeError), ref failures);
+                Check(!unfrozen && !recipe.IsFrozen, "解冻状态写回", ref failures);
+
+                // 冻结后归档必须被拒（与其它四类同一判据）。
+                service.TryToggleFreeze(recipe.RecipeId, out _, out _);
+                Check(!service.TrySetArchived(recipe.RecipeId, true, out var frozenArchive)
+                      && frozenArchive.Contains("冻结"),
+                    "配方冻结时归档被拒", ref failures);
+                service.TryToggleFreeze(recipe.RecipeId, out _, out _);
+
+                // 版本记录：冻结/解冻/归档都应留下记录，且快照含配方条目而不是空串。
+                var records = AssetVersionLog.Of(solution, recipe.RecipeId);
+                Check(records.Count >= 2, $"配方版本记录有 {records.Count} 条", ref failures);
+                Check(records.Any(r => r.Action == "冻结"), "版本记录含「冻结」", ref failures);
+                Check(records.All(r => !string.IsNullOrWhiteSpace(r.SnapshotJson)),
+                    "配方版本记录都带快照", ref failures);
+                Check(records[0].SnapshotJson.Contains("ContentVersion"),
+                    "配方快照含 ContentVersion 字段", ref failures);
+
+                // 快照必须能被逐字段差异读出来（配方走的是同一套 diff）。
+                var diffs = ProjectAssetService.DiffSnapshots(records[0].SnapshotJson, records[0].SnapshotJson);
+                Check(diffs.Count > 0 && diffs.All(d => !d.Changed),
+                    "配方快照自比无差异", ref failures);
+
+                var catalogItem = new SolutionProjectAssetCatalog(workspace)
+                    .Build().FirstOrDefault(a => a.Id == recipe.RecipeId.ToString());
+                Check(catalogItem != null, "配方出现在资产目录", ref failures);
+                Check(catalogItem?.IsFrozen == false, "目录如实反映「当前未冻结」", ref failures);
+
+                // 冻结后目录必须跟着变（否则界面上的冻结徽标永远不亮）。
+                service.TryToggleFreeze(recipe.RecipeId, out _, out _);
+                var frozenItem = new SolutionProjectAssetCatalog(workspace)
+                    .Build().FirstOrDefault(a => a.Id == recipe.RecipeId.ToString());
+                Check(frozenItem?.IsFrozen == true, "目录读到配方冻结标记", ref failures);
+                service.TryToggleFreeze(recipe.RecipeId, out _, out _);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "配方生命周期断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 文本配方：导入 → 内容进方案 → 解析器给 text 内容 → 参数配方被明确拒绝。
+        /// 这条是 ColorCheck 接 AssetId 的地基，所以要钉在宿主侧。
+        /// </summary>
+        private static void RunTextRecipeChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-textrecipe-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var source = Path.Combine(temp, "color.txt");
+                File.WriteAllText(source, "红白线 = 红,白\r\n红黑线 = 红,黑\r\n", new UTF8Encoding(false));
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetTextRecipe",
+                    SolutionFilePath = Path.Combine(temp, "AssetTextRecipe.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                Check(importer.TryImport(source, "recipe", out var recipeId, out var importError),
+                    "文本配方导入成功" + (string.IsNullOrEmpty(importError) ? string.Empty : "：" + importError), ref failures);
+
+                var recipe = solution.RecipesOrEmpty().FirstOrDefault(r => r.RecipeId == recipeId);
+                Check(recipe != null && recipe.TextContent.Contains("红白线"), "配方内容进方案（不拷文件）", ref failures);
+                Check(!Directory.Exists(Path.Combine(temp, "Assets", "Recipes")), "没有多出一份配方文件目录", ref failures);
+
+                // 同内容再导一次必须被拒（不能出两份一模一样的配方）。
+                Check(!importer.TryImport(source, "recipe", out _, out var dupError) && dupError.Contains("已存在"),
+                    "相同内容的文本配方被拒", ref failures);
+
+                var resolver = new SolutionProjectAssetResolver(solution);
+                Check(resolver.TryResolve(recipeId, out var assetRef, out _) && assetRef != null,
+                    "文本配方可解析", ref failures);
+                Check(assetRef?.ContentKind == "text" && assetRef.Content.Contains("红白线"),
+                    "解析结果给 text 内容", ref failures);
+
+                var context = new VisionMaster.Services.ExecutionContext(null!) { Workspace = workspace };
+                Check(ProjectAssetPathResolver.TryResolveContent(context, recipeId.ToString(), "recipe", "text", out var content, out _)
+                      && content.Contains("红黑线"),
+                    "插件口径能拿到文本配方原文", ref failures);
+
+                // 参数配方（无 TextContent）必须是 json 形态，按文本要会被明确拒绝。
+                var paramRecipe = new RecipeDefinition { Name = "参数配方" };
+                paramRecipe.TouchEntries("probe");
+                solution.EnsureRecipes().Add(paramRecipe);
+                Check(!ProjectAssetPathResolver.TryResolveContent(
+                        context, paramRecipe.RecipeId.ToString(), "recipe", "text", out _, out var kindError)
+                      && kindError.Contains("不是文本配方"),
+                    "参数配方按文本解析被明确拒绝（不是静默给空串）", ref failures);
+
+                // 导出必须带上文本配方内容（之前配方整体不参与打包）。
+                var exporter = new ProjectAssetExporter(workspace);
+                var zipPath = Path.Combine(temp, "pkg.zip");
+                Check(exporter.TryExport(new[] { recipeId }, zipPath, out var fileCount, out _, out var exportError),
+                    "文本配方可导出" + (string.IsNullOrEmpty(exportError) ? string.Empty : "：" + exportError), ref failures);
+                Check(fileCount == 1, $"导出含 1 个配方文件（实际 {fileCount}）", ref failures);
+                using (var archive = System.IO.Compression.ZipFile.OpenRead(zipPath))
+                {
+                    var entry = archive.Entries.FirstOrDefault(e => e.FullName.StartsWith("files/recipe/"));
+                    Check(entry != null, "zip 含 files/recipe 条目", ref failures);
+                    if (entry != null)
+                    {
+                        using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
+                        Check(reader.ReadToEnd().Contains("红白线"), "zip 里的配方内容完整", ref failures);
+                    }
+                }
+
+                // 资产页目录要显示"文本配方"，不是"0 条目 · 0 点位"。
+                var item = new SolutionProjectAssetCatalog(workspace).Build()
+                    .FirstOrDefault(a => a.Id == recipeId.ToString());
+                Check(item?.PreviewSub.Contains("文本配方") == true,
+                    $"目录预览标明文本配方（实际 {item?.PreviewSub}）", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "文本配方断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
         /// <summary>逐字段 diff：标定矩阵变化要能逐个数值看出来。</summary>
         private static void RunDiffChecks(ref int failures)
         {
@@ -468,6 +641,83 @@ namespace ProjectAssetsUiProbe
             catch (Exception ex)
             {
                 Check(false, "审计流水断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 归档必须真的挡住运行期解析：这是"归档 = 退出生产"的唯一判据。
+        /// 插件全部经 ProjectAssetPathResolver → context.Assets → SolutionProjectAssetResolver，
+        /// 所以两层都要断言（解析器本身 + 插件口径的包装器）。
+        /// </summary>
+        private static void RunArchivedRuntimeChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-runtime-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetRuntime",
+                    SolutionFilePath = Path.Combine(temp, "AssetRuntime.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var imageSource = Path.Combine(sourceDir, "runtime.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", imageSource);
+                importer.TryImport(imageSource, "image", out var imageId, out _);
+                var name = solution.ImageAssets[0].Name;
+
+                var resolver = new SolutionProjectAssetResolver(solution);
+                var context = new VisionMaster.Services.ExecutionContext(null!) { Workspace = workspace };
+
+                Check(resolver.TryResolve(imageId, out var before, out _) && before != null,
+                    "未归档时解析成功", ref failures);
+                Check(ProjectAssetPathResolver.TryResolve(context, imageId.ToString(), null, "image", out var beforePath, out var beforeError)
+                      && File.Exists(beforePath),
+                    "未归档时插件口径能拿到真实文件" + (string.IsNullOrEmpty(beforeError) ? string.Empty : "：" + beforeError),
+                    ref failures);
+
+                solution.AssetLifecycle ??= new List<AssetLifecycleState>();
+                solution.AssetLifecycle.Add(new AssetLifecycleState
+                {
+                    AssetId = imageId,
+                    Kind = "image",
+                    State = "已归档",
+                    ChangedBy = "probe",
+                });
+
+                Check(!resolver.TryResolve(imageId, out var archivedRef, out var archivedError),
+                    "已归档时解析被拒绝", ref failures);
+                Check(archivedRef == null, "被拒绝时不返回半成品引用", ref failures);
+                Check(archivedError != null && archivedError.Contains("已归档") && archivedError.Contains(name),
+                    $"拒绝原因点名资产与状态（实际：{archivedError}）", ref failures);
+
+                Check(!ProjectAssetPathResolver.TryResolve(context, imageId.ToString(), null, "image", out _, out var pluginError)
+                      && pluginError != null && pluginError.Contains("已归档"),
+                    "插件口径同样被拒绝（不是只拦了宿主自己）", ref failures);
+
+                // 旧路径回退：归档资产带 AssetId 时不许悄悄退回旧路径继续跑。
+                Check(!ProjectAssetPathResolver.TryResolve(context, imageId.ToString(), "Image/whatever.png", "image", out _, out _),
+                    "归档资产带旧路径也不放行", ref failures);
+
+                // 恢复后必须重新可用（归档是可逆动作，不能一次归档就永久废掉）。
+                solution.AssetLifecycle.Clear();
+                Check(ProjectAssetPathResolver.TryResolve(context, imageId.ToString(), null, "image", out var restoredPath, out _)
+                      && File.Exists(restoredPath),
+                    "恢复后解析重新可用", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "归档运行期断言异常：" + ex.Message, ref failures);
             }
             finally
             {

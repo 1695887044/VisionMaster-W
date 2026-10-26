@@ -91,8 +91,13 @@ function Read-Captured {
 # Runs a child, captures stdout+stderr as raw bytes, returns exit code.
 function Invoke-Captured {
     param([string]$FilePath, [string]$Arguments, [string]$Tag)
-    $out = Join-Path $logDir ('raw-' + $Tag + '.out')
-    $err = Join-Path $logDir ('raw-' + $Tag + '.err')
+    # Raw file names carry this gate's PID: two sessions on the same machine and
+    # the same day would otherwise open the SAME raw-<tag>.out and truncate it
+    # under each other. The symptom is a false red ("NO OUTPUT / host produced
+    # nothing") or, worse, a summary line from the other run being counted here
+    # (2026-10-26: two concurrent gates, one kept failing with exit=-1).
+    $out = Join-Path $logDir ('raw-' + $Tag + '-' + $PID + '.out')
+    $err = Join-Path $logDir ('raw-' + $Tag + '-' + $PID + '.err')
 
     # Why not Start-Process:
     #   1. -ArgumentList '' throws ParameterBindingValidationException, and with

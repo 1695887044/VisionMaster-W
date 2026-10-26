@@ -70,9 +70,16 @@ namespace VisionMaster.Services
                 entries.Add((kind, asset.AssetId, asset.Name, asset.RelativePath, asset.ContentHash, asset.Version));
             }
 
-            if (entries.Count == 0)
+            // 文本配方没有文件，但内容就在方案里 —— 导出必须带上，
+            // 否则"导出资产包"会把配方悄悄漏掉（标定是纯数值，仍不参与打包）。
+            var textRecipes = solution.RecipesOrEmpty()
+                .Where(r => !string.IsNullOrWhiteSpace(r.TextContent))
+                .Where(r => wanted.Count == 0 || wanted.Contains(r.RecipeId))
+                .ToList();
+
+            if (entries.Count == 0 && textRecipes.Count == 0)
             {
-                error = "没有可导出的资产（标定/配方没有独立文件，不参与打包）";
+                error = "没有可导出的资产（标定是纯数值，没有文件也不打包）";
                 return false;
             }
 
@@ -80,9 +87,16 @@ namespace VisionMaster.Services
             builder.AppendLine("项目资产包");
             builder.AppendLine("方案: " + solution.SolutionName);
             builder.AppendLine("导出时间: " + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-            builder.AppendLine("资产数: " + entries.Count);
+            builder.AppendLine("资产数: " + (entries.Count + textRecipes.Count));
             builder.AppendLine();
             builder.AppendLine("类型\t名称\tId\t版本\t文件\tSHA-256");
+
+            foreach (var recipe in textRecipes)
+            {
+                builder.AppendLine(string.Join("\t",
+                    "recipe", recipe.Name, recipe.RecipeId, "v" + Math.Max(1, recipe.ContentVersion),
+                    "（内联文本）", string.Empty));
+            }
 
             try
             {
@@ -113,6 +127,16 @@ namespace VisionMaster.Services
                         var entryName = "files/" + entry.Kind + "/"
                             + entry.Id.ToString("N") + Path.GetExtension(absolute);
                         archive.CreateEntryFromFile(absolute, entryName, CompressionLevel.Optimal);
+                        fileCount++;
+                    }
+
+                    foreach (var recipe in textRecipes)
+                    {
+                        var entry = archive.CreateEntry(
+                            "files/recipe/" + recipe.RecipeId.ToString("N") + ".txt",
+                            CompressionLevel.Optimal);
+                        using var recipeWriter = new StreamWriter(entry.Open(), new UTF8Encoding(false));
+                        recipeWriter.Write(recipe.TextContent);
                         fileCount++;
                     }
 
