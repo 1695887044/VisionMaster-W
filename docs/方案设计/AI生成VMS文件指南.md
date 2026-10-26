@@ -535,6 +535,7 @@ static Guid G(string seed)
 | `Plugin.DlAnomaly.DlAnomalyPlugin` | `ModelAssetId` | model |
 | `Plugin.DlClassify.DlClassifyPlugin` | `ModelAssetId` | model |
 | `Plugin.DlSegment.DlSegmentPlugin` | `ModelAssetId` | model |
+| `Plugin.ImageAcquisition.ImageAcquisitionPlugin` | `ImageAssetId` | image（仅单文件模式） |
 
 示例：
 
@@ -547,7 +548,8 @@ static Guid G(string seed)
 ```
 
 - `AssetId` 非空时优先解析资产文件；为空才回退旧 `ModelPath` / `TemplateLibraryJson`。
-- 插件配置窗口顶部有“资产”下拉（插件实现 `IAssetIdConfig` 时显示），可直接选当前方案的模板/模型资产；选“（不使用资产）”会清空 Id。
+- 插件配置窗口顶部有“资产”下拉（插件实现 `IAssetIdConfig` 时显示），可直接选当前方案的模板/模型/图像资产；选“（不使用资产）”会清空 Id。
+- 图像资产 Id 只适用于 `ImageAcquisitionPlugin` 的“单文件”模式；文件夹/相机模式仍走原端口。
 - `AssetId` 必须是合法 Guid；类型不符（例如把模板 Id 填到模型槽）会明确失败。
 - 模板资产必须是模板库 JSON；模型资产必须是可读文件。
 - 生成器可以只写 `AssetId`，不要再同时复制一份路径；两者都写时以 Id 为准。

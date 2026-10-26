@@ -313,6 +313,9 @@ namespace VisionMaster.Services
             if (kind == "image")
             {
                 if (!step.Plugin.Contains("ImageAcquisitionPlugin", StringComparison.Ordinal)) return false;
+                if (Guid.TryParse(Text(step, "ImageAssetId"), out var imageId)
+                    && imageId == asset.AssetId)
+                    return true;
                 return string.Equals(NormalizeRelative(Text(step, "FilePath")), NormalizeRelative(asset.RelativePath), StringComparison.OrdinalIgnoreCase);
             }
 
@@ -481,6 +484,8 @@ namespace VisionMaster.Services
             var byPath = new Dictionary<string, List<StepInfo>>(StringComparer.OrdinalIgnoreCase);
             foreach (var step in steps.Where(s => s.Plugin.Contains("ImageAcquisitionPlugin", StringComparison.Ordinal)))
             {
+                if (!string.IsNullOrWhiteSpace(Text(step, "ImageAssetId")))
+                    continue;
                 var path = NormalizeRelative(Text(step, "FilePath"));
                 if (string.IsNullOrWhiteSpace(path) || storedPaths.Contains(path)) continue;
                 if (!byPath.TryGetValue(path, out var list))

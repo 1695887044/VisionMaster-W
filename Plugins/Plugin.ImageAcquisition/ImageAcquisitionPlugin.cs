@@ -1,5 +1,6 @@
 using Core.Events;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 using Microsoft.Win32;
 using Newtonsoft.Json;
@@ -38,7 +39,7 @@ namespace Plugin.ImageAcquisition
         Description = "从文件或文件夹获取图像，供后续视觉处理使用",
         ShortName = "\uf1c5"
     )]
-    public partial class ImageAcquisitionPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
+    public partial class ImageAcquisitionPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider, IAssetIdConfig
     {
         #region 配置属性（纯配置项：持久化到 InputValues、参与灌值，但不进端口/不可变量链接）
 
@@ -85,6 +86,17 @@ namespace Plugin.ImageAcquisition
         /// </summary>
         [StepConfig, DefaultValue("")]
         public partial string CameraSerial { get; set; }
+
+        /// <summary>方案图像资产 Id（单文件模式下优先于 FilePath；运行期由宿主解析）。</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string ImageAssetId { get; set; }
+
+        public string AssetKind => "image";
+        public string AssetId
+        {
+            get => ImageAssetId;
+            set => ImageAssetId = value ?? string.Empty;
+        }
 
         #endregion
 
@@ -1056,9 +1068,27 @@ namespace Plugin.ImageAcquisition
 
             try
             {
+                var filePath = FilePathPort.GetTypedValue();
+                if (!string.IsNullOrWhiteSpace(ImageAssetId))
+                {
+                    if (Mode != AcquisitionMode.SingleFile)
+                    {
+                        ErrorMessage.Value = "图像资产 Id 只适用于「单文件」采集模式";
+                        context.Logger?.Error($"{InstanceName} {ErrorMessage.Value}");
+                        return;
+                    }
+
+                    if (!ProjectAssetPathResolver.TryResolve(context, ImageAssetId, filePath, "image", out filePath, out var assetError))
+                    {
+                        ErrorMessage.Value = assetError;
+                        context.Logger?.Error($"{InstanceName} {assetError}");
+                        return;
+                    }
+                }
+
                 var result = ExecuteCore(
                     Mode,
-                    FilePathPort.GetTypedValue(),
+                    filePath,
                     FolderPathPort.GetTypedValue(),
                     FileIndexPort.GetTypedValue(),
                     context);

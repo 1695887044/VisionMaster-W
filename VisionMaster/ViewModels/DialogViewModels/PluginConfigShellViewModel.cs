@@ -253,6 +253,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     foreach (var asset in solution.ModelAssets)
                         AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "model"));
                 }
+                else if (string.Equals(config.AssetKind, "image", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var asset in solution.ImageAssets)
+                        AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "image"));
+                }
 
                 AssetOptions.Add(new AssetOption(Guid.Empty, "（不使用资产）", config.AssetKind));
                 SelectedAssetOption = AssetOptions.FirstOrDefault(
