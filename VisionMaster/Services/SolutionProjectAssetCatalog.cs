@@ -377,7 +377,11 @@ namespace VisionMaster.Services
                     PreviewTitle = "配方 · " + recipe.Code,
                     PreviewSub = string.IsNullOrWhiteSpace(recipe.TextContent)
                         ? $"{recipe.Entries.Count} 条目 · {recipe.Points.Count} 点位"
-                        : $"文本配方 · {recipe.TextContent.Split('\n').Length} 行",
+                        : $"{RecipeFormatLabel(recipe.ContentFormat, recipe.TextContent)} · {recipe.TextContent.Split('\n').Length} 行",
+                    RecipeContent = recipe.TextContent ?? string.Empty,
+                    RecipeContentFormat = string.IsNullOrWhiteSpace(recipe.ContentFormat)
+                        ? (string.IsNullOrWhiteSpace(recipe.TextContent) ? string.Empty : "text")
+                        : recipe.ContentFormat,
                     SourcePath = "SolutionModel.Recipes[" + recipe.RecipeId + "]",
                 };
 
@@ -652,6 +656,17 @@ namespace VisionMaster.Services
                     RecordId = record.RecordId.ToString(),
                 });
             }
+        }
+
+        private static string RecipeFormatLabel(string? format, string? textContent)
+        {
+            if (string.IsNullOrWhiteSpace(textContent)) return "参数配方";
+            return (format ?? string.Empty).ToLowerInvariant() switch
+            {
+                "bead" => "胶路配方",
+                "text" or "" => "文本配方",
+                _ => format + " 配方",
+            };
         }
 
         private static string FriendlyFlowName(string flow) => flow switch

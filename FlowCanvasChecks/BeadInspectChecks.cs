@@ -602,7 +602,7 @@ namespace FlowCanvasChecks
         //       —— 规则漏了 = 非法值会直接写进插件（NumberValidationRule 是唯一的写回闸门）；
         //    ② 写回面（STA 真实例化视图）：控件 → UpdateSource → 插件属性；
         //    ③ 落盘面：OnConfirm 后 4 个 [StepConfig] 键都在 InputValues 且值一致，
-        //       ExtractTargetPoints **不写键**（它不落盘），InputValues 仍是 25 个键。
+        //       ExtractTargetPoints **不写键**（它不落盘），InputValues 仍是 26 个键。
         // ==================================================================
         private static void Check18_NewParamEntries()
         {
@@ -785,8 +785,9 @@ namespace FlowCanvasChecks
                     ? "误写：ExtractTargetPoints=" + V("ExtractTargetPoints")
                     : "未写键（正确）");
 
-            R("InputValues 仍是 25 个键（5 个输入端口 + 20 个 [StepConfig]，未因新入口增减）",
-                stepData.InputValues.Count == 25,
+            // 26 = 5 个输入端口 + 21 个 [StepConfig]（2026-10-27 增加 RecipeAssetId：配方可以指向方案资产）
+            R("InputValues 仍是 26 个键（5 个输入端口 + 21 个 [StepConfig]，未因新入口增减）",
+                stepData.InputValues.Count == 26,
                 $"count={stepData.InputValues.Count}：{string.Join(",", stepData.InputValues.Keys.OrderBy(k => k))}");
 
             // 配置实例的重新打开口径：ExtractTargetPoints 回到默认 40（会话态，不随方案回来）

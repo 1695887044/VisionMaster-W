@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using Core.Interfaces;
 using Core.Interfaces.Assets;
@@ -181,6 +182,93 @@ namespace VisionMaster.Services
             return stored == null
                 ? string.Empty
                 : AssetVersionLog.Snapshot(new { stored.RelativePath, stored.ContentHash, stored.Version, stored.FileSize });
+        }
+
+        /// <summary>
+        /// 把某个历史版本的文件复制回活动路径，并把版本号 +1（历史只追加，不回退编号）。
+        /// 版本库里的文件是 `Assets/Versions/{kind}/{id}/v{n}{ext}`。
+        /// </summary>
+        public bool TryRestoreStoredVersion(Guid assetId, int sourceVersion, out string error)
+        {
+            error = string.Empty;
+
+            var stored = FindStored(assetId);
+            if (stored == null)
+            {
+                error = "找不到资产";
+                return false;
+            }
+
+            var kind = KindOfStored(assetId);
+            var root = SolutionPaths.GetSolutionRoot(Solution.SolutionFilePath);
+            if (string.IsNullOrWhiteSpace(root))
+            {
+                error = "方案尚未保存，无法回滚文件";
+                return false;
+            }
+
+            var extension = Path.GetExtension(stored.RelativePath ?? string.Empty);
+            var relative = ProjectAssetImporter.VersionFileRelativePath(kind, assetId, sourceVersion, extension);
+            var source = Path.Combine(root!, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(source))
+            {
+                error = $"v{Math.Max(1, sourceVersion)} 没有保留文件本体（早于版本库功能），无法回滚";
+                return false;
+            }
+
+            var active = Path.GetFullPath(Path.Combine(root!, stored.RelativePath!));
+            try
+            {
+                var folder = Path.GetDirectoryName(active);
+                if (!string.IsNullOrWhiteSpace(folder)) Directory.CreateDirectory(folder!);
+
+                var temp = active + ".tmp-" + Guid.NewGuid().ToString("N");
+                try
+                {
+                    File.Copy(source, temp, overwrite: true);
+                    File.Move(temp, active, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(temp))
+                    {
+                        try { File.Delete(temp); } catch { }
+                    }
+                }
+
+                var info = new FileInfo(active);
+                using var stream = File.OpenRead(active);
+                using var sha = System.Security.Cryptography.SHA256.Create();
+                stored.ContentHash = Convert.ToHexString(sha.ComputeHash(stream));
+                stored.FileSize = info.Length;
+                stored.Version = Math.Max(1, stored.Version) + 1;
+                stored.UpdatedAtUtc = DateTime.UtcNow;
+                stored.UpdatedBy = Environment.UserName;
+                stored.Status = "有效";
+
+                // 回滚后的内容也算一个版本，同样进版本库，下次才能再回滚到它。
+                var targetRelative = ProjectAssetImporter.VersionFileRelativePath(
+                    kind, assetId, stored.Version, extension);
+                var target = Path.Combine(root!, targetRelative.Replace('/', Path.DirectorySeparatorChar));
+                var targetFolder = Path.GetDirectoryName(target);
+                if (!string.IsNullOrWhiteSpace(targetFolder)) Directory.CreateDirectory(targetFolder!);
+                File.Copy(active, target, overwrite: true);
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "回滚文件失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        private string KindOfStored(Guid assetId)
+        {
+            if (Solution.TemplateAssets.Any(a => a.AssetId == assetId)) return "template";
+            if (Solution.ModelAssets.Any(a => a.AssetId == assetId)) return "model";
+            if (Solution.ImageAssets.Any(a => a.AssetId == assetId)) return "image";
+            return "asset";
         }
 
         private SolutionAssetBase? FindStored(Guid assetId)

@@ -243,31 +243,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             if (_plugin is IAssetIdConfig config && _workspace?.CurrentSolution is { } solution)
             {
-                if (string.Equals(config.AssetKind, "template", StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var asset in solution.TemplateAssets)
-                        AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "template"));
-                }
-                else if (string.Equals(config.AssetKind, "model", StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var asset in solution.ModelAssets)
-                        AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "model"));
-                }
-                else if (string.Equals(config.AssetKind, "image", StringComparison.OrdinalIgnoreCase))
-                {
-                    foreach (var asset in solution.ImageAssets)
-                        AssetOptions.Add(new AssetOption(asset.AssetId, asset.Name, "image"));
-                }
-                else if (string.Equals(config.AssetKind, "recipe", StringComparison.OrdinalIgnoreCase))
-                {
-                    // 只列**文本配方**：参数配方没有可被插件解析的文本内容，
-                    // 混进下拉只会让人选中后运行期报"没有内联内容"。
-                    foreach (var recipe in solution.RecipesOrEmpty())
-                    {
-                        if (string.IsNullOrWhiteSpace(recipe.TextContent)) continue;
-                        AssetOptions.Add(new AssetOption(recipe.RecipeId, recipe.Name, "recipe"));
-                    }
-                }
+                foreach (var option in BuildAssetOptionsFor(solution, config.AssetKind))
+                    AssetOptions.Add(option);
 
                 AssetOptions.Add(new AssetOption(Guid.Empty, "（不使用资产）", config.AssetKind));
                 SelectedAssetOption = AssetOptions.FirstOrDefault(
@@ -277,6 +254,44 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             _loadingAssetOptions = false;
+        }
+
+        /// <summary>
+        /// 按资产类型列出候选。**抽成静态方法是为了可断言**：配置壳要装一整套服务才能构造，
+        /// 而"配方下拉里到底有没有这条资产"是必须能被测到的判据（选不到就等于没接）。
+        /// </summary>
+        public static IReadOnlyList<AssetOption> BuildAssetOptionsFor(SolutionModel solution, string assetKind)
+        {
+            var options = new List<AssetOption>();
+            if (solution == null) return options;
+
+            if (string.Equals(assetKind, "template", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var asset in solution.TemplateAssets)
+                    options.Add(new AssetOption(asset.AssetId, asset.Name, "template"));
+            }
+            else if (string.Equals(assetKind, "model", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var asset in solution.ModelAssets)
+                    options.Add(new AssetOption(asset.AssetId, asset.Name, "model"));
+            }
+            else if (string.Equals(assetKind, "image", StringComparison.OrdinalIgnoreCase))
+            {
+                foreach (var asset in solution.ImageAssets)
+                    options.Add(new AssetOption(asset.AssetId, asset.Name, "image"));
+            }
+            else if (string.Equals(assetKind, "recipe", StringComparison.OrdinalIgnoreCase))
+            {
+                // 只列**有内联内容**的配方：参数配方没有可被插件解析的文本，
+                // 混进下拉只会让人选中后运行期报"没有内联内容"。
+                foreach (var recipe in solution.RecipesOrEmpty())
+                {
+                    if (string.IsNullOrWhiteSpace(recipe.TextContent)) continue;
+                    options.Add(new AssetOption(recipe.RecipeId, recipe.Name, "recipe"));
+                }
+            }
+
+            return options;
         }
 
         /// <summary>

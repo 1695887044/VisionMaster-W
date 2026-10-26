@@ -5,6 +5,7 @@ using System.IO;
 using Core.Events;
 using Core.Halcon.Helpers;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 using Newtonsoft.Json;
 
@@ -35,7 +36,7 @@ namespace Plugin.BeadInspect
         ShortName = "\uf1ce"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算, 实例隔离 + HALCON 局部对象
-    public partial class BeadInspectPlugin : VisionPluginBase
+    public partial class BeadInspectPlugin : VisionPluginBase, IAssetIdConfig
     {
         // ==================================================================
         //  配置项（[StepConfig] 三选一；键 = 属性名，改名 = 静默丢配置）
@@ -44,6 +45,21 @@ namespace Plugin.BeadInspect
         /// <summary>配方库整体序列化落盘（照抄 Matching 的 TemplateLibraryJson 范式）</summary>
         [StepConfig]
         public string RecipeLibraryJson { get; set; } = "[]";
+
+        /// <summary>
+        /// 方案配方资产 Id（胶路配方库 JSON）。填了就**以资产为准**，覆盖步骤里的 RecipeLibraryJson：
+        /// 资产能在项目资产页冻结/归档/看版本，步骤里的字符串不能。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public string RecipeAssetId { get; set; } = string.Empty;
+
+        public string AssetKind => "recipe";
+
+        public string AssetId
+        {
+            get => RecipeAssetId;
+            set => RecipeAssetId = value ?? string.Empty;
+        }
 
         /// <summary>默认配方名：RecipeName 端口未连接/为空时使用（界面「设为默认」写入）</summary>
         [StepConfig]
@@ -289,6 +305,14 @@ namespace Plugin.BeadInspect
                 }
 
                 // ── 2. 选配方 ──
+                var assetError = TryLoadAssetLibrary(context);
+                if (assetError != null)
+                {
+                    Fail(assetError);
+                    context.Logger?.Error($"{InstanceName} {assetError}");
+                    return;
+                }
+
                 var entry = ResolveEntry(out string? resolveError);
                 if (entry == null)
                 {
@@ -545,15 +569,17 @@ namespace Plugin.BeadInspect
         private BeadRecipeEntry? ResolveEntry(out string? error)
         {
             error = null;
+            // 配方资产优先：资产里的库覆盖步骤里的库（见 RunAlgorithm 的解析）。
+            var library = _assetLibrary ?? (IReadOnlyList<BeadRecipeEntry>)Library;
             var wanted = RecipeName.GetTypedValue();
             wanted = string.IsNullOrWhiteSpace(wanted) ? null : wanted.Trim();
             if (wanted != null)
             {
-                var hit = Library.FirstOrDefault(e => e.Name == wanted);
+                var hit = library.FirstOrDefault(e => e.Name == wanted);
                 if (hit == null)
                 {
-                    error = Library.Count > 0
-                        ? $"未知配方：{wanted} 没有对应胶路配方（库里有：{string.Join("，", Library.Select(e => e.Name))}）"
+                    error = library.Count > 0
+                        ? $"未知配方：{wanted} 没有对应胶路配方（库里有：{string.Join("，", library.Select(e => e.Name))}）"
                         : "未找到可用配方：请在配置界面新建配方并学习参考路径";
                     return null;
                 }
@@ -562,14 +588,45 @@ namespace Plugin.BeadInspect
 
             if (!string.IsNullOrWhiteSpace(DefaultRecipeName))
             {
-                var hit = Library.FirstOrDefault(e => e.Name == DefaultRecipeName);
+                var hit = library.FirstOrDefault(e => e.Name == DefaultRecipeName);
                 if (hit != null)
                     return hit;
             }
 
-            if (Library.Count == 0)
+            if (library.Count == 0)
                 error = "未找到可用配方：请在配置界面新建配方并学习参考路径";
-            return Library.FirstOrDefault();
+            return library.FirstOrDefault();
+        }
+
+        /// <summary>配方资产解析出来的库；null = 用步骤内的 Library。</summary>
+        private List<BeadRecipeEntry>? _assetLibrary;
+
+        /// <summary>
+        /// 解析配方资产（胶路库 JSON）。失败返回错误文本，调用方直接 Fail。
+        /// 只接受 ContentKind=bead：把颜色表/参数配方喂进来会得到一堆"未知配方"，指错方向。
+        /// </summary>
+        private string? TryLoadAssetLibrary(IExecutionContext context)
+        {
+            _assetLibrary = null;
+            if (string.IsNullOrWhiteSpace(RecipeAssetId)) return null;
+
+            if (!ProjectAssetPathResolver.TryResolveContent(
+                    context, RecipeAssetId, "recipe", "bead", out var content, out var error))
+                return error;
+
+            try
+            {
+                var list = JsonConvert.DeserializeObject<List<BeadRecipeEntry>>(content);
+                if (list == null || list.Count == 0)
+                    return $"配方资产里没有可用配方（{RecipeAssetId}）";
+
+                _assetLibrary = list;
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return "配方资产内容无法解析为胶路配方库：" + ex.Message;
+            }
         }
 
         // ==================================================================

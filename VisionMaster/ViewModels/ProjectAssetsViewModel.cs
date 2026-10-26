@@ -82,6 +82,8 @@ namespace VisionMaster.ViewModels
             RefreshAuditCommand = new DelegateCommand(RefreshAudit);
             SelectLifecycleCommand = new DelegateCommand<string>(kind => SelectLifecycle(string.IsNullOrWhiteSpace(kind) ? "全部" : kind));
             GoToReferenceCommand = new DelegateCommand<AssetReference>(GoToReference);
+            ImportNewVersionCommand = new DelegateCommand(ImportNewVersion);
+            SaveRecipeContentCommand = new DelegateCommand(SaveRecipeContent);
             ExportCommand = new DelegateCommand(ExportAsset);
             CopyIdCommand = new DelegateCommand(CopyId);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -114,10 +116,23 @@ namespace VisionMaster.ViewModels
                 if (!SetProperty(ref _selectedAsset, value)) return;
                 SelectedDetailTabIndex = 0;
                 RaisePropertyChanged(nameof(HasSelectedAsset));
+                RaisePropertyChanged(nameof(IsTextRecipeSelected));
+                RecipeContentDraft = value?.RecipeContent ?? string.Empty;
             }
         }
 
         public bool HasSelectedAsset => SelectedAsset != null;
+
+        /// <summary>当前选中的是"内容可编辑的配方"（text / bead）。</summary>
+        public bool IsTextRecipeSelected => SelectedAsset?.IsTextRecipe == true;
+
+        private string _recipeContentDraft = string.Empty;
+        /// <summary>配方内容编辑草稿：改完点「保存配方内容」才落方案（与配置弹窗同一套草稿语义）。</summary>
+        public string RecipeContentDraft
+        {
+            get => _recipeContentDraft;
+            set => SetProperty(ref _recipeContentDraft, value ?? string.Empty);
+        }
 
         public int SelectedDetailTabIndex
         {
@@ -239,6 +254,8 @@ namespace VisionMaster.ViewModels
         public DelegateCommand RefreshAuditCommand { get; }
         public DelegateCommand<string> SelectLifecycleCommand { get; }
         public DelegateCommand<AssetReference> GoToReferenceCommand { get; }
+        public DelegateCommand ImportNewVersionCommand { get; }
+        public DelegateCommand SaveRecipeContentCommand { get; }
         public DelegateCommand ExportCommand { get; }
         public DelegateCommand CopyIdCommand { get; }
         public DelegateCommand CloseCommand { get; }
@@ -628,7 +645,9 @@ namespace VisionMaster.ViewModels
             }
 
             // 导入即内容变化：写一条版本 + 审计；失败不回滚已复制的文件，但会明确提示。
-            if (!_assetService.TryRecordVersion(assetId, "导入", "文件：" + Path.GetFileName(dialog.FileName), out var versionError))
+            // 导入器已经把版本置成 1，这里**不能再递增**——否则版本历史第一条就写 v2，而 v2 文件不存在。
+            if (!_assetService.TryRecordVersion(assetId, "导入", "文件：" + Path.GetFileName(dialog.FileName),
+                    bumpVersion: false, out var versionError))
             {
                 ActionMessage = "已导入文件，但版本记录失败：" + versionError;
             }
@@ -794,11 +813,140 @@ namespace VisionMaster.ViewModels
                 : $"已解冻：{SelectedAsset?.Name}；保存方案后随 .vms 落盘";
         }
 
+        /// <summary>给当前文件资产导入一个新版本：旧文件进版本库，活动文件换新，版本号 +1。</summary>
+        private void ImportNewVersion()
+        {
+            if (SelectedAsset == null) return;
+
+            var kind = SelectedAsset.Kind;
+            if (kind != "template" && kind != "model" && kind != "image")
+            {
+                ActionMessage = "只有模板 / 模型 / 图像资产支持导入新版本";
+                return;
+            }
+
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法导入新版本";
+                return;
+            }
+
+            if (!_assetService.CheckWritePermission("导入新版本", out var denyReason))
+            {
+                ActionMessage = denyReason;
+                return;
+            }
+
+            if (_assetService.IsFrozen(assetId))
+            {
+                ActionMessage = $"资产「{SelectedAsset.Name}」已冻结，先解冻再导入新版本";
+                return;
+            }
+
+            var dialog = new OpenFileDialog
+            {
+                Title = "导入新版本：" + SelectedAsset.Name,
+                Filter = FilterFor(kind),
+                CheckFileExists = true,
+                Multiselect = false,
+            };
+            if (dialog.ShowDialog() != true) return;
+
+            if (!_importer.TryImportNewVersion(assetId, dialog.FileName, out var newVersion, out var error))
+            {
+                ActionMessage = error;
+                return;
+            }
+
+            _assetService.TryRecordVersion(assetId, "新版本",
+                $"v{newVersion} ← {Path.GetFileName(dialog.FileName)}", bumpVersion: false, out _);
+
+            ReloadAssets();
+            SelectType(kind);
+            SelectedAsset = _allAssets.FirstOrDefault(a => a.Id == assetId.ToString());
+            ActionMessage = $"已导入新版本 v{newVersion}（旧文件保留在 Assets\\Versions）；保存方案后随 .vms 落盘";
+        }
+
+        /// <summary>保存配方内联内容：写回 TextContent，递增内容版本并记一条版本。</summary>
+        private void SaveRecipeContent()
+        {
+            if (SelectedAsset == null || !SelectedAsset.IsTextRecipe) return;
+
+            var solution = _workspace.CurrentSolution;
+            if (solution == null) { ActionMessage = "当前没有打开方案"; return; }
+            if (_assetService == null || !Guid.TryParse(SelectedAsset.Id, out var assetId))
+            {
+                ActionMessage = "当前页面没有资产写服务，无法保存配方";
+                return;
+            }
+
+            if (_assetService.IsFrozen(assetId))
+            {
+                ActionMessage = $"配方「{SelectedAsset.Name}」已冻结，先解冻再改内容";
+                return;
+            }
+
+            var recipe = solution.RecipesOrEmpty().FirstOrDefault(r => r.RecipeId == assetId);
+            if (recipe == null) { ActionMessage = "配方资产已不存在"; return; }
+
+            var text = RecipeContentDraft ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                ActionMessage = "配方内容不能为空";
+                return;
+            }
+
+            if (string.Equals(text, recipe.TextContent, StringComparison.Ordinal))
+            {
+                ActionMessage = "内容没有变化，未生成新版本";
+                return;
+            }
+
+            // 胶路库必须先能解析：存一份解析不了的 JSON 等于把产线停在一个必然失败的配方上。
+            if (string.Equals(recipe.ContentFormat, "bead", StringComparison.OrdinalIgnoreCase)
+                && !IsValidJsonArray(text, out var jsonError))
+            {
+                ActionMessage = "胶路配方库不是合法 JSON 数组：" + jsonError;
+                return;
+            }
+
+            recipe.TextContent = text;
+            recipe.UpdatedAtUtc = DateTime.UtcNow;
+            recipe.UpdatedBy = Environment.UserName;
+
+            if (!_assetService.TryRecordVersion(assetId, "改内容", "配方内容编辑", out var versionError))
+            {
+                ActionMessage = "已写入内容，但版本记录失败：" + versionError;
+            }
+
+            ReloadAssets();
+            SelectType("recipe");
+            SelectedAsset = _allAssets.FirstOrDefault(a => a.Id == assetId.ToString());
+            ActionMessage = $"配方内容已保存（v{recipe.ContentVersion}）；保存方案后随 .vms 落盘";
+        }
+
+        private static bool IsValidJsonArray(string text, out string error)
+        {
+            error = string.Empty;
+            try
+            {
+                return Newtonsoft.Json.Linq.JToken.Parse(text) is Newtonsoft.Json.Linq.JArray;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+        }
+
         private void RollbackVersion()
         {
             if (SelectedAsset == null) return;
 
-            var record = SelectedAsset.Versions.FirstOrDefault(v => v.CanRollback);
+            // 优先回滚到用户选中的那条记录；没选就退回落"最新一条历史记录"。
+            var record = SelectedVersion is { CanRollback: true } picked
+                ? picked
+                : SelectedAsset.Versions.FirstOrDefault(v => v.CanRollback);
             if (record == null)
             {
                 ActionMessage = "当前资产没有可回滚的历史版本";
@@ -1004,6 +1152,15 @@ namespace VisionMaster.ViewModels
         public System.Windows.Media.ImageSource? Thumbnail { get; set; }
         public bool HasThumbnail => Thumbnail != null;
         public bool HasNoThumbnail => Thumbnail == null;
+
+        /// <summary>配方内联内容（文本/胶路配方原文）；非配方或参数配方为空。</summary>
+        public string RecipeContent { get; set; } = string.Empty;
+        public string RecipeContentFormat { get; set; } = string.Empty;
+
+        /// <summary>可编辑内联内容的配方（text / bead）。参数配方不走这里。</summary>
+        public bool IsTextRecipe => Kind == "recipe"
+            && !string.IsNullOrWhiteSpace(RecipeContent)
+            && (RecipeContentFormat == "text" || RecipeContentFormat == "bead");
 
         public bool IsFrozen
         {

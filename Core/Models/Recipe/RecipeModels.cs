@@ -200,6 +200,7 @@ namespace VisionMaster.Models
         private string _notes = string.Empty;
         private bool _isFrozen;
         private string _textContent = string.Empty;
+        private string _contentFormat = string.Empty;
         private List<RecipeEntry> _entries = new();
         private List<RecipePoint> _points = new();
 
@@ -299,6 +300,19 @@ namespace VisionMaster.Models
         }
 
         /// <summary>
+        /// 内联内容的格式：`text`（文本配方，如颜色表）/ `bead`（胶路配方库 JSON）/
+        /// 空 = 参数配方（Entries/Points）。
+        ///
+        /// 为什么要有它：插件读 AssetId 时必须知道"这段内容该按什么解析"。
+        /// 只靠"能不能解析"猜，会把胶路库当成颜色表喂进去，报出与真实原因无关的错。
+        /// </summary>
+        public string ContentFormat
+        {
+            get => _contentFormat;
+            set => SetProperty(ref _contentFormat, value ?? string.Empty);
+        }
+
+        /// <summary>
         /// 冻结：冻结后内容不应再改，只能解冻后编辑。与标定的 <c>IsLocked</c>、
         /// 文件资产的 <c>IsFrozen</c> 同一语义，字段名沿用各自既有命名。
         /// </summary>
@@ -354,6 +368,7 @@ namespace VisionMaster.Models
                 ContentVersion,
                 IsFrozen,
                 TextContent,
+                ContentFormat,
                 Entries = Entries?.Select(e => new
                 {
                     Kind = e.Kind.ToString(),

@@ -91,6 +91,13 @@ namespace VisionMaster.Services
 
         /// <summary>导入、内容更新后记一条版本。冻结的资产拒绝写入；内容变化才递增版本。</summary>
         public bool TryRecordVersion(Guid assetId, string action, string note, out string error)
+            => TryRecordVersion(assetId, action, note, bumpVersion: true, out error);
+
+        /// <summary>
+        /// 同上，但可指定是否递增版本号。
+        /// 导入新版本这条路径**已经**把版本号加过了（文件也换了），再 bump 一次会凭空多一个版本。
+        /// </summary>
+        public bool TryRecordVersion(Guid assetId, string action, string note, bool bumpVersion, out string error)
         {
             error = string.Empty;
             if (!TryAuthorize(assetId, action, out var asset, out var kind, out _, out error))
@@ -103,7 +110,7 @@ namespace VisionMaster.Services
             }
 
             // 版本只在内容变化时递增；默认/冻结/解冻走的是另一条不递增的路径。
-            var version = _writer.BumpVersion(assetId);
+            var version = bumpVersion ? _writer.BumpVersion(assetId) : _writer.VersionOf(assetId);
 
             AssetVersionLog.Append(_writer.Solution, assetId, kind, asset.Name, version,
                 ContentHash(assetId, asset), _writer.SnapshotOf(assetId), action,
@@ -114,8 +121,10 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 回滚：只对「标定」做真实内容回滚（Transform 可 JSON 还原）；
-        /// 文件资产的快照只有路径/哈希，回滚会明确拒绝而不是假装成功。
+        /// 回滚到某条版本记录。
+        /// 标定：快照里的 Transform 可 JSON 还原；
+        /// 文件资产（模板/模型/图像）：把版本库里的文件本体复制回活动路径（版本号 +1，历史只追加）。
+        /// 配方：文本配方按快照还原文本，参数配方按快照还原条目/点位。
         /// </summary>
         public bool TryRollback(Guid assetId, Guid recordId, out string error)
         {
@@ -129,16 +138,39 @@ namespace VisionMaster.Services
                 return false;
             }
 
-            if (!string.Equals(kind, "calibration", StringComparison.OrdinalIgnoreCase))
-            {
-                error = "当前只支持标定资产回滚；文件资产的旧版本需要保留文件本体后再开放";
-                return false;
-            }
-
             var record = _writer.Solution.AssetVersionLog?.FirstOrDefault(r => r.RecordId == recordId);
             if (record == null)
             {
                 error = "找不到这条版本记录";
+                return false;
+            }
+
+            if (string.Equals(kind, "template", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(kind, "model", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(kind, "image", StringComparison.OrdinalIgnoreCase))
+            {
+                var sourceVersion = Math.Max(1, record.Version);
+                if (!_writer.TryRestoreStoredVersion(assetId, sourceVersion, out var fileError))
+                {
+                    error = fileError;
+                    return false;
+                }
+
+                var newVersion = _writer.VersionOf(assetId);
+                AssetVersionLog.Append(_writer.Solution, assetId, kind, asset.Name, newVersion,
+                    _writer.ContentHashOf(assetId), _writer.SnapshotOf(assetId), "回滚",
+                    _policy.CurrentUserName, $"回滚到 v{sourceVersion}");
+
+                Audit(asset.Name, "回滚", ScadaAuditOutcome.Success, $"回滚到 v{sourceVersion}");
+                return true;
+            }
+
+            if (string.Equals(kind, "recipe", StringComparison.OrdinalIgnoreCase))
+                return TryRollbackRecipe(assetId, kind, asset, record, out error);
+
+            if (!string.Equals(kind, "calibration", StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"资产类型 {kind} 不支持回滚";
                 return false;
             }
 
@@ -344,6 +376,89 @@ namespace VisionMaster.Services
                 default:
                     sink[prefix] = token.ToString(Newtonsoft.Json.Formatting.None);
                     break;
+            }
+        }
+
+        /// <summary>
+        /// 配方回滚：按快照还原文本配方原文与参数配方条目/点位。
+        /// 只还原内容，不还原 Name/Code（改名是资产身份，不该被一次回滚带走）。
+        /// </summary>
+        private bool TryRollbackRecipe(
+            Guid assetId, string kind, ProjectAssetRef asset, AssetVersionRecord record, out string error)
+        {
+            error = string.Empty;
+            var recipe = _writer.Solution.RecipesOrEmpty().FirstOrDefault(r => r.RecipeId == assetId);
+            if (recipe == null)
+            {
+                error = "配方资产已不存在";
+                return false;
+            }
+
+            try
+            {
+                var snapshot = Newtonsoft.Json.Linq.JObject.Parse(record.SnapshotJson);
+                recipe.TextContent = (string?)snapshot["TextContent"] ?? string.Empty;
+
+                var entries = new List<RecipeEntry>();
+                if (snapshot["Entries"] is Newtonsoft.Json.Linq.JArray entryArray)
+                {
+                    foreach (var item in entryArray.OfType<Newtonsoft.Json.Linq.JObject>())
+                    {
+                        var kindText = (string?)item["Kind"] ?? "StepInput";
+                        if (!Enum.TryParse<RecipeTargetKind>(kindText, ignoreCase: true, out var targetKind))
+                            targetKind = RecipeTargetKind.StepInput;
+
+                        var valueText = (string?)item["Value"];
+                        Newtonsoft.Json.Linq.JToken? value = null;
+                        if (!string.IsNullOrWhiteSpace(valueText))
+                        {
+                            try { value = Newtonsoft.Json.Linq.JToken.Parse(valueText); }
+                            catch { value = new Newtonsoft.Json.Linq.JValue(valueText); }
+                        }
+
+                        entries.Add(new RecipeEntry
+                        {
+                            Kind = targetKind,
+                            TargetId = (Guid?)item["TargetId"] ?? Guid.Empty,
+                            Key = (string?)item["Key"] ?? string.Empty,
+                            Value = value,
+                        });
+                    }
+                }
+
+                var points = new List<RecipePoint>();
+                if (snapshot["Points"] is Newtonsoft.Json.Linq.JArray pointArray)
+                {
+                    foreach (var item in pointArray.OfType<Newtonsoft.Json.Linq.JObject>())
+                    {
+                        points.Add(new RecipePoint
+                        {
+                            AxisId = (Guid?)item["AxisId"] ?? Guid.Empty,
+                            Index = (int?)item["Index"] ?? 0,
+                            PositionMm = (double?)item["PositionMm"] ?? 0,
+                            SpeedMmPerS = (double?)item["SpeedMmPerS"] ?? 0,
+                            AccelMmPerS2 = (double?)item["AccelMmPerS2"] ?? 0,
+                        });
+                    }
+                }
+
+                recipe.Entries = entries;
+                recipe.Points = points;
+                recipe.ContentVersion = Math.Max(1, recipe.ContentVersion) + 1;
+                recipe.UpdatedAtUtc = DateTime.UtcNow;
+                recipe.UpdatedBy = _policy.CurrentUserName;
+
+                AssetVersionLog.Append(_writer.Solution, assetId, kind, recipe.Name, recipe.ContentVersion,
+                    string.Empty, recipe.CreateAssetSnapshot(), "回滚", _policy.CurrentUserName,
+                    $"回滚到 v{Math.Max(1, record.Version)}");
+
+                Audit(recipe.Name, "回滚", ScadaAuditOutcome.Success, $"回滚到 v{Math.Max(1, record.Version)}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "配方回滚失败：" + ex.Message;
+                return false;
             }
         }
 

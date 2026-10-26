@@ -13,6 +13,25 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\VisionMaster\VisionMaster.csproj" />
+    <!--
+      端到端验证"源头插件产出资产 / 消费插件按 AssetId 取资产"必须拿到**真实插件类型**
+      （不走 Modules\ 反射加载）：断言的正是插件自己的解析与报错文案。
+      引用这些工程也会让构建把它们刷新到 Modules（见 Plugins\Directory.Build.targets）。
+    -->
+    <ProjectReference Include="..\..\..\Plugins\Plugin.ImageAcquisition\Plugin.ImageAcquisition.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Matching\Plugin.Matching.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Ocr\Plugin.Ocr.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.ColorCheck\Plugin.ColorCheck.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 端到端断言要造合成图喂插件；halcondotnet 在 deps.json 里是 type:reference，
+         不会随 ProjectReference 传递到本工程的编译引用集。 -->
+    <Reference Include="halcondotnet">
+      <HintPath>..\..\..\DLL\Halcon\halcondotnet.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>

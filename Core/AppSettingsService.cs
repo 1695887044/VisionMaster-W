@@ -182,7 +182,9 @@ namespace VisionMaster.Services
             try
             {
                 var json = JsonConvert.SerializeObject(Current, JsonOptions);
-                var tmp = ConfigPath + ".tmp";
+                // 临时文件名带进程 Id：两个实例（两个会话各跑一遍断言宿主、或软件与断言宿主同时跑）
+                // 共用一个 `AppConfig.json.tmp` 会互相锁住，症状是"保存配置失败 + 未处理异常"直接崩掉进程。
+                var tmp = ConfigPath + "." + Environment.ProcessId + ".tmp";
                 File.WriteAllText(tmp, json, Encoding.UTF8);
                 if (File.Exists(ConfigPath)) WriteReplacing(tmp, ConfigPath);
                 else File.Move(tmp, ConfigPath);
@@ -212,12 +214,38 @@ namespace VisionMaster.Services
             try
             {
                 File.Replace(tmp, dest, null);
+                return;
             }
             catch (IOException)
             {
-                File.Copy(tmp, dest, overwrite: true);
-                try { File.Delete(tmp); } catch { /* 残留 .tmp 无害：下次覆盖写 */ }
+                // 落到覆盖写
             }
+
+            // 覆盖写也可能失败：目标文件正被另一个进程开着（软件与断言宿主同时跑、
+            // 或同一台机器上两个会话各跑一遍宿主）。这时**有界重试**，别把"保存配置"
+            // 变成"未处理异常崩进程"（2026-10-27 实测：gate 里 FlowCanvasChecks 崩在这里）。
+            Exception? last = null;
+            for (var attempt = 0; attempt < 10; attempt++)
+            {
+                try
+                {
+                    File.Copy(tmp, dest, overwrite: true);
+                    try { File.Delete(tmp); } catch { /* 残留 .tmp 无害：下次覆盖写 */ }
+                    return;
+                }
+                catch (IOException ex)
+                {
+                    last = ex;
+                    System.Threading.Thread.Sleep(100);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    last = ex;
+                    System.Threading.Thread.Sleep(100);
+                }
+            }
+
+            throw last ?? new IOException("保存配置失败：" + dest);
         }
 
         /// <summary>

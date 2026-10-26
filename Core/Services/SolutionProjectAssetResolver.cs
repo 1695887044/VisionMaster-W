@@ -60,12 +60,14 @@ namespace VisionMaster.Services
                     Kind = "recipe",
                     Name = recipe.Name,
                     Version = recipe.ContentVersion,
-                    // 配方内容在方案里：文本配方给原文，参数配方给快照 JSON。
+                    // 配方内容在方案里：文本/胶路配方给原文，参数配方给快照 JSON。
                     // 插件拿 Content 自行解析（文件资产仍然只给路径）。
                     Content = string.IsNullOrWhiteSpace(recipe.TextContent)
                         ? recipe.CreateAssetSnapshot()
                         : recipe.TextContent,
-                    ContentKind = string.IsNullOrWhiteSpace(recipe.TextContent) ? "json" : "text",
+                    ContentKind = !string.IsNullOrWhiteSpace(recipe.ContentFormat)
+                        ? recipe.ContentFormat
+                        : string.IsNullOrWhiteSpace(recipe.TextContent) ? "json" : "text",
                 };
                 return true;
             }

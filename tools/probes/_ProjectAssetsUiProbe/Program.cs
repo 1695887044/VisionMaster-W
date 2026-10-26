@@ -13,11 +13,13 @@ using Prism.Dialogs;
 using Prism.Mvvm;
 using Core.Interfaces;
 using Core.Interfaces.Assets;
+using HalconDotNet;
 using VisionMaster.Models;
 using VisionMaster.Models.Assets;
 using VisionMaster.Scada;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
+using VisionMaster.ViewModels.DialogViewModels;
 using VisionMaster.Views;
 
 namespace ProjectAssetsUiProbe
@@ -79,6 +81,9 @@ namespace ProjectAssetsUiProbe
                 RunArchivedRuntimeChecks(ref failures);
                 RunRecipeLifecycleChecks(ref failures);
                 RunTextRecipeChecks(ref failures);
+                RunFileVersionChecks(ref failures);
+                RunPluginAssetContractChecks(ref failures);
+                RunPluginAssetRuntimeChecks(ref failures);
                 RunDiffChecks(ref failures);
                 RunAuditRowChecks(ref failures);
                 var view = new ProjectAssetsView
@@ -694,7 +699,7 @@ namespace ProjectAssetsUiProbe
                 solution.EnsureRecipes().Add(paramRecipe);
                 Check(!ProjectAssetPathResolver.TryResolveContent(
                         context, paramRecipe.RecipeId.ToString(), "recipe", "text", out _, out var kindError)
-                      && kindError.Contains("不是文本配方"),
+                      && kindError.Contains("内容形态"),
                     "参数配方按文本解析被明确拒绝（不是静默给空串）", ref failures);
 
                 // 导出必须带上文本配方内容（之前配方整体不参与打包）。
@@ -723,6 +728,339 @@ namespace ProjectAssetsUiProbe
             catch (Exception ex)
             {
                 Check(false, "文本配方断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 文件资产版本：导入新版本 → 旧文件进版本库、活动文件换新 → 回滚能把旧内容真的拿回来。
+        /// 判据看**文件内容**，不看版本号自增（版本号对了但文件没换是最坏的一种"看起来成功"）。
+        /// </summary>
+        private static void RunFileVersionChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-version-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "AssetVersion",
+                    SolutionFilePath = Path.Combine(temp, "AssetVersion.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var v1Source = Path.Combine(sourceDir, "v1.json");
+                var v2Source = Path.Combine(sourceDir, "v2.json");
+                File.WriteAllText(v1Source, "{\"Templates\":[\"v1\"]}", new UTF8Encoding(false));
+                File.WriteAllText(v2Source, "{\"Templates\":[\"v2\"]}", new UTF8Encoding(false));
+
+                var importer = new ProjectAssetImporter(workspace);
+                Check(importer.TryImport(v1Source, "template", out var templateId, out var importError),
+                    "版本前置：导入 v1" + (string.IsNullOrEmpty(importError) ? string.Empty : "：" + importError),
+                    ref failures);
+
+                var asset = solution.TemplateAssets.First(a => a.AssetId == templateId);
+                var root = temp;
+                var activePath = Path.Combine(root, asset.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+                var extension = Path.GetExtension(asset.RelativePath);
+                var v1VersionFile = Path.Combine(root, ProjectAssetImporter
+                    .VersionFileRelativePath("template", templateId, 1, extension)
+                    .Replace('/', Path.DirectorySeparatorChar));
+
+                Check(File.Exists(v1VersionFile), "导入 v1 时就把文件收进版本库", ref failures);
+                Check(File.ReadAllText(activePath).Contains("v1"), "活动文件是 v1 内容", ref failures);
+
+                // 版本记录必须**在每次内容变化时立刻写**：事后再补会拿到当时的版本号，
+                // 两条记录都变成 v2，"回滚到 v1"就无从选起。
+                var policy = new ScadaAccessPolicy();
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy,
+                    new ScadaAuditWriter(Path.Combine(temp, "Audit")));
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+                service.TryRecordVersion(templateId, "导入", "v1", bumpVersion: false, out _);
+
+                // 同内容再导新版本必须被拒（不白占版本号）。
+                Check(!importer.TryImportNewVersion(templateId, v1Source, out _, out var sameError)
+                      && sameError.Contains("内容相同"),
+                    "同内容导入新版本被拒", ref failures);
+
+                Check(importer.TryImportNewVersion(templateId, v2Source, out var newVersion, out var newError),
+                    "导入 v2 成功" + (string.IsNullOrEmpty(newError) ? string.Empty : "：" + newError), ref failures);
+                service.TryRecordVersion(templateId, "新版本", "v2", bumpVersion: false, out _);
+                Check(newVersion == 2, $"版本号递增到 2（实际 {newVersion}）", ref failures);
+                Check(File.ReadAllText(activePath).Contains("v2"), "活动文件换成 v2 内容", ref failures);
+                Check(File.ReadAllText(v1VersionFile).Contains("v1"), "v1 文件仍在版本库里且内容未变", ref failures);
+
+                var v2VersionFile = Path.Combine(root, ProjectAssetImporter
+                    .VersionFileRelativePath("template", templateId, 2, extension)
+                    .Replace('/', Path.DirectorySeparatorChar));
+                Check(File.Exists(v2VersionFile), "v2 也进版本库（回滚到 v2 才可能）", ref failures);
+
+                var v1Record = AssetVersionLog.Of(solution, templateId)
+                    .FirstOrDefault(r => r.Version == 1);
+                Check(v1Record != null, "找得到 v1 的版本记录", ref failures);
+                if (v1Record == null) return;
+
+                Check(service.TryRollback(templateId, v1Record.RecordId, out var rollbackError),
+                    "文件资产可回滚" + (string.IsNullOrEmpty(rollbackError) ? string.Empty : "：" + rollbackError),
+                    ref failures);
+                Check(File.ReadAllText(activePath).Contains("v1"),
+                    "回滚后活动文件真的是 v1 内容（不是只改了版本号）", ref failures);
+                Check(solution.TemplateAssets.First(a => a.AssetId == templateId).Version == 3,
+                    "回滚本身算一个新版本（历史只追加）", ref failures);
+
+                var v3VersionFile = Path.Combine(root, ProjectAssetImporter
+                    .VersionFileRelativePath("template", templateId, 3, extension)
+                    .Replace('/', Path.DirectorySeparatorChar));
+                Check(File.Exists(v3VersionFile), "回滚结果也进版本库", ref failures);
+
+                service.TryToggleFreeze(templateId, out _, out _);
+                Check(!service.TryRollback(templateId, v1Record.RecordId, out var frozenError)
+                      && frozenError.Contains("冻结"),
+                    "冻结时回滚被拒", ref failures);
+                service.TryToggleFreeze(templateId, out _, out _);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "文件版本断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 资产契约：每个消费插件必须声明正确的 AssetKind，AssetId 要能回写到插件自己的字段，
+        /// 配置壳的下拉必须真的列出这类资产（选不到 = 等于没接）。
+        /// </summary>
+        private static void RunPluginAssetContractChecks(ref int failures)
+        {
+            try
+            {
+                var solution = new SolutionModel { SolutionName = "PluginContract" };
+                var template = new TemplateAsset { Name = "tpl", RelativePath = "Assets/Templates/t.json", ContentHash = "h" };
+                var model = new ModelAsset { Name = "mdl", RelativePath = "Assets/Models/m.onnx", ContentHash = "h" };
+                var image = new ImageAsset { Name = "img", RelativePath = "Image/i.png", ContentHash = "h" };
+                var textRecipe = new RecipeDefinition { Name = "文本配方", TextContent = "A = 红,白" };
+                var beadRecipe = new RecipeDefinition { Name = "胶路配方", TextContent = "[{\"Name\":\"B\",\"RefPointsJson\":\"[]\"}]", ContentFormat = "bead" };
+                var paramRecipe = new RecipeDefinition { Name = "参数配方" };
+                paramRecipe.TouchEntries("probe");
+
+                solution.TemplateAssets.Add(template);
+                solution.ModelAssets.Add(model);
+                solution.ImageAssets.Add(image);
+                solution.EnsureRecipes().Add(textRecipe);
+                solution.EnsureRecipes().Add(beadRecipe);
+                solution.EnsureRecipes().Add(paramRecipe);
+
+                CheckContract(new Plugin.Matching.MatchingPlugin(), "template", template.AssetId, solution, ref failures);
+                CheckContract(new Plugin.Ocr.OcrPlugin(), "model", model.AssetId, solution, ref failures);
+                CheckContract(new Plugin.ImageAcquisition.ImageAcquisitionPlugin(), "image", image.AssetId, solution, ref failures);
+                CheckContract(new Plugin.ColorCheck.ColorCheckPlugin(), "recipe", textRecipe.RecipeId, solution, ref failures);
+                CheckContract(new Plugin.BeadInspect.BeadInspectPlugin(), "recipe", beadRecipe.RecipeId, solution, ref failures);
+
+                // 配方下拉只列有内联内容的：参数配方没有可被插件解析的文本。
+                var recipeOptions = PluginConfigShellViewModel.BuildAssetOptionsFor(solution, "recipe");
+                Check(recipeOptions.Any(o => o.AssetId == textRecipe.RecipeId),
+                    "配方下拉含文本配方", ref failures);
+                Check(recipeOptions.Any(o => o.AssetId == beadRecipe.RecipeId),
+                    "配方下拉含胶路配方", ref failures);
+                Check(recipeOptions.All(o => o.AssetId != paramRecipe.RecipeId),
+                    "配方下拉不含参数配方（选了也解析不出内容）", ref failures);
+
+                // 未填 AssetId 时下拉仍要有"不使用资产"，否则用户没法退回旧路径。
+                Check(PluginConfigShellViewModel.BuildAssetOptionsFor(solution, "image").Count == 1,
+                    "图像类只有一条时下拉仍可用", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "插件资产契约断言异常：" + ex.Message, ref failures);
+            }
+        }
+
+        private static void CheckContract<T>(
+            T plugin, string expectedKind, Guid sampleAssetId, SolutionModel solution, ref int failures)
+            where T : class, Core.Interfaces.Assets.IAssetIdConfig
+        {
+            var name = typeof(T).Name;
+            Check(plugin.AssetKind == expectedKind,
+                $"{name} 声明 AssetKind={expectedKind}（实际 {plugin.AssetKind}）", ref failures);
+
+            plugin.AssetId = sampleAssetId.ToString();
+            Check(string.Equals(plugin.AssetId, sampleAssetId.ToString(), StringComparison.OrdinalIgnoreCase),
+                $"{name} 的 AssetId 能写回自身字段", ref failures);
+
+            var options = PluginConfigShellViewModel.BuildAssetOptionsFor(solution, plugin.AssetKind);
+            Check(options.Any(o => o.AssetId == sampleAssetId),
+                $"{name} 的配置下拉能选到这类资产", ref failures);
+
+            plugin.AssetId = string.Empty;
+            Check(string.IsNullOrEmpty(plugin.AssetId), $"{name} 的 AssetId 能清空（退回旧路径）", ref failures);
+        }
+
+        /// <summary>
+        /// 运行期：消费插件按 AssetId 取到资产、归档后被拒、格式不匹配被拒，且**都不抛异常**。
+        /// 图像采集走真实全链路（读文件 → 出 HImage）。
+        /// </summary>
+        private static void RunPluginAssetRuntimeChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-plugins-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var sourceDir = Path.Combine(temp, "src");
+                Directory.CreateDirectory(sourceDir);
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "PluginRuntime",
+                    SolutionFilePath = Path.Combine(temp, "PluginRuntime.vms"),
+                };
+                var workspace = new WorkspaceContext();
+                workspace.SwitchSolution(solution);
+
+                var importer = new ProjectAssetImporter(workspace);
+                var png = Path.Combine(sourceDir, "frame.png");
+                File.Copy(@"D:\C#\VM\解决方案\智能装配检测线\Image\board_01.png", png);
+                Check(importer.TryImport(png, "image", out var imageId, out var importError),
+                    "插件验证前置：图像资产导入" + (string.IsNullOrEmpty(importError) ? string.Empty : "：" + importError),
+                    ref failures);
+
+                var context = new VisionMaster.Services.ExecutionContext(null!) { Workspace = workspace };
+
+                // ── ① 图像采集：真实读文件 ──
+                var acquisition = new Plugin.ImageAcquisition.ImageAcquisitionPlugin
+                {
+                    Mode = Plugin.ImageAcquisition.AcquisitionMode.SingleFile,
+                    ImageAssetId = imageId.ToString(),
+                    DisplayViewIndex = 0,
+                };
+                acquisition.FilePathPort.Value = string.Empty;
+
+                Exception? thrown = null;
+                try { acquisition.RunAlgorithm(context); }
+                catch (Exception ex) { thrown = ex; }
+
+                Check(thrown == null, "图像采集按资产运行不抛异常" + (thrown == null ? string.Empty : "：" + thrown.Message),
+                    ref failures);
+                Check(acquisition.Success.TypedValue, "图像采集成功（Success=true）原因=" + acquisition.ErrorMessage.Value,
+                    ref failures);
+                Check(acquisition.OutputImage.TypedValue != null, "图像采集产出图像", ref failures);
+                Check(acquisition.CurrentFilePath.TypedValue.Contains("frame.png"),
+                    $"采集到的路径来自资产解析（实际 {acquisition.CurrentFilePath.TypedValue}）", ref failures);
+                Check(File.Exists(acquisition.CurrentFilePath.TypedValue), "采集路径是真实存在的绝对路径", ref failures);
+                acquisition.OutputImage.TypedValue?.Dispose();
+
+                // ── ② 归档后：同一插件必须被拒且说清原因 ──
+                var policy = new ScadaAccessPolicy();
+                var service = new ProjectAssetService(
+                    new SolutionAssetWriter(solution), policy,
+                    new ScadaAuditWriter(Path.Combine(temp, "Audit")));
+                policy.Login(new ScadaUserInfo(
+                    "admin", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+                service.TrySetArchived(imageId, true, out _);
+
+                var archived = new Plugin.ImageAcquisition.ImageAcquisitionPlugin
+                {
+                    Mode = Plugin.ImageAcquisition.AcquisitionMode.SingleFile,
+                    ImageAssetId = imageId.ToString(),
+                    DisplayViewIndex = 0,
+                };
+                archived.FilePathPort.Value = string.Empty;
+
+                thrown = null;
+                try { archived.RunAlgorithm(context); }
+                catch (Exception ex) { thrown = ex; }
+
+                Check(thrown == null, "归档资产运行不抛异常（应当是干净的失败）", ref failures);
+                Check(!archived.Success.TypedValue, "归档资产运行失败（Success=false）", ref failures);
+                Check(((string)archived.ErrorMessage.Value).Contains("已归档"),
+                    $"归档资产的失败原因点名「已归档」（实际：{archived.ErrorMessage.Value}）", ref failures);
+                service.TrySetArchived(imageId, false, out _);
+
+                // ── ③ 配方格式不匹配：颜色检查拿胶路库必须被拒 ──
+                var beadSource = Path.Combine(sourceDir, "bead.json");
+                File.WriteAllText(beadSource,
+                    "[{\"Name\":\"B1\",\"RefPointsJson\":\"[]\"}]", new UTF8Encoding(false));
+                Check(importer.TryImport(beadSource, "recipe", out var beadId, out _), "胶路配方导入", ref failures);
+                Check(solution.RecipesOrEmpty().First(r => r.RecipeId == beadId).ContentFormat == "bead",
+                    "胶路配方被识别为 bead 格式", ref failures);
+
+                var textSource = Path.Combine(sourceDir, "color.txt");
+                File.WriteAllText(textSource, "A = 红,白", new UTF8Encoding(false));
+                Check(importer.TryImport(textSource, "recipe", out var textId, out _), "文本配方导入", ref failures);
+
+                var colorCheck = new Plugin.ColorCheck.ColorCheckPlugin
+                {
+                    RecipeAssetId = beadId.ToString(),
+                    DisplayViewIndex = 0,
+                };
+                using (var rgb = new HImage(png))
+                {
+                    colorCheck.Image.Value = rgb;
+                    thrown = null;
+                    try { colorCheck.RunAlgorithm(context); }
+                    catch (Exception ex) { thrown = ex; }
+                }
+
+                Check(thrown == null, "颜色检查拿错格式不抛异常", ref failures);
+                Check(!(bool)colorCheck.Result.Value && ((string)colorCheck.ErrorMessage.Value).Contains("内容形态"),
+                    $"颜色检查对胶路库给出格式错误（实际：{colorCheck.ErrorMessage.Value}）", ref failures);
+
+                // ── ④ 胶路检查拿文本配方必须被拒 ──
+                var beadInspect = new Plugin.BeadInspect.BeadInspectPlugin
+                {
+                    RecipeAssetId = textId.ToString(),
+                };
+                using (var gray = new HImage("byte", 8, 8))
+                {
+                    beadInspect.SrcImage.Value = gray;
+                    thrown = null;
+                    try { beadInspect.RunAlgorithm(context); }
+                    catch (Exception ex) { thrown = ex; }
+                }
+
+                Check(thrown == null, "胶路检查拿错格式不抛异常", ref failures);
+                Check(((string)beadInspect.ErrorMessage.Value).Contains("内容形态"),
+                    $"胶路检查对文本配方给出格式错误（实际：{beadInspect.ErrorMessage.Value}）", ref failures);
+
+                // ── ⑤ 模板/模型：插件口径能解析到真实文件，归档后被拒 ──
+                var tplSource = Path.Combine(sourceDir, "tpl.json");
+                File.WriteAllText(tplSource, "{\"Templates\":[]}", new UTF8Encoding(false));
+                Check(importer.TryImport(tplSource, "template", out var templateId, out _), "模板资产导入", ref failures);
+
+                Check(ProjectAssetPathResolver.TryResolve(context, templateId.ToString(), null, "template",
+                        out var templatePath, out var templateError) && File.Exists(templatePath),
+                    "模板资产能被插件口径解析" + (string.IsNullOrEmpty(templateError) ? string.Empty : "：" + templateError),
+                    ref failures);
+
+                service.TrySetArchived(templateId, true, out _);
+                Check(!ProjectAssetPathResolver.TryResolve(context, templateId.ToString(), null, "template", out _, out var archivedTemplate)
+                      && archivedTemplate.Contains("已归档"),
+                    "归档模板被插件口径拒绝", ref failures);
+                service.TrySetArchived(templateId, false, out _);
+
+                var mdlSource = Path.Combine(sourceDir, "m.onnx");
+                File.WriteAllBytes(mdlSource, new byte[] { 1, 2, 3, 4 });
+                Check(importer.TryImport(mdlSource, "model", out var modelId, out _), "模型资产导入", ref failures);
+                Check(ProjectAssetPathResolver.TryResolve(context, modelId.ToString(), null, "model", out var modelPath, out _)
+                      && File.Exists(modelPath),
+                    "模型资产能被插件口径解析", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "插件运行期断言异常：" + ex.Message, ref failures);
             }
             finally
             {
@@ -966,10 +1304,13 @@ namespace ProjectAssetsUiProbe
                 Check(history.All(r => !string.IsNullOrWhiteSpace(r.Actor)),
                     "版本历史每条都有操作者", ref failures);
 
-                // 回滚：文件资产必须明确拒绝，不能假装成功。
-                Check(!service.TryRollback(imageId, history[0].RecordId, out var rollbackError)
-                      && rollbackError.Contains("标定"),
-                    "文件资产回滚被明确拒绝", ref failures);
+                // 回滚：文件资产现在能真回滚（旧文件在 Assets\Versions），
+                // 但"版本库里没有文件本体"的旧记录必须明确拒绝，不能假装成功。
+                var rollbackError = string.Empty;
+                var rolledBack = service.TryRollback(imageId, history[0].RecordId, out rollbackError);
+                Check(rolledBack || rollbackError.Contains("没有保留文件本体"),
+                    "文件资产回滚要么真还原、要么明确说明没有文件本体（实际：" +
+                    (rolledBack ? "已回滚" : rollbackError) + "）", ref failures);
 
                 // 标定资产可以真回滚。
                 var calibration = new CalibrationAsset
@@ -1009,6 +1350,7 @@ namespace ProjectAssetsUiProbe
                     "版本历史与默认指针进入 .vms 序列化", ref failures);
 
                 RenderLifecycleView(workspace, solution, auditDir, ref failures);
+                RenderRecipeEditorView(workspace, ref failures);
             }
             catch (Exception ex)
             {
@@ -1017,6 +1359,73 @@ namespace ProjectAssetsUiProbe
             finally
             {
                 try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// 配方内容编辑区的截图：往方案里放一条文本配方，概览页必须出现编辑框与保存按钮。
+        /// </summary>
+        private static void RenderRecipeEditorView(WorkspaceContext workspace, ref int failures)
+        {
+            var solution = workspace.CurrentSolution;
+            if (solution == null) return;
+
+            var recipe = new RecipeDefinition
+            {
+                Name = "颜色配方A",
+                Code = "COLOR-A",
+                TextContent = "红白线 = 红,白\r\n红黑线 = 红,黑\r\n蓝白线 = 蓝,白",
+                ContentFormat = "text",
+            };
+            solution.EnsureRecipes().Add(recipe);
+
+            var vm = new ProjectAssetsViewModel(workspace);
+            vm.SelectTypeCommand.Execute("recipe");
+            var asset = vm.VisibleAssets.FirstOrDefault(a => a.Id == recipe.RecipeId.ToString());
+            Check(asset != null && asset.IsTextRecipe, "文本配方出现在配方页且可编辑", ref failures);
+            if (asset == null) return;
+
+            vm.SelectedAsset = asset;
+            Check(vm.RecipeContentDraft.Contains("红白线"), "编辑框草稿装载了配方原文", ref failures);
+
+            var view = new ProjectAssetsView
+            {
+                DataContext = vm,
+                Width = 1280,
+                Height = 850,
+            };
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                SizeToContent = SizeToContent.Manual,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                Width = 1280,
+                Height = 850,
+                ShowInTaskbar = false,
+                Content = view,
+            };
+
+            try
+            {
+                window.Show();
+                Pump(600);
+                view.UpdateLayout();
+                vm.SelectedDetailTabIndex = 0;
+                view.UpdateLayout();
+                Pump(250);
+
+                var bitmap = Render(view, (int)Math.Round(view.ActualWidth), (int)Math.Round(view.ActualHeight), 2.0);
+                var path = Path.Combine(OutputDirectory(Array.Empty<string>()), "wpf-project-assets-recipe-editor.png");
+                Save(bitmap, path);
+                Console.WriteLine($"  [render] {path}");
+            }
+            finally
+            {
+                window.Close();
+                Pump(80);
             }
         }
 

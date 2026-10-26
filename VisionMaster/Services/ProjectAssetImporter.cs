@@ -17,7 +17,7 @@ namespace VisionMaster.Services
     public sealed class ProjectAssetImporter
     {
         private static readonly string[] ImageExtensions = { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
-        private static readonly string[] TextRecipeExtensions = { ".txt", ".csv", ".tbl" };
+        private static readonly string[] TextRecipeExtensions = { ".txt", ".csv", ".tbl", ".json" };
         private static readonly string[] TemplateExtensions = { ".json", ".tpl", ".tmpl", ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".xml", ".yaml", ".yml", ".txt" };
         private static readonly string[] ModelExtensions = { ".onnx", ".pt", ".pth", ".bin", ".model", ".json", ".engine", ".trt" };
 
@@ -181,6 +181,10 @@ namespace VisionMaster.Services
                 }
 
                 assetId = asset.AssetId;
+
+                // 每个版本都在 Versions/{kind}/{id}/v{n}{ext} 留一份文件本体：
+                // 回滚就是把那份复制回活动路径。只存哈希的话"回滚"只能是空话。
+                ArchiveVersionFile(root!, kind, asset.AssetId, asset.Version, targetPath);
                 return true;
             }
             catch (Exception ex)
@@ -188,6 +192,183 @@ namespace VisionMaster.Services
                 error = "导入资产失败：" + ex.Message;
                 return false;
             }
+        }
+
+        /// <summary>
+        /// 给已有资产导入一个新版本：旧文件进版本库，活动文件换成新的，版本号 +1。
+        /// 内容与当前版本相同时直接拒绝（"重导一次没变化"不该白占一个版本号）。
+        /// </summary>
+        public bool TryImportNewVersion(Guid assetId, string sourcePath, out int newVersion, out string error)
+        {
+            newVersion = 0;
+            error = string.Empty;
+
+            var solution = _workspace.CurrentSolution;
+            if (solution == null) { error = "当前没有打开方案"; return false; }
+            if (string.IsNullOrWhiteSpace(solution.SolutionFilePath))
+            {
+                error = "请先保存方案，再导入资产（资产文件要放进方案目录）";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath))
+            {
+                error = "源文件不存在";
+                return false;
+            }
+
+            var root = SolutionPaths.GetSolutionRoot(solution.SolutionFilePath);
+            if (string.IsNullOrWhiteSpace(root)) { error = "方案路径无效"; return false; }
+
+            var asset = FindStored(solution, assetId);
+            if (asset == null)
+            {
+                error = "只有模板 / 模型 / 图像资产支持导入新版本";
+                return false;
+            }
+
+            var kind = KindOf(solution, asset);
+            var extension = Path.GetExtension(sourcePath);
+            if (!IsAllowed(kind, extension))
+            {
+                error = $"不支持的文件类型「{extension}」";
+                return false;
+            }
+
+            try
+            {
+                var hash = HashFile(sourcePath);
+                if (string.Equals(hash, asset.ContentHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    error = "新文件与当前版本内容相同，没有产生新版本";
+                    return false;
+                }
+
+                if (string.IsNullOrWhiteSpace(asset.RelativePath))
+                {
+                    error = "资产没有绑定活动文件，无法替换";
+                    return false;
+                }
+
+                var activePath = Path.GetFullPath(Path.Combine(root!, asset.RelativePath));
+                if (!File.Exists(activePath))
+                {
+                    error = "活动文件不存在：" + asset.RelativePath;
+                    return false;
+                }
+
+                // 先把旧文件收进版本库（失败就不动活动文件，避免"旧的没了新的没进来"）。
+                if (!ArchiveVersionFile(root!, kind, asset.AssetId, asset.Version, activePath, out var archiveError))
+                {
+                    error = archiveError;
+                    return false;
+                }
+
+                var tempPath = activePath + ".tmp-" + Guid.NewGuid().ToString("N");
+                try
+                {
+                    File.Copy(sourcePath, tempPath, overwrite: true);
+                    File.Move(tempPath, activePath, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(tempPath))
+                    {
+                        try { File.Delete(tempPath); } catch { }
+                    }
+                }
+
+                var info = new FileInfo(activePath);
+                var now = DateTime.UtcNow;
+                newVersion = Math.Max(1, asset.Version) + 1;
+
+                asset.Version = newVersion;
+                asset.ContentHash = hash;
+                asset.FileSize = info.Length;
+                asset.UpdatedAtUtc = now;
+                asset.UpdatedBy = Environment.UserName;
+                asset.Status = "有效";
+
+                ArchiveVersionFile(root!, kind, asset.AssetId, newVersion, activePath);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "导入新版本失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>版本文件相对路径：`Assets/Versions/{kind}/{assetId}/v{n}{ext}`。</summary>
+        public static string VersionFileRelativePath(string kind, Guid assetId, int version, string extension)
+            => string.Join("/",
+                SolutionPaths.AssetsFolderName,
+                SolutionPaths.AssetVersionsFolderName,
+                kind,
+                assetId.ToString("N"),
+                "v" + Math.Max(1, version) + extension);
+
+        /// <summary>把某版本的文件放进版本库；已存在同内容就跳过（重复导入不报错）。</summary>
+        private static bool ArchiveVersionFile(string root, string kind, Guid assetId, int version, string sourceFile)
+            => ArchiveVersionFile(root, kind, assetId, version, sourceFile, out _);
+
+        private static bool ArchiveVersionFile(
+            string root, string kind, Guid assetId, int version, string sourceFile, out string error)
+        {
+            error = string.Empty;
+            try
+            {
+                var relative = VersionFileRelativePath(kind, assetId, version, Path.GetExtension(sourceFile));
+                var target = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+                var folder = Path.GetDirectoryName(target);
+                if (!string.IsNullOrWhiteSpace(folder)) Directory.CreateDirectory(folder!);
+
+                if (File.Exists(target))
+                {
+                    var existing = HashFile(target);
+                    var incoming = HashFile(sourceFile);
+                    if (string.Equals(existing, incoming, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+
+                var temp = target + ".tmp-" + Guid.NewGuid().ToString("N");
+                try
+                {
+                    File.Copy(sourceFile, temp, overwrite: true);
+                    File.Move(temp, target, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(temp))
+                    {
+                        try { File.Delete(temp); } catch { }
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = "归档旧版本失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        internal static SolutionAssetBase? FindStored(SolutionModel solution, Guid assetId)
+        {
+            foreach (var item in solution.TemplateAssets.Cast<SolutionAssetBase>())
+                if (item.AssetId == assetId) return item;
+            foreach (var item in solution.ModelAssets.Cast<SolutionAssetBase>())
+                if (item.AssetId == assetId) return item;
+            foreach (var item in solution.ImageAssets.Cast<SolutionAssetBase>())
+                if (item.AssetId == assetId) return item;
+            return null;
+        }
+
+        internal static string KindOf(SolutionModel solution, SolutionAssetBase asset)
+        {
+            if (solution.TemplateAssets.Contains(asset as TemplateAsset)) return "template";
+            if (solution.ModelAssets.Contains(asset as ModelAsset)) return "model";
+            if (solution.ImageAssets.Contains(asset as ImageAsset)) return "image";
+            return string.Empty;
         }
 
         private static bool IsAllowed(string kind, string extension)
@@ -203,7 +384,12 @@ namespace VisionMaster.Services
             return exts.Contains(extension, StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>导入文本配方：读文件内容 → 建 RecipeDefinition → 进方案配方集合。</summary>
+        /// <summary>
+        /// 导入配方：
+        /// - `.json` → 先按胶路配方库（`BeadRecipeEntry` 数组）试解析，成功则 ContentFormat=bead；
+        /// - 其它（.txt/.csv/.tbl）→ 文本配方 ContentFormat=text。
+        /// 两种都是"内容进方案、不拷文件"。
+        /// </summary>
         private static bool TryImportTextRecipe(
             SolutionModel solution, string sourcePath, out Guid assetId, out string error)
         {
@@ -223,9 +409,14 @@ namespace VisionMaster.Services
                 var recipes = solution.EnsureRecipes();
                 if (recipes.Any(r => string.Equals(r.TextContent, text, StringComparison.Ordinal)))
                 {
-                    error = "相同内容的文本配方已存在";
+                    error = "相同内容的配方已存在";
                     return false;
                 }
+
+                var format = Path.GetExtension(sourcePath).Equals(".json", StringComparison.OrdinalIgnoreCase)
+                             && LooksLikeBeadLibrary(text)
+                    ? "bead"
+                    : "text";
 
                 var now = DateTime.UtcNow;
                 var recipe = new RecipeDefinition
@@ -233,6 +424,7 @@ namespace VisionMaster.Services
                     Name = UniqueRecipeName(recipes.Select(r => r.Name), name),
                     Code = UniqueRecipeName(recipes.Select(r => r.Code), name),
                     TextContent = text,
+                    ContentFormat = format,
                     CreatedAtUtc = now,
                     CreatedBy = Environment.UserName,
                 };
@@ -242,7 +434,27 @@ namespace VisionMaster.Services
             }
             catch (Exception ex)
             {
-                error = "导入文本配方失败：" + ex.Message;
+                error = "导入配方失败：" + ex.Message;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 判"是不是胶路配方库"：JSON 数组，且每条都有 Name + RefPointsJson。
+        /// 不深解析整个 schema（那是插件的事），只认足以区分格式的形状。
+        /// </summary>
+        private static bool LooksLikeBeadLibrary(string text)
+        {
+            try
+            {
+                var token = Newtonsoft.Json.Linq.JToken.Parse(text);
+                if (token is not Newtonsoft.Json.Linq.JArray array || array.Count == 0) return false;
+
+                return array.OfType<Newtonsoft.Json.Linq.JObject>()
+                    .All(o => o["Name"] != null && o["RefPointsJson"] != null);
+            }
+            catch
+            {
                 return false;
             }
         }

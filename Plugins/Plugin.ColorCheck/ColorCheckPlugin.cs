@@ -585,21 +585,9 @@ namespace Plugin.ColorCheck
                 return;
             }
 
-            if (RoiParams == null || RoiParams.Length != 5)
-            {
-                Fail("尚未框选采样区：请在节点配置里于图像上右键 → 新建矩形，框住线束");
-                return;
-            }
-
-            int channels = (int)image.CountChannels().D;
-            if (channels < 3)
-            {
-                Fail($"颜色序列检查要彩色图，当前图像只有 {channels} 个通道");
-                return;
-            }
-
             // 配方资产优先：先解析一次，后续 TryJudge 读 _resolvedRecipeText。
             // 解析失败直接报错停流程（与"配方表里没有这个芯数"同一口径：配置问题不是产品不良）。
+            // 放在框选检查之前：配方类型不对是配置错误，不该先逼用户画框才告诉他。
             _resolvedRecipeText = string.Empty;
             if (!string.IsNullOrWhiteSpace(RecipeAssetId))
             {
@@ -617,6 +605,19 @@ namespace Plugin.ColorCheck
                 }
 
                 _resolvedRecipeText = content;
+            }
+
+            if (RoiParams == null || RoiParams.Length != 5)
+            {
+                Fail("尚未框选采样区：请在节点配置里于图像上右键 → 新建矩形，框住线束");
+                return;
+            }
+
+            int channels = (int)image.CountChannels().D;
+            if (channels < 3)
+            {
+                Fail($"颜色序列检查要彩色图，当前图像只有 {channels} 个通道");
+                return;
             }
 
             if (!TryAnalyze(image, out var result, out var judgement, out string error))

@@ -43,6 +43,12 @@ namespace VisionMaster.Services
         /// <summary>方案内容资产子目录名（模板 / 模型）。</summary>
         public const string AssetsFolderName = "Assets";
 
+        /// <summary>
+        /// 资产历史版本目录（在 <see cref="AssetsFolderName"/> 下）：`Versions/{kind}/{assetId}/v{n}{ext}`。
+        /// 每个版本都留一份文件本体，回滚就是把它复制回活动路径。
+        /// </summary>
+        public const string AssetVersionsFolderName = "Versions";
+
         /// <summary>报警历史子目录名</summary>
         public const string AlarmsFolderName = "Alarms";
 

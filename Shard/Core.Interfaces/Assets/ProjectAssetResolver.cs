@@ -122,8 +122,8 @@ namespace Core.Interfaces.Assets
             if (!string.IsNullOrWhiteSpace(expectedContentKind)
                 && !string.Equals(asset.ContentKind, expectedContentKind, StringComparison.OrdinalIgnoreCase))
             {
-                error = $"资产 {asset.Name} 不是文本配方（内容形态 {asset.ContentKind}）；" +
-                        "请在项目资产页导入文本配方，或改选其它资产";
+                error = $"资产 {asset.Name} 的内容形态是 {asset.ContentKind}，这里需要 {expectedContentKind}；" +
+                        "请在项目资产页确认配方类型，或改选其它资产";
                 return false;
             }
 
