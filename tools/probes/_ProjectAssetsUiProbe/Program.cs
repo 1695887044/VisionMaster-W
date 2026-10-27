@@ -1467,6 +1467,77 @@ namespace ProjectAssetsUiProbe
                 Check(deniedVm.IsDenied && !deniedVm.HasAccess, "未登录时整页拒绝", ref failures);
                 Check(deniedVm.Rows.Count == 0, "无权限时不加载任何记录", ref failures);
 
+                // ── ⑤c 弹窗三项补全：操作者下拉 / 导出 CSV / 双击复制 ──
+                // 操作者下拉必须来自真实数据（不是硬编码），且选了之后真的过滤。
+                var actorOptions = dialogVm.ActorOptions.ToList();
+                Check(actorOptions.Count > 1 && actorOptions[0] == "全部",
+                    $"操作者下拉首项是「全部」且有真实候选（实际 {actorOptions.Count} 项）", ref failures);
+                Check(actorOptions.Contains("operator1") && actorOptions.Contains("probeuser"),
+                    "操作者下拉来自真实数据（含 operator1 / probeuser）", ref failures);
+                dialogVm.SelectedActor = "probeuser";
+                Check(dialogVm.Rows.Count > 0 && dialogVm.Rows.All(r => r.Actor == "probeuser"),
+                    $"按操作者筛选真的生效（{dialogVm.Rows.Count} 条，全部是 probeuser）", ref failures);
+                dialogVm.SelectedActor = "全部";
+                Check(dialogVm.Rows.Any(r => r.Actor != "probeuser"),
+                    "恢复「全部」后能看到其它操作者", ref failures);
+
+                // 双击复制（内核）：复制选中行明细 → 剪贴板内容必须与该行明细逐字一致。
+                // 选一条明细非占位（" — "）的行：证明复制的是真实内容而不是占位符。
+                dialogVm.SelectedRow = dialogVm.Rows.FirstOrDefault(r => r.Detail != "—")
+                                       ?? dialogVm.Rows.FirstOrDefault();
+                var copied = dialogVm.CopySelectedRowDetail();
+                var clipboardText = string.Empty;
+                var clipboardError = string.Empty;
+                try { clipboardText = Clipboard.ContainsText() ? Clipboard.GetText() : string.Empty; }
+                catch (Exception ex) { clipboardError = ex.Message; }
+                Check(copied && clipboardError.Length == 0 && dialogVm.SelectedRow != null
+                      && clipboardText == dialogVm.SelectedRow.Detail
+                      && dialogVm.Feedback == "已复制",
+                    "双击复制：剪贴板内容 = 该行明细，且提示「已复制」"
+                    + (clipboardError.Length > 0
+                        ? "（读剪贴板失败：" + clipboardError + "）"
+                        : $"（实际「{clipboardText}」/ 期望「{dialogVm.SelectedRow?.Detail}」）"),
+                    ref failures);
+
+                // 导出 CSV：造一份 205 条的库（跨页）——导出件必须是**全部筛选结果**（205），
+                // 不是当前页（200 条）；顺带钉住表头。夹具字段里没有逗号/换行，按行计数即可。
+                using (var bulkLog = new Core.Database.SqliteSoftwareOperationLog(
+                           Path.Combine(temp, "bulk-export.db"), retentionDays: () => 90))
+                {
+                    for (var i = 0; i < 205; i++)
+                    {
+                        bulkLog.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                        {
+                            Category = "Solution",
+                            Action = "打开方案",
+                            Outcome = "成功",
+                            Actor = i % 2 == 0 ? "bulkA" : "bulkB",
+                            Subject = "S" + i,
+                            Detail = "第 " + i + " 条",
+                        });
+                    }
+
+                    var bulkVm = new VisionMaster.ViewModels.DialogViewModels.OperationsLogViewModel(policy, bulkLog);
+                    bulkVm.SelectedCategory = "Solution";
+                    Check(bulkVm.Rows.Count == 200,
+                        $"导出前置：当前页只显示 200 条（实际 {bulkVm.Rows.Count}）", ref failures);
+
+                    var csvPath = Path.Combine(temp, "ops-export.csv");
+                    var exportOk = bulkVm.TryExportCsv(csvPath, out var exportError);
+                    Check(exportOk && File.Exists(csvPath),
+                        "导出 CSV 成功" + (string.IsNullOrEmpty(exportError) ? string.Empty : "：" + exportError),
+                        ref failures);
+                    if (exportOk && File.Exists(csvPath))
+                    {
+                        var csvText = File.ReadAllText(csvPath, Encoding.UTF8);
+                        var csvLines = csvText.Split('\n').Where(l => l.Length > 0).ToList();
+                        Check(csvLines.Count > 0 && csvLines[0].TrimStart('\uFEFF').StartsWith("时间,", StringComparison.Ordinal),
+                            "CSV 首行是表头", ref failures);
+                        Check(csvLines.Count - 1 == 205,
+                            $"导出文件行数 = 筛选结果总数（{csvLines.Count - 1} vs 205）", ref failures);
+                    }
+                }
+
                 // ── ⑥ 权限变更（账号本 / 用户组）──
                 var usersDir = Path.Combine(temp, "Users");
                 Directory.CreateDirectory(usersDir);

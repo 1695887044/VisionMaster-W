@@ -244,6 +244,41 @@ namespace Core.Database
             return result;
         }
 
+        /// <summary>
+        /// 列出库里出现过的操作者，按出现次数降序（筛选下拉的候选）。
+        /// 空操作者（未登录/系统动作）不入列。同为 fail-open：失败返回空表，不抛。
+        /// </summary>
+        public IReadOnlyList<string> QueryActors(int limit = 200)
+        {
+            var result = new List<string>();
+            if (_disabled) return result;
+
+            try
+            {
+                lock (_gate)
+                {
+                    if (!EnsureInitialized()) return result;
+
+                    using var connection = OpenConnection();
+                    using var command = connection.CreateCommand();
+                    command.CommandText =
+                        "SELECT actor, COUNT(*) AS n FROM " + TableName +
+                        " WHERE actor <> '' GROUP BY actor ORDER BY n DESC, actor ASC LIMIT $limit;";
+                    command.Parameters.AddWithValue("$limit", Math.Max(1, limit));
+
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                        result.Add(reader.GetString(0));
+                }
+            }
+            catch (Exception ex)
+            {
+                _warn?.Invoke("[软件操作记录] 操作者列表查询失败：" + ex.Message);
+            }
+
+            return result;
+        }
+
         private static void AddFilters(
             SqliteCommand command, string? category, string? actor, Guid? solutionId,
             DateTime? fromUtc, DateTime? toUtc, string? keyword)

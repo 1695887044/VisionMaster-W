@@ -73,6 +73,15 @@
                         ItemsSource="{Binding CategoryOptions}"
                         SelectedItem="{Binding SelectedCategory, Mode=TwoWay}"
                         Style="{StaticResource DialogCombo}" />
+                    <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="操作者" />
+                    <ComboBox
+                        Width="130"
+                        Height="30"
+                        Margin="6,0,14,0"
+                        Padding="8,0"
+                        ItemsSource="{Binding ActorOptions}"
+                        SelectedItem="{Binding SelectedActor, Mode=TwoWay}"
+                        Style="{StaticResource DialogCombo}" />
                     <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="时间" />
                     <ComboBox
                         Width="120"
@@ -97,6 +106,13 @@
                         Command="{Binding ClearFiltersCommand}"
                         Content="清空筛选"
                         Style="{StaticResource DialogGhostButton}" />
+                    <Button
+                        Height="32"
+                        Margin="0,0,8,0"
+                        Padding="12,0"
+                        Command="{Binding ExportCommand}"
+                        Content="导出 CSV"
+                        Style="{StaticResource DialogSecondaryButton}" />
                     <Button
                         Height="32"
                         Padding="14,0"
@@ -134,11 +150,13 @@
                 </Grid>
 
                 <ListBox
+                    x:Name="RowsList"
                     Grid.Row="1"
                     Background="Transparent"
                     BorderThickness="0"
                     ItemsSource="{Binding Rows}"
                     SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                    MouseDoubleClick="RowsList_MouseDoubleClick"
                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                     ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListBox.ItemContainerStyle>
@@ -261,12 +279,23 @@
 
             <!--  页脚  -->
             <Grid Grid.Row="3" Margin="20,0">
-                <TextBlock
+                <StackPanel
                     VerticalAlignment="Center"
-                    FontSize="11"
-                    Foreground="{StaticResource DialogTextTertiaryBrush}"
-                    Text="{Binding PageText}"
-                    Visibility="{Binding HasAccess, Converter={ui:BooleanToVisibilityConverter}}" />
+                    Orientation="Horizontal"
+                    Visibility="{Binding HasAccess, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="{Binding PageText}" />
+                    <TextBlock
+                        Margin="12,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding Feedback}"
+                        Visibility="{Binding HasFeedback, Converter={ui:BooleanToVisibilityConverter}}" />
+                </StackPanel>
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
                     <Button
                         Height="32"
