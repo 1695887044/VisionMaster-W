@@ -1450,6 +1450,23 @@ namespace ProjectAssetsUiProbe
                 Check(log.Query(category: "Settings").Any(r => r.Action == "保存系统参数"),
                     "系统参数保存真的写进了软件库", ref failures);
 
+                // ── ⑤b 操作记录弹窗 VM：有权限能看、没权限整页拒绝 ──
+                // 上面的登录/登出用例已经把人踢下线了，这里重新登录一次。
+                policy.Login(new ScadaUserInfo(
+                    "probeuser", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+                var dialogVm = new VisionMaster.ViewModels.DialogViewModels.OperationsLogViewModel(policy, log);
+                Check(dialogVm.HasAccess, "管理员能打开操作记录", ref failures);
+                Check(dialogVm.Rows.Count > 0, $"弹窗读到 {dialogVm.Rows.Count} 条记录", ref failures);
+                Check(dialogVm.PageText.Contains("共"), "页脚显示总条数", ref failures);
+                dialogVm.SelectedRow = dialogVm.Rows.FirstOrDefault();
+                Check(dialogVm.HasSelection && dialogVm.DetailText.Length > 0, "选中行后明细区有内容", ref failures);
+
+                var anonymous = new ScadaAccessPolicy();
+                var deniedVm = new VisionMaster.ViewModels.DialogViewModels.OperationsLogViewModel(anonymous, log);
+                Check(deniedVm.IsDenied && !deniedVm.HasAccess, "未登录时整页拒绝", ref failures);
+                Check(deniedVm.Rows.Count == 0, "无权限时不加载任何记录", ref failures);
+
                 // ── ⑥ 权限变更（账号本 / 用户组）──
                 var usersDir = Path.Combine(temp, "Users");
                 Directory.CreateDirectory(usersDir);

@@ -34,6 +34,8 @@ namespace ScadaChecks
             SlContracts();
             SlAuditTagAndReader();
             SlSessionBoundary();
+            SlSolutionSwitchCarryOver();
+            SlDebugAutoLogin();
             SlPermissionMatrix();
             SlFlowBarGate();
         }
@@ -43,6 +45,46 @@ namespace ScadaChecks
             var root = Path.Combine(Path.GetTempPath(), "sl-" + tag + "-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(root);
             return root;
+        }
+
+        /// <summary>
+        /// 在指定方案根下造一份可登录的账号本（出厂 admin + 指定账号）。
+        /// 用独立 store 写盘，不污染正在被测的那一份。
+        /// </summary>
+        private static void SeedSolutionBook(string root, string userName, string password, string groupId)
+        {
+            var store = new ScadaUserStore(
+                storePath: null, audit: null, actorProvider: null,
+                minPasswordLengthProvider: null, startUnbound: true,
+                permissionReferenceCounter: _ => 0);
+            if (!store.BindSolution(Guid.NewGuid(), Path.GetFileName(root), root, out var error))
+                throw new InvalidOperationException("种子账号本绑定失败：" + error);
+            if (!store.TryAddUser(userName, password, groupId, out error))
+                throw new InvalidOperationException("种子账号创建失败：" + error);
+        }
+
+        private static SolutionModel NewSolution(string name, string root)
+        {
+            Directory.CreateDirectory(root);
+            return new SolutionModel
+            {
+                SolutionName = name,
+                SolutionFilePath = Path.Combine(root, name + ".vms"),
+                SolutionId = Guid.NewGuid(),
+                IsIdentityPersisted = true,
+            };
+        }
+
+        private static string ReadAudit(string dir)
+        {
+            try
+            {
+                return string.Join("\n", Directory.GetFiles(dir, "*.csv")
+                    .OrderBy(p => p, StringComparer.Ordinal)
+                    .Select(File.ReadAllText));
+            }
+            catch (IOException) { return string.Empty; }
+            catch (UnauthorizedAccessException) { return string.Empty; }
         }
 
         private static void TryDelete(string dir)
@@ -592,8 +634,12 @@ namespace ScadaChecks
             public readonly ScadaUserStore Store;
             public readonly ScadaAuditWriter Audit;
             public readonly FakeWebSessionAdmin Web = new();
+            public readonly ScadaSessionCredentialVault Vault;
             public readonly SolutionSessionCoordinator Coordinator;
             public readonly List<string> Notifications = new();
+
+            /// <summary>调试模式面板开关（夹具里可编程；默认开，便于测自动登录）。</summary>
+            public bool DebugModeEnabled { get; set; } = true;
 
             public CoordinatorFixture(string tag)
             {
@@ -607,10 +653,16 @@ namespace ScadaChecks
                     storePath: null, audit: null, actorProvider: () => Policy.CurrentUserName,
                     startUnbound: true, permissionReferenceCounter: _ => 0);
                 Audit = new ScadaAuditWriter(AuditDir);
+                Vault = new ScadaSessionCredentialVault(Policy);
                 Coordinator = new SolutionSessionCoordinator(
                     workspace: null, Store, Policy, Identity, Audit,
                     webSessionAdminProvider: () => Web,
-                    onNotify: m => Notifications.Add(m));
+                    onNotify: m => Notifications.Add(m),
+                    credentials: Vault,
+                    debugModeEnabledProvider: () => DebugModeEnabled);
+                // 默认关掉"开发构建默认管理员"：否则每个夹具在绑定方案时都会自动登成 admin，
+                // 把"未登录/登出"这些被测路径掩盖掉。[SL-f] 需要时单独打开。
+                Coordinator.DebugAutoLoginAllowed = false;
                 Coordinator.Start();
             }
 
@@ -623,10 +675,12 @@ namespace ScadaChecks
 
             public void LoginAs(string userName)
             {
-                if (!Store.TryValidate(userName, userName == "admin"
-                        ? ScadaUserStore.DefaultAdminPassword : "pass1234", out var user, out var error))
+                var password = userName == "admin"
+                    ? ScadaUserStore.DefaultAdminPassword : "pass1234";
+                if (!Store.TryValidate(userName, password, out var user, out var error))
                     throw new InvalidOperationException("夹具登录失败：" + error);
                 Policy.Login(user!);
+                Vault.Remember(user!.Name, password);
             }
 
             public void Dispose()
@@ -734,6 +788,288 @@ namespace ScadaChecks
             }
         }
 
+        private static void SlSolutionSwitchCarryOver()
+        {
+            Section("[SL-e] 切方案保持登录（同账号密码 / 权限取新方案 / 登出即清凭据）");
+
+            // ---- e0：凭据仓本身 ----
+            {
+                var policy = new ScadaAccessPolicy(() => TimeSpan.FromHours(1));
+                var vault = new ScadaSessionCredentialVault(policy);
+
+                vault.Remember("u1", "p1");
+                Check("[SL-e0-a] 记住后可取且有凭据", vault.HasCredential, "HasCredential=false");
+
+                var snapshot = vault.Capture();
+                Check("[SL-e0-b] Capture 取走即清空仓",
+                    snapshot != null && !vault.HasCredential,
+                    $"snapshot={(snapshot != null)} has={vault.HasCredential}");
+                Check("[SL-e0-c] 快照带用户名与可用密码",
+                    snapshot != null && snapshot.UserName == "u1" && !snapshot.IsEmpty,
+                    snapshot?.UserName ?? "<null>");
+
+                snapshot?.Dispose();
+                Check("[SL-e0-d] Dispose 后快照为空（不可再用）",
+                    snapshot != null && snapshot.IsEmpty,
+                    snapshot?.IsEmpty.ToString() ?? "<null>");
+            }
+
+            // ---- e1：两边同账号同密码 → 保持登录，权限取新方案 ----
+            using (var f = new CoordinatorFixture("e1"))
+            {
+                f.BindWithUsers();
+                var solA = NewSolution("A", f.Root);
+                f.Coordinator.HandleSolutionSwitched(solA);
+                f.LoginAs("op1");
+
+                Check("[SL-e1-a] 切前：已登录且凭据在仓",
+                    f.Policy.IsLoggedIn && f.Vault.HasCredential,
+                    $"logged={f.Policy.IsLoggedIn} has={f.Vault.HasCredential}");
+
+                var rootB = NewSolutionRoot("e1b");
+                SeedSolutionBook(rootB, "op1", "pass1234", "G-general");
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", rootB));
+
+                Check("[SL-e1-b] 同账号密码 → 切方案后仍登录",
+                    f.Policy.IsLoggedIn && f.Policy.CurrentUserName == "op1",
+                    $"logged={f.Policy.IsLoggedIn} user={f.Policy.CurrentUserName}");
+
+                Check("[SL-e1-c] 权限取新方案的组（G-general/普工：有 Start、无 AxisJog）",
+                    f.Policy.CurrentGroupId == "G-general"
+                    && f.Policy.CurrentGroupName == "普工"
+                    && f.Policy.Can(ScadaPermissionKeys.Start, out _)
+                    && !f.Policy.Can(ScadaPermissionKeys.AxisJog, out _),
+                    $"group={f.Policy.CurrentGroupId}/{f.Policy.CurrentGroupName} perms={string.Join(",", f.Policy.Permissions)}");
+
+                Check("[SL-e1-d] 凭据已回填（连续切方案仍能保持）", f.Vault.HasCredential,
+                    "第二次切方案会因为没有凭据而登出");
+
+                var audit = ReadAudit(f.AuditDir);
+                Check("[SL-e1-e] 审计记「保持登录」且成功",
+                    audit.Contains("保持登录", StringComparison.Ordinal)
+                    && audit.Contains("成功", StringComparison.Ordinal),
+                    $"bytes={audit.Length}");
+                Check("[SL-e1-f] 审计里没有密码原文", !audit.Contains("pass1234", StringComparison.Ordinal),
+                    "明文密码进了审计文件");
+            }
+
+            // ---- e2：密码不同 → 登出（与旧行为一致） ----
+            using (var f = new CoordinatorFixture("e2"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+                f.LoginAs("op1");
+
+                var rootB = NewSolutionRoot("e2b");
+                SeedSolutionBook(rootB, "op1", "other9999", "G-general");
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", rootB));
+
+                Check("[SL-e2-a] 密码不同 → 登出且组清空",
+                    !f.Policy.IsLoggedIn && f.Policy.CurrentGroupId.Length == 0,
+                    $"logged={f.Policy.IsLoggedIn} group={f.Policy.CurrentGroupId}");
+                Check("[SL-e2-b] 凭据不残留", !f.Vault.HasCredential, "登出后凭据仓仍有值");
+
+                var audit = ReadAudit(f.AuditDir);
+                Check("[SL-e2-c] 审计记「保持登录」失败",
+                    audit.Contains("保持登录", StringComparison.Ordinal)
+                    && audit.Contains("失败", StringComparison.Ordinal),
+                    $"bytes={audit.Length}");
+                Check("[SL-e2-d] 失败原因上屏/落日志（不是静默登出）",
+                    f.Notifications.Any(m => m.Contains("未保持登录", StringComparison.Ordinal)),
+                    string.Join(" | ", f.Notifications));
+            }
+
+            // ---- e3：新方案没有这个账号 → 登出 ----
+            using (var f = new CoordinatorFixture("e3"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+                f.LoginAs("op1");
+
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", NewSolutionRoot("e3b")));
+
+                Check("[SL-e3] 新方案没有该账号 → 登出", !f.Policy.IsLoggedIn,
+                    "账号不存在却保持了登录");
+            }
+
+            // ---- e4：本来就没登录 → 不会凭空登录 ----
+            using (var f = new CoordinatorFixture("e4"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+
+                var rootB = NewSolutionRoot("e4b");
+                SeedSolutionBook(rootB, "op1", "pass1234", "G-general");
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", rootB));
+
+                Check("[SL-e4] 未登录切方案 → 不会凭空登录", !f.Policy.IsLoggedIn,
+                    "没有会话却登录了");
+            }
+
+            // ---- e5：手动登出清凭据 → 再切方案不会复活 ----
+            using (var f = new CoordinatorFixture("e5"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+                f.LoginAs("op1");
+                f.Policy.Logout();
+
+                Check("[SL-e5-a] 登出即清凭据", !f.Vault.HasCredential, "凭据跟着会话一起活着");
+
+                var rootB = NewSolutionRoot("e5b");
+                SeedSolutionBook(rootB, "op1", "pass1234", "G-general");
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", rootB));
+
+                Check("[SL-e5-b] 登出后切方案不会复活会话", !f.Policy.IsLoggedIn,
+                    "超时/手动登出后切方案又登回来了");
+            }
+
+            // ---- e6：改密后旧凭据作废；本人改密用新密码回填 ----
+            using (var f = new CoordinatorFixture("e6"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+                f.LoginAs("op1");
+
+                var changed = f.Store.TryChangePassword("op1", "pass1234", "newpass99", out var changeError);
+                Check("[SL-e6-a] 改密成功", changed, changeError ?? "");
+                Check("[SL-e6-b] 改密事件清掉旧凭据", !f.Vault.HasCredential,
+                    "旧密码仍留在仓里");
+
+                // 登录弹窗在改密成功后会立刻用新明文回填（见 ScadaLoginViewModel.OnChangePassword）
+                f.Vault.Remember("op1", "newpass99");
+
+                var rootB = NewSolutionRoot("e6b");
+                SeedSolutionBook(rootB, "op1", "newpass99", "G-general");
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", rootB));
+
+                Check("[SL-e6-c] 新密码在新方案一致 → 保持登录",
+                    f.Policy.IsLoggedIn && f.Policy.CurrentGroupId == "G-general",
+                    $"logged={f.Policy.IsLoggedIn} group={f.Policy.CurrentGroupId}");
+            }
+
+            // ---- e7：切到未保存的新方案（出厂 admin/admin123）也能保持 ----
+            using (var f = new CoordinatorFixture("e7"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+                f.LoginAs("admin");
+
+                f.Coordinator.HandleSolutionSwitched(new SolutionModel
+                {
+                    SolutionName = "未保存方案",
+                    SolutionId = Guid.NewGuid(),
+                    IsIdentityPersisted = false,
+                });
+
+                Check("[SL-e7] 未保存方案（出厂 admin）同账号密码 → 保持登录",
+                    f.Policy.IsLoggedIn && f.Policy.CurrentUserName == "admin",
+                    $"logged={f.Policy.IsLoggedIn} user={f.Policy.CurrentUserName}");
+            }
+
+            // ---- e8：重开当前方案不触发会话边界（不登出、不重复审计） ----
+            using (var f = new CoordinatorFixture("e8"))
+            {
+                f.BindWithUsers();
+                var solA = NewSolution("A", f.Root);
+                f.Coordinator.HandleSolutionSwitched(solA);
+                f.LoginAs("op1");
+
+                var fired = 0;
+                f.Coordinator.SessionBoundaryChanged += () => fired++;
+                f.Coordinator.HandleSolutionSwitched(solA);
+
+                Check("[SL-e8] 重开同一方案：仍登录、凭据在、不触发会话边界",
+                    f.Policy.IsLoggedIn && f.Vault.HasCredential && fired == 0,
+                    $"logged={f.Policy.IsLoggedIn} has={f.Vault.HasCredential} fired={fired}");
+            }
+        }
+
+        private static void SlDebugAutoLogin()
+        {
+            Section("[SL-f] 开发构建默认管理员（自动登录，仅未上线构建 / 每进程一次）");
+
+            // ---- f1：首次打开方案 → 自动登成出厂管理员；手动登出后不再登回来 ----
+            using (var f = new CoordinatorFixture("f1"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.DebugAutoLoginAllowed = true;
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+
+                Check("[SL-f1-a] 未登录首次打开方案 → 自动以出厂管理员登录",
+                    f.Policy.IsLoggedIn
+                    && f.Policy.CurrentUserName == "admin"
+                    && f.Policy.Can(ScadaPermissionKeys.UserAdministration, out _),
+                    $"logged={f.Policy.IsLoggedIn} user={f.Policy.CurrentUserName} group={f.Policy.CurrentGroupId}");
+                Check("[SL-f1-b] 自动登录也回填凭据（后续切方案可保持）",
+                    f.Vault.HasCredential, "自动登录没有进入凭据仓");
+                Check("[SL-f1-c] 审计记「调试自动登录」",
+                    ReadAudit(f.AuditDir).Contains("调试自动登录", StringComparison.Ordinal),
+                    "自动登录没有留痕");
+
+                f.Policy.Logout();
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", f.Root));
+
+                Check("[SL-f1-d] 手动登出后不再自动登录（每进程只尝试一次）",
+                    !f.Policy.IsLoggedIn,
+                    "登出后切个方案又自己登回来了");
+            }
+
+            // ---- f2：管理员改过出厂密码 → 不自动登录 ----
+            using (var f = new CoordinatorFixture("f2"))
+            {
+                f.BindWithUsers();
+                f.Store.TryChangePassword(ScadaUserStore.DefaultAdminName,
+                    ScadaUserStore.DefaultAdminPassword, "changed99", out _);
+                f.Coordinator.DebugAutoLoginAllowed = true;
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+
+                Check("[SL-f2] 出厂密码已改 → 不自动登录（不是绕过密码）",
+                    !f.Policy.IsLoggedIn,
+                    "改过密码还能自动登进来");
+            }
+
+            // ---- f3：非开发构建（发版）→ 不自动登录 ----
+            using (var f = new CoordinatorFixture("f3"))
+            {
+                f.BindWithUsers();
+                // 夹具默认 DebugAutoLoginAllowed=false，等价于发版构建
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+
+                Check("[SL-f3] 发版构建不自动登录", !f.Policy.IsLoggedIn,
+                    "发版构建里出现了自动登录");
+            }
+
+            // ---- f4：自动登录的凭据也能跨方案保持 ----
+            using (var f = new CoordinatorFixture("f4"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.DebugAutoLoginAllowed = true;
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+
+                var rootB = NewSolutionRoot("f4b");   // 空根 → 出厂 admin/admin123
+                f.Coordinator.HandleSolutionSwitched(NewSolution("B", rootB));
+
+                Check("[SL-f4] 自动登录的凭据切到同密码方案仍保持",
+                    f.Policy.IsLoggedIn
+                    && f.Policy.CurrentUserName == "admin"
+                    && f.Policy.CurrentGroupId == ScadaGroupDefaults.AdminTemplateId,
+                    $"logged={f.Policy.IsLoggedIn} user={f.Policy.CurrentUserName} group={f.Policy.CurrentGroupId}");
+            }
+
+            // ---- f5：调试模式面板开关关着 → 不自动登录（开关是意图） ----
+            using (var f = new CoordinatorFixture("f5"))
+            {
+                f.BindWithUsers();
+                f.Coordinator.DebugAutoLoginAllowed = true;
+                f.DebugModeEnabled = false;
+                f.Coordinator.HandleSolutionSwitched(NewSolution("A", f.Root));
+
+                Check("[SL-f5] 调试模式开关关着 → 不自动登录", !f.Policy.IsLoggedIn,
+                    "面板开关关着还是自动登进来了");
+            }
+        }
+
         private static void SlPermissionMatrix()
         {
             Section("[SL16] ScadaPermissionGate：15 Key / 无角色 / 无恒放行档");
@@ -760,9 +1096,9 @@ namespace ScadaChecks
                 .Concat(flow.Select(a => ScadaPermissionGate.RequiredPermission(a)))
                 .ToArray();
 
-            Check("[SL16-a] 四类动作 6+7+19+13=45 项全部有映射，且 Key 合法",
-                solution.Length == 6 && execution.Length == 7 && system.Length == 19 && flow.Length == 13
-                    && all.Length == 45
+            Check("[SL16-a] 四类动作 6+7+20+13=46 项全部有映射，且 Key 合法",
+                solution.Length == 6 && execution.Length == 7 && system.Length == 20 && flow.Length == 13
+                    && all.Length == 46
                     && all.All(k => k == ScadaPermissionKeys.Always
                                     || ScadaPermissionKeys.BuiltIn.Any(p => p.Key == k)),
                 string.Join(",", all.Distinct()));
@@ -814,8 +1150,8 @@ namespace ScadaChecks
                 .Concat(system.Select(a => ScadaPermissionGate.Describe(a)))
                 .Concat(flow.Select(a => ScadaPermissionGate.Describe(a)))
                 .ToArray();
-            Check("[SL16-h] Describe 45 项非空且互不相同",
-                described.All(d => !string.IsNullOrWhiteSpace(d)) && described.Distinct().Count() == 45,
+            Check("[SL16-h] Describe 46 项非空且互不相同",
+                described.All(d => !string.IsNullOrWhiteSpace(d)) && described.Distinct().Count() == 46,
                 "重复/空白：" + described.Length);
 
             var methods = typeof(ScadaPermissionGate).GetMethods(BindingFlags.Public | BindingFlags.Static)

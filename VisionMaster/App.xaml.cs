@@ -944,6 +944,12 @@ namespace VisionMaster
             // ScadaAccessPolicy / IDialogService 必须已经在上面注册好——这也是它们排在这里的原因。
             containerRegistry.RegisterDialog<ScadaLoginView, ScadaLoginViewModel>("ScadaLoginView");
             containerRegistry.RegisterDialog<UserManagementView, UserManagementViewModel>("UserManagementView");
+            // 软件级操作记录：VM 手工装配（要把当前进程那份 SQLite 日志实例传进去，
+            // 让界面读的和写的是同一个库；交给容器去 new 会解析出一份指向默认路径的新实例）。
+            ViewModelLocationProvider.Register<OperationsLogView>(() => new OperationsLogViewModel(
+                Container.Resolve<ScadaAccessPolicy>(),
+                SoftwareOperationLogHost.Current as SqliteSoftwareOperationLog));
+            containerRegistry.RegisterDialog<OperationsLogView, OperationsLogViewModel>("OperationsLogView");
             // 项目资产：写入口只走 ProjectAssetService（权限 + 版本 + 审计），VM 从工厂注入。
             // 资产 service 必须是**当前方案**的写入口，不能构造时定死一份方案；
             // 每次解析时按工作区当前方案新建（资产写是低频操作，不值得缓存）。

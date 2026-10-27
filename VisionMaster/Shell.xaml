@@ -1176,6 +1176,16 @@
                             </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.OperationsLog}"
+                                Header="操作记录"
+                                ui:MenuItemEx.Description="本机登录 / 权限变更 / 方案切换 / 安全动作（软件级）"
+                                ui:MenuItemEx.Tone="Slate">
+                                <MenuItem.Icon>
+                                    <TextBlock FontFamily="{StaticResource Icon}" Text="&#xf1da;" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
                                 Header="全局变量"
                                 ui:MenuItemEx.Description="管理全局变量"

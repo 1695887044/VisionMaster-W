@@ -100,6 +100,8 @@ namespace VisionMaster.Services
             SystemAction.RuntimeWindowSettings => ScadaPermissionKeys.SystemConfig,
             SystemAction.SystemParameters => ScadaPermissionKeys.SystemConfig,
             SystemAction.UserManagement => ScadaPermissionKeys.UserAdministration,
+            // 操作记录含登录失败与权限变更，与用户管理同权限收口
+            SystemAction.OperationsLog => ScadaPermissionKeys.UserAdministration,
         };
 
         public static bool TryRequiredPermission(SystemAction action, out string key)
@@ -124,7 +126,8 @@ namespace VisionMaster.Services
                 case SystemAction.SystemSettings:
                 case SystemAction.RuntimeWindowSettings:
                 case SystemAction.SystemParameters: key = ScadaPermissionKeys.SystemConfig; return true;
-                case SystemAction.UserManagement: key = ScadaPermissionKeys.UserAdministration; return true;
+                case SystemAction.UserManagement:
+                case SystemAction.OperationsLog: key = ScadaPermissionKeys.UserAdministration; return true;
                 default: key = string.Empty; return false;
             }
         }
@@ -223,6 +226,7 @@ namespace VisionMaster.Services
             SystemAction.RuntimeWindowSettings => "运行窗口设置",
             SystemAction.SystemParameters => "系统参数",
             SystemAction.UserManagement => "用户管理",
+            SystemAction.OperationsLog => "操作记录",
             _ => action.ToString(),
         };
 

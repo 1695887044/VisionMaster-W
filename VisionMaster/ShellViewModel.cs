@@ -959,6 +959,8 @@ namespace VisionMaster
                 _ => eViewMode.One,
             };
 
+            // 同 SolutionConfigApplier：先落静态形态再广播（面板可能没显示，事件没人收）
+            Views.ImageView.ApplyModeForRestore(viewMode);
             GlobalEventBus.Publish<ImageCanvasChangeEvent>(new ImageCanvasChangeEvent { ViewMode = viewMode });
         }
 
@@ -1609,6 +1611,10 @@ namespace VisionMaster
                     break;
                 case SystemAction.UserManagement:
                     dialogService.ShowDialog("UserManagementView");
+                    break;
+                case SystemAction.OperationsLog:
+                    // 软件级操作记录：与「用户管理」里的方案级审计是两个数据源（见弹窗里的说明）。
+                    dialogService.ShowDialog("OperationsLogView");
                     break;
                 case SystemAction.CameraSettings:
                     ShowCameraSettings();

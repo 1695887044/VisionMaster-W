@@ -253,7 +253,14 @@ namespace VisionMaster
         SystemSettings,
 
         /// <summary>用户管理（B3）：方案级账号/组/权限目录/在线会话/审计。</summary>
-        UserManagement
+        UserManagement,
+
+        /// <summary>
+        /// 操作记录（软件级）：登录/权限/方案生命周期/系统参数/安全动作。
+        /// 数据源是程序目录 `Data\operations.db`，与「用户管理」里的方案级审计是两回事。
+        /// 追加在末尾——理由见 <see cref="RuntimeWindowSettings"/>。
+        /// </summary>
+        OperationsLog
     }
 
     /// <summary>

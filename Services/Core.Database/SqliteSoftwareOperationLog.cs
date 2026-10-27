@@ -161,6 +161,103 @@ namespace Core.Database
             return result;
         }
 
+        /// <summary>
+        /// 分页查询（操作记录弹窗用）：时间范围 + 关键字 + offset/limit，并回传总条数。
+        /// 关键字匹配 对象 / 动作 / 明细。
+        /// </summary>
+        public IReadOnlyList<SoftwareOperationEntry> QueryPage(
+            string? category,
+            string? actor,
+            Guid? solutionId,
+            DateTime? fromUtc,
+            DateTime? toUtc,
+            string? keyword,
+            int offset,
+            int limit,
+            out int total)
+        {
+            total = 0;
+            var result = new List<SoftwareOperationEntry>();
+            if (_disabled) return result;
+
+            try
+            {
+                lock (_gate)
+                {
+                    if (!EnsureInitialized()) return result;
+
+                    using var connection = OpenConnection();
+                    var where =
+                        " WHERE ($category IS NULL OR category = $category)" +
+                        "   AND ($actor IS NULL OR actor = $actor)" +
+                        "   AND ($solutionId IS NULL OR solution_id = $solutionId)" +
+                        "   AND ($from IS NULL OR ts_utc >= $from)" +
+                        "   AND ($to IS NULL OR ts_utc <= $to)" +
+                        "   AND ($kw IS NULL OR subject LIKE $kw OR action LIKE $kw OR detail LIKE $kw)";
+
+                    using (var count = connection.CreateCommand())
+                    {
+                        count.CommandText = "SELECT COUNT(*) FROM " + TableName + where + ";";
+                        AddFilters(count, category, actor, solutionId, fromUtc, toUtc, keyword);
+                        total = Convert.ToInt32(count.ExecuteScalar() ?? 0);
+                    }
+
+                    using var command = connection.CreateCommand();
+                    command.CommandText =
+                        "SELECT ts_utc, machine, app_version, actor, actor_role, category, action, outcome, " +
+                        "subject, subject_id, solution_id, solution_name, detail FROM " + TableName + where +
+                        " ORDER BY ts_utc DESC, id DESC LIMIT $limit OFFSET $offset;";
+                    AddFilters(command, category, actor, solutionId, fromUtc, toUtc, keyword);
+                    command.Parameters.AddWithValue("$limit", Math.Max(1, limit));
+                    command.Parameters.AddWithValue("$offset", Math.Max(0, offset));
+
+                    using var reader = command.ExecuteReader();
+                    while (reader.Read())
+                    {
+                        result.Add(new SoftwareOperationEntry
+                        {
+                            TimestampUtc = DateTime.TryParse(reader.GetString(0), null,
+                                System.Globalization.DateTimeStyles.RoundtripKind, out var ts)
+                                ? ts
+                                : DateTime.UtcNow,
+                            Machine = reader.GetString(1),
+                            AppVersion = reader.GetString(2),
+                            Actor = reader.GetString(3),
+                            ActorRole = reader.GetString(4),
+                            Category = reader.GetString(5),
+                            Action = reader.GetString(6),
+                            Outcome = reader.GetString(7),
+                            Subject = reader.GetString(8),
+                            SubjectId = reader.GetString(9),
+                            SolutionId = reader.IsDBNull(10) ? null : Guid.Parse(reader.GetString(10)),
+                            SolutionName = reader.GetString(11),
+                            Detail = reader.GetString(12),
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _warn?.Invoke("[软件操作记录] 分页查询失败：" + ex.Message);
+            }
+
+            return result;
+        }
+
+        private static void AddFilters(
+            SqliteCommand command, string? category, string? actor, Guid? solutionId,
+            DateTime? fromUtc, DateTime? toUtc, string? keyword)
+        {
+            command.Parameters.AddWithValue("$category", (object?)category ?? DBNull.Value);
+            command.Parameters.AddWithValue("$actor", (object?)actor ?? DBNull.Value);
+            command.Parameters.AddWithValue("$solutionId",
+                solutionId.HasValue ? solutionId.Value.ToString() : (object)DBNull.Value);
+            command.Parameters.AddWithValue("$from", fromUtc?.ToString("O") ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("$to", toUtc?.ToString("O") ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("$kw",
+                string.IsNullOrWhiteSpace(keyword) ? (object)DBNull.Value : "%" + keyword.Trim() + "%");
+        }
+
         /// <summary>按保留期清理；返回删除行数。失败返回 0，不抛。</summary>
         public int PruneExpired()
         {

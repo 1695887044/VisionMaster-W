@@ -534,6 +534,15 @@
                             </MenuItem>
                             <MenuItem
                                 Command="{Binding SystemCommand}"
+                                CommandParameter="{x:Static local:SystemAction.OperationsLog}"
+                                Header="操作记录"
+                                 >
+                                <MenuItem.Icon>
+                                    <TextBlock Text="&#xf1da;" FontFamily="{StaticResource Icon}" />
+                                </MenuItem.Icon>
+                            </MenuItem>
+                            <MenuItem
+                                Command="{Binding SystemCommand}"
                                 CommandParameter="{x:Static local:SystemAction.GlobalVariables}"
                                 Header="全局变量"
                                  >
