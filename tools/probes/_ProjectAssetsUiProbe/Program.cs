@@ -9,6 +9,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Newtonsoft.Json;
+using Plugin.Motion.Virtual;
 using Prism.Dialogs;
 using Prism.Mvvm;
 using Core.Interfaces;
@@ -18,6 +19,7 @@ using VisionMaster.Models;
 using VisionMaster.Models.Assets;
 using VisionMaster.Scada;
 using VisionMaster.Services;
+using VisionMaster.Services.Motion;
 using VisionMaster.ViewModels;
 using VisionMaster.ViewModels.DialogViewModels;
 using VisionMaster.Views;
@@ -1483,6 +1485,9 @@ namespace ProjectAssetsUiProbe
                     "删除账号写进了软件库", ref failures);
                 Check(permRows.All(r => r.Actor == "permadmin"),
                     "权限变更带操作者（不是空白）", ref failures);
+
+                // ── ⑦ 运动安全动作（真实执行器 + 真实虚拟运动卡）──
+                RunMotionSafetyLogChecks(log, ref failures);
             }
             catch (Exception ex)
             {
@@ -1493,6 +1498,253 @@ namespace ProjectAssetsUiProbe
                 Core.Interfaces.Operations.SoftwareOperationLogHost.Current = previous;
                 try { Directory.Delete(temp, recursive: true); } catch { }
             }
+        }
+
+        /// <summary>
+        /// ⑦ 运动安全动作（使能 / 失能 / 回零 / 停止 / 清报警）必须落到软件级操作记录。
+        ///
+        /// 用**真实** <see cref="MotionActionExecutor"/> + 真实虚拟运动卡（Plugin.Motion.Virtual）跑：
+        /// "被门禁拒绝也要落库""记录不影响动作结果"这两条只有真设备状态机才证明得了，
+        /// new 一个假 <see cref="IMotionDevice"/> 只能断言常量（R38：跳过型/常量型断言必须能反证）。
+        ///
+        /// 三条口径：
+        ///   · 成功与被门禁拒绝两条路径都留记录，且带轴名（Subject）与稳定 Id（SubjectId）；
+        ///   · 定位这类**不**记 Safety —— 反向断言，防"以后把全部运动都记进去"；
+        ///   · 记录不影响动作结果：同一条调用"接库 / 不接库"返回值与提示必须逐字一致。
+        /// </summary>
+        private static void RunMotionSafetyLogChecks(
+            Core.Database.SqliteSoftwareOperationLog log, ref int failures)
+        {
+            VirtualMotionCard online = null;
+            VirtualMotionCard offline = null;
+            MotionActionExecutor executor = null;
+
+            try
+            {
+                // 两张卡：一张连上（使能/失能走成功路径），一张始终不连（回零走"被门禁拒绝"路径）。
+                var onlineDescriptor = NewProbeMotionDescriptor("断言用在线虚拟卡", "SX");
+                var offlineDescriptor = NewProbeMotionDescriptor("断言用离线虚拟卡", "SY");
+
+                online = new VirtualMotionCard(onlineDescriptor) { Log = new ProbeLog() };
+                offline = new VirtualMotionCard(offlineDescriptor) { Log = new ProbeLog() };
+
+                var provider = new ProbeMotionProvider(
+                    (onlineDescriptor, online), (offlineDescriptor, offline));
+                var registry = new MotionAxisRegistry(() => new[] { onlineDescriptor, offlineDescriptor });
+
+                Check(online.Connect(), "前置：虚拟运动卡连上了", ref failures);
+                Check(offline.State == MotionCardState.Closed,
+                    "前置：第二张卡保持未连接（用来造「被门禁拒绝」）", ref failures);
+
+                executor = new MotionActionExecutor(registry, provider, new ProbeLog());
+
+                // 等第一拍轮询把轴快照填出来（定位门禁要读 Enabled / 位置）
+                Check(WaitUntilMotion(() => online.GetAxisStatus(0) != null, 3000),
+                    "前置：在线卡的轴快照已就绪", ref failures);
+
+                var safetyBase = log.Query(category: "Safety").Count;
+
+                // ① 使能（成功路径）
+                var enableOk = executor.TryExecute(
+                    NewAxisAction(ScadaActionType.MotionEnable, "SX"), out var enableMessage);
+                Check(enableOk, "前置：使能被卡接受（" + enableMessage + "）", ref failures);
+                Check(WaitUntilMotion(() => online.GetAxisStatus(0) is { Enabled: true }, 3000),
+                    "前置：轴已使能（后续定位门禁要求它）", ref failures);
+
+                // ② 定位：不进 Safety（反向断言）。先确认它**真的**被接受，否则这条断言等于空跑。
+                var moveOk = executor.TryExecute(
+                    NewAxisAction(ScadaActionType.MotionMoveAbsolute, "SX", targetMm: 10, velocityMmPerS: 100),
+                    out var moveMessage);
+                Check(moveOk, "前置：定位被卡接受（" + moveMessage + "）", ref failures);
+                Check(log.Query(category: "Safety").Count == safetyBase + 1,
+                    $"定位不产生 Safety 记录（此刻应只有使能那 1 条，实际 {log.Query(category: "Safety").Count - safetyBase} 条）",
+                    ref failures);
+
+                // ③ 失能（成功路径）
+                var disableOk = executor.TryExecute(
+                    NewAxisAction(ScadaActionType.MotionDisable, "SX"), out var disableMessage);
+                Check(disableOk, "前置：失能被卡接受（" + disableMessage + "）", ref failures);
+
+                var safetyRows = log.Query(category: "Safety");
+                var enableRow = safetyRows.FirstOrDefault(r => r.Action == "轴使能");
+                Check(enableRow != null, $"使能写进了软件库（Safety 共 {safetyRows.Count} 条）", ref failures);
+                Check(enableRow?.Outcome == "成功",
+                    "使能记录的结果是「成功」（实际 " + (enableRow?.Outcome ?? "无") + "）", ref failures);
+                Check(enableRow?.Subject == "SX",
+                    "使能记录带轴名（实际 " + (enableRow?.Subject ?? "无") + "）", ref failures);
+                Check(!string.IsNullOrWhiteSpace(enableRow?.SubjectId),
+                    "使能记录带轴的稳定 Id（不是空串）", ref failures);
+
+                var disableRow = safetyRows.FirstOrDefault(r => r.Action == "轴失能");
+                Check(disableRow?.Outcome == "成功" && disableRow?.Subject == "SX",
+                    "失能记录：成功 + 轴名（实际 " + (disableRow?.Outcome ?? "无") + "/" + (disableRow?.Subject ?? "无") + "）",
+                    ref failures);
+
+                // ④ 被门禁拒绝（未连接的卡上回零）：要留「拒绝」且明细非空
+                var homeOk = executor.TryExecute(
+                    NewAxisAction(ScadaActionType.MotionHome, "SY"), out var homeMessage);
+                Check(!homeOk, "前置：未连接卡上的回零被门禁拒绝（" + homeMessage + "）", ref failures);
+
+                var homeRow = log.Query(category: "Safety").FirstOrDefault(r => r.Action == "轴回零");
+                Check(homeRow?.Outcome == "拒绝",
+                    "被门禁拒绝的动作也留记录（结果 " + (homeRow?.Outcome ?? "无") + "）", ref failures);
+                Check(homeRow?.Subject == "SY",
+                    "拒绝记录带轴名（实际 " + (homeRow?.Subject ?? "无") + "）", ref failures);
+                Check(!string.IsNullOrWhiteSpace(homeRow?.Detail) && homeRow.Detail.Contains("未连接"),
+                    "拒绝记录的明细带原因（实际 " + (homeRow?.Detail ?? "空") + "）", ref failures);
+
+                // ⑤ 记录不影响动作结果：同一条调用"接库 / 不接库"返回值与提示必须逐字一致
+                var previousHost = Core.Interfaces.Operations.SoftwareOperationLogHost.Current;
+
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current = log;
+                var withLog = executor.TryExecute(
+                    NewAxisAction(ScadaActionType.MotionHome, "SY"), out var withLogMessage);
+
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current =
+                    Core.Interfaces.Operations.NullSoftwareOperationLog.Instance;
+                var withoutLog = executor.TryExecute(
+                    NewAxisAction(ScadaActionType.MotionHome, "SY"), out var withoutLogMessage);
+
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current = previousHost;
+
+                Check(withLog == withoutLog
+                      && string.Equals(withLogMessage, withoutLogMessage, StringComparison.Ordinal),
+                    $"接不接库，返回值与提示逐字一致（{withLog}/{withoutLog}）", ref failures);
+
+                // ⑥ 条数收口：只有那四条安全动作各一条，没有多余记录
+                var expected = safetyBase + 4;   // 使能 + 失能 + 回零(拒绝) + 回零(第⑤步接库那次)
+                Check(log.Query(category: "Safety").Count == expected,
+                    $"Safety 记录条数恰好 {expected}（实际 {log.Query(category: "Safety").Count}）", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "运动安全动作记录断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                executor?.Dispose();
+                offline?.Dispose();
+                online?.Dispose();
+            }
+        }
+
+        /// <summary>造一条"指定轴"的运动动作（只给名字，Id 由注册表回填 —— 顺便走一遍名字兜底路径）。</summary>
+        private static ScadaAction NewAxisAction(
+            ScadaActionType type, string axisName, double? targetMm = null, double velocityMmPerS = 0)
+        {
+            var action = new ScadaAction { Type = type };
+            if (targetMm.HasValue) action.TargetMm = targetMm.Value;
+            if (velocityMmPerS > 0) action.VelocityMmPerS = velocityMmPerS;
+            action.BindAxis(Guid.Empty, axisName);
+            return action;
+        }
+
+        /// <summary>等一个条件成立（运动卡状态由轮询线程异步刷新，不能假设"下发完就能读到"）。</summary>
+        private static bool WaitUntilMotion(Func<bool> condition, int timeoutMs)
+        {
+            var deadline = Environment.TickCount64 + timeoutMs;
+            while (Environment.TickCount64 < deadline)
+            {
+                if (condition()) return true;
+                System.Threading.Thread.Sleep(10);
+            }
+
+            return condition();
+        }
+
+        /// <summary>断言用运动卡配置：一张卡一根轴（软限位放宽到 ±100mm，够跑一次 10mm 定位）。</summary>
+        private static MotionDescriptor NewProbeMotionDescriptor(string caption, string axisName) => new()
+        {
+            Id = Guid.NewGuid(),
+            DriverTypeKey = typeof(VirtualMotionCard).AssemblyQualifiedName ?? nameof(VirtualMotionCard),
+            DisplayName = caption,
+            Address = "probe://" + Guid.NewGuid().ToString("N").Substring(0, 6),
+            Params = new MotionParams
+            {
+                PollIntervalMs = 5,
+                WatchdogTimeoutMs = 500,
+                CommandTimeoutMs = 3000,
+                DefaultVelocityMmPerS = 200,
+                MaxQueueDepth = 16,
+            },
+            Axes = new List<AxisMapping>
+            {
+                new()
+                {
+                    LogicalName = axisName,
+                    PhysicalIndex = 0,
+                    UnitsPerMm = 1000,
+                    SoftLimitMinMm = -100,
+                    SoftLimitMaxMm = 100,
+                },
+            },
+        };
+
+        /// <summary>断言用的最小 IMotionProvider（两张卡 + 两个设备，按卡 Id 取）</summary>
+        private sealed class ProbeMotionProvider : IMotionProvider
+        {
+            private readonly (MotionDescriptor Descriptor, IMotionDevice Device)[] _entries;
+
+            public ProbeMotionProvider(params (MotionDescriptor, IMotionDevice)[] entries) => _entries = entries;
+
+            public IReadOnlyList<MotionDescriptor> Cards => _entries.Select(e => e.Descriptor).ToList();
+
+            public bool TryGetDevice(Guid cardId, out IMotionDevice device)
+            {
+                foreach (var entry in _entries)
+                {
+                    if (entry.Descriptor.Id == cardId)
+                    {
+                        device = entry.Device;
+                        return true;
+                    }
+                }
+
+                device = null;
+                return false;
+            }
+
+            public bool TryGetByKey(string address, out IMotionDevice device)
+            {
+                foreach (var entry in _entries)
+                {
+                    if (string.Equals(entry.Descriptor.Address, address, StringComparison.Ordinal))
+                    {
+                        device = entry.Device;
+                        return true;
+                    }
+                }
+
+                device = null;
+                return false;
+            }
+
+            public bool TryGetByName(string displayName, out IMotionDevice device)
+            {
+                foreach (var entry in _entries)
+                {
+                    if (string.Equals(entry.Descriptor.DisplayName, displayName, StringComparison.Ordinal))
+                    {
+                        device = entry.Device;
+                        return true;
+                    }
+                }
+
+                device = null;
+                return false;
+            }
+
+            public void ReleaseAll() { }
+        }
+
+        /// <summary>断言用的最小日志实现（运动卡的看门狗/连接路径会写日志，丢掉即可）</summary>
+        private sealed class ProbeLog : ILogService
+        {
+            public void Success(params string[] messages) { }
+            public void Error(params Exception[] messages) { }
+            public void Error(params string[] messages) { }
+            public void Info(params string[] messages) { }
+            public void Warn(params string[] messages) { }
         }
 
         private sealed class ThrowingOperationLog : Core.Interfaces.Operations.ISoftwareOperationLog

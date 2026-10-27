@@ -28,6 +28,12 @@
     <ProjectReference Include="..\..\..\Plugins\Plugin.ColorCheck\Plugin.ColorCheck.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.BeadInspect\Plugin.BeadInspect.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.Calibration\Plugin.Calibration.csproj" />
+    <!--
+      运动安全动作（Category = Safety）断言要用**真实**虚拟运动卡跑 MotionActionExecutor：
+      "记录不影响动作结果 / 被门禁拒绝也要落库"这两条只有真设备状态机才证明得了，
+      new 一个假 IMotionDevice 只能断言常量。虚拟卡是纯托管驱动，无厂商 SDK 依赖。
+    -->
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Motion.Virtual\Plugin.Motion.Virtual.csproj" />
   </ItemGroup>
 
   <ItemGroup>

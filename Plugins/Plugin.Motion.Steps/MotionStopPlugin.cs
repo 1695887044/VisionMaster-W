@@ -2,6 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using Core.Interfaces;
+using Core.Interfaces.Operations;
 
 namespace Plugin.Motion.Steps
 {
@@ -89,6 +90,11 @@ namespace Plugin.Motion.Steps
                 foreach (var device in targets)
                 {
                     var emergencyResult = device.EmergencyStop();
+
+                    // 急停是安全动作：成败都要在「软件级操作记录」里留一条（Category = Safety）。
+                    // 记录在"判成败"之前做，两条路径共用同一条出口；SafeRecord 吞异常，不影响下面的 Fail/日志。
+                    RecordEmergencyStop(device, axisName, emergencyResult);
+
                     if (emergencyResult != MotionCommandResult.Accepted)
                     {
                         Fail($"对运动卡「{device.Descriptor.Caption}」的急停命令被拒绝（{emergencyResult}）：{device.StateDetail}");
@@ -131,6 +137,37 @@ namespace Plugin.Motion.Steps
 
             Accepted.Value = true;
             Success.Value = true;
+        }
+
+        /// <summary>
+        /// 急停写入「软件级操作记录」。
+        ///
+        /// <b>Subject 用卡名而不是轴名</b>：<see cref="IMotionDevice.EmergencyStop"/> 的语义是
+        /// "清空待执行命令 + 立即停**全部**轴"，填一根轴名会让人以为只停了那一根。
+        /// 步骤里配了轴名时把它写进明细（"目标是这根轴，实际整卡全停"要能看出来）。
+        ///
+        /// 记录失败不影响急停：<see cref="SoftwareOperationLogHost.SafeRecord"/> 内部吞异常（fail-open），
+        /// 审计不能成为新的故障源 —— 尤其不能反过来让"急停没发出去"。
+        /// </summary>
+        private static void RecordEmergencyStop(IMotionDevice device, string requestedAxis, MotionCommandResult result)
+        {
+            var accepted = result == MotionCommandResult.Accepted;
+            var reason = accepted
+                ? "已清空待执行命令并立即停全部轴"
+                : (device.LastFault?.Suggestion ?? device.StateDetail);
+
+            if (!string.IsNullOrWhiteSpace(requestedAxis))
+                reason = $"目标轴「{requestedAxis}」：{reason}";
+
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Safety";
+                entry.Action = "急停";
+                entry.Outcome = accepted ? "成功" : "拒绝";
+                entry.Subject = device.Descriptor.Caption;
+                entry.SubjectId = device.Descriptor.Id.ToString();
+                entry.Detail = reason;
+            });
         }
 
         public override void Initialize() { }

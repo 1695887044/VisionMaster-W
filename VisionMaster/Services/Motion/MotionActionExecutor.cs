@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Threading;
 using Core.Interfaces;
+using Core.Interfaces.Operations;
 using VisionMaster.Scada;
 
 namespace VisionMaster.Services.Motion
@@ -43,6 +44,15 @@ namespace VisionMaster.Services.Motion
     ///     而报警态正是最需要清报警的时刻）；
     ///   · <b>点动结束</b>不过门禁（停是安全动作，门禁那条"未连接"恰是最该把停止发下去的时候）。
     ///
+    /// <b>安全动作的软件级操作记录</b>
+    /// ---------
+    /// 使能 / 失能 / 回零 / 停止 / 清报警这五条会写进「软件级操作记录」（Category = Safety），
+    /// 成功与"被门禁拒绝"两条路径都记 —— 现场事后要回答的正是"谁在什么时候让这根轴失能了"
+    /// 和"那一下为什么没停成"。
+    /// 定位与点动<b>不记</b>：它们量大（按住点动每秒好几条），且已有运行记录；把全部运动都记进去
+    /// 只会把真正该看的安全动作淹掉。记录走 <see cref="SoftwareOperationLogHost.SafeRecord"/>
+    /// （内部吞异常、fail-open），所以它不改变任何返回值与门禁行为。
+    ///
     /// <b>点动看门狗</b>
     /// ---------
     /// 点动没有终点，"松手即停"完全依赖调用方记得发停止。组态画面没有"按住"这种手势
@@ -68,6 +78,12 @@ namespace VisionMaster.Services.Motion
         /// 用户把卡级超时调大说明现场确实更慢，那也该生效。
         /// </summary>
         private const int HomeTimeoutFloorMs = 120_000;
+
+        /// <summary>
+        /// 软件级操作记录里"安全动作"的分类名（与 <see cref="SoftwareOperationEntry.Category"/> 的约定一致）。
+        /// 拼写只此一处：查询侧（界面/断言）按同一个字面量筛，两处各写一遍迟早会漂。
+        /// </summary>
+        private const string SafetyCategory = "Safety";
 
         /// <summary>
         /// 一根"正在点动"的轴。为什么要连设备引用一起记住、而不是只记时刻：
@@ -119,6 +135,8 @@ namespace VisionMaster.Services.Motion
         /// <b>返回 false 且 message 为空串 = 静默忽略</b>：调用方据此<b>不要</b>记日志也不要落审计。
         /// 目前只有"点动时轴正忙"这一种（门禁的 Silent 档）——按住/连点期间它会反复发生，
         /// 每次都记一行 Warning 会把真正该看的告警淹掉，而用户什么都没做错。
+        /// <b>五条安全动作没有静默档</b>（点动不在这五条里），所以它们每次都会带一句可上屏的原因，
+        /// 也每次都会在软件级操作记录里留一条（见 <see cref="RecordSafetyOperation"/>）。
         /// </param>
         /// <returns>命令是否已被卡接受（<b>不代表已到位</b>，见类注释）</returns>
         public bool TryExecute(ScadaAction action, out string message)
@@ -132,40 +150,57 @@ namespace VisionMaster.Services.Motion
             }
 
             if (!TryResolveAxis(action, out var binding, out var device, out message))
+            {
+                // 轴解析不出来也是"这条安全动作没做成"（没选轴 / 轴被删 / 卡不在方案里），
+                // 同样要留一条：现场看到的按钮点了没反应，事后只有这条记录能说明原因。
+                // binding 为 null，Subject 退到动作上配的轴名/Id。
+                RecordSafetyOperation(action.Type, null, action, success: false, message);
                 return false;
+            }
 
             // 读一次状态快照（轮询缓存，不发起通信）。拿不到 = 卡还没轮询出这一轴：
             // 门禁会据此报"未连接"，比在这里编一个"假定空闲"安全得多。
             var status = device.GetAxisStatus(binding.AxisIndex);
 
+            bool executed;
+
             switch (action.Type)
             {
                 case ScadaActionType.MotionEnable:
-                    return ExecuteEnable(action, binding, device, enable: true, out message);
+                    executed = ExecuteEnable(action, binding, device, enable: true, out message);
+                    break;
 
                 case ScadaActionType.MotionDisable:
-                    return ExecuteEnable(action, binding, device, enable: false, out message);
+                    executed = ExecuteEnable(action, binding, device, enable: false, out message);
+                    break;
 
                 case ScadaActionType.MotionMoveAbsolute:
-                    return ExecuteMove(action, binding, device, status, relative: false, out message);
+                    executed = ExecuteMove(action, binding, device, status, relative: false, out message);
+                    break;
 
                 case ScadaActionType.MotionMoveRelative:
-                    return ExecuteMove(action, binding, device, status, relative: true, out message);
+                    executed = ExecuteMove(action, binding, device, status, relative: true, out message);
+                    break;
 
                 case ScadaActionType.MotionHome:
-                    return ExecuteHome(action, binding, device, status, out message);
+                    executed = ExecuteHome(action, binding, device, status, out message);
+                    break;
 
                 case ScadaActionType.MotionStop:
-                    return ExecuteStop(action, binding, device, out message);
+                    executed = ExecuteStop(action, binding, device, out message);
+                    break;
 
                 case ScadaActionType.MotionClearAlarm:
-                    return ExecuteClearAlarm(action, binding, device, out message);
+                    executed = ExecuteClearAlarm(action, binding, device, out message);
+                    break;
 
                 case ScadaActionType.MotionJogStart:
-                    return ExecuteJogStart(action, binding, device, status, out message);
+                    executed = ExecuteJogStart(action, binding, device, status, out message);
+                    break;
 
                 case ScadaActionType.MotionJogStop:
-                    return ExecuteJogStop(action, binding, device, out message);
+                    executed = ExecuteJogStop(action, binding, device, out message);
+                    break;
 
                 default:
                     // 编译期不该走到：调用方（分发器）只把运动九条路由过来。
@@ -173,7 +208,54 @@ namespace VisionMaster.Services.Motion
                     message = $"{action.Type.DisplayName()} 不是运动动作，本执行器不处理";
                     return false;
             }
+
+            // ★ 记录放在"结果已算出、返回还没发出去"这一格：成功与拒绝共用同一条出口，
+            //   返回值仍是 executed 本身（记录不参与判定）。SafeRecord 吞异常，记录失败也不影响动作。
+            RecordSafetyOperation(action.Type, binding, action, executed, message);
+
+            return executed;
         }
+
+        /// <summary>
+        /// 安全动作（使能 / 失能 / 回零 / 停止 / 清报警）写入软件级操作记录。
+        ///
+        /// <b>为什么只记这五条</b>：定位与点动量大（按住点动每秒数条），且已有运行记录；
+        /// 全记进去的结果是"真正该看的安全动作被淹掉"。这条名单只写一份（<see cref="IsSafetyAction"/>）。
+        ///
+        /// <b>为什么成功与拒绝都记</b>：事后追责问的是两件事 —— "谁让它动的"与"为什么没动成"。
+        /// 只记成功等于把"点了没反应"这类现场问题留给猜。
+        /// </summary>
+        private static void RecordSafetyOperation(
+            ScadaActionType type, MotionAxisBinding? binding, ScadaAction action, bool success, string message)
+        {
+            if (!IsSafetyAction(type)) return;
+
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = SafetyCategory;
+                entry.Action = type.DisplayName();
+                entry.Outcome = success ? "成功" : "拒绝";
+
+                // 轴名：解析成功用注册表里那份（权威、已 Trim），否则退回动作上配的（可能是被删的旧名）
+                entry.Subject = !string.IsNullOrWhiteSpace(binding?.Name)
+                    ? binding!.Name
+                    : (action.AxisName ?? string.Empty);
+
+                // 稳定 Id：轴改名/换卡都不变，是这份记录唯一能跟"后来的那根轴"对上的键
+                var axisId = binding?.AxisId ?? action.AxisId;
+                entry.SubjectId = axisId == Guid.Empty ? string.Empty : axisId.ToString();
+
+                entry.Detail = message ?? string.Empty;
+            });
+        }
+
+        /// <summary>哪几条算"安全动作"（要进软件级操作记录的）。名单只此一份。</summary>
+        private static bool IsSafetyAction(ScadaActionType type) => type is
+            ScadaActionType.MotionEnable
+            or ScadaActionType.MotionDisable
+            or ScadaActionType.MotionHome
+            or ScadaActionType.MotionStop
+            or ScadaActionType.MotionClearAlarm;
 
         /// <summary>
         /// <see cref="IScadaAxisCommandSink"/> 的实现：轴面板上的按钮走这条入口。

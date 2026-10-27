@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using Core.Interfaces;
+using Core.Interfaces.Operations;
 using Prism.Commands;
 using Prism.Mvvm;
 using VisionMaster.Models;
@@ -720,14 +721,32 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (device == null) return;
 
             var result = device.EmergencyStop();
-            if (result == MotionCommandResult.Accepted)
+            var accepted = result == MotionCommandResult.Accepted;
+            var reason = accepted
+                ? "已清空待执行命令并立即停全部轴"
+                : (device.LastFault?.Suggestion ?? device.StateDetail);
+
+            // 急停是安全动作：成败都要在「软件级操作记录」里留一条（Category = Safety）。
+            // Subject 用**卡名**而不是轴名 —— 急停的语义是"整卡全停"，填某根轴会让人以为只停了一根。
+            // SafeRecord 吞异常（fail-open），记录失败不影响急停本身，也不改下面的提示口径。
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Safety";
+                entry.Action = "急停";
+                entry.Outcome = accepted ? "成功" : "拒绝";
+                entry.Subject = device.Descriptor.Caption;
+                entry.SubjectId = device.Descriptor.Id.ToString();
+                entry.Detail = reason;
+            });
+
+            if (accepted)
             {
                 _modeByAxis.Clear();
                 _shell.NotifyOk("急停：所有轴已停止并失能");
             }
             else
             {
-                _shell.NotifyError($"急停被拒绝：{device.LastFault?.Suggestion ?? device.StateDetail}");
+                _shell.NotifyError($"急停被拒绝：{reason}");
             }
         }
 
