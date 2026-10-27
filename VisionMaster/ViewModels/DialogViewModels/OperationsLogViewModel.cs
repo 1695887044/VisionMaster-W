@@ -4,7 +4,9 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using Core.Database;
 using Core.Interfaces.Operations;
 using Prism.Commands;
@@ -41,17 +43,46 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool CanCloseDialog() => true;
 
-        public void OnDialogClosed() { }
+        public void OnDialogClosed()
+        {
+            _debounceTimer.Stop();
+            _skeletonTimer.Stop();
+            _debouncePending = false;
+            _loadVersion++;   // 在途查询作废（回写被版本号挡掉）
+        }
 
-        public void OnDialogOpened(IDialogParameters parameters) => Reload();
+        public void OnDialogOpened(IDialogParameters parameters) => StartReload();
 
         private readonly SqliteSoftwareOperationLog? _log;
         private readonly ScadaAccessPolicy _policy;
+
+        private readonly Dispatcher _dispatcher;
+        private readonly DispatcherTimer _debounceTimer;
+        private readonly DispatcherTimer _skeletonTimer;
+        private bool _debouncePending;
+        private int _loadVersion;
+        private bool _isBusy;
+        private bool _isLoading;
 
         public OperationsLogViewModel(ScadaAccessPolicy policy, SqliteSoftwareOperationLog? log = null)
         {
             _policy = policy ?? throw new ArgumentNullException(nameof(policy));
             _log = log;
+
+            // 防抖与骨架门限都跑在弹窗所在的 UI Dispatcher 上（弹窗与探针都是 STA + Dispatcher）。
+            _dispatcher = Dispatcher.CurrentDispatcher;
+            _debounceTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _debounceTimer.Tick += (_, _) =>
+            {
+                if (_debouncePending) StartReload();
+            };
+            _skeletonTimer = new DispatcherTimer(DispatcherPriority.Background);
+            _skeletonTimer.Tick += (_, _) =>
+            {
+                _skeletonTimer.Stop();
+                // 设计稿 §5：查询超过 SkeletonDelay 仍未完成才显示骨架（快查询不闪）。
+                if (_isBusy) IsLoading = true;
+            };
 
             CategoryOptions = new ObservableCollection<string> { "全部", "Identity", "Permission", "Solution", "Settings", "Safety", "Lifecycle" };
             RangeOptions = new ObservableCollection<RangeOption>
@@ -66,7 +97,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _selectedActor = "全部";
             _selectedRange = RangeOptions[0];
 
-            RefreshCommand = new DelegateCommand(Reload);
+            RefreshCommand = new DelegateCommand(StartReload);
             // 边界禁用（设计稿 §5 禁用态）：首页「上一页」、末页「下一页」置灰，判据看 CanExecute。
             PrevPageCommand = new DelegateCommand(() => ChangePage(-1), () => _page > 1);
             NextPageCommand = new DelegateCommand(() => ChangePage(1), () => _page < PageCount);
@@ -74,7 +105,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogParameters(), ButtonResult.Cancel));
             ExportCommand = new DelegateCommand(Export);
 
-            Reload();
+            StartReload();
         }
 
         public DialogCloseListener RequestClose { get; set; }
@@ -103,7 +134,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string SelectedCategory
         {
             get => _selectedCategory;
-            set { if (SetProperty(ref _selectedCategory, value ?? "全部")) Reload(); }
+            set { if (SetProperty(ref _selectedCategory, value ?? "全部")) ScheduleReload(FilterDebounce); }
         }
 
         private string _selectedActor;
@@ -116,7 +147,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             set
             {
                 if (!SetProperty(ref _selectedActor, value ?? "全部")) return;
-                if (!_suppressReload) Reload();
+                if (!_suppressReload) ScheduleReload(FilterDebounce);
             }
         }
 
@@ -124,14 +155,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public RangeOption SelectedRange
         {
             get => _selectedRange;
-            set { if (SetProperty(ref _selectedRange, value)) Reload(); }
+            set { if (SetProperty(ref _selectedRange, value)) ScheduleReload(FilterDebounce); }
         }
 
         private string _keyword = string.Empty;
         public string Keyword
         {
             get => _keyword;
-            set { if (SetProperty(ref _keyword, value ?? string.Empty)) Reload(); }
+            set { if (SetProperty(ref _keyword, value ?? string.Empty)) ScheduleReload(KeywordDebounce); }
         }
 
         private OperationRow? _selectedRow;
@@ -172,7 +203,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private int _total;
         public string PageText => $"共 {_total} 条 · 第 {_page} / {PageCount} 页";
         public int PageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
-        public bool IsEmpty => _total == 0 && HasAccess;
+        public bool IsEmpty => _total == 0 && HasAccess && !IsLoading;
         public bool HasRows => _total > 0 && HasAccess;
 
         private string _message = string.Empty;
@@ -182,12 +213,40 @@ namespace VisionMaster.ViewModels.DialogViewModels
             private set => SetProperty(ref _message, value);
         }
 
+        /// <summary>筛选（分类 / 操作者 / 时间）防抖，设计稿 §6：250ms。</summary>
+        public TimeSpan FilterDebounce { get; set; } = TimeSpan.FromMilliseconds(250);
+
+        /// <summary>搜索防抖，设计稿 §6：300ms。</summary>
+        public TimeSpan KeywordDebounce { get; set; } = TimeSpan.FromMilliseconds(300);
+
+        /// <summary>骨架门限，设计稿 §5：查询超过该时长才显示骨架（默认 300ms，避免快查询闪烁）。</summary>
+        public TimeSpan SkeletonDelay { get; set; } = TimeSpan.FromMilliseconds(300);
+
+        /// <summary>查询进行中（含骨架尚未显示的那一段）。</summary>
+        public bool IsBusy
+        {
+            get => _isBusy;
+            private set => SetProperty(ref _isBusy, value);
+        }
+
+        /// <summary>加载骨架可见（查询已超过 <see cref="SkeletonDelay"/> 仍未完成）。</summary>
+        public bool IsLoading
+        {
+            get => _isLoading;
+            private set
+            {
+                if (!SetProperty(ref _isLoading, value)) return;
+                RaisePropertyChanged(nameof(IsEmpty));
+                RaisePropertyChanged(nameof(HasRows));
+            }
+        }
+
         private void ChangePage(int delta)
         {
             var next = Math.Clamp(_page + delta, 1, PageCount);
             if (next == _page) return;
             _page = next;
-            Reload();
+            StartReload();
         }
 
         private void ClearFilters()
@@ -201,18 +260,51 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(SelectedActor));
             RaisePropertyChanged(nameof(SelectedRange));
             RaisePropertyChanged(nameof(Keyword));
-            Reload();
+            StartReload();
         }
 
-        private void Reload()
+        /// <summary>筛选类改动：防抖后重查（设计稿 §6：筛选 250ms / 搜索 300ms）。</summary>
+        private void ScheduleReload(TimeSpan delay)
         {
+            if (delay <= TimeSpan.Zero)
+            {
+                StartReload();
+                return;
+            }
+
+            _debounceTimer.Stop();
+            _debounceTimer.Interval = delay;
+            _debounceTimer.Start();
+            _debouncePending = true;
+        }
+
+        /// <summary>立即执行挂起的防抖重查（探针 / 程序化场景用；无挂起时无副作用）。</summary>
+        public void FlushPendingReload()
+        {
+            if (!_debouncePending) return;
+            StartReload();
+        }
+
+        /// <summary>
+        /// 发起一次查询：清空当前结果 → 后台查 SQLite → 回 UI 线程应用。
+        /// 骨架门限也在这一层：超过 <see cref="SkeletonDelay"/> 仍未回来才显示（设计稿 §5，快查询不闪）。
+        /// </summary>
+        private void StartReload()
+        {
+            _debounceTimer.Stop();
+            _debouncePending = false;
+            var version = ++_loadVersion;
+
             Rows.Clear();
             SelectedRow = null;
             _total = 0;
             Feedback = string.Empty;
+            Message = string.Empty;
+            IsLoading = false;
 
             if (!HasAccess)
             {
+                IsBusy = false;
                 RaiseAll();
                 return;
             }
@@ -220,41 +312,86 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (_log == null)
             {
                 Message = "当前没有可用的操作记录库（Data\\operations.db）";
+                IsBusy = false;
                 RaiseAll();
                 return;
             }
 
-            RefreshActors();
-
             var from = _selectedRange?.Window == null ? (DateTime?)null : DateTime.UtcNow - _selectedRange.Window.Value;
             var category = _selectedCategory == "全部" ? null : _selectedCategory;
             var actor = _selectedActor == "全部" ? null : _selectedActor;
+            var keyword = _keyword;
+            var offset = (_page - 1) * PageSize;
+            var log = _log;
 
-            var rows = _log.QueryPage(
-                category, actor, solutionId: null,
-                fromUtc: from, toUtc: null,
-                keyword: _keyword,
-                offset: (_page - 1) * PageSize, limit: PageSize,
-                out _total);
+            IsBusy = true;
+            RaiseAll();
 
-            foreach (var entry in rows)
+            if (SkeletonDelay > TimeSpan.Zero)
+            {
+                _skeletonTimer.Stop();
+                _skeletonTimer.Interval = SkeletonDelay;
+                _skeletonTimer.Start();
+            }
+            else
+            {
+                IsLoading = true;
+            }
+
+            Task.Run(() =>
+            {
+                var actors = log.QueryActors();
+                var actorToUse = actor;
+                if (actorToUse != null && !actors.Contains(actorToUse, StringComparer.Ordinal))
+                    actorToUse = null;   // 选中的操作者已不在库里：按「全部」查，回 UI 后把选中项复位
+
+                var rows = log.QueryPage(
+                    category, actorToUse, solutionId: null,
+                    fromUtc: from, toUtc: null,
+                    keyword: keyword, offset: offset, limit: PageSize,
+                    out var total);
+                return (Actors: actors, Rows: rows, Total: total);
+            }).ContinueWith(task =>
+            {
+                if (_dispatcher.HasShutdownStarted) return;
+                _dispatcher.BeginInvoke(new Action(() => CompleteReload(version, task)));
+            }, TaskScheduler.Default);
+        }
+
+        private void CompleteReload(
+            int version,
+            Task<(IReadOnlyList<string> Actors, IReadOnlyList<SoftwareOperationEntry> Rows, int Total)> task)
+        {
+            if (version != _loadVersion) return;   // 已被更新的查询取代
+
+            _skeletonTimer.Stop();
+            IsBusy = false;
+            IsLoading = false;
+
+            if (task.Status != TaskStatus.RanToCompletion)
+            {
+                Message = "读取操作记录失败：" + (task.Exception?.GetBaseException().Message ?? "未知错误");
+                RaiseAll();
+                return;
+            }
+
+            ApplyActors(task.Result.Actors);
+            foreach (var entry in task.Result.Rows)
                 Rows.Add(new OperationRow(entry));
-
+            _total = task.Result.Total;
             Message = _total == 0 ? "没有符合条件的记录" : string.Empty;
             RaiseAll();
         }
 
         /// <summary>
-        /// 重建操作者候选（出现次数降序）。只在列表真的变化时才动集合：
-        /// ComboBox 的 ItemsSource 被清空时会把 SelectedItem 推成 null（TwoWay 回写），
-        /// 无条件重建会把用户当前选中的操作者洗掉，还会多触发一次重查。
+        /// 重建操作者候选（后台已查好，这里只做 UI 侧应用；出现次数降序）。
+        /// 只在列表真的变化时才动集合：ComboBox 的 ItemsSource 被清空时会把 SelectedItem 推成 null
+        /// （TwoWay 回写），无条件重建会把用户当前选中的操作者洗掉，还会多触发一次重查。
         /// </summary>
-        private void RefreshActors()
+        private void ApplyActors(IReadOnlyList<string> actors)
         {
-            if (_log == null) return;
-
             var items = new List<string> { "全部" };
-            items.AddRange(_log.QueryActors());
+            items.AddRange(actors);
             if (items.SequenceEqual(ActorOptions)) return;
 
             var previous = _selectedActor;

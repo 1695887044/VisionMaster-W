@@ -1457,6 +1457,7 @@ namespace ProjectAssetsUiProbe
                     "probeuser", ScadaGroupDefaults.AdminTemplateId,
                     ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
                 var dialogVm = new VisionMaster.ViewModels.DialogViewModels.OperationsLogViewModel(policy, log);
+                Settle(dialogVm);
                 Check(dialogVm.HasAccess, "管理员能打开操作记录", ref failures);
                 Check(dialogVm.Rows.Count > 0, $"弹窗读到 {dialogVm.Rows.Count} 条记录", ref failures);
                 Check(dialogVm.PageText.Contains("共"), "页脚显示总条数", ref failures);
@@ -1465,6 +1466,7 @@ namespace ProjectAssetsUiProbe
 
                 var anonymous = new ScadaAccessPolicy();
                 var deniedVm = new VisionMaster.ViewModels.DialogViewModels.OperationsLogViewModel(anonymous, log);
+                Settle(deniedVm);
                 Check(deniedVm.IsDenied && !deniedVm.HasAccess, "未登录时整页拒绝", ref failures);
                 Check(deniedVm.Rows.Count == 0, "无权限时不加载任何记录", ref failures);
 
@@ -1476,9 +1478,11 @@ namespace ProjectAssetsUiProbe
                 Check(actorOptions.Contains("operator1") && actorOptions.Contains("probeuser"),
                     "操作者下拉来自真实数据（含 operator1 / probeuser）", ref failures);
                 dialogVm.SelectedActor = "probeuser";
+                Settle(dialogVm);
                 Check(dialogVm.Rows.Count > 0 && dialogVm.Rows.All(r => r.Actor == "probeuser"),
                     $"按操作者筛选真的生效（{dialogVm.Rows.Count} 条，全部是 probeuser）", ref failures);
                 dialogVm.SelectedActor = "全部";
+                Settle(dialogVm);
                 Check(dialogVm.Rows.Any(r => r.Actor != "probeuser"),
                     "恢复「全部」后能看到其它操作者", ref failures);
 
@@ -1519,7 +1523,9 @@ namespace ProjectAssetsUiProbe
                     }
 
                     var bulkVm = new VisionMaster.ViewModels.DialogViewModels.OperationsLogViewModel(policy, bulkLog);
+                    Settle(bulkVm);
                     bulkVm.SelectedCategory = "Solution";
+                    Settle(bulkVm);
                     Check(bulkVm.Rows.Count == 200,
                         $"导出前置：当前页只显示 200 条（实际 {bulkVm.Rows.Count}）", ref failures);
 
@@ -1542,6 +1548,7 @@ namespace ProjectAssetsUiProbe
                     Check(!bulkVm.PrevPageCommand.CanExecute() && bulkVm.NextPageCommand.CanExecute(),
                         "首页：上一页禁用、下一页可用", ref failures);
                     bulkVm.NextPageCommand.Execute();
+                    Settle(bulkVm);
                     Check(bulkVm.PrevPageCommand.CanExecute() && !bulkVm.NextPageCommand.CanExecute(),
                         "末页：下一页禁用、上一页可用（" + bulkVm.PageText + "）", ref failures);
                     Check(bulkVm.Rows.Count == 5, $"末页 5 条（实际 {bulkVm.Rows.Count}）", ref failures);
@@ -1556,8 +1563,10 @@ namespace ProjectAssetsUiProbe
 
                 // 空态（设计稿 §5）：筛出 0 条时 IsEmpty=true；清空筛选后退出空态。
                 dialogVm.Keyword = "zzz-没有这个记录-zzz";
+                Settle(dialogVm);
                 Check(dialogVm.IsEmpty && dialogVm.Rows.Count == 0, "无匹配时进入空态", ref failures);
                 dialogVm.ClearFiltersCommand.Execute();
+                Settle(dialogVm);
                 Check(!dialogVm.IsEmpty && dialogVm.Rows.Count > 0, "清空筛选后退出空态", ref failures);
 
                 // Esc 关窗（设计稿 §6）：KeyBinding 必须真的挂在视图上。
@@ -1598,16 +1607,74 @@ namespace ProjectAssetsUiProbe
                     });
 
                     var defaultVm = new OperationsLogViewModel(policy, chipLog);
-                    defaultVm.SelectedRow = defaultVm.Rows.FirstOrDefault(r => r.Category == "Safety");
+                    Settle(defaultVm);
                     RenderOperationsLogDialog(defaultVm, Path.Combine(dialogDir, "wpf-operations-log.png"));
+
+                    // 设计稿 §6：打开弹窗后选中/焦点落在第一行（由视图 Loaded 完成，出图时顺带验证）。
+                    Check(defaultVm.SelectedRow != null && ReferenceEquals(defaultVm.SelectedRow, defaultVm.Rows.FirstOrDefault()),
+                        "打开弹窗后选中/焦点落在第一行（设计稿 §6）", ref failures);
                 }
 
                 var emptyVm = new OperationsLogViewModel(policy, log) { Keyword = "zzz-空态-zzz" };
+                Settle(emptyVm);
                 RenderOperationsLogDialog(emptyVm, Path.Combine(dialogDir, "wpf-operations-log-empty.png"));
 
-                RenderOperationsLogDialog(
-                    new OperationsLogViewModel(anonymous, log),
-                    Path.Combine(dialogDir, "wpf-operations-log-denied.png"));
+                var deniedRenderVm = new OperationsLogViewModel(anonymous, log);
+                Settle(deniedRenderVm);
+                RenderOperationsLogDialog(deniedRenderVm, Path.Combine(dialogDir, "wpf-operations-log-denied.png"));
+
+                // ── ⑤f 加载态门限（设计稿 §5）：造一次"慢查询"——骨架出现；锁释放后退出 ──
+                // WAL 下读不挡写，所以先把夹具库切回 rollback journal，再由外部连接持排他锁让 SELECT 等待。
+                var slowDbPath = Path.Combine(temp, "slow-load.db");
+                using (var slowLog = new Core.Database.SqliteSoftwareOperationLog(slowDbPath, retentionDays: () => 90))
+                {
+                    slowLog.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Identity", Action = "登录", Outcome = "成功", Actor = "slow", Detail = "慢查询夹具",
+                    });
+                    Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+                    using var lockConn = new Microsoft.Data.Sqlite.SqliteConnection("Data Source=" + slowDbPath);
+                    lockConn.Open();
+                    using (var pragma = lockConn.CreateCommand())
+                    {
+                        pragma.CommandText = "PRAGMA journal_mode=DELETE;";
+                        pragma.ExecuteScalar();
+                    }
+
+                    using (var begin = lockConn.CreateCommand())
+                    {
+                        begin.CommandText = "BEGIN EXCLUSIVE;";
+                        begin.ExecuteNonQuery();
+                    }
+
+                    using (var insert = lockConn.CreateCommand())
+                    {
+                        insert.CommandText =
+                            "INSERT INTO software_events (ts_utc, machine, app_version, actor, actor_role, category, action, outcome, subject, subject_id, solution_name, detail) " +
+                            "VALUES ('2026-01-01T00:00:00Z','probe','','slow','','Identity','登录','成功','','','','');";
+                        insert.ExecuteNonQuery();
+                    }
+
+                    var slowVm = new OperationsLogViewModel(policy, slowLog) { SkeletonDelay = TimeSpan.FromMilliseconds(20) };
+                    slowVm.RefreshCommand.Execute();   // 用新门限重发一次查询（构造那次用的是默认 300ms）
+                    Pump(200);
+                    Check(slowVm.IsLoading, "慢查询超过门限 → 显示加载骨架（IsLoading=true）", ref failures);
+                    RenderOperationsLogDialog(slowVm, Path.Combine(dialogDir, "wpf-operations-log-loading.png"));
+
+                    using (var rollback = lockConn.CreateCommand())
+                    {
+                        rollback.CommandText = "ROLLBACK;";
+                        rollback.ExecuteNonQuery();
+                    }
+
+                    Settle(slowVm);
+                    Check(!slowVm.IsLoading && slowVm.Rows.Count > 0,
+                        $"锁释放后加载态退出、数据到位（{slowVm.Rows.Count} 条）", ref failures);
+                }
+
+                // 同一门限的反向：正常（快）查询走完 IsLoading 必须是 false（快查询不闪骨架）。
+                Check(!dialogVm.IsLoading && dialogVm.Rows.Count > 0, "快查询不闪骨架（IsLoading=false）", ref failures);
 
                 // ── ⑥ 权限变更（账号本 / 用户组）──
                 var usersDir = Path.Combine(temp, "Users");
@@ -2589,6 +2656,16 @@ namespace ProjectAssetsUiProbe
             {
                 try { Directory.Delete(temp, recursive: true); } catch { }
             }
+        }
+
+        /// <summary>等待弹窗查询落地：先冲掉防抖，再泵消息直到 IsBusy 归零（VM 是异步查询，探针必须显式推 Dispatcher）。</summary>
+        private static void Settle(OperationsLogViewModel vm, int timeoutMs = 8000)
+        {
+            vm.FlushPendingReload();
+            var deadline = Environment.TickCount64 + timeoutMs;
+            while (vm.IsBusy && Environment.TickCount64 < deadline)
+                Pump(20);
+            Pump(20);
         }
 
         /// <summary>

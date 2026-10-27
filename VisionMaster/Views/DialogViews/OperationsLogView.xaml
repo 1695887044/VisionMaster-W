@@ -297,6 +297,17 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
+                <!--  加载态骨架（设计稿 §5）：查询超过 300ms 才显示，快查询不闪  -->
+                <StackPanel
+                    Grid.Row="1"
+                    Margin="20,14"
+                    Visibility="{Binding IsLoading, Converter={ui:BooleanToVisibilityConverter}}">
+                    <Border Height="12" Width="520" HorizontalAlignment="Left" CornerRadius="6" Background="{StaticResource DialogBorderBrush}" />
+                    <Border Height="12" Width="460" HorizontalAlignment="Left" Margin="0,10,0,0" CornerRadius="6" Background="{StaticResource DialogBorderBrush}" />
+                    <Border Height="12" Width="380" HorizontalAlignment="Left" Margin="0,10,0,0" CornerRadius="6" Background="{StaticResource DialogBorderBrush}" />
+                    <TextBlock Margin="0,16,0,0" HorizontalAlignment="Center" FontSize="11" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="正在读取操作记录…" />
+                </StackPanel>
+
                 <!--  空态：图标 + 文案 + 「清空筛选」出路（设计稿 §5：不是空白页）  -->
                 <StackPanel
                     Grid.Row="1"
