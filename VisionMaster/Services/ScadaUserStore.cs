@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using Core.Interfaces.Operations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VisionMaster.Models;
@@ -215,11 +216,24 @@ namespace VisionMaster.Services
 
         public bool TryValidate(string? userName, string? password,
                                 out ScadaUserInfo? user, out string? error)
+            => TryValidate(userName, (password ?? string.Empty).AsSpan(), out user, out error);
+
+        /// <summary>
+        /// 与 <see cref="TryValidate(string?, string?, out ScadaUserInfo?, out string?)"/> 同一条判据，
+        /// 但密码以 <see cref="ReadOnlySpan{Char}"/> 传入。
+        ///
+        /// 为什么需要这一份：跨方案保持登录要拿"本次会话的明文密码"去目标方案的账号本重验，
+        /// 而凭据仓保存的是可擦除的 <c>char[]</c>（见 <c>ScadaSessionCredentialVault</c>）。
+        /// 为了调这个重载把 <c>char[]</c> 转成 <c>string</c>，等于把刚擦掉的那份明文又造一遍，
+        /// 所以验证链路直接吃 span，PBKDF2 也吃 span（<c>Rfc2898DeriveBytes.Pbkdf2</c> 有该重载）。
+        /// </summary>
+        public bool TryValidate(string? userName, ReadOnlySpan<char> password,
+                                out ScadaUserInfo? user, out string? error)
         {
             user = null;
             var name = Normalize(userName);
             if (name.Length == 0) { error = "请输入用户名"; return false; }
-            if (string.IsNullOrEmpty(password)) { error = "请输入密码"; return false; }
+            if (password.IsEmpty) { error = "请输入密码"; return false; }
 
             if (BookState == ScadaAccountBookState.NoSolution)
             {
@@ -298,6 +312,7 @@ namespace VisionMaster.Services
             var name = Normalize(userName);
             var ok = ChangePassword(name, currentPassword, newPassword, out error, out var detail);
             Audit("修改密码", name, ok, detail, error);
+            RecordOperation("修改密码", name, name, ok, detail, error);
             if (ok) NotifyUserChanged(name, ScadaUserChangeKind.PasswordChanged);
             return ok;
         }
@@ -350,6 +365,7 @@ namespace VisionMaster.Services
             var name = Normalize(userName);
             var ok = ResetPassword(name, newPassword, out error, out var detail);
             Audit("重置密码", name, ok, detail, error);
+            RecordOperation("重置密码", name, name, ok, detail, error);
             if (ok) NotifyUserChanged(name, ScadaUserChangeKind.PasswordReset);
             return ok;
         }
@@ -396,6 +412,7 @@ namespace VisionMaster.Services
             var name = Normalize(userName);
             var ok = AddUser(name, password, groupId, out error, out var detail);
             Audit("创建账号", name, ok, detail, error);
+            RecordOperation("创建账号", name, name, ok, detail, error);
             if (ok) NotifyUserChanged(name, ScadaUserChangeKind.Added);
             return ok;
         }
@@ -444,6 +461,7 @@ namespace VisionMaster.Services
             var name = Normalize(userName);
             var ok = RemoveUser(name, out error, out var detail);
             Audit("删除账号", name, ok, detail, error);
+            RecordOperation("删除账号", name, name, ok, detail, error);
             if (ok) NotifyUserChanged(name, ScadaUserChangeKind.Removed);
             return ok;
         }
@@ -490,6 +508,7 @@ namespace VisionMaster.Services
             var name = Normalize(userName);
             var ok = ChangeGroup(name, groupId, out error, out var detail);
             Audit("变更用户组", name, ok, detail, error);
+            RecordOperation("变更用户组", name, name, ok, detail, error);
             if (ok && detail != null && !detail.Contains("未变", StringComparison.Ordinal))
                 NotifyUserChanged(name, ScadaUserChangeKind.GroupChanged);
             return ok;
@@ -563,7 +582,11 @@ namespace VisionMaster.Services
                 }
 
                 var ok = PersistLocked(out error);
-                if (ok) RaiseGroupChanged();
+                if (ok)
+                {
+                    RaiseGroupChanged();
+                    RecordOperation("新建用户组", trimmed, id, true, "已创建", null);
+                }
                 return ok;
             }
         }
@@ -599,7 +622,11 @@ namespace VisionMaster.Services
                 }
 
                 var ok = PersistLocked(out error);
-                if (ok) RaiseGroupChanged();
+                if (ok)
+                {
+                    RaiseGroupChanged();
+                    RecordOperation("修改用户组", trimmed, id, true, "已保存", null);
+                }
                 return ok;
             }
         }
@@ -634,7 +661,11 @@ namespace VisionMaster.Services
                 }
 
                 var ok = PersistLocked(out error);
-                if (ok) RaiseGroupChanged();
+                if (ok)
+                {
+                    RaiseGroupChanged();
+                    RecordOperation("撤销用户组", id, id, true, "已撤销", null);
+                }
                 return ok;
             }
         }
@@ -1368,9 +1399,13 @@ namespace VisionMaster.Services
         }
 
         private static bool Verify(string password, in UserSnapshot snapshot)
+            => Verify(password.AsSpan(), snapshot);
+
+        private static bool Verify(ReadOnlySpan<char> password, in UserSnapshot snapshot)
             => Verify(password, snapshot.Salt, snapshot.Hash, snapshot.Iterations);
 
-        private static bool Verify(string password, string saltBase64, string hashBase64, int iterations)
+        private static bool Verify(ReadOnlySpan<char> password,
+                                   string saltBase64, string hashBase64, int iterations)
         {
             try
             {
@@ -1386,6 +1421,9 @@ namespace VisionMaster.Services
         }
 
         private static byte[] Derive(string password, byte[] salt, int iterations)
+            => Derive(password.AsSpan(), salt, iterations);
+
+        private static byte[] Derive(ReadOnlySpan<char> password, byte[] salt, int iterations)
             => Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, HashBytes);
 
         private bool CheckNewPassword(string? password, out string? error)
@@ -1459,6 +1497,27 @@ namespace VisionMaster.Services
                 actionText,
                 ok ? ScadaAuditOutcome.Success : ScadaAuditOutcome.Failed,
                 ok ? detail : error));
+
+        /// <summary>
+        /// 软件级操作记录（SQLite）。与 <see cref="Audit"/> 并行的第二条出口：
+        /// 方案审计 CSV 跟着方案走，账号本被删/换方案后就查不到；而"谁把谁的权限改了"
+        /// 是必须跨方案、跨重启能查的事实，所以同时写软件库。
+        /// 记录失败不影响账号操作（fail-open）。
+        /// </summary>
+        private void RecordOperation(string actionText, string subject, string subjectId, bool ok,
+                                     string? detail, string? error)
+        {
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Permission";
+                entry.Action = actionText;
+                entry.Outcome = ok ? "成功" : "拒绝";
+                entry.Actor = _actorProvider?.Invoke() ?? string.Empty;
+                entry.Subject = subject;
+                entry.SubjectId = subjectId;
+                entry.Detail = ok ? (detail ?? string.Empty) : (error ?? string.Empty);
+            });
+        }
 
         private readonly record struct UserSnapshot(string Name, string Salt, string Hash, int Iterations, string GroupId)
         {

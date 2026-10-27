@@ -1446,6 +1446,43 @@ namespace ProjectAssetsUiProbe
                 settings.Save();
                 Check(log.Query(category: "Settings").Any(r => r.Action == "保存系统参数"),
                     "系统参数保存真的写进了软件库", ref failures);
+
+                // ── ⑥ 权限变更（账号本 / 用户组）──
+                var usersDir = Path.Combine(temp, "Users");
+                Directory.CreateDirectory(usersDir);
+                var store = new ScadaUserStore(
+                    Path.Combine(usersDir, "Users.json"),
+                    actorProvider: () => "permadmin");
+
+                store.TryAddUser("u1", "Passw0rd!x", ScadaGroupDefaults.AdminTemplateId, out var addUserError);
+                store.TryResetPassword("u1", "Passw0rd!y", out var resetError);
+                store.TryAddGroup("自定义组", ScadaPermissionKeys.BuiltInKeys.Take(1), out var addGroupError);
+                var custom = store.Groups.FirstOrDefault(g => g.Name == "自定义组");
+                Check(custom != null, "前置：自定义组已创建（" + (addGroupError ?? "ok") + "）", ref failures);
+                if (custom != null)
+                {
+                    store.TryUpdateGroup(custom.Id, "自定义组2", ScadaPermissionKeys.BuiltInKeys.Take(2), out _);
+                    store.RevokeGroup(custom.Id, out _);
+                }
+                store.TryRemoveUser("u1", out var removeError);
+                Check(string.IsNullOrEmpty(addUserError) && string.IsNullOrEmpty(resetError) && string.IsNullOrEmpty(removeError),
+                    "前置：账号操作都成功（" + (addUserError ?? resetError ?? removeError ?? "ok") + "）", ref failures);
+
+                var permRows = log.Query(category: "Permission");
+                Check(permRows.Any(r => r.Action == "创建账号" && r.Subject == "u1"),
+                    "创建账号写进了软件库", ref failures);
+                Check(permRows.Any(r => r.Action == "重置密码" && r.Subject == "u1"),
+                    "重置密码写进了软件库", ref failures);
+                Check(permRows.Any(r => r.Action == "新建用户组" && r.Subject == "自定义组"),
+                    "新建用户组写进了软件库", ref failures);
+                Check(permRows.Any(r => r.Action == "修改用户组" && r.Subject == "自定义组2"),
+                    "修改用户组写进了软件库", ref failures);
+                Check(permRows.Any(r => r.Action == "撤销用户组"),
+                    "撤销用户组写进了软件库", ref failures);
+                Check(permRows.Any(r => r.Action == "删除账号" && r.Subject == "u1"),
+                    "删除账号写进了软件库", ref failures);
+                Check(permRows.All(r => r.Actor == "permadmin"),
+                    "权限变更带操作者（不是空白）", ref failures);
             }
             catch (Exception ex)
             {
