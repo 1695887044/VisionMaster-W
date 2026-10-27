@@ -1861,6 +1861,27 @@ namespace ProjectAssetsUiProbe
                 Check(fallback.Any(r => r.Action == "老记录"),
                     "库不可用时回落到 `.vms`（老方案的历史照样看得到）", ref failures);
 
+                // ③b 老数据迁移：库可用时搬进库、`.vms` 清空；库不可用时一条都不许删。
+                var notMigrated = VisionMaster.Models.Assets.AssetVersionLog.MigrateLegacyToSink(reopened, out var remainWhenNoSink);
+                Check(notMigrated == 0 && remainWhenNoSink > 0,
+                    "库不可用时迁移不动任何记录（宁可留着也不凭空消失）", ref failures);
+
+                var liveStore = new Core.Database.SqliteAssetHistoryStore(() => root, w => warnings.Add(w));
+                Core.Interfaces.Operations.AssetVersionSinkHost.Current = liveStore;
+                var migrated = VisionMaster.Models.Assets.AssetVersionLog.MigrateLegacyToSink(reopened, out var remaining);
+                Check(migrated > 0 && remaining == 0,
+                    $"库可用时老历史全部迁走（迁 {migrated} 条，剩 {remaining} 条）", ref failures);
+                Check(reopened.AssetVersionLog.Count == 0, "迁移后 `.vms` 里彻底干净", ref failures);
+                Check(liveStore.Read(legacyAsset, 100).Any(r => r.Action == "老记录"),
+                    "迁走的老记录在库里查得到", ref failures);
+
+                // 迁移后再存一次方案：不应产生重复行（RecordId 主键去重）。
+                var before = liveStore.Read(legacyAsset, 100).Count;
+                VisionMaster.Models.Assets.AssetVersionLog.MigrateLegacyToSink(reopened, out _);
+                Check(liveStore.Read(legacyAsset, 100).Count == before, "重复迁移不产生重复行", ref failures);
+                liveStore.Dispose();
+                Core.Interfaces.Operations.AssetVersionSinkHost.Current = readOnlyOld;
+
                 // ④ 没有方案（root 为空）时静默：不抛、不建文件。
                 Exception? thrown = null;
                 try

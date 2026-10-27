@@ -88,6 +88,11 @@ namespace VisionMaster.Services
         {
             try
             {
+                // 一次性迁移：把 `.vms` 里遗留的老版本历史搬进方案库（`Logs\operations.db`），
+                // 迁成功的从 `.vms` 删掉 —— 之后 `.vms` 只留当前状态，不再随历史变大。
+                // 库不可用/写失败时原样保留（见 MigrateLegacyToSink 的注释：宁可留着也不能凭空消失）。
+                VisionMaster.Models.Assets.AssetVersionLog.MigrateLegacyToSink(targetSolution, out _);
+
                 // 先序列化再建目录：序列化失败（坏对象/循环引用）不该在磁盘上留下一个空方案文件夹。
                 var json = Serialize(targetSolution);
 

@@ -160,6 +160,63 @@ namespace VisionMaster.Models.Assets
         }
 
         /// <summary>
+        /// 把 `.vms` 里遗留的老历史一次性迁进方案库，迁成功的从 `.vms` 删掉（之后 `.vms` 彻底干净）。
+        ///
+        /// **只删确认写进库的那些**：库不可用/写失败时原样留着——
+        /// "库没写进去、`.vms` 已清空"等于历史凭空消失，这是唯一不能接受的失败方式。
+        /// </summary>
+        /// <returns>迁走的条数（0 = 没有可迁的，或库不可用）</returns>
+        public static int MigrateLegacyToSink(SolutionModel solution, out int remaining)
+        {
+            remaining = 0;
+            if (solution?.AssetVersionLog == null || solution.AssetVersionLog.Count == 0)
+                return 0;
+
+            var sink = AssetVersionSinkHost.Current;
+            if (ReferenceEquals(sink, NullSolutionAssetHistorySink.Instance)
+                || string.IsNullOrWhiteSpace(sink.DatabasePath))
+            {
+                remaining = solution.AssetVersionLog.Count;
+                return 0;
+            }
+
+            var migrated = 0;
+            foreach (var record in solution.AssetVersionLog.ToArray())
+            {
+                var accepted = false;
+                try
+                {
+                    accepted = sink.TryAppend(new AssetVersionEvent
+                    {
+                        RecordId = record.RecordId,
+                        AssetId = record.AssetId,
+                        Kind = record.Kind,
+                        Name = record.Name,
+                        Version = record.Version,
+                        ContentHash = record.ContentHash,
+                        SnapshotJson = record.SnapshotJson,
+                        Action = record.Action,
+                        Actor = record.Actor,
+                        CreatedAtUtc = record.CreatedAtUtc,
+                        Note = record.Note,
+                    });
+                }
+                catch
+                {
+                    accepted = false;
+                }
+
+                if (!accepted) continue;
+
+                solution.AssetVersionLog.Remove(record);
+                migrated++;
+            }
+
+            remaining = solution.AssetVersionLog.Count;
+            return migrated;
+        }
+
+        /// <summary>
         /// 读历史：**库优先，`.vms` 兜底**，按 RecordId 去重后按时间倒序。
         /// 老方案（历史只在 `.vms` 里）照样看得到；新记录只在库里，超出 50 条也不丢。
         /// </summary>

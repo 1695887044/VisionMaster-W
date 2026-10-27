@@ -30,7 +30,14 @@ namespace Core.Interfaces.Operations
     /// </summary>
     public interface ISolutionAssetHistorySink
     {
+        /// <summary>写一条；失败只记日志（fail-open）。</summary>
         void Append(AssetVersionEvent entry);
+
+        /// <summary>
+        /// 写一条并报告成功与否。**迁移老数据要用它**：只有确认写进库的记录才允许从 `.vms` 里删掉，
+        /// 否则库写失败 + `.vms` 已清 = 历史凭空消失。
+        /// </summary>
+        bool TryAppend(AssetVersionEvent entry);
 
         /// <summary>按资产读历史（新的在前）。读不到返回空表，不抛。</summary>
         IReadOnlyList<AssetVersionEvent> Read(Guid assetId, int limit);
@@ -48,6 +55,8 @@ namespace Core.Interfaces.Operations
         public string DatabasePath => string.Empty;
 
         public void Append(AssetVersionEvent entry) { }
+
+        public bool TryAppend(AssetVersionEvent entry) => false;
 
         public IReadOnlyList<AssetVersionEvent> Read(Guid assetId, int limit)
             => Array.Empty<AssetVersionEvent>();

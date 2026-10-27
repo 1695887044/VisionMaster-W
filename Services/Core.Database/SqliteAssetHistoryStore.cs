@@ -59,15 +59,17 @@ namespace Core.Database
                 ? string.Empty
                 : Path.Combine(solutionRoot, "Logs", "operations.db");
 
-        public void Append(AssetVersionEvent entry)
+        public void Append(AssetVersionEvent entry) => TryAppend(entry);
+
+        public bool TryAppend(AssetVersionEvent entry)
         {
-            if (entry == null || entry.AssetId == Guid.Empty) return;
+            if (entry == null || entry.AssetId == Guid.Empty) return false;
 
             try
             {
                 lock (_gate)
                 {
-                    if (!EnsureInitialized()) return;
+                    if (!EnsureInitialized()) return false;
 
                     using var connection = OpenConnection();
                     using var command = connection.CreateCommand();
@@ -92,6 +94,8 @@ namespace Core.Database
 
                     TrimPerAsset(connection, entry.AssetId);
                 }
+
+                return true;
             }
             catch (Exception ex)
             {
@@ -101,6 +105,8 @@ namespace Core.Database
                     _lastError = message;
                     _warn?.Invoke("[资产历史] 写入失败（已忽略，不影响资产操作）：" + message);
                 }
+
+                return false;
             }
         }
 
