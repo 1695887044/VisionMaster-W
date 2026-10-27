@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>操作记录 · 设计稿 v0.1</title>
+<style>
+  /* ===== 令牌（与 UI/Controls/Themes/Dialog 一一对应，复刻时按此映射） ===== */
+  :root {
+    --surface: #FFFFFF;            /* DialogSurfaceBrush */
+    --input-bg: #F8FAFC;           /* DialogInputBackgroundBrush */
+    --border: #E2E8F0;             /* DialogBorderBrush */
+    --text-primary: #0F172A;       /* DialogTextPrimaryBrush */
+    --text-secondary: #475569;     /* DialogTextSecondaryBrush */
+    --text-tertiary: #64748B;      /* DialogTextTertiaryBrush */
+    --text-muted: #94A3B8;         /* DialogTextMutedBrush */
+    --accent: #0EA5E9;             /* DialogAccentBrush */
+    --accent-soft: #F0F9FF;        /* DialogAccentSoftBrush */
+    --accent-border: #BAE6FD;      /* DialogAccentBorderBrush */
+    --row-hover: #F1F5F9;          /* DialogRowHoverBrush */
+    --row-alt: #F8FAFC;            /* DialogRowAlternateBrush */
+    --success: #22C55E;            /* DialogSuccessBrush */
+    --success-text: #15803D;       /* DialogSuccessTextBrush */
+    --success-subtle: #F0FDF4;     /* DialogSuccessSubtleBrush */
+    --warning: #F59E0B;            /* DialogWarningBrush */
+    --danger: #EF4444;             /* DialogDangerBrush */
+    --page-bg: #EEF2F7;
+  }
+
+  * { box-sizing: border-box; }
+  /* hidden 属性必须压过 display:flex —— 否则三种整页态会同时显示（本稿第一版就踩了） */
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--page-bg);
+    font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+    color: var(--text-primary);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+  }
+
+  /* ===== 弹窗外壳：1280×850，与资产页/用户管理同规格 ===== */
+  .dialog {
+    width: 1280px; height: 850px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 18px 48px rgba(15, 23, 42, .16);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 标题栏 56 */
+  .titlebar {
+    height: 56px; flex: none;
+    display: flex; align-items: center;
+    padding: 0 16px 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .titlebar .logo {
+    width: 28px; height: 28px; border-radius: 8px;
+    background: var(--accent-soft); border: 1px solid var(--accent-border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--accent); font-size: 14px; margin-right: 10px;
+  }
+  .titlebar h1 { font-size: 15px; font-weight: 600; margin: 0; }
+  .titlebar .sub { font-size: 11px; color: var(--text-tertiary); margin-left: 10px; }
+  .titlebar .spacer { flex: 1; }
+  .icon-btn {
+    width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent;
+    color: var(--text-secondary); font-size: 15px; cursor: pointer;
+  }
+  .icon-btn:hover { background: var(--row-hover); }
+
+  /* 筛选条 64 */
+  .filters {
+    height: 64px; flex: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 10px; color: var(--text-tertiary); }
+  .control {
+    height: 30px; min-width: 118px;
+    padding: 0 10px;
+    border: 1px solid var(--border); border-radius: 8px;
+    background: var(--input-bg); color: var(--text-primary);
+    font-size: 12px; font-family: inherit;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+  }
+  .control:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .control .caret { color: var(--text-muted); font-size: 9px; }
+  .search { min-width: 240px; justify-content: flex-start; gap: 8px; color: var(--text-muted); }
+  .search input {
+    border: 0; background: transparent; outline: none; flex: 1;
+    font: inherit; color: var(--text-primary);
+  }
+  .search input::placeholder { color: var(--text-muted); }
+
+  .filters .spacer { flex: 1; }
+
+  .btn {
+    height: 32px; padding: 0 14px; border-radius: 8px;
+    font-size: 12px; font-family: inherit; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-primary);
+  }
+  .btn:hover { background: var(--row-hover); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(.95); }
+  .btn:disabled { color: var(--text-muted); background: var(--row-alt); cursor: default; }
+  .btn:disabled:hover { background: var(--row-alt); }
+
+  /* 表格 */
+  .table-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .grid-head, .row {
+    display: grid;
+    grid-template-columns: 156px 96px 130px 72px 110px 200px 1fr;
+    align-items: center;
+    padding: 0 20px;
+    gap: 12px;
+  }
+  .grid-head {
+    height: 38px; flex: none;
+    font-size: 11px; color: var(--text-tertiary);
+    background: var(--row-alt);
+    border-bottom: 1px solid var(--border);
+  }
+  .rows { flex: 1; overflow: auto; }
+  .row {
+    height: 44px;
+    font-size: 12px;
+    border-bottom: 1px solid #F1F5F9;
+    cursor: pointer;
+  }
+  .row:nth-child(even) { background: var(--row-alt); }
+  .row:hover { background: var(--row-hover); }
+  .row.selected {
+    background: var(--accent-soft);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  .row .mono { font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+  .row .muted { color: var(--text-tertiary); }
+  .row .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .strong { font-weight: 600; }
+
+  /* 分类徽标 */
+  .cat {
+    display: inline-flex; align-items: center; height: 22px; padding: 0 8px;
+    border-radius: 6px; font-size: 11px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text-secondary);
+  }
+  .cat.identity { background: var(--accent-soft); border-color: var(--accent-border); color: #0369A1; }
+  .cat.safety   { background: #FEF2F2; border-color: #FECACA; color: #B91C1C; }
+  .cat.permission { background: #F5F3FF; border-color: #DDD6FE; color: #6D28D9; }
+
+  /* 结果 */
+  .outcome { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; }
+  .outcome.ok .dot { background: var(--success); }
+  .outcome.ok { color: var(--success-text); }
+  .outcome.deny .dot { background: var(--warning); }
+  .outcome.deny { color: #B45309; }
+  .outcome.fail .dot { background: var(--danger); }
+  .outcome.fail { color: #B91C1C; }
+
+  /* 明细详情区 */
+  .detail {
+    flex: none; height: 96px;
+    border-top: 1px solid var(--border);
+    background: var(--row-alt);
+    padding: 12px 20px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .detail .line { font-size: 12px; color: var(--text-secondary); }
+  .detail .line b { color: var(--text-primary); font-weight: 600; }
+  .detail .meta { font-size: 11px; color: var(--text-tertiary); display: flex; gap: 16px; }
+
+  /* 页脚 56 */
+  .footer {
+    height: 56px; flex: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .footer .count { font-size: 11px; color: var(--text-tertiary); }
+  .footer .spacer { flex: 1; }
+
+  /* 空 / 加载 / 无权限 */
+  .state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    color: var(--text-tertiary); font-size: 12px;
+  }
+  .state .big { font-size: 30px; color: var(--text-muted); }
+  .state b { color: var(--text-primary); font-size: 13px; font-weight: 600; }
+  .skeleton { width: 70%; height: 12px; border-radius: 6px; background: #EDF2F7; animation: pulse 1.2s infinite; }
+  .skeleton:nth-child(2) { width: 55%; }
+  .skeleton:nth-child(3) { width: 64%; }
+  @keyframes pulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+
+  /* 状态切换器（评审用，不进交付物） */
+  .switcher {
+    position: fixed; left: 28px; bottom: 24px;
+    display: flex; gap: 6px; padding: 8px;
+    background: #0F172A; border-radius: 10px;
+    box-shadow: 0 10px 24px rgba(15,23,42,.28);
+  }
+  .switcher button {
+    height: 26px; padding: 0 10px; border-radius: 6px; border: 1px solid #334155;
+    background: #1E293B; color: #CBD5E1; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .switcher button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .switcher span { color: #64748B; font-size: 11px; align-self: center; margin-right: 4px; }
+</style>
+</head>
+<body>
+<div class="dialog">
+  <div class="titlebar">
+    <div class="logo">▤</div>
+    <h1>操作记录</h1>
+    <span class="sub">软件级 · 跟机器走，不随方案切换</span>
+    <div class="spacer"></div>
+    <button class="icon-btn" title="关闭">✕</button>
+  </div>
+
+  <div class="filters">
+    <div class="field">
+      <label>分类</label>
+      <div class="control" tabindex="0"><span>全部</span><span class="caret">▼</span></div>
+    </div>
+    <div class="field">
+      <label>操作者</label>
+      <div class="control" tabindex="0"><span>全部</span><span class="caret">▼</span></div>
+    </div>
+    <div class="field">
+      <label>时间</label>
+      <div class="control" tabindex="0"><span>近 7 天</span><span class="caret">▼</span></div>
+    </div>
+    <div class="field" style="flex:1">
+      <label>搜索</label>
+      <div class="control search" tabindex="0">
+        <span>⌕</span><input placeholder="对象 / 动作 / 明细关键字" />
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn">导出 CSV</button>
+    <button class="btn primary">刷新</button>
+  </div>
+
+  <div class="table-wrap">
+    <div class="grid-head">
+      <span>时间</span><span>分类</span><span>动作</span><span>结果</span>
+      <span>操作者</span><span>对象</span><span>明细</span>
+    </div>
+
+    <div class="rows" id="rows">
+      <div class="row selected">
+        <span class="mono">2026-10-27 10:52:33</span>
+        <span><span class="cat safety">安全动作</span></span>
+        <span class="strong">轴回零</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>admin</span>
+        <span class="ellipsis">SX</span>
+        <span class="muted ellipsis">已下发回零，等待到位</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 10:51:02</span>
+        <span><span class="cat safety">安全动作</span></span>
+        <span class="strong">轴失能</span>
+        <span class="outcome deny"><i class="dot"></i>拒绝</span>
+        <span>admin</span>
+        <span class="ellipsis">SY</span>
+        <span class="muted ellipsis">运动卡未连接，本条未执行</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 10:44:18</span>
+        <span><span class="cat identity">身份</span></span>
+        <span class="strong">登录</span>
+        <span class="outcome deny"><i class="dot"></i>拒绝</span>
+        <span>operator1</span>
+        <span class="ellipsis">密码错误</span>
+        <span class="muted ellipsis">账号或密码不正确</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 10:44:02</span>
+        <span><span class="cat identity">身份</span></span>
+        <span class="strong">登录</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>admin</span>
+        <span class="ellipsis">智能装配检测线</span>
+        <span class="muted ellipsis">角色：管理员</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 10:31:47</span>
+        <span><span class="cat permission">权限</span></span>
+        <span class="strong">修改用户组</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>admin</span>
+        <span class="ellipsis">产线操作组</span>
+        <span class="muted ellipsis">已保存（3 项权限）</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 09:58:11</span>
+        <span><span class="cat identity">身份</span></span>
+        <span class="strong">登出</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>operator1</span>
+        <span class="ellipsis">—</span>
+        <span class="muted ellipsis">空闲超时自动登出</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 09:41:26</span>
+        <span><span class="cat">方案</span></span>
+        <span class="strong">打开方案</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>admin</span>
+        <span class="ellipsis">视觉样例对拍</span>
+        <span class="muted ellipsis">上一个：智能装配检测线</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 09:40:55</span>
+        <span><span class="cat">系统参数</span></span>
+        <span class="strong">保存系统参数</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>admin</span>
+        <span class="ellipsis">AppConfig</span>
+        <span class="muted ellipsis">审计保留 90 天</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-27 08:02:10</span>
+        <span><span class="cat">启动</span></span>
+        <span class="strong">启动</span>
+        <span class="outcome ok"><i class="dot"></i>成功</span>
+        <span>—</span>
+        <span class="ellipsis">HMI-01</span>
+        <span class="muted ellipsis">版本 4.2.0.118</span>
+      </div>
+      <div class="row">
+        <span class="mono">2026-10-26 17:20:03</span>
+        <span><span class="cat safety">安全动作</span></span>
+        <span class="strong">急停</span>
+        <span class="outcome fail"><i class="dot"></i>失败</span>
+        <span>operator2</span>
+        <span class="ellipsis">MotionCard-1</span>
+        <span class="muted ellipsis">下位机无应答（超时 2000ms）</span>
+      </div>
+    </div>
+
+    <!-- 其它四态（评审时用右下角切换器查看） -->
+    <div class="state" id="state-empty" hidden>
+      <div class="big">▤</div>
+      <b>没有符合条件的记录</b>
+      <div>换个时间范围，或清空筛选条件再试</div>
+      <button class="btn">清空筛选</button>
+    </div>
+    <div class="state" id="state-loading" hidden>
+      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+      <div>正在读取操作记录…</div>
+    </div>
+    <div class="state" id="state-denied" hidden>
+      <div class="big">🔒</div>
+      <b>需要「用户管理」权限</b>
+      <div>操作记录包含登录失败与权限变更，仅管理员可查看</div>
+    </div>
+
+    <div class="detail">
+      <div class="line"><b>明细：</b>已下发回零命令，等待到位；目标轴 SX（稳定 Id 6f1c…a24）</div>
+      <div class="meta">
+        <span>方案：智能装配检测线</span>
+        <span>机器：HMI-01</span>
+        <span>版本：4.2.0.118</span>
+        <span>记录 Id：10241</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="count">共 1,284 条 · 第 1 / 7 页</span>
+    <div class="spacer"></div>
+    <button class="btn" disabled>上一页</button>
+    <button class="btn">下一页</button>
+    <button class="btn">关闭</button>
+  </div>
+</div>
+
+<div class="switcher">
+  <span>状态</span>
+  <button data-state="normal" class="active">正常</button>
+  <button data-state="empty">空</button>
+  <button data-state="loading">加载</button>
+  <button data-state="denied">无权限</button>
+</div>
+
+<script>
+  // 五态切换（评审用）。交付复刻时不带这段脚本。
+  const rows = document.getElementById('rows');
+  const detail = document.querySelector('.detail');
+  const footer = document.querySelector('.footer');
+  const head = document.querySelector('.grid-head');
+  const states = {
+    empty: document.getElementById('state-empty'),
+    loading: document.getElementById('state-loading'),
+    denied: document.getElementById('state-denied'),
+  };
+  document.querySelectorAll('.switcher button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.switcher button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const state = btn.dataset.state;
+      Object.values(states).forEach(s => s.hidden = true);
+      const normal = state === 'normal';
+      rows.hidden = !normal;
+      detail.hidden = !normal;
+      head.hidden = !normal;
+      // 空态保留页脚（要显示「共 0 条」）；加载/无权限整页接管，页脚一起收起
+      footer.hidden = state === 'loading' || state === 'denied';
+      if (state === 'empty') document.querySelector('.footer .count').textContent = '共 0 条';
+      if (!normal) states[state].hidden = false;
+    });
+  });
+  // 行选中
+  document.querySelectorAll('.row').forEach(row => {
+    row.addEventListener('click', () => {
+      document.querySelectorAll('.row').forEach(r => r.classList.remove('selected'));
+      row.classList.add('selected');
+    });
+  });
+
+  // 支持 #empty / #loading / #denied 直达某态（评审时直接发链接，不用手点）
+  const initial = location.hash.replace('#', '');
+  if (initial && document.querySelector('.switcher button[data-state="' + initial + '"]')) {
+    document.querySelector('.switcher button[data-state="' + initial + '"]').click();
+  }
+</script>
+</body>
+</html>
