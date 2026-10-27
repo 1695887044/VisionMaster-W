@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Threading;
 using Prism.Mvvm;
 using VisionMaster.Models;
+using Core.Interfaces.Operations;
 using VisionMaster.Scada;
 
 namespace VisionMaster.Services
@@ -131,6 +132,19 @@ namespace VisionMaster.Services
         /// </summary>
         public event Action<string>? AutoLoggedOut;
 
+        /// <summary>
+        /// <b>任何一次</b>登出之后触发（手动、空闲超时、方案切换、强制），参数是刚离开的用户名。
+        ///
+        /// 与 <see cref="AutoLoggedOut"/> 的分工：那个只在"超时"这一条路上触发，用来提示；
+        /// 本事件是"会话已经结束"的唯一广播口，订阅方是<b>会话凭据仓</b>
+        /// （见 <c>ScadaSessionCredentialVault</c>）——它必须跟着每一次登出一起失效，
+        /// 否则"超时登出后再切方案"会把会话凭空复活。
+        ///
+        /// 触发顺序与 <see cref="AutoLoggedOut"/> 相同：<b>先清空状态、再广播</b>，
+        /// 订阅方读到的 <see cref="CurrentUserName"/> 已经是"未登录"。
+        /// </summary>
+        public event Action<string>? LoggedOut;
+
         /// <summary>旧界面显示用：按组映射回三档（B3 判定不再使用它）。</summary>
         public ScadaRole CurrentRole => IsLoggedIn
             ? (_groupId == ScadaGroupDefaults.AdminTemplateId ? ScadaRole.Administrator
@@ -205,17 +219,32 @@ namespace VisionMaster.Services
 
             _userName = user.Name.Trim();
             _groupId = user.GroupId ?? string.Empty;
+            // 优先用账号本给出的组显示名：自定义组的名字不在三档模板里，
+            // 只查模板会把状态栏写成 "G-lineop（G-lineop）"。
             _groupName = string.IsNullOrWhiteSpace(_groupId)
                 ? "未登录"
-                : (ScadaGroupDefaults.CreateDefaultTemplates()
-                    .FirstOrDefault(g => string.Equals(g.Id, _groupId, StringComparison.Ordinal))?.Name
-                   ?? _groupId);
+                : (!string.IsNullOrWhiteSpace(user.GroupName)
+                    ? user.GroupName.Trim()
+                    : (ScadaGroupDefaults.CreateDefaultTemplates()
+                        .FirstOrDefault(g => string.Equals(g.Id, _groupId, StringComparison.Ordinal))?.Name
+                       ?? _groupId));
             _permissions = (user.Permissions ?? Array.Empty<string>()).ToArray();
             _role = CurrentRole;
 
             _lastActivityUtc = DateTime.UtcNow;
             _idleTimer.Start();
             RaiseLoginStateChanged();
+
+            // 登录成功统一在这里记：手动登录、调试自动登录、切方案重验都走这个出口。
+            // 失败不在这里（策略看不到"密码错了"），由登录弹窗记「拒绝」。
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Identity";
+                entry.Action = "登录";
+                entry.Outcome = "成功";
+                entry.Actor = _userName ?? string.Empty;
+                entry.ActorRole = _groupName;
+            });
         }
 
         public void Login(string userName, ScadaRole role)
@@ -253,6 +282,8 @@ namespace VisionMaster.Services
             if (!IsLoggedIn)
                 return;
 
+            var who = _userName!;
+
             _userName = null;
             _role = ScadaRole.Operator;
             _groupId = string.Empty;
@@ -261,6 +292,19 @@ namespace VisionMaster.Services
             _idleTimer.Stop();
 
             RaiseLoginStateChanged();
+
+            // 登出统一在这里记：手动 / 超时 / 切方案 / 强制走的是同一个出口，
+            // 各调用点各记一次必然漏（现场最常见的就是"超时那一路没人记"）。
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Identity";
+                entry.Action = "登出";
+                entry.Outcome = "成功";
+                entry.Actor = who;
+            });
+
+            // 状态清空之后再广播：订阅方（会话凭据仓、审计）读到的必须是"已登出"。
+            LoggedOut?.Invoke(who);
         }
 
         /// <summary>

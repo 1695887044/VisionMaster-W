@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using Core.Interfaces.Operations;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
@@ -37,6 +38,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
     /// ③ <b>登录按钮不禁用</b>。用户名/密码为空时，禁用按钮只会让人对着一个灰按钮猜原因；
     ///    放行点击、由账号存储报出「请输入用户名」/「请输入密码」，界面上有字可读。
     ///    这也正是 <see cref="ScadaUserStore.TryValidate"/> 那几句文案存在的意义。
+    ///
+    /// ④ <b>登录成功时把凭据交给会话凭据仓</b>（<see cref="ScadaSessionCredentialVault"/>）。
+    ///    这是"切方案时同账号密码保持登录"的唯一材料：账号本按方案隔离、盐随机，
+    ///    只能在切换那一刻拿明文去新账号本重验。凭据只留在内存、任何登出立刻清零；
+    ///    输入框里那一份仍然用完即清（见 <see cref="Password"/> 的注释）。
     /// </summary>
     public class ScadaLoginViewModel : BindableBase, IDialogAware
     {
@@ -44,6 +50,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private readonly ScadaAccessPolicy _accessPolicy;
         private readonly IDialogService _dialogService;
         private readonly IWorkspaceManager _workspace;
+        private readonly ScadaSessionCredentialVault _credentialVault;
 
         private string _userName = string.Empty;
         private string _password = string.Empty;
@@ -60,12 +67,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private int _selectedTabIndex;
 
         public ScadaLoginViewModel(ScadaUserStore userStore, ScadaAccessPolicy accessPolicy,
-                                   IDialogService dialogService, IWorkspaceManager workspace)
+                                   IDialogService dialogService, IWorkspaceManager workspace,
+                                   ScadaSessionCredentialVault credentialVault)
         {
             _userStore = userStore ?? throw new ArgumentNullException(nameof(userStore));
             _accessPolicy = accessPolicy ?? throw new ArgumentNullException(nameof(accessPolicy));
             _dialogService = dialogService ?? throw new ArgumentNullException(nameof(dialogService));
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
+            _credentialVault = credentialVault ?? throw new ArgumentNullException(nameof(credentialVault));
 
             LoginCommand = new DelegateCommand(OnLogin);
             LogoutCommand = new DelegateCommand(OnLogout);
@@ -97,8 +106,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>
-        /// 密码明文。<b>用完即清</b>：验证通过的那一刻它就变成"会话里的一个角色"，
-        /// 没有任何理由继续留在内存里（更不该跨弹窗存活）。打开弹窗时也会清一次。
+        /// 密码明文。<b>输入框这一份用完即清</b>：验证通过后它就不再留在本 VM 里
+        /// （更不该跨弹窗存活）。会话需要的那一份由 <see cref="ScadaSessionCredentialVault"/>
+        /// 以可擦除的 <c>char[]</c> 单独持有，只用于"切方案时同账号密码保持登录"，
+        /// 任何登出立刻清零；打开弹窗时也会清一次。
         /// </summary>
         public string Password
         {
@@ -265,12 +276,27 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (!_userStore.TryValidate(UserName, Password, out var user, out var error))
             {
                 LoginMessage = error;
+                // 登录失败是安全事件：软件级记录必须留下"谁试过、被拒原因"，
+                // 只写界面提示的话，人一走就查不到。
+                SoftwareOperationLogHost.SafeRecord(entry =>
+                {
+                    entry.Category = "Identity";
+                    entry.Action = "登录";
+                    entry.Outcome = "拒绝";
+                    entry.Actor = UserName ?? string.Empty;
+                    entry.Subject = _workspace.CurrentSolution?.SolutionName ?? string.Empty;
+                    entry.Detail = error ?? string.Empty;
+                });
                 return;
             }
 
             _accessPolicy.Login(user!);
 
+
             // 明文用完即弃：上面这一行之后，身份已经以"角色"的形式存在于会话里了。
+            // 但"切方案保持登录"需要一份可重验的凭据，所以先交给内存凭据仓（char[]，登出即清）。
+            // 顺序不能反：下一行就把输入框里这份清掉了。
+            _credentialVault.Remember(user!.Name, Password);
             Password = string.Empty;
             LoginMessage = null;
 
@@ -309,6 +335,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             var name = ChangeUserName.Trim();
+
+            // 改的是自己 → 凭据仓里那份旧密码已经作废（账号本已发 PasswordChanged，协调器已清空）。
+            // 本方法拿得到新明文，直接换成新的：改完密码立刻切方案仍然保持登录。
+            // 改的是别人 → 当前会话的凭据不受影响，不要碰。
+            if (_accessPolicy.IsLoggedIn
+                && string.Equals(name, _accessPolicy.CurrentUserName, StringComparison.OrdinalIgnoreCase))
+            {
+                _credentialVault.Remember(name, NewPassword);
+            }
 
             // 三个密码框一起清：改完就没有一个还有用的了。
             OldPassword = string.Empty;

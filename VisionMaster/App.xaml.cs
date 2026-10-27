@@ -1,5 +1,7 @@
+using Core.Database;
 using Core.Interfaces;
 using Core.Interfaces.Io;
+using Core.Interfaces.Operations;
 using Prism.Dialogs;
 using Prism.Ioc;
 using System.ComponentModel;
@@ -80,6 +82,15 @@ namespace VisionMaster
         {
             var ex = e.Exception;
 
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Lifecycle";
+                entry.Action = "未处理异常";
+                entry.Outcome = "失败";
+                entry.Subject = ex?.GetType().Name ?? "unknown";
+                entry.Detail = ex?.Message ?? string.Empty;
+            });
+
             try
             {
                 TryResolveService<ILogService>()?.Error(
@@ -124,7 +135,35 @@ namespace VisionMaster
         protected override void OnStartup(StartupEventArgs e)
         {
             DispatcherUnhandledException += OnDispatcherUnhandledException;
+
+            // 软件级操作记录：**在一切之前**装好，登录/方案切换/参数保存都靠它。
+            // fail-open：库建不起来就退化成 no-op（见 SqliteSoftwareOperationLog），不影响启动。
+            var operationLog = new SqliteSoftwareOperationLog(
+                SqliteSoftwareOperationLog.DefaultPath,
+                retentionDays: () =>
+                {
+                    // 容器在 CreateShell 之后才可用；早于它时用默认 90 天，不清空任何历史。
+                    try { return Container.Resolve<AppSettingsService>().Current?.AuditRetentionDays ?? 90; }
+                    catch { return 90; }
+                },
+                warn: message => LogServiceSafe(message));
+            SoftwareOperationLogHost.Current = operationLog;
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Lifecycle";
+                entry.Action = "启动";
+                entry.Subject = Environment.MachineName;
+                entry.Detail = "版本 " + (typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown");
+            });
+
             base.OnStartup(e);
+        }
+
+        /// <summary>启动最早期的日志出口：容器还没起来，只能落到控制台/调试输出。</summary>
+        private static void LogServiceSafe(string message)
+        {
+            try { Console.WriteLine(message); } catch { }
+            System.Diagnostics.Debug.WriteLine(message);
         }
 
         protected override Window CreateShell()
@@ -143,6 +182,17 @@ namespace VisionMaster
             {
                 if (Container.Resolve<ILogService>() is IDisposable d)
                     d.Dispose();
+            }));
+
+            // ===== 退出链：记一条「退出」（注册在日志收尾之后 → 逆序先跑，此时各服务都还活着） =====
+            _lifetime.RegisterExitTask(ExitTask.Of("软件操作记录·退出", () =>
+            {
+                SoftwareOperationLogHost.SafeRecord(entry =>
+                {
+                    entry.Category = "Lifecycle";
+                    entry.Action = "退出";
+                    entry.Subject = Environment.MachineName;
+                });
             }));
 
             // ===== 退出链收尾：未保存草稿转存 =====
@@ -590,6 +640,11 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<ScadaAccessPolicy>(c =>
                 new ScadaAccessPolicy(() => c.Resolve<AppSettingsService>().Current.IdleTimeout));
             containerRegistry.RegisterSingleton<IScadaAccessPolicy>(c => c.Resolve<ScadaAccessPolicy>());
+            // 会话凭据仓（切方案"同账号密码保持登录"的唯一材料）：
+            // 只在内存里存一份可擦除的 char[]；任何登出（手动/空闲超时/切方案/强制）立刻清零，
+            // 绝不落盘、不进日志与审计。构造时订阅 ScadaAccessPolicy.LoggedOut，所以必须晚于它注册。
+            containerRegistry.RegisterSingleton<ScadaSessionCredentialVault>(c =>
+                new ScadaSessionCredentialVault(c.Resolve<ScadaAccessPolicy>()));
             containerRegistry.RegisterSingleton<ScadaPermissionGate>(
                 c => new ScadaPermissionGate(c.Resolve<ScadaAccessPolicy>()));
             // 调试模式（开发期免权限 / 上线后仅「用户管理」可开关；开关落盘且不按时间失效）。
@@ -662,7 +717,11 @@ namespace VisionMaster
                 c.Resolve<SolutionIdentityHolder>(),
                 c.Resolve<ScadaAuditWriter>(),
                 () => ResolveOptional<IScadaWebSessionAdmin>(c),
-                message => c.Resolve<ILogService>().Warn(message)));
+                message => c.Resolve<ILogService>().Warn(message),
+                c.Resolve<ScadaSessionCredentialVault>(),
+                // "调试构建默认管理员"只在调试模式开启时生效：面板开关关着 = 开发者不想被自动登录。
+                // 取的是每次现读（配置可能刚被面板改过），不是构造时抓一份。
+                () => c.Resolve<DebugModeService>().IsEnabled));
             // 组态「选变量」入口：属性面板只说"给我一个变量"，弹窗怎么弹、弹哪个由这一层决定。
             // 面板与事件行因此能在无 WPF 宿主下被直接构造、直接断言（ScadaChecks 就是这么测的）。
             containerRegistry.RegisterSingleton<IScadaVariablePicker, ScadaVariablePicker>();

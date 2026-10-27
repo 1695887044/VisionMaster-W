@@ -88,6 +88,7 @@ namespace ProjectAssetsUiProbe
                 RunReverseReferenceChecks(ref failures);
                 RunPluginAssetContractChecks(ref failures);
                 RunPluginAssetRuntimeChecks(ref failures);
+                RunSoftwareOperationLogChecks(ref failures);
                 RunDiffChecks(ref failures);
                 RunAuditRowChecks(ref failures);
                 var view = new ProjectAssetsView
@@ -1311,6 +1312,158 @@ namespace ProjectAssetsUiProbe
             {
                 try { Directory.Delete(temp, recursive: true); } catch { }
             }
+        }
+
+        /// <summary>
+        /// 软件级操作记录（SQLite）：
+        /// 写→查→按条件筛→保留期清理；建库失败必须 fail-open（不抛、不影响业务）；
+        /// 真实调用点（登录/登出、系统参数保存）必须真的落到库里。
+        /// </summary>
+        private static void RunSoftwareOperationLogChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-swoff-log-" + Guid.NewGuid().ToString("N"));
+            var previous = Core.Interfaces.Operations.SoftwareOperationLogHost.Current;
+            try
+            {
+                Directory.CreateDirectory(temp);
+                var dbPath = Path.Combine(temp, "operations.db");
+                var warnings = new List<string>();
+                using var log = new Core.Database.SqliteSoftwareOperationLog(
+                    dbPath, retentionDays: () => 90, warn: w => warnings.Add(w));
+
+                // ── ① 写 + 查：字段一个不少 ──
+                var solutionId = Guid.NewGuid();
+                log.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                {
+                    Category = "Identity",
+                    Action = "登录",
+                    Outcome = "拒绝",
+                    Actor = "operator1",
+                    ActorRole = "操作员",
+                    Subject = "密码错误",
+                    SolutionId = solutionId,
+                    SolutionName = "S1",
+                    Detail = "连续第三次",
+                });
+
+                var rows = log.Query(category: "Identity");
+                Check(rows.Count == 1, $"写进去能查回来（实际 {rows.Count} 条）", ref failures);
+                var row = rows.FirstOrDefault();
+                Check(row?.Actor == "operator1" && row.Outcome == "拒绝" && row.Action == "登录",
+                    "关键字段原样保存（人/结果/动作）", ref failures);
+                Check(row?.SolutionId == solutionId && row.SolutionName == "S1",
+                    "方案归属也记下来了", ref failures);
+                Check(row?.Detail == "连续第三次" && !string.IsNullOrWhiteSpace(row.Machine),
+                    "明细与机器名都在", ref failures);
+
+                // ── ② 条件筛选 ──
+                log.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                {
+                    Category = "Settings", Action = "保存系统参数", Outcome = "成功", Actor = "admin",
+                });
+                Check(log.Query(category: "Settings").Count == 1, "按分类筛选准确", ref failures);
+                Check(log.Query(actor: "operator1").Count == 1, "按操作者筛选准确", ref failures);
+                Check(log.Query(solutionId: solutionId).Count == 1, "按方案筛选准确", ref failures);
+                Check(log.Query().Count == 2, "不带条件返回全部", ref failures);
+
+                // ── ③ 保留期清理 ──
+                using (var shortRetention = new Core.Database.SqliteSoftwareOperationLog(
+                           Path.Combine(temp, "retention.db"), retentionDays: () => 7))
+                {
+                    shortRetention.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Identity",
+                        Action = "登录",
+                        TimestampUtc = DateTime.UtcNow.AddDays(-30),
+                    });
+                    shortRetention.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Identity", Action = "登录",
+                    });
+
+                    var removed = shortRetention.PruneExpired();
+                    Check(removed == 1, $"过期行被清掉 1 条（实际 {removed}）", ref failures);
+                    Check(shortRetention.Query().Count == 1, "未过期的行保留", ref failures);
+                }
+
+                // ── ④ fail-open：库建不起来时不许抛 ──
+                var blocker = Path.Combine(temp, "blocker.txt");
+                File.WriteAllText(blocker, "not a folder");
+                var brokenPath = Path.Combine(blocker, "sub", "operations.db");
+
+                var brokenWarnings = new List<string>();
+                using var broken = new Core.Database.SqliteSoftwareOperationLog(
+                    brokenPath, retentionDays: () => 90, warn: w => brokenWarnings.Add(w));
+
+                Exception? thrown = null;
+                try
+                {
+                    broken.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Identity", Action = "登录",
+                    });
+                    broken.Query();
+                    broken.PruneExpired();
+                }
+                catch (Exception ex) { thrown = ex; }
+
+                Check(thrown == null, "建库失败时记录/查询/清理都不抛（fail-open）" + (thrown == null ? string.Empty : "：" + thrown.Message),
+                    ref failures);
+                Check(brokenWarnings.Count > 0, "失败有 Warn 可查（不是静默吞掉）", ref failures);
+                Check(string.IsNullOrEmpty(broken.DatabasePath), "库不可用时对外报告「没有库」", ref failures);
+
+                // ── ⑤ 静态出口：异常被吞，且真实调用点真的落库 ──
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current = log;
+
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current = new ThrowingOperationLog();
+                thrown = null;
+                try
+                {
+                    Core.Interfaces.Operations.SoftwareOperationLogHost.SafeRecord(e =>
+                    {
+                        e.Category = "Identity";
+                        e.Action = "登录";
+                    });
+                }
+                catch (Exception ex) { thrown = ex; }
+                Check(thrown == null, "实现抛异常时 SafeRecord 也吞掉（业务不受影响）", ref failures);
+
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current = log;
+                var policy = new ScadaAccessPolicy();
+                policy.Login(new ScadaUserInfo(
+                    "probeuser", ScadaGroupDefaults.AdminTemplateId,
+                    ScadaPermissionKeys.BuiltInKeys.ToArray(), "模板·管理员"));
+                policy.Logout();
+
+                var identityRows = log.Query(category: "Identity");
+                Check(identityRows.Any(r => r.Action == "登录" && r.Actor == "probeuser" && r.Outcome == "成功"),
+                    "登录成功真的写进了软件库", ref failures);
+                Check(identityRows.Any(r => r.Action == "登出" && r.Actor == "probeuser"),
+                    "登出真的写进了软件库（超时/切方案同一条出口）", ref failures);
+
+                // 系统参数保存（Core 层调用点）：容器里没有也应当写成功。
+                var settings = new AppSettingsService();
+                settings.Save();
+                Check(log.Query(category: "Settings").Any(r => r.Action == "保存系统参数"),
+                    "系统参数保存真的写进了软件库", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "软件级操作记录断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                Core.Interfaces.Operations.SoftwareOperationLogHost.Current = previous;
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
+        }
+
+        private sealed class ThrowingOperationLog : Core.Interfaces.Operations.ISoftwareOperationLog
+        {
+            public string DatabasePath => string.Empty;
+
+            public void Record(Core.Interfaces.Operations.SoftwareOperationEntry entry)
+                => throw new InvalidOperationException("故意失败");
         }
 
         /// <summary>逐字段 diff：标定矩阵变化要能逐个数值看出来。</summary>

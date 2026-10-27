@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using Core.Interfaces.Operations;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 using VisionMaster.Models;
@@ -171,6 +172,19 @@ namespace VisionMaster.Services
                 }
             }
 
+            // 图像集"每轮开始怎么清"的存量迁移（2026-10-27）：
+            // 旧值 ClearAll（画布级"清空整张画布"）在多流程并排循环时会互相清屏——
+            // 任一流程开一轮，下一条来自任一流程的帧就把**所有窗口**的图一起释放，
+            // 现场表现是"A 投窗口1、B 投窗口2 → 窗口2 被 A 反复清空"。
+            // 自动口径只允许窗口级，这里把存量值迁到 ClearView（真清空保留给右键/按钮的显式动作）。
+            // 返回 true 让启动自检回写一次，磁盘上的老值也就此自愈。
+            var gallery = Current.ImageGallery;
+            if (gallery != null && gallery.RunStartMode == ImageGalleryRunStartMode.ClearAll)
+            {
+                gallery.RunStartMode = ImageGalleryRunStartMode.ClearView;
+                changed = true;
+            }
+
             return changed;
         }
 
@@ -196,6 +210,17 @@ namespace VisionMaster.Services
             }
 
             SyncParallelConfig();
+
+            // 系统参数变更属于"软件级核心操作"：改了保留期/并行开关这类东西，
+            // 事后必须能回答"谁在什么时候改的"。记录失败不影响保存（fail-open）。
+            SoftwareOperationLogHost.SafeRecord(entry =>
+            {
+                entry.Category = "Settings";
+                entry.Action = "保存系统参数";
+                entry.Outcome = "成功";
+                entry.Subject = "AppConfig";
+                entry.Detail = "审计保留 " + Current?.AuditRetentionDays + " 天";
+            });
         }
 
         /// <summary>
