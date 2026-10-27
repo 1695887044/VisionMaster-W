@@ -70,9 +70,20 @@ namespace VisionMaster.Models.Assets
         public bool Changed => !string.Equals(Before, After, StringComparison.Ordinal);
     }
 
-    /// <summary>版本历史的统一写入口：保证时间/操作者/快照口径只有一份。</summary>
+    /// <summary>
+    /// 版本历史的统一写入口：保证时间/操作者/快照口径只有一份。
+    ///
+    /// 写在哪（2026-10-27 起）
+    /// ---------
+    /// **只写方案级库** `<方案目录>\Logs\operations.db`，不再往 `.vms` 里追加。
+    /// 用户已确认"整个方案目录一起归档"是唯一支持的用法，所以 `.vms` 里那份
+    /// 降级为**只读老数据**（老方案仍能读，见 <see cref="Of"/> 的合并读）。
+    ///
+    /// 为什么搬走：`.vms` 里每个资产最多 50 条且每次保存整份重写——历史越多方案文件越大、保存越慢。
+    /// </summary>
     public static class AssetVersionLog
     {
+        /// <summary>老 `.vms` 里的历史上限（只对"老数据"有意义，新记录不再进 `.vms`）。</summary>
         public const int MaxRecordsPerAsset = 50;
 
         public static AssetVersionRecord Append(
@@ -88,7 +99,6 @@ namespace VisionMaster.Models.Assets
             string note = "")
         {
             if (solution == null) throw new ArgumentNullException(nameof(solution));
-            solution.AssetVersionLog ??= new List<AssetVersionRecord>();
 
             var record = new AssetVersionRecord
             {
@@ -103,15 +113,15 @@ namespace VisionMaster.Models.Assets
                 CreatedAtUtc = DateTime.UtcNow,
                 Note = note ?? string.Empty,
             };
-            solution.AssetVersionLog.Add(record);
 
-            Trim(solution, assetId);
+            // 只写库。`.vms` 里那份不再追加 —— 老方案的历史仍由 Of() 合并读出。
+            var sink = AssetVersionSinkHost.Current;
+            var sinkReady = !ReferenceEquals(sink, NullSolutionAssetHistorySink.Instance)
+                            && !string.IsNullOrWhiteSpace(sink.DatabasePath);
 
-            // 双写方案级历史库（`<方案目录>\Logs\operations.db`）。
-            // 为什么两边都写：`.vms` 里最多 50 条且每次保存整份重写；库能留 200 条、且不随方案文件膨胀。
-            // 现阶段**先双写**（不切读、不停写），等界面改读库之后 `.vms` 那份再降级为"只读兜底"。
-            AssetVersionSinkHost.SafeAppend(
-                new AssetVersionEvent
+            if (sinkReady)
+            {
+                sink.Append(new AssetVersionEvent
                 {
                     RecordId = record.RecordId,
                     AssetId = record.AssetId,
@@ -126,7 +136,27 @@ namespace VisionMaster.Models.Assets
                     Note = record.Note,
                 });
 
+                return record;
+            }
+
+            // 兜底：没有可用历史库（断言宿主、没接库的宿主、方案未保存）时仍写 `.vms`。
+            // 宁可回退到旧行为，也不能让历史静默消失——"记录丢了"比"方案文件大一点"严重得多。
+            solution.AssetVersionLog ??= new List<AssetVersionRecord>();
+            solution.AssetVersionLog.Add(record);
+            Trim(solution, assetId);
+
             return record;
+        }
+
+        private static void Trim(SolutionModel solution, Guid assetId)
+        {
+            var mine = solution.AssetVersionLog.Where(r => r.AssetId == assetId)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .Skip(MaxRecordsPerAsset)
+                .ToList();
+            if (mine.Count == 0) return;
+            foreach (var record in mine)
+                solution.AssetVersionLog.Remove(record);
         }
 
         /// <summary>
@@ -165,16 +195,6 @@ namespace VisionMaster.Models.Assets
             return merged.Values.OrderByDescending(r => r.CreatedAtUtc).ToArray();
         }
 
-        private static void Trim(SolutionModel solution, Guid assetId)
-        {
-            var mine = solution.AssetVersionLog.Where(r => r.AssetId == assetId)
-                .OrderByDescending(r => r.CreatedAtUtc)
-                .Skip(MaxRecordsPerAsset)
-                .ToList();
-            if (mine.Count == 0) return;
-            foreach (var record in mine)
-                solution.AssetVersionLog.Remove(record);
-        }
 
         public static string Snapshot(object value)
             => value == null ? string.Empty : JsonConvert.SerializeObject(value, Formatting.None);

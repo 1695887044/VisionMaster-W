@@ -1788,8 +1788,8 @@ namespace ProjectAssetsUiProbe
 
                 var dbPath = Path.Combine(temp, "Logs", "operations.db");
                 Check(File.Exists(dbPath), "方案级历史库建在 <方案目录>\\Logs\\operations.db", ref failures);
-                Check(solution.AssetVersionLog.Count == 50,
-                    $"`.vms` 里按既有规则截到 50 条（实际 {solution.AssetVersionLog.Count}）", ref failures);
+                Check(solution.AssetVersionLog.Count == 0,
+                    $"`.vms` 不再追加历史（实际 {solution.AssetVersionLog.Count} 条）", ref failures);
 
                 var merged = VisionMaster.Models.Assets.AssetVersionLog.Of(solution, assetId);
                 Check(merged.Count == 60, $"读历史合并库与 .vms 后是 60 条（实际 {merged.Count}）", ref failures);
@@ -1834,18 +1834,32 @@ namespace ProjectAssetsUiProbe
                 var afterReopen = VisionMaster.Models.Assets.AssetVersionLog.Of(reopened, assetId);
                 Check(afterReopen.Count == 60, $"重开方案后历史不丢（实际 {afterReopen.Count}）", ref failures);
 
-                // ③ 库不可用时回落到 `.vms`（老方案不能因为切了库就看不到历史）。
+                // ③ 库不可用时回落到 `.vms`：老方案（历史只写在 .vms 里）不能因为切了库就看不到。
                 var legacyAsset = Guid.NewGuid();
                 VisionMaster.Models.Assets.AssetVersionLog.Append(
                     reopened, legacyAsset, "template", "old", 1, "h", "{}", "导入", "admin");
-                Check(store.Read(legacyAsset, 100).Count == 1, "新记录同时进了库", ref failures);
+                Check(store.Read(legacyAsset, 100).Count == 1, "新记录写进了库", ref failures);
+                Check(reopened.AssetVersionLog.All(r => r.AssetId != legacyAsset),
+                    "新记录不再写进 `.vms`（停写已生效）", ref failures);
+
+                // 手工塞一条"老方案遗留"的记录，模拟升级前就存在的历史。
+                reopened.AssetVersionLog.Add(new AssetVersionRecord
+                {
+                    AssetId = legacyAsset,
+                    Kind = "template",
+                    Name = "old",
+                    Version = 1,
+                    Action = "老记录",
+                    Actor = "admin",
+                    CreatedAtUtc = DateTime.UtcNow.AddDays(-30),
+                });
 
                 store.Dispose();
                 var readOnlyOld = new Core.Database.SqliteAssetHistoryStore(() => null);
                 Core.Interfaces.Operations.AssetVersionSinkHost.Current = readOnlyOld;
                 var fallback = VisionMaster.Models.Assets.AssetVersionLog.Of(reopened, legacyAsset);
-                Check(fallback.Count == 1 && fallback[0].Action == "导入",
-                    "库不可用时回落到 `.vms`（老方案照样看得到）", ref failures);
+                Check(fallback.Any(r => r.Action == "老记录"),
+                    "库不可用时回落到 `.vms`（老方案的历史照样看得到）", ref failures);
 
                 // ④ 没有方案（root 为空）时静默：不抛、不建文件。
                 Exception? thrown = null;

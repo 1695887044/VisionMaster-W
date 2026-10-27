@@ -140,7 +140,10 @@ namespace VisionMaster.Services
                 return false;
             }
 
-            var record = _writer.Solution.AssetVersionLog?.FirstOrDefault(r => r.RecordId == recordId);
+            // 必须从**合并源**里找：新记录只写库、不再进 `.vms`，
+            // 只看 solution.AssetVersionLog 会让"回滚刚发生的那次改动"直接报找不到记录。
+            var record = AssetVersionLog.Of(_writer.Solution, assetId)
+                .FirstOrDefault(r => r.RecordId == recordId);
             if (record == null)
             {
                 error = "找不到这条版本记录";

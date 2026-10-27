@@ -42,7 +42,16 @@ namespace Core.Database
             _warn = warn;
         }
 
-        public string DatabasePath => _disabled ? string.Empty : _databasePath;
+        /// <summary>
+        /// 当前方案的库路径。**未初始化时也算得出来**（由根目录 provider 现算）：
+        /// 调用方要靠它判断"现在能不能写库"，返回空会让人误以为没接库而回退到 `.vms`。
+        /// </summary>
+        public string DatabasePath
+            => _disabled
+                ? string.Empty
+                : (!string.IsNullOrWhiteSpace(_databasePath)
+                    ? _databasePath
+                    : PathFor(_solutionRootProvider() ?? string.Empty));
 
         /// <summary>`&lt;方案目录&gt;\Logs\operations.db`。</summary>
         public static string PathFor(string solutionRoot)
