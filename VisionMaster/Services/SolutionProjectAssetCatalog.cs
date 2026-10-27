@@ -725,12 +725,13 @@ namespace VisionMaster.Services
 
         private static void AddVersionHistory(SolutionModel solution, ProjectAssetItem item)
         {
-            if (solution.AssetVersionLog == null || !Guid.TryParse(item.Id, out var assetId))
+            if (!Guid.TryParse(item.Id, out var assetId))
                 return;
 
-            foreach (var record in solution.AssetVersionLog
-                         .Where(r => r.AssetId == assetId)
-                         .OrderByDescending(r => r.CreatedAtUtc))
+            // 走 AssetVersionLog.Of：**库优先、.vms 兜底**的合并读。
+            // 直接遍历 solution.AssetVersionLog 只有 .vms 里那 50 条，
+            // 库里多出来的历史（最多 200 条）在界面上看不到。
+            foreach (var record in AssetVersionLog.Of(solution, assetId))
             {
                 item.Versions.Add(new AssetVersion(
                     "v" + Math.Max(1, record.Version),

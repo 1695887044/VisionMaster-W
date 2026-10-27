@@ -84,6 +84,8 @@ namespace VisionMaster.ViewModels
             GoToReferenceCommand = new DelegateCommand<AssetReference>(GoToReference);
             ImportNewVersionCommand = new DelegateCommand(ImportNewVersion);
             SaveRecipeContentCommand = new DelegateCommand(SaveRecipeContent);
+            PrevVersionPageCommand = new DelegateCommand(() => ChangeVersionPage(-1));
+            NextVersionPageCommand = new DelegateCommand(() => ChangeVersionPage(1));
             ExportCommand = new DelegateCommand(ExportAsset);
             CopyIdCommand = new DelegateCommand(CopyId);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(ButtonResult.Cancel));
@@ -118,7 +120,57 @@ namespace VisionMaster.ViewModels
                 RaisePropertyChanged(nameof(HasSelectedAsset));
                 RaisePropertyChanged(nameof(IsTextRecipeSelected));
                 RecipeContentDraft = value?.RecipeContent ?? string.Empty;
+                VersionPage = 1;
+                RefreshPagedVersions();
             }
+        }
+
+        /// <summary>版本页签一页多少条：历史现在能到 200 条，列表高度只有 240px。</summary>
+        private const int VersionPageSize = 50;
+
+        /// <summary>版本页签当前页的条目（`SelectedAsset.Versions` 是全集，这里只放当前页）。</summary>
+        public ObservableCollection<AssetVersion> PagedVersions { get; } = new();
+
+        private int _versionPage = 1;
+        public int VersionPage
+        {
+            get => _versionPage;
+            private set => SetProperty(ref _versionPage, Math.Max(1, value));
+        }
+
+        public int VersionPageCount
+            => Math.Max(1, (int)Math.Ceiling((SelectedAsset?.Versions.Count ?? 0) / (double)VersionPageSize));
+
+        public bool HasVersionPaging => (SelectedAsset?.Versions.Count ?? 0) > VersionPageSize;
+
+        public string VersionPageText
+            => $"第 {VersionPage} / {VersionPageCount} 页 · 共 {SelectedAsset?.Versions.Count ?? 0} 条";
+
+        public DelegateCommand PrevVersionPageCommand { get; }
+        public DelegateCommand NextVersionPageCommand { get; }
+
+        private void RefreshPagedVersions()
+        {
+            PagedVersions.Clear();
+            var all = SelectedAsset?.Versions;
+            if (all != null)
+            {
+                var skip = (VersionPage - 1) * VersionPageSize;
+                foreach (var item in all.Skip(skip).Take(VersionPageSize))
+                    PagedVersions.Add(item);
+            }
+
+            RaisePropertyChanged(nameof(VersionPageCount));
+            RaisePropertyChanged(nameof(VersionPageText));
+            RaisePropertyChanged(nameof(HasVersionPaging));
+        }
+
+        private void ChangeVersionPage(int delta)
+        {
+            var next = Math.Clamp(VersionPage + delta, 1, VersionPageCount);
+            if (next == VersionPage) return;
+            VersionPage = next;
+            RefreshPagedVersions();
         }
 
         public bool HasSelectedAsset => SelectedAsset != null;

@@ -1795,6 +1795,33 @@ namespace ProjectAssetsUiProbe
                 Check(merged.Count == 60, $"读历史合并库与 .vms 后是 60 条（实际 {merged.Count}）", ref failures);
                 Check(merged[0].Version == 60 && merged[^1].Version == 1, "按时间倒序，最新在前", ref failures);
 
+                // ①b 界面必须读合并源（不是只读 .vms 那 50 条），且列表分页。
+                solution.TemplateAssets.Add(new TemplateAsset
+                {
+                    AssetId = assetId,
+                    Name = "tpl",
+                    RelativePath = "Assets/Templates/t.json",
+                    ContentHash = "h",
+                });
+                var ws = new WorkspaceContext();
+                ws.SwitchSolution(solution);
+                var vm = new ProjectAssetsViewModel(ws);
+                vm.SelectTypeCommand.Execute("template");
+                var templateItem = vm.VisibleAssets.FirstOrDefault(a => a.Id == assetId.ToString());
+                Check(templateItem?.Versions.Count == 61,
+                    $"资产页读到的版本数是 61（60 条历史 + 1 条「当前」；实际 {templateItem?.Versions.Count ?? 0}）——界面已读库", ref failures);
+
+                vm.SelectedAsset = templateItem;
+                Check(vm.PagedVersions.Count == 50,
+                    $"第一页 50 条（实际 {vm.PagedVersions.Count}）", ref failures);
+                Check(vm.VersionPageCount == 2, $"共 2 页（实际 {vm.VersionPageCount}）", ref failures);
+                Check(vm.HasVersionPaging, "超过一页时显示分页条", ref failures);
+                vm.NextVersionPageCommand.Execute();
+                Check(vm.PagedVersions.Count == 11 && vm.VersionPage == 2,
+                    $"第二页 11 条（实际 {vm.PagedVersions.Count}）", ref failures);
+                vm.PrevVersionPageCommand.Execute();
+                Check(vm.PagedVersions.Count == 50 && vm.VersionPage == 1, "翻回第一页", ref failures);
+
                 // ② 重开方案（`.vms` 里只剩 50 条）：库里那 10 条仍要读得到。
                 var reopened = new SolutionModel
                 {

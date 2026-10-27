@@ -1070,7 +1070,7 @@
                                                 MaxHeight="240"
                                                 Background="Transparent"
                                                 BorderThickness="0"
-                                                ItemsSource="{Binding SelectedAsset.Versions}"
+                                                ItemsSource="{Binding PagedVersions}"
                                                 SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -1127,6 +1127,29 @@
                                                     </DataTemplate>
                                                 </ListBox.ItemTemplate>
                                             </ListBox>
+
+                                            <!--  分页：历史现在最多 200 条，列表只有 240px 高  -->
+                                            <Grid Margin="0,2,0,0" Visibility="{Binding HasVersionPaging, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <TextBlock VerticalAlignment="Center" FontSize="9" Foreground="{StaticResource DialogTextTertiaryBrush}" Text="{Binding VersionPageText}" />
+                                                <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                                    <Button
+                                                        Height="24"
+                                                        Padding="8,0"
+                                                        Command="{Binding PrevVersionPageCommand}"
+                                                        Content="上一页"
+                                                        FontSize="10"
+                                                        Style="{StaticResource DialogGhostButton}" />
+                                                    <Button
+                                                        Height="24"
+                                                        Margin="6,0,0,0"
+                                                        Padding="8,0"
+                                                        Command="{Binding NextVersionPageCommand}"
+                                                        Content="下一页"
+                                                        FontSize="10"
+                                                        Style="{StaticResource DialogGhostButton}" />
+                                                </StackPanel>
+                                            </Grid>
+
                                             <Button
                                                 Height="30"
                                                 Margin="0,2,0,0"
