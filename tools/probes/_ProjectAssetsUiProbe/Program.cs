@@ -23,6 +23,7 @@ using VisionMaster.Services.Motion;
 using VisionMaster.ViewModels;
 using VisionMaster.ViewModels.DialogViewModels;
 using VisionMaster.Views;
+using VisionMaster.Views.DialogViews;
 
 namespace ProjectAssetsUiProbe
 {
@@ -1536,7 +1537,77 @@ namespace ProjectAssetsUiProbe
                         Check(csvLines.Count - 1 == 205,
                             $"导出文件行数 = 筛选结果总数（{csvLines.Count - 1} vs 205）", ref failures);
                     }
+
+                    // 翻页边界禁用态（设计稿 §5）：205 条 = 2 页；首页「上一页」禁用、末页「下一页」禁用。
+                    Check(!bulkVm.PrevPageCommand.CanExecute() && bulkVm.NextPageCommand.CanExecute(),
+                        "首页：上一页禁用、下一页可用", ref failures);
+                    bulkVm.NextPageCommand.Execute();
+                    Check(bulkVm.PrevPageCommand.CanExecute() && !bulkVm.NextPageCommand.CanExecute(),
+                        "末页：下一页禁用、上一页可用（" + bulkVm.PageText + "）", ref failures);
+                    Check(bulkVm.Rows.Count == 5, $"末页 5 条（实际 {bulkVm.Rows.Count}）", ref failures);
                 }
+
+                // ── ⑤d 设计基线剩余项：记录 Id / 空态 / Esc 关窗 ──
+                // 明细元信息必须带「记录 Id」（设计稿 §1），且与库里的自增主键一致。
+                dialogVm.SelectedRow = dialogVm.Rows.FirstOrDefault();
+                var recordIdOk = long.TryParse(dialogVm.SelectedRow?.RecordId, out var recordId) && recordId > 0;
+                Check(recordIdOk && dialogVm.DetailMeta.Contains("记录 Id：" + dialogVm.SelectedRow?.RecordId),
+                    $"明细元信息带记录 Id（{dialogVm.SelectedRow?.RecordId}）", ref failures);
+
+                // 空态（设计稿 §5）：筛出 0 条时 IsEmpty=true；清空筛选后退出空态。
+                dialogVm.Keyword = "zzz-没有这个记录-zzz";
+                Check(dialogVm.IsEmpty && dialogVm.Rows.Count == 0, "无匹配时进入空态", ref failures);
+                dialogVm.ClearFiltersCommand.Execute();
+                Check(!dialogVm.IsEmpty && dialogVm.Rows.Count > 0, "清空筛选后退出空态", ref failures);
+
+                // Esc 关窗（设计稿 §6）：KeyBinding 必须真的挂在视图上。
+                var opsView = new OperationsLogView { DataContext = dialogVm };
+                var hasEsc = opsView.InputBindings.OfType<System.Windows.Input.KeyBinding>()
+                    .Any(b => b.Key == System.Windows.Input.Key.Escape);
+                Check(hasEsc, "视图挂了 Esc 关窗的 KeyBinding", ref failures);
+
+                // ── ⑤e 弹窗出图（验收证据，R122/R132）：默认 / 空 / 无权限 三态 ──
+                var dialogDir = Path.Combine(
+                    Path.GetDirectoryName(OutputDirectory(Array.Empty<string>())) ?? ".",
+                    "operations-log");
+                Directory.CreateDirectory(dialogDir);
+
+                // 默认态用一份三分类夹具：把「身份 / 安全动作 / 权限」三种徽标色一次拍全（设计稿 §3）。
+                using (var chipLog = new Core.Database.SqliteSoftwareOperationLog(
+                           Path.Combine(temp, "render-chips.db"), retentionDays: () => 90))
+                {
+                    chipLog.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Identity", Action = "登录", Outcome = "成功",
+                        Actor = "admin", Subject = "admin", Detail = "登录成功",
+                    });
+                    chipLog.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Safety", Action = "轴使能", Outcome = "拒绝",
+                        Actor = "admin", Subject = "SX", Detail = "运动卡未连接，动作被门禁拒绝",
+                    });
+                    chipLog.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Permission", Action = "创建账号", Outcome = "成功",
+                        Actor = "permadmin", Subject = "u9", Detail = "新建操作员账号 u9",
+                    });
+                    chipLog.Record(new Core.Interfaces.Operations.SoftwareOperationEntry
+                    {
+                        Category = "Settings", Action = "保存系统参数", Outcome = "成功",
+                        Actor = "admin", Subject = "AppConfig", Detail = "审计保留 90 天",
+                    });
+
+                    var defaultVm = new OperationsLogViewModel(policy, chipLog);
+                    defaultVm.SelectedRow = defaultVm.Rows.FirstOrDefault(r => r.Category == "Safety");
+                    RenderOperationsLogDialog(defaultVm, Path.Combine(dialogDir, "wpf-operations-log.png"));
+                }
+
+                var emptyVm = new OperationsLogViewModel(policy, log) { Keyword = "zzz-空态-zzz" };
+                RenderOperationsLogDialog(emptyVm, Path.Combine(dialogDir, "wpf-operations-log-empty.png"));
+
+                RenderOperationsLogDialog(
+                    new OperationsLogViewModel(anonymous, log),
+                    Path.Combine(dialogDir, "wpf-operations-log-denied.png"));
 
                 // ── ⑥ 权限变更（账号本 / 用户组）──
                 var usersDir = Path.Combine(temp, "Users");
@@ -2518,6 +2589,44 @@ namespace ProjectAssetsUiProbe
             {
                 try { Directory.Delete(temp, recursive: true); } catch { }
             }
+        }
+
+        /// <summary>
+        /// 操作记录弹窗离线出图（验收证据）：屏幕外真窗口装真实 OperationsLogView，不启动主窗口。
+        /// 输出 PNG 供与设计基线同屏同态对照（R122/R132）。
+        /// </summary>
+        private static void RenderOperationsLogDialog(OperationsLogViewModel vm, string path)
+        {
+            var view = new OperationsLogView
+            {
+                DataContext = vm,
+                Width = 1280,
+                Height = 850,
+            };
+
+            var window = new Window
+            {
+                WindowStyle = WindowStyle.None,
+                ResizeMode = ResizeMode.NoResize,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -4000,
+                Top = -4000,
+                Width = 1280,
+                Height = 850,
+                ShowInTaskbar = false,
+                Content = view,
+            };
+
+            window.Show();
+            Pump(500);
+            view.UpdateLayout();
+
+            var bitmap = Render(view, (int)Math.Round(view.ActualWidth), (int)Math.Round(view.ActualHeight), 2.0);
+            Save(bitmap, path);
+            Console.WriteLine($"  [render] {path}");
+
+            window.Close();
+            Pump(100);
         }
 
         private static int Finish(string dir, int failures)

@@ -67,8 +67,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _selectedRange = RangeOptions[0];
 
             RefreshCommand = new DelegateCommand(Reload);
-            PrevPageCommand = new DelegateCommand(() => ChangePage(-1));
-            NextPageCommand = new DelegateCommand(() => ChangePage(1));
+            // 边界禁用（设计稿 §5 禁用态）：首页「上一页」、末页「下一页」置灰，判据看 CanExecute。
+            PrevPageCommand = new DelegateCommand(() => ChangePage(-1), () => _page > 1);
+            NextPageCommand = new DelegateCommand(() => ChangePage(1), () => _page < PageCount);
             ClearFiltersCommand = new DelegateCommand(ClearFilters);
             CloseCommand = new DelegateCommand(() => RequestClose.Invoke(new DialogParameters(), ButtonResult.Cancel));
             ExportCommand = new DelegateCommand(Export);
@@ -151,7 +152,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string DetailText => SelectedRow == null ? "选中一条记录查看明细" : SelectedRow.Detail;
         public string DetailMeta => SelectedRow == null
             ? string.Empty
-            : $"方案：{SelectedRow.SolutionName}   机器：{SelectedRow.Machine}   版本：{SelectedRow.AppVersion}";
+            : $"方案：{SelectedRow.SolutionName}   机器：{SelectedRow.Machine}   版本：{SelectedRow.AppVersion}   记录 Id：{SelectedRow.RecordId}";
 
         private string _feedback = string.Empty;
 
@@ -286,6 +287,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(HasRows));
             RaisePropertyChanged(nameof(HasAccess));
             RaisePropertyChanged(nameof(IsDenied));
+            PrevPageCommand.RaiseCanExecuteChanged();
+            NextPageCommand.RaiseCanExecuteChanged();
         }
 
         /// <summary>导出按钮：先弹保存框选路径（与项目资产导出的做法一致），落盘走 <see cref="TryExportCsv"/>。</summary>
@@ -419,6 +422,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public OperationRow(SoftwareOperationEntry entry)
         {
             Time = entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+            RecordId = entry.Id > 0 ? entry.Id.ToString() : "—";
             Category = entry.Category;
             CategoryLabel = CategoryLabelOf(entry.Category);
             Action = entry.Action;
@@ -432,6 +436,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         public string Time { get; }
+        public string RecordId { get; }
         public string Category { get; }
         public string CategoryLabel { get; }
         public string Action { get; }

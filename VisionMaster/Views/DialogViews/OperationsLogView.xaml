@@ -6,6 +6,11 @@
     Width="1280"
     Height="850">
 
+    <!--  Esc = 关窗（设计稿 §6：Esc / ✕ / 关闭 三出口；与其它弹窗同一手法）  -->
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CloseCommand}" />
+    </UserControl.InputBindings>
+
     <Border
         Background="{StaticResource DialogSurfaceBrush}"
         BorderBrush="{StaticResource DialogBorderBrush}"
@@ -91,12 +96,28 @@
                         ItemsSource="{Binding RangeOptions}"
                         SelectedItem="{Binding SelectedRange, Mode=TwoWay}"
                         Style="{StaticResource DialogCombo}" />
-                    <TextBox
+                    <!--  搜索：放大镜 + 占位（DialogInput 模板用 Tag 做占位，Tag 为空时显示）  -->
+                    <Border
                         Width="260"
                         Height="30"
-                        Style="{StaticResource DialogSearchInput}"
-                        Text="{Binding Keyword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="对象 / 动作 / 明细关键字" />
+                        Style="{StaticResource DialogSearchChrome}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Style="{StaticResource DialogSearchIcon}" Text="&#xf002;" />
+                            <TextBox
+                                Grid.Column="1"
+                                Height="30"
+                                VerticalContentAlignment="Center"
+                                FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                Style="{StaticResource DialogSearchInput}"
+                                Tag="搜索…"
+                                Text="{Binding Keyword, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="对象 / 动作 / 明细关键字" />
+                        </Grid>
+                    </Border>
                 </StackPanel>
                 <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
                     <Button
@@ -152,6 +173,7 @@
                 <ListBox
                     x:Name="RowsList"
                     Grid.Row="1"
+                    AlternationCount="2"
                     Background="Transparent"
                     BorderThickness="0"
                     ItemsSource="{Binding Rows}"
@@ -164,23 +186,37 @@
                             <Setter Property="Padding" Value="0" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                            <Setter Property="Background" Value="Transparent" />
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="RowBd" Height="44" BorderBrush="{StaticResource DialogBorderBrush}" BorderThickness="0,0,0,1" Background="Transparent">
-                                            <ContentPresenter Margin="20,0" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                                        <Border x:Name="RowBd" Height="44" BorderBrush="{StaticResource DialogBorderBrush}" BorderThickness="0,0,0,1" Background="{TemplateBinding Background}">
+                                            <Grid>
+                                                <!--  选中态左侧 3px 强调竖条（设计稿 §5）  -->
+                                                <Border x:Name="SelBar" Width="3" HorizontalAlignment="Left" Background="Transparent" />
+                                                <ContentPresenter Margin="20,0" HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                                            </Grid>
                                         </Border>
                                         <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="RowBd" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
-                                            </Trigger>
                                             <Trigger Property="IsSelected" Value="True">
-                                                <Setter TargetName="RowBd" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                                <Setter TargetName="SelBar" Property="Background" Value="{StaticResource DialogAccentBrush}" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
+                            <Style.Triggers>
+                                <!--  斑马行：AlternationIndex=1 的行浅底（设计稿 §5 默认态）；悬停/选中在其后声明以覆盖它  -->
+                                <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                    <Setter Property="Background" Value="{StaticResource DialogRowAlternateBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                </Trigger>
+                            </Style.Triggers>
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
@@ -195,18 +231,47 @@
                                     <ColumnDefinition Width="200" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" FontSize="12" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="{Binding Time}" />
+                                <TextBlock Grid.Column="0" FontSize="12" Foreground="{StaticResource DialogTextSecondaryBrush}" Text="{Binding Time}" Typography.NumeralAlignment="Tabular" />
                                 <Border
                                     Grid.Column="1"
                                     Height="22"
                                     Padding="8,0"
                                     HorizontalAlignment="Left"
                                     VerticalAlignment="Center"
-                                    Background="{StaticResource DialogAccentSoftBrush}"
-                                    BorderBrush="{StaticResource DialogAccentBorderBrush}"
-                                    BorderThickness="1"
                                     CornerRadius="6">
-                                    <TextBlock VerticalAlignment="Center" FontSize="11" Foreground="{StaticResource DialogAccentTextBrush}" Text="{Binding CategoryLabel}" />
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Style.Triggers>
+                                                <!--  设计稿 §3：分类徽标三色（身份=蓝 / 安全动作=红 / 权限=紫）  -->
+                                                <DataTrigger Binding="{Binding Category}" Value="Safety">
+                                                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource DialogDangerBorderBrush}" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Category}" Value="Permission">
+                                                    <Setter Property="Background" Value="{StaticResource DialogPermissionSoftBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{StaticResource DialogPermissionBorderBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock VerticalAlignment="Center" FontSize="11" Text="{Binding CategoryLabel}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Category}" Value="Safety">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Category}" Value="Permission">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogPermissionTextBrush}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </Border>
                                 <TextBlock Grid.Column="2" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource DialogTextPrimaryBrush}" Text="{Binding Action}" TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="3" FontSize="11" Text="{Binding Outcome}" TextTrimming="CharacterEllipsis">
@@ -232,15 +297,27 @@
                     </ListBox.ItemTemplate>
                 </ListBox>
 
-                <!--  空态  -->
-                <TextBlock
+                <!--  空态：图标 + 文案 + 「清空筛选」出路（设计稿 §5：不是空白页）  -->
+                <StackPanel
                     Grid.Row="1"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    FontSize="12"
-                    Foreground="{StaticResource DialogTextTertiaryBrush}"
-                    Text="{Binding Message}"
-                    Visibility="{Binding IsEmpty, Converter={ui:BooleanToVisibilityConverter}}" />
+                    Visibility="{Binding IsEmpty, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf002;" />
+                    <TextBlock
+                        MaxWidth="460"
+                        Style="{StaticResource DialogEmptyStateTitle}"
+                        Text="{Binding Message}"
+                        TextWrapping="Wrap" />
+                    <Button
+                        Height="32"
+                        Margin="0,12,0,0"
+                        Padding="12,0"
+                        HorizontalAlignment="Center"
+                        Command="{Binding ClearFiltersCommand}"
+                        Content="清空筛选"
+                        Style="{StaticResource DialogSecondaryButton}" />
+                </StackPanel>
 
                 <!--  明细区  -->
                 <Border

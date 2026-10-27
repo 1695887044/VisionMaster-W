@@ -25,6 +25,9 @@ namespace Core.Interfaces.Operations
     /// <summary>一条软件级操作记录。</summary>
     public sealed class SoftwareOperationEntry
     {
+        /// <summary>库内自增主键。写入时忽略；查询回读时填充（明细区显示「记录 Id」用）。</summary>
+        public long Id { get; set; }
+
         public DateTime TimestampUtc { get; set; } = DateTime.UtcNow;
 
         /// <summary>分类：Identity / Permission / Solution / Settings / Lifecycle / Safety。</summary>

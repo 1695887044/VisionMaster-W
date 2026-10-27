@@ -116,7 +116,7 @@ namespace Core.Database
                     using var command = connection.CreateCommand();
                     command.CommandText =
                         "SELECT ts_utc, machine, app_version, actor, actor_role, category, action, outcome, " +
-                        "subject, subject_id, solution_id, solution_name, detail FROM " + TableName +
+                        "subject, subject_id, solution_id, solution_name, detail, id FROM " + TableName +
                         " WHERE ($category IS NULL OR category = $category)" +
                         "   AND ($actor IS NULL OR actor = $actor)" +
                         "   AND ($solutionId IS NULL OR solution_id = $solutionId)" +
@@ -149,6 +149,7 @@ namespace Core.Database
                             SolutionId = reader.IsDBNull(10) ? null : Guid.Parse(reader.GetString(10)),
                             SolutionName = reader.GetString(11),
                             Detail = reader.GetString(12),
+                            Id = reader.GetInt64(13),
                         });
                     }
                 }
@@ -205,7 +206,7 @@ namespace Core.Database
                     using var command = connection.CreateCommand();
                     command.CommandText =
                         "SELECT ts_utc, machine, app_version, actor, actor_role, category, action, outcome, " +
-                        "subject, subject_id, solution_id, solution_name, detail FROM " + TableName + where +
+                        "subject, subject_id, solution_id, solution_name, detail, id FROM " + TableName + where +
                         " ORDER BY ts_utc DESC, id DESC LIMIT $limit OFFSET $offset;";
                     AddFilters(command, category, actor, solutionId, fromUtc, toUtc, keyword);
                     command.Parameters.AddWithValue("$limit", Math.Max(1, limit));
@@ -232,6 +233,7 @@ namespace Core.Database
                             SolutionId = reader.IsDBNull(10) ? null : Guid.Parse(reader.GetString(10)),
                             SolutionName = reader.GetString(11),
                             Detail = reader.GetString(12),
+                            Id = reader.GetInt64(13),
                         });
                     }
                 }

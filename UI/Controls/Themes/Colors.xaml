@@ -227,6 +227,14 @@
     <SolidColorBrush x:Key="DialogDangerTextBrush" Color="#B91C1C" />
     <SolidColorBrush x:Key="DialogDangerBorderBrush" Color="#FECACA" />
 
+    <!--
+        权限类徽标（分类胶囊）：紫系三件套，与 DialogDangerSubtle/Border/Text 同构。
+        语义色只登记在第一层令牌字典（R140/R31），Dialog 分册与视图一律引用、不写 hex。
+    -->
+    <SolidColorBrush x:Key="DialogPermissionSoftBrush" Color="#F5F3FF" />
+    <SolidColorBrush x:Key="DialogPermissionBorderBrush" Color="#DDD6FE" />
+    <SolidColorBrush x:Key="DialogPermissionTextBrush" Color="#6D28D9" />
+
     <!--  警示类浅底：给"注意事项"块的软底色（网络相机参数不生效之类），与 DialogWarningTextBrush 成对  -->
     <SolidColorBrush x:Key="DialogWarningSubtleBrush" Color="#FFF4E5" />
     <SolidColorBrush x:Key="DialogWarningBorderBrush" Color="#FDE68A" />
