@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Core.Interfaces.Operations;
 using Newtonsoft.Json;
 
 namespace VisionMaster.Models.Assets
@@ -105,16 +106,63 @@ namespace VisionMaster.Models.Assets
             solution.AssetVersionLog.Add(record);
 
             Trim(solution, assetId);
+
+            // 双写方案级历史库（`<方案目录>\Logs\operations.db`）。
+            // 为什么两边都写：`.vms` 里最多 50 条且每次保存整份重写；库能留 200 条、且不随方案文件膨胀。
+            // 现阶段**先双写**（不切读、不停写），等界面改读库之后 `.vms` 那份再降级为"只读兜底"。
+            AssetVersionSinkHost.SafeAppend(
+                new AssetVersionEvent
+                {
+                    RecordId = record.RecordId,
+                    AssetId = record.AssetId,
+                    Kind = record.Kind,
+                    Name = record.Name,
+                    Version = record.Version,
+                    ContentHash = record.ContentHash,
+                    SnapshotJson = record.SnapshotJson,
+                    Action = record.Action,
+                    Actor = record.Actor,
+                    CreatedAtUtc = record.CreatedAtUtc,
+                    Note = record.Note,
+                });
+
             return record;
         }
 
+        /// <summary>
+        /// 读历史：**库优先，`.vms` 兜底**，按 RecordId 去重后按时间倒序。
+        /// 老方案（历史只在 `.vms` 里）照样看得到；新记录只在库里，超出 50 条也不丢。
+        /// </summary>
         public static IReadOnlyList<AssetVersionRecord> Of(SolutionModel solution, Guid assetId)
         {
-            if (solution?.AssetVersionLog == null) return Array.Empty<AssetVersionRecord>();
-            return solution.AssetVersionLog
-                .Where(r => r.AssetId == assetId)
-                .OrderByDescending(r => r.CreatedAtUtc)
-                .ToArray();
+            var merged = new Dictionary<Guid, AssetVersionRecord>();
+
+            foreach (var stored in AssetVersionSinkHost.SafeRead(assetId, 500))
+            {
+                if (stored.RecordId == Guid.Empty || merged.ContainsKey(stored.RecordId)) continue;
+                merged[stored.RecordId] = new AssetVersionRecord
+                {
+                    RecordId = stored.RecordId,
+                    AssetId = stored.AssetId,
+                    Kind = stored.Kind,
+                    Name = stored.Name,
+                    Version = stored.Version,
+                    ContentHash = stored.ContentHash,
+                    SnapshotJson = stored.SnapshotJson,
+                    Action = stored.Action,
+                    Actor = stored.Actor,
+                    CreatedAtUtc = stored.CreatedAtUtc,
+                    Note = stored.Note,
+                };
+            }
+
+            if (solution?.AssetVersionLog != null)
+            {
+                foreach (var record in solution.AssetVersionLog.Where(r => r.AssetId == assetId))
+                    merged.TryAdd(record.RecordId, record);
+            }
+
+            return merged.Values.OrderByDescending(r => r.CreatedAtUtc).ToArray();
         }
 
         private static void Trim(SolutionModel solution, Guid assetId)

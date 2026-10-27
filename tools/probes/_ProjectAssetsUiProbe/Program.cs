@@ -91,6 +91,7 @@ namespace ProjectAssetsUiProbe
                 RunPluginAssetContractChecks(ref failures);
                 RunPluginAssetRuntimeChecks(ref failures);
                 RunSoftwareOperationLogChecks(ref failures);
+                RunSolutionAssetHistoryChecks(ref failures);
                 RunDiffChecks(ref failures);
                 RunAuditRowChecks(ref failures);
                 var view = new ProjectAssetsView
@@ -1753,6 +1754,92 @@ namespace ProjectAssetsUiProbe
 
             public void Record(Core.Interfaces.Operations.SoftwareOperationEntry entry)
                 => throw new InvalidOperationException("故意失败");
+        }
+
+        /// <summary>
+        /// 方案级资产历史：`&lt;方案目录&gt;\Logs\operations.db`。
+        /// 判据：写进库、能读回、**超过 `.vms` 的 50 条上限也不丢**、老方案（只在 .vms 里）仍看得到、没方案时静默。
+        /// </summary>
+        private static void RunSolutionAssetHistoryChecks(ref int failures)
+        {
+            var temp = Path.Combine(Path.GetTempPath(), "vm-asset-history-" + Guid.NewGuid().ToString("N"));
+            var previous = Core.Interfaces.Operations.AssetVersionSinkHost.Current;
+            try
+            {
+                Directory.CreateDirectory(temp);
+                string? root = temp;
+                var warnings = new List<string>();
+                var store = new Core.Database.SqliteAssetHistoryStore(() => root, w => warnings.Add(w));
+                Core.Interfaces.Operations.AssetVersionSinkHost.Current = store;
+
+                var solution = new SolutionModel
+                {
+                    SolutionName = "HistoryScope",
+                    SolutionFilePath = Path.Combine(temp, "HistoryScope.vms"),
+                };
+                var assetId = Guid.NewGuid();
+
+                // ① 写 60 条：`.vms` 里只留 50（Trim），库里 60 条全在。
+                for (var i = 1; i <= 60; i++)
+                {
+                    VisionMaster.Models.Assets.AssetVersionLog.Append(
+                        solution, assetId, "template", "tpl", i, "h" + i, "{}", "动作" + i, "admin");
+                }
+
+                var dbPath = Path.Combine(temp, "Logs", "operations.db");
+                Check(File.Exists(dbPath), "方案级历史库建在 <方案目录>\\Logs\\operations.db", ref failures);
+                Check(solution.AssetVersionLog.Count == 50,
+                    $"`.vms` 里按既有规则截到 50 条（实际 {solution.AssetVersionLog.Count}）", ref failures);
+
+                var merged = VisionMaster.Models.Assets.AssetVersionLog.Of(solution, assetId);
+                Check(merged.Count == 60, $"读历史合并库与 .vms 后是 60 条（实际 {merged.Count}）", ref failures);
+                Check(merged[0].Version == 60 && merged[^1].Version == 1, "按时间倒序，最新在前", ref failures);
+
+                // ② 重开方案（`.vms` 里只剩 50 条）：库里那 10 条仍要读得到。
+                var reopened = new SolutionModel
+                {
+                    SolutionName = "HistoryScope",
+                    SolutionFilePath = Path.Combine(temp, "HistoryScope.vms"),
+                };
+                foreach (var record in solution.AssetVersionLog)
+                    reopened.AssetVersionLog.Add(record);
+
+                var afterReopen = VisionMaster.Models.Assets.AssetVersionLog.Of(reopened, assetId);
+                Check(afterReopen.Count == 60, $"重开方案后历史不丢（实际 {afterReopen.Count}）", ref failures);
+
+                // ③ 库不可用时回落到 `.vms`（老方案不能因为切了库就看不到历史）。
+                var legacyAsset = Guid.NewGuid();
+                VisionMaster.Models.Assets.AssetVersionLog.Append(
+                    reopened, legacyAsset, "template", "old", 1, "h", "{}", "导入", "admin");
+                Check(store.Read(legacyAsset, 100).Count == 1, "新记录同时进了库", ref failures);
+
+                store.Dispose();
+                var readOnlyOld = new Core.Database.SqliteAssetHistoryStore(() => null);
+                Core.Interfaces.Operations.AssetVersionSinkHost.Current = readOnlyOld;
+                var fallback = VisionMaster.Models.Assets.AssetVersionLog.Of(reopened, legacyAsset);
+                Check(fallback.Count == 1 && fallback[0].Action == "导入",
+                    "库不可用时回落到 `.vms`（老方案照样看得到）", ref failures);
+
+                // ④ 没有方案（root 为空）时静默：不抛、不建文件。
+                Exception? thrown = null;
+                try
+                {
+                    VisionMaster.Models.Assets.AssetVersionLog.Append(
+                        reopened, Guid.NewGuid(), "template", "x", 1, "h", "{}", "导入", "admin");
+                }
+                catch (Exception ex) { thrown = ex; }
+                Check(thrown == null, "没有方案时写历史不抛（静默停用）", ref failures);
+                Check(string.IsNullOrEmpty(readOnlyOld.DatabasePath), "无方案时对外报告「没有库」", ref failures);
+            }
+            catch (Exception ex)
+            {
+                Check(false, "方案级资产历史断言异常：" + ex.Message, ref failures);
+            }
+            finally
+            {
+                Core.Interfaces.Operations.AssetVersionSinkHost.Current = previous;
+                try { Directory.Delete(temp, recursive: true); } catch { }
+            }
         }
 
         /// <summary>逐字段 diff：标定矩阵变化要能逐个数值看出来。</summary>

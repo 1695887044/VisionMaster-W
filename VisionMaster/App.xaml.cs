@@ -176,6 +176,16 @@ namespace VisionMaster
             _lifetime.RegisterGlobalExceptionHandlers();
             _lifetime.CrashSceneProvider = DescribeCrashScene;
 
+            // 方案级资产历史：`<方案目录>\Logs\operations.db`（跟方案走，不跟机器走）。
+            // 根路径用惰性 provider：切方案时 SolutionIdentityHolder 会更新，这里不必重新装配。
+            AssetVersionSinkHost.Current = new SqliteAssetHistoryStore(
+                () =>
+                {
+                    try { return Container.Resolve<SolutionIdentityHolder>().SolutionRoot; }
+                    catch { return null; }
+                },
+                message => LogServiceSafe(message));
+
             // ===== 退出链收尾：日志落盘 =====
             // 退出链逆序执行：此处最先注册 → 最后运行，保证其他退出任务的日志都完整落盘
             _lifetime.RegisterExitTask(ExitTask.Of("日志落盘收尾", () =>
