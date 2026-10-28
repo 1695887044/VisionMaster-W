@@ -29,7 +29,8 @@ namespace BeadViewProbe
     /// </summary>
     internal static class Program
     {
-        private const string OutDir = @"D:\C#\VM\_BeadViewProbe";
+        private static readonly string OutDir = Path.Combine(
+            @"D:\C#\VM", "artifacts", "render", DateTime.Now.ToString("yyyyMMdd"), "bead-view");
         private const string BeadDir = @"D:\C#\VM\Image\bead";
         private static string _prefix = "shot";
         private static int _fail;
@@ -623,6 +624,7 @@ namespace BeadViewProbe
                 var enc = new PngBitmapEncoder();
                 enc.Frames.Add(BitmapFrame.Create(rtb));
                 var file = Path.Combine(OutDir, $"{_prefix}_{tag}.png");
+                Directory.CreateDirectory(OutDir);
                 using (var fs = File.Create(file))
                     enc.Save(fs);
                 Console.WriteLine($">> 已存 {file}");

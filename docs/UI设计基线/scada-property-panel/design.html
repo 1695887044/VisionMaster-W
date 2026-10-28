@@ -1,0 +1,1772 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SCADA 属性面板 · Web 设计稿 v2.2（重构）</title>
+<style>
+/* =====================================================================
+   SCADA 属性面板 · Web 设计稿 v2（2026-10-28，重构版）
+   设计媒介，不是交付物（AGENTS.md R126）。v1 已归档为 design-v1.html。
+   本版允许彻底重构：卡片化分组、混合标签布局、成对网格、绑定 chip、
+   事件/动画折叠卡。配色在 CSS 注释里用颜色名称标注；方案文档只写名称。
+   ===================================================================== */
+
+:root{
+  /* ---- 面板域 ---- */
+  --panel-bg:#F3F5F9;          /* 雾白：面板底 */
+  --card:#FFFFFF;              /* 纯白：卡片 */
+  --card-line:#E2E7EF;         /* 淡蓝灰：卡片描边 */
+  --hairline:#EDF0F5;          /* 更浅分隔线 */
+  --field:#F2F4F8;             /* 极浅灰：filled 输入底 */
+  --field-hover:#EBEEF4;       /* 输入悬停 */
+  --hover:#EDF2FA;             /* 雾蓝：卡头悬停 */
+  --ink:#1E2530;               /* 墨黑：主文字 */
+  --ink-2:#5B6673;             /* 石板灰：次级 */
+  --ink-3:#98A2B0;             /* 雾灰：弱化 / 占位 / 单位 */
+  --ink-4:#C6CDD7;             /* 银灰：禁用 */
+  --accent:#2F6BE4;            /* 晴空蓝：主色 */
+  --accent-deep:#1F53C0;       /* 深蓝：主色悬停 */
+  --accent-soft:#EBF2FE;       /* 晨雾蓝：选中底 */
+  --accent-ring:rgba(47,107,228,.16); /* 主色柔光 */
+  --danger:#D24545;            /* 赤红：错误 / 危险 */
+  --danger-soft:#FCEFEE;       /* 浅红底 */
+  --warn:#D07A1D;              /* 琥珀：待完成 */
+  --warn-soft:#FCF4E7;         /* 浅琥珀底 */
+  --ok:#2F9E64;                /* 苔绿：成功 */
+  --chip:#EEF1F6;              /* 浅灰胶囊底 */
+  --bound-bg:#EBF2FE;          /* 绑定 chip 底（晨雾蓝） */
+  --bound-line:#C7DBF8;        /* 绑定 chip 描边 */
+  --bound-ink:#1D5BC4;         /* 绑定文字（深蓝） */
+  --bound-f:#84A9DC;           /* ƒ 记号（浅蓝） */
+
+  /* ---- 编辑器上下文（画布） ---- */
+  --workbench:#E9EEF5;
+  --toolbar:#F8FAFC;   --toolbar-text:#475569;  --toolbar-border:#E2E8F0;
+  --toolbar-strong:#CBD5E1; --toolbar-hover:#F1F5F9;
+  --canvas:#0D1218;    --canvas-surface:#141B22; --canvas-raised:#1A232C;
+  --canvas-border:#293645; --canvas-strong:#39495B;
+  --canvas-text:#E7EEF6; --canvas-text2:#A8B6C5; --canvas-text3:#7B8998;
+  --canvas-accent:#38BDF8; --canvas-green:#22C55E;
+
+  --font:"Microsoft YaHei UI","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  --mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+  --sh-card:0 1px 2px rgba(15,23,42,.04);
+  --sh-pop:0 10px 28px rgba(15,23,42,.14),0 2px 6px rgba(15,23,42,.06);
+  --sh-hero:0 12px 32px rgba(15,23,42,.12),0 2px 6px rgba(15,23,42,.06);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:
+    radial-gradient(1100px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+    radial-gradient(circle at 1px 1px, rgba(148,163,184,.14) 1px, transparent 0) 0 0/24px 24px,
+    #E9EEF5;
+  color:#0F172A;font-family:var(--font);font-size:13px;line-height:1.5;
+  padding:28px 28px 96px;-webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font-family:inherit;}
+button{cursor:pointer;}
+svg.i{width:16px;height:16px;display:block;flex:none;}
+::selection{background:#C7D2FE;color:#0F172A;}
+a{color:inherit;}
+
+/* ---------------- 页面头 ---------------- */
+.page-head{max-width:1560px;margin:0 auto 18px;}
+.eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#0369A1;margin-bottom:8px;}
+.eyebrow::before{content:"";width:18px;height:2px;border-radius:1px;background:#0EA5E9;}
+.page-head h1{margin:0;font-size:24px;font-weight:600;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:#E0F2FE;color:#0369A1;font-size:11px;font-weight:700;}
+.page-head .meta{margin:8px 0 0;color:#475569;font-size:13px;max-width:1180px;line-height:1.65;}
+.page-head .meta b{color:#0F172A;font-weight:600;}
+.page-head .meta code{font-family:var(--mono);font-size:11.5px;padding:1px 5px;border:1px solid #E2E8F0;border-radius:4px;background:rgba(255,255,255,.72);white-space:nowrap;}
+.meta-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;}
+.meta-chip{display:inline-flex;align-items:center;height:24px;padding:0 9px;border:1px solid #E2E8F0;border-radius:12px;background:rgba(255,255,255,.72);color:#475569;font-size:11px;}
+.meta-chip strong{color:#0F172A;font-weight:600;margin-right:3px;}
+
+.page-nav{max-width:1560px;margin:16px auto 0;padding:7px 8px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;border:1px solid #E2E8F0;border-radius:12px;background:rgba(255,255,255,.82);box-shadow:0 1px 2px rgba(15,23,42,.06);position:sticky;top:10px;z-index:30;backdrop-filter:blur(10px);}
+.page-nav a{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:7px;color:#475569;font-size:11.5px;text-decoration:none;white-space:nowrap;}
+.page-nav a:hover{background:#F1F5F9;color:#0F172A;}
+
+main{max-width:1560px;margin:26px auto 0;}
+.sec{margin:0 0 52px;scroll-margin-top:92px;}
+.sec-head{display:flex;align-items:flex-end;gap:12px;margin:0 0 14px;flex-wrap:wrap;}
+.sec-index{width:28px;height:28px;flex:none;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:#E0F2FE;color:#0369A1;font-family:var(--mono);font-size:11px;font-weight:700;}
+.sec-head h2{margin:0;font-size:17px;font-weight:600;letter-spacing:-.01em;}
+.sec-head p{margin:0;color:#475569;font-size:12.5px;max-width:980px;}
+.note{color:#475569;font-size:12.5px;margin:0 0 14px;line-height:1.65;}
+.note b{color:#0F172A;font-weight:600;}
+.note code{font-family:var(--mono);font-size:11.5px;padding:0 4px;border:1px solid #E2E8F0;border-radius:4px;background:#fff;}
+
+.card{background:#fff;border:1px solid #E2E8F0;border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
+.tag{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:6px;font-size:10.5px;font-weight:600;background:#F1F5F9;color:#475569;}
+.tag.accent{background:#E0F2FE;color:#0369A1;}
+.tag.warn{background:#FFF7E8;color:#B45309;}
+.tag.danger{background:#FEF2F2;color:#B91C1C;}
+.tag.ok{background:#ECFDF3;color:#14713D;}
+
+/* =====================================================================
+   属性面板 v2
+   ===================================================================== */
+.panel{
+  width:300px;min-height:0;flex:none;
+  display:flex;flex-direction:column;
+  background:var(--panel-bg);color:var(--ink);
+  font-size:12px;line-height:1.35;
+  border-left:1px solid var(--card-line);
+  position:relative;
+}
+.panel.standalone{border:1px solid var(--card-line);border-radius:12px;overflow:hidden;box-shadow:var(--sh-hero);}
+
+/* ---- 对象头 ---- */
+.ph{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;background:var(--card);border-bottom:1px solid var(--hairline);flex:none;}
+.ph-ic{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center;}
+.ph-ic svg.i{width:17px;height:17px;}
+.ph-name{font-size:13px;font-weight:600;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ph-sub{margin-top:2px;display:flex;align-items:center;gap:5px;min-width:0;}
+.ph-type{font-family:var(--mono);font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ph-lock{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2);}
+.sw{width:30px;height:17px;border-radius:9px;background:#D5DCE5;border:0;position:relative;padding:0;transition:background .12s;}
+.sw::after{content:"";position:absolute;left:2px;top:2px;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.18);transition:left .12s;}
+.sw.on{background:var(--accent);}
+.sw.on::after{left:15px;}
+
+/* ---- 工具行 ---- */
+.tools{display:flex;gap:8px;padding:8px 10px;flex:none;}
+.sr{flex:1;min-width:0;height:32px;display:flex;align-items:center;gap:6px;padding:0 9px;background:var(--field);border:1px solid transparent;border-radius:8px;color:var(--ink-3);transition:background .12s,border-color .12s,box-shadow .12s;}
+.sr svg.i{width:13px;height:13px;}
+.sr:focus-within{background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);}
+.sr input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12px;color:var(--ink);padding:0;}
+.sr input::placeholder{color:var(--ink-3);}
+.sr .clr{width:18px;height:18px;padding:0;border:0;border-radius:50%;background:transparent;color:var(--ink-3);font-size:10px;line-height:1;display:none;place-items:center;}
+.sr.has .clr{display:grid;}
+.sr .clr:hover{color:var(--danger);background:var(--danger-soft);}
+.tico{width:32px;height:32px;flex:none;border:1px solid var(--card-line);border-radius:8px;background:#fff;color:var(--ink-2);display:grid;place-items:center;padding:0;}
+.tico:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);}
+.tico svg.i{width:14px;height:14px;}
+
+/* ---- 滚动区与卡片组 ---- */
+.scroll{flex:1;min-height:0;overflow:auto;padding:2px 10px 10px;display:flex;flex-direction:column;gap:8px;}
+.scroll>*{flex:none;}
+.panel.standalone .scroll{overflow:visible;flex:none;}
+.grp{background:var(--card);border:1px solid var(--card-line);border-radius:10px;box-shadow:var(--sh-card);overflow:hidden;}
+.grp.is-hidden{display:none;}
+.gh{display:flex;align-items:center;gap:6px;width:100%;height:38px;padding:0 11px;background:transparent;border:0;text-align:left;color:var(--ink);}
+.gh:hover{background:var(--hover);}
+.grp:not(.closed) .gh:hover{border-radius:9px 9px 0 0;}
+.grp.closed .gh:hover{border-radius:9px;}
+.gname{font-size:12.5px;font-weight:600;white-space:nowrap;}
+.cnt{min-width:16px;height:16px;padding:0 5px;border-radius:8px;background:var(--chip);color:var(--ink-2);font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+.gd{width:6px;height:6px;border-radius:50%;background:var(--warn);flex:none;box-shadow:0 0 0 2.5px rgba(208,122,29,.14);}
+.gd.err{background:var(--danger);box-shadow:0 0 0 2.5px rgba(210,69,69,.14);}
+.chev{width:7px;height:7px;border-right:1.5px solid var(--ink-3);border-bottom:1.5px solid var(--ink-3);transform:rotate(45deg);margin-left:auto;transition:transform .14s ease;flex:none;}
+.grp.closed .chev{transform:rotate(-45deg);}
+.gb{padding:1px 11px 11px;display:flex;flex-direction:column;gap:7px;}
+.grp.search-open .gb{display:flex;}
+.grp.closed:not(.search-open) .gb{display:none;}
+
+/* ---- 字段行：三种布局 ---- */
+.fr{display:grid;grid-template-columns:72px minmax(0,1fr) 22px;align-items:center;min-height:30px;}
+.fr.is-hidden,.fs.is-hidden,.fp.is-hidden,.ev.is-hidden,.an.is-hidden{display:none;}
+.lb{font-size:11.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:8px;}
+.slot{display:flex;justify-content:flex-end;}
+.fs .lb2{display:block;font-size:11px;color:var(--ink-2);margin-bottom:4px;}
+.fs .in,.fs textarea.in{width:100%;}
+.fp{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pc{min-width:0;}
+.pc .lb2{display:block;font-size:10.5px;color:var(--ink-3);margin-bottom:3px;}
+.brow{display:flex;align-items:center;gap:7px;min-height:28px;}
+
+/* ---- 输入控件（filled） ---- */
+.in{width:100%;height:28px;border:1px solid transparent;background:var(--field);border-radius:7px;padding:0 8px;font-size:12px;color:var(--ink);outline:0;transition:background .12s,border-color .12s,box-shadow .12s;}
+.in::placeholder{color:var(--ink-3);}
+.in:hover{background:var(--field-hover);}
+.in:focus{background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);}
+textarea.in{height:56px;padding:6px 8px;resize:none;line-height:1.45;}
+.in.sm{height:24px;font-size:11px;border-radius:6px;}
+.in.xs{height:22px;font-size:11px;width:54px;text-align:center;border-radius:6px;}
+.in[disabled]{background:var(--field);color:var(--ink-4);}
+.in.invalid{background:var(--danger-soft);border-color:var(--danger);}
+.in.invalid:focus{box-shadow:0 0 0 3px rgba(210,69,69,.14);}
+
+.num{display:flex;align-items:center;gap:6px;height:28px;border:1px solid transparent;background:var(--field);border-radius:7px;padding:0 8px;transition:background .12s,border-color .12s,box-shadow .12s;}
+.num:hover{background:var(--field-hover);}
+.num:focus-within{background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);}
+.num input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:12px;color:var(--ink);padding:0;font-variant-numeric:tabular-nums;}
+.un{font-size:10.5px;color:var(--ink-3);flex:none;}
+.num.invalid{background:var(--danger-soft);border-color:var(--danger);}
+
+.sel{height:28px;display:flex;align-items:center;gap:4px;border:1px solid transparent;background:var(--field);border-radius:7px;padding:0 8px;font-size:12px;color:var(--ink);transition:background .12s,border-color .12s,box-shadow .12s;min-width:0;}
+.sel:hover{background:var(--field-hover);}
+.sel:focus{outline:0;background:#fff;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);}
+.sel .chev{margin-left:auto;transform:rotate(45deg);}
+.sel.sm{height:24px;font-size:11px;border-radius:6px;}
+.sel.ph2{color:var(--ink-3);}
+.sel .sv{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+.ro{height:28px;display:flex;align-items:center;gap:6px;padding:0 8px;background:var(--chip);border-radius:7px;color:var(--ink-2);font-family:var(--mono);font-size:11px;min-width:0;}
+.ro .sv{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ro.lk{background:var(--field);color:var(--ink-3);}
+
+.ck{appearance:none;width:15px;height:15px;border:1.5px solid #C4CDD8;border-radius:4.5px;background:#fff;margin:0;position:relative;flex:none;cursor:pointer;transition:background .12s,border-color .12s;}
+.ck:checked{background:var(--accent);border-color:var(--accent);}
+.ck:checked::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(45deg);}
+.ck:focus-visible{box-shadow:0 0 0 3px var(--accent-ring);outline:0;}
+.brow .bl{font-size:11.5px;color:var(--ink-2);}
+
+/* ---- 颜色行 ---- */
+.cwr{display:flex;align-items:center;gap:8px;min-width:0;}
+.csw{width:40px;height:24px;border-radius:7px;border:1px solid rgba(15,23,42,.14);background:var(--c,#000);position:relative;flex:none;padding:0;}
+.csw:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring);}
+.csw.alpha::before{content:"";position:absolute;inset:0;border-radius:5px;background-image:linear-gradient(45deg,#D8DEE6 25%,transparent 25%),linear-gradient(-45deg,#D8DEE6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#D8DEE6 75%),linear-gradient(-45deg,transparent 75%,#D8DEE6 75%);background-size:8px 8px;background-position:0 0,0 4px,4px -4px,-4px 0;}
+.csw.alpha::after{content:"";position:absolute;inset:0;border-radius:5px;background:var(--c);}
+
+.cwr .grow{flex:1;min-width:0;}
+
+/* ---- 取色板 ---- */
+.pal{position:absolute;left:0;top:30px;width:248px;padding:10px;background:var(--card);border:1px solid var(--card-line);border-radius:12px;box-shadow:var(--sh-pop);z-index:60;display:none;}
+.pal.open{display:block;}
+.pal .cap{font-size:10.5px;color:var(--ink-3);margin:0 0 5px;}
+.pal .cells{display:flex;flex-wrap:wrap;gap:3px;}
+.pal .cells button{width:26px;height:22px;border-radius:5px;border:1px solid rgba(15,23,42,.12);padding:0;}
+.pal .cells button:hover{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-ring);}
+.pal .arow{display:flex;align-items:center;gap:8px;margin-top:9px;}
+.pal .track{flex:1;height:4px;border-radius:2px;background:linear-gradient(90deg,#fff,#2F6BE4);position:relative;}
+.pal .track i{position:absolute;top:-3px;left:70%;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--accent);}
+.pal .arow b{font-size:11px;color:var(--ink-2);font-weight:400;width:26px;text-align:right;}
+.pal .hrow{display:flex;gap:6px;margin-top:9px;}
+.pal .hrow .in{height:24px;font-size:11px;font-family:var(--mono);}
+.pal .prev{width:24px;height:24px;border-radius:6px;border:1px solid rgba(15,23,42,.14);}
+.pal .btns{display:flex;justify-content:flex-end;gap:7px;margin-top:11px;}
+.btn-s{height:25px;padding:0 12px;border-radius:7px;border:1px solid var(--card-line);background:#fff;color:var(--ink);font-size:11px;}
+.btn-s:hover{background:var(--field);}
+.btn-s.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.btn-s.pri:hover{background:var(--accent-deep);}
+
+/* ---- 绑定 ---- */
+.fx{width:22px;height:22px;border-radius:6px;border:1px solid var(--card-line);background:#fff;color:var(--ink-2);display:grid;place-items:center;padding:0;flex:none;}
+.fx:hover{border-color:var(--accent);color:var(--accent);}
+.fx.on{background:var(--accent);border-color:var(--accent);color:#fff;}
+.fx svg{width:12px;height:12px;}
+.bchip{display:none;align-items:center;gap:5px;height:28px;padding:0 3px 0 8px;background:var(--bound-bg);border:1px solid var(--bound-line);border-radius:7px;min-width:0;}
+.bchip .f{font-size:11px;color:var(--bound-f);flex:none;}
+.bchip .v{flex:1;min-width:0;font-size:11.5px;color:var(--bound-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bchip .x{width:18px;height:18px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--bound-f);font-size:10px;line-height:1;flex:none;}
+.bchip .x:hover{color:var(--danger);background:rgba(210,69,69,.08);}
+.fr.is-bound .in,.fr.is-bound .num,.fr.is-bound .sel{display:none;}
+.fr.is-bound .bchip{display:flex;}
+.sbind{display:none;grid-column:1/-1;margin-top:3px;align-items:center;gap:4px;min-width:0;line-height:1;}
+.srow.has-bind .sbind{display:flex;}
+.sbind .f{font-size:10.5px;color:var(--accent);}
+.sbind .v{min-width:0;font-size:10.5px;color:var(--bound-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sbind .x{width:14px;height:14px;padding:0;border:0;background:transparent;color:var(--ink-3);font-size:9px;line-height:1;flex:none;}
+.sbind .x:hover{color:var(--danger);}
+
+/* ---- 图片文件行 ---- */
+.imgr{display:flex;align-items:center;gap:8px;min-width:0;}
+.thumb{width:44px;height:30px;border-radius:6px;border:1px solid var(--card-line);background:var(--field);display:grid;place-items:center;color:var(--ink-3);font-size:10px;overflow:hidden;flex:none;}
+.imsum{flex:1;min-width:0;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.imsum.has{color:var(--ink-2);}
+.imb{display:flex;gap:4px;flex:none;}
+.mbtn{width:24px;height:24px;border-radius:6px;border:1px solid var(--card-line);background:#fff;color:var(--ink-2);display:grid;place-items:center;padding:0;}
+.mbtn:hover{color:var(--accent);border-color:var(--accent);}
+.mbtn.wide{width:auto;padding:0 8px;gap:3px;display:inline-flex;align-items:center;font-size:11px;background:var(--field);border-color:transparent;}
+.mbtn.wide:hover{background:var(--field-hover);color:var(--ink);}
+.mbtn svg{width:12px;height:12px;}
+
+/* ---- 行内错误 ---- */
+.rerr{margin:-3px 0 0 72px;font-size:10.5px;color:var(--danger);line-height:1.45;}
+.rerr.indent0{margin-left:0;}
+
+/* ---- 事件折叠卡 ---- */
+.ev{border:1px solid var(--card-line);border-radius:9px;overflow:hidden;background:#fff;}
+.ev-h{display:flex;align-items:center;gap:7px;min-height:36px;padding:0 9px;background:var(--field);cursor:pointer;}
+.ev.is-on .ev-h{background:var(--accent-soft);}
+.ev-n{font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;}
+.ev-sum{font-size:10.5px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ev-sum.miss{color:var(--warn);}
+.ev-h .grow{flex:1;min-width:0;}
+.ev-h .chev{margin-left:0;}
+.ev.is-open .chev{transform:rotate(-135deg);}
+.ev-b{display:none;padding:8px 9px 9px;border-top:1px solid var(--hairline);}
+.ev.is-on.is-open .ev-b{display:block;}
+.ev-cap{font-size:10.5px;color:var(--ink-3);margin:0 0 5px;}
+.ev .brow{min-height:24px;}
+.ev .brow .bl{font-size:11px;}
+
+/* ---- 动作卡 ---- */
+.ac{position:relative;border:1px solid var(--card-line);border-radius:8px;background:#fff;padding:7px 7px 8px 10px;overflow:hidden;}
+.ac::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2.5px;background:transparent;}
+.ac.warn{background:#FFFCF5;}
+.ac.warn::before{background:var(--warn);}
+.ac-h{display:flex;align-items:center;gap:5px;}
+.stp{width:16px;height:16px;border-radius:50%;background:var(--chip);color:var(--ink-2);font-size:10px;display:grid;place-items:center;flex:none;font-variant-numeric:tabular-nums;}
+.ac-h .sel{flex:1;min-width:0;}
+.ib{width:20px;height:20px;border-radius:5px;border:0;background:transparent;color:var(--ink-2);display:grid;place-items:center;padding:0;flex:none;}
+.ib:hover{background:var(--chip);color:var(--ink);}
+.ib.dg:hover{background:var(--danger-soft);color:var(--danger);}
+.ib:disabled{color:var(--ink-4);background:transparent;}
+.ib svg{width:12px;height:12px;}
+.ac-b{margin:6px 0 0 21px;display:flex;flex-direction:column;gap:6px;}
+.vrow{display:flex;align-items:center;gap:5px;min-width:0;}
+.vname{flex:1;min-width:0;font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.vname.miss{color:var(--warn);}
+.wline{font-size:10.5px;color:var(--warn);line-height:1.45;}
+.add{height:28px;border:1.5px dashed #C9D3E0;border-radius:8px;background:transparent;color:var(--ink-2);font-size:11.5px;display:inline-flex;align-items:center;gap:4px;padding:0 10px;}
+.add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+
+/* ---- 动画行 ---- */
+.an{border-radius:8px;}
+.an-h{display:flex;align-items:center;gap:7px;min-height:32px;padding:0 7px;border-radius:8px;cursor:pointer;}
+.an-h:hover{background:var(--hover);}
+.an.is-on .an-h{background:var(--accent-soft);}
+.an-n{font-size:11.5px;color:var(--ink);white-space:nowrap;}
+.an-sum{flex:1;min-width:0;font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right;}
+.an.is-on.miss .an-sum{color:var(--warn);}
+.an-h .chev{margin-left:0;}
+.an.is-open .chev{transform:rotate(-135deg);}
+.an-b{display:none;padding:2px 0 6px 22px;}
+.an.is-on.is-open .an-b{display:block;}
+.an-row{display:flex;align-items:center;gap:6px;margin:2px 0 4px;}
+.an-row .vname{flex:1;}
+.statec{border:1px solid var(--card-line);border-radius:8px;background:#fff;padding:6px 7px;}
+.statec .r1{display:flex;align-items:center;gap:4px;}
+.statec .r1 .cap{font-size:10.5px;color:var(--ink-3);}
+.statec .r1 .grow{flex:1;}
+.statec .r2{display:flex;align-items:center;gap:5px;margin-top:5px;}
+.statec .r2 .cap{font-size:10.5px;color:var(--ink-3);}
+.statec .r2 .grow{flex:1;display:flex;justify-content:flex-end;}
+
+/* ---- 曲线卡（趋势数据组） ---- */
+.series{border:1px solid var(--card-line);border-radius:9px;background:var(--field);padding:7px 8px 8px;}
+.series-h{display:grid;grid-template-columns:16px minmax(0,1fr) 60px 22px;gap:5px;padding:0 1px 5px;border-bottom:1px solid var(--hairline);font-size:10.5px;color:var(--ink-3);}
+.srow{display:grid;grid-template-columns:16px minmax(0,1fr) 60px 22px;gap:5px;align-items:center;padding:3px 0;}
+.srow .dot{width:14px;height:14px;border-radius:50%;border:1px solid rgba(15,23,42,.16);background:var(--c);padding:0;}
+.srow .dot:hover{border-color:var(--accent);box-shadow:0 0 0 2.5px var(--accent-ring);}
+.srow .in{height:25px;font-size:11.5px;background:#fff;}
+.srow .in.val{text-align:right;font-variant-numeric:tabular-nums;}
+.srow .fx{width:22px;height:22px;}
+.series-f{margin-top:5px;padding-top:5px;border-top:1px solid var(--hairline);font-size:10.5px;color:var(--ink-3);line-height:1.5;}
+
+/* ---- 空态 ---- */
+.pn-empty{display:none;}
+.panel.noresult .pn-empty{display:block;}
+.empty{border:1px dashed var(--card-line);border-radius:10px;background:var(--card);padding:22px 18px;text-align:center;}
+.empty .glyph{width:38px;height:38px;margin:0 auto 9px;border-radius:11px;background:var(--chip);color:var(--ink-3);display:grid;place-items:center;}
+.empty .title{font-size:12.5px;font-weight:600;color:var(--ink);}
+.empty .hint{margin-top:4px;font-size:11px;color:var(--ink-2);line-height:1.55;}
+.empty .btn-s{margin-top:10px;}
+
+/* ---- 底部 dock 页签 ---- */
+.dtabs{height:34px;flex:none;display:flex;background:var(--card);border-top:1px solid var(--hairline);}
+.dtabs button{flex:1;border:0;background:transparent;color:var(--ink-2);font-size:11.5px;position:relative;padding:0;}
+.dtabs button:hover{color:var(--ink);}
+.dtabs button.on{color:var(--accent);font-weight:600;}
+.dtabs button.on::after{content:"";position:absolute;left:24%;right:24%;bottom:0;height:2px;border-radius:1px;background:var(--accent);}
+
+/* =====================================================================
+   编辑器上下文（主稿）
+   ===================================================================== */
+.editor{width:1280px;height:860px;display:flex;flex-direction:column;background:var(--workbench);border:1px solid var(--toolbar-strong);border-radius:12px;overflow:hidden;box-shadow:var(--sh-hero);}
+.topbar{height:44px;flex:none;display:flex;align-items:center;gap:6px;padding:0 12px;background:var(--toolbar);border-bottom:1px solid var(--toolbar-border);color:var(--toolbar-text);font-size:12px;}
+.crumb{display:flex;align-items:center;gap:6px;margin-right:6px;}
+.crumb b{color:#0F172A;font-weight:600;}
+.tbtn{height:28px;padding:0 9px;border:1px solid var(--toolbar-border);border-radius:7px;background:#fff;color:var(--toolbar-text);font-size:12px;display:inline-flex;align-items:center;gap:4px;}
+.tbtn:hover{background:var(--toolbar-hover);}
+.tbtn.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;}
+.tbtn.pri:hover{background:var(--accent-deep);}
+.tsep{width:1px;height:20px;background:var(--toolbar-border);margin:0 3px;}
+.grow{flex:1;}
+.tck{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--toolbar-text);}
+.tck i{width:14px;height:14px;border-radius:4px;background:var(--accent);position:relative;display:block;}
+.tck i::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 1.6px 1.6px 0;transform:rotate(45deg);}
+.tck.off i{background:#fff;border:1.5px solid #C4CDD8;}
+.tck.off i::after{display:none;}
+.zoom{height:28px;display:inline-flex;align-items:center;gap:2px;border:1px solid var(--toolbar-border);border-radius:7px;background:#fff;padding:0 3px;font-size:11.5px;}
+.zoom button{width:22px;height:22px;border:0;background:transparent;color:var(--toolbar-text);font-size:12px;border-radius:5px;}
+.zoom button:hover{background:var(--toolbar-hover);}
+.zoom b{min-width:38px;text-align:center;font-weight:500;font-variant-numeric:tabular-nums;}
+.workspace{flex:1;min-height:0;display:flex;overflow:hidden;}
+.canvas{flex:1;min-width:0;position:relative;background:var(--canvas);overflow:hidden;}
+.canvas .grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:10px 10px;}
+.canvas .title{position:absolute;left:32px;top:24px;color:var(--canvas-text);font-size:16px;font-weight:600;}
+.canvas .sub{position:absolute;left:32px;top:50px;color:var(--canvas-text3);font-size:11px;}
+.tank{position:absolute;left:56px;top:96px;width:196px;height:268px;}
+.tank .body{position:absolute;inset:0;border:2px solid var(--canvas-strong);border-radius:18px;background:var(--canvas-surface);overflow:hidden;}
+.tank .liquid{position:absolute;left:0;right:0;bottom:0;height:62%;background:linear-gradient(180deg,#1E4D6B,#173B52);border-top:1px solid #2C6E96;}
+.tank .label{position:absolute;left:0;right:0;top:14px;text-align:center;color:var(--canvas-text);font-size:12px;font-weight:600;}
+.tank .val{position:absolute;left:0;right:0;bottom:14px;text-align:center;color:#CFE8F7;font-size:11px;font-variant-numeric:tabular-nums;}
+.kpi{position:absolute;left:300px;top:96px;width:240px;padding:10px 12px;border:1px solid var(--canvas-border);border-radius:10px;background:var(--canvas-raised);}
+.kpi .row{display:flex;align-items:baseline;justify-content:space-between;padding:4px 0;min-height:0;}
+.kpi .row+.row{border-top:1px solid rgba(255,255,255,.06);}
+.kpi .k{color:var(--canvas-text3);font-size:11px;}
+.kpi .v{color:var(--canvas-text);font-size:15px;font-weight:600;font-variant-numeric:tabular-nums;}
+.kpi .v i{font-style:normal;font-size:10px;color:var(--canvas-text3);margin-left:2px;font-weight:400;}
+.trend{position:absolute;left:300px;top:250px;width:380px;height:236px;border:1px solid var(--canvas-border);border-radius:10px;background:var(--canvas-surface);overflow:hidden;}
+.trend .head{display:flex;align-items:center;gap:8px;padding:8px 10px 0;color:var(--canvas-text2);font-size:10.5px;}
+.trend .head .dot{width:6px;height:6px;border-radius:50%;background:var(--canvas-accent);}
+.trend .head .grow{flex:1;}
+.trend .head .muted{color:var(--canvas-text3);font-size:10px;}
+.trend svg{display:block;width:100%;height:174px;margin-top:2px;}
+.trend .legend{display:flex;gap:10px;padding:0 10px 8px;color:var(--canvas-text3);font-size:10px;}
+.trend .legend span{display:inline-flex;align-items:center;gap:4px;}
+.trend .legend i{width:10px;height:2px;border-radius:1px;display:block;}
+.scada-btn{position:absolute;width:88px;height:32px;border-radius:3px;display:grid;place-items:center;font-size:12px;color:#fff;background:#2D7DD2;border:1px solid #1F5C9E;box-shadow:0 1px 0 rgba(0,0,0,.18);}
+.scada-btn.ghost{background:#1B242D;border-color:#3A4A5C;color:#D6DAE0;}
+.selbox{position:absolute;border:1px dashed #6EC1FF;pointer-events:none;}
+.selbox i{position:absolute;width:7px;height:7px;background:#fff;border:1px solid #2F6BE4;border-radius:1px;}
+.selbox i.nw{left:-4px;top:-4px;}.selbox i.ne{right:-4px;top:-4px;}.selbox i.sw{left:-4px;bottom:-4px;}.selbox i.se{right:-4px;bottom:-4px;}
+.selbox i.n{left:50%;top:-4px;margin-left:-3.5px;}.selbox i.s{left:50%;bottom:-4px;margin-left:-3.5px;}
+.selbox i.w{left:-4px;top:50%;margin-top:-3.5px;}.selbox i.e{right:-4px;top:50%;margin-top:-3.5px;}
+.seltool{position:absolute;height:30px;display:flex;align-items:center;gap:1px;padding:3px;border:1px solid #E2E8F0;border-radius:8px;background:#fff;box-shadow:0 8px 22px rgba(15,23,42,.14);}
+.seltool button{width:24px;height:24px;border:0;border-radius:5px;background:transparent;color:#475569;display:grid;place-items:center;font-size:11px;}
+.seltool button:hover{background:#F1F5F9;color:#0F172A;}
+.seltool .sep{width:1px;height:14px;background:#E2E8F0;margin:0 2px;}
+.zoompill{position:absolute;right:12px;bottom:12px;height:26px;display:flex;align-items:center;gap:2px;padding:0 4px;border:1px solid var(--canvas-border);border-radius:7px;background:rgba(20,27,34,.9);color:var(--canvas-text2);font-size:11px;}
+.zoompill button{width:20px;height:20px;border:0;background:transparent;color:var(--canvas-text2);border-radius:4px;}
+.zoompill button:hover{background:rgba(255,255,255,.08);}
+.zoompill b{min-width:34px;text-align:center;font-weight:400;font-variant-numeric:tabular-nums;}
+
+/* 主稿切换 */
+.hero-bar{display:flex;align-items:center;gap:8px;margin:0 0 10px;}
+.seg{display:inline-flex;padding:2px;border:1px solid #E2E8F0;border-radius:8px;background:#F1F5F9;}
+.seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#475569;font-size:11.5px;}
+.seg button.on{background:#fff;color:#0F172A;font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.06);}
+.hero-note{color:#475569;font-size:11.5px;}
+#hero-panel{height:100%;}
+.hv{display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;flex:1;min-height:0;height:816px;}
+
+/* =====================================================================
+   展示辅助
+   ===================================================================== */
+.panels{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;}
+.panel-label{display:flex;align-items:center;gap:6px;margin:0 0 8px;font-size:12px;color:#475569;}
+.panel-label b{color:#0F172A;font-weight:600;}
+.panel-wrap{display:flex;flex-direction:column;min-width:0;}
+.spec-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;}
+.spec{background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.05);min-width:0;}
+.spec .cap{padding:7px 10px;border-bottom:1px solid #EEF2F7;font-size:11px;color:#475569;background:#F8FAFC;display:flex;align-items:center;gap:6px;}
+.spec .cap b{color:#0F172A;font-weight:600;font-size:11.5px;}
+.spec .bd{background:var(--panel-bg);padding:8px 9px;display:flex;flex-direction:column;gap:7px;}
+.spec .bd .grp{box-shadow:none;}
+.spec .bd .in,.spec .bd .num,.spec .bd .sel{background:#fff;}
+.spec .bd .in:hover,.spec .bd .num:hover,.spec .bd .sel:hover{background:#fff;}
+.layout-demo{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;}
+.ld{background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+.ld .cap{padding:8px 12px;border-bottom:1px solid #EEF2F7;font-size:11.5px;color:#475569;display:flex;gap:6px;align-items:center;}
+.ld .cap b{color:#0F172A;font-size:12px;}
+.ld .bd{background:var(--panel-bg);padding:10px;display:flex;flex-direction:column;gap:8px;}
+.table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;font-size:12px;}
+.table th{background:#F8FAFC;color:#475569;font-weight:600;text-align:left;padding:8px 10px;border-bottom:1px solid #E2E8F0;font-size:11.5px;white-space:nowrap;}
+.table td{padding:8px 10px;border-bottom:1px solid #EEF2F7;vertical-align:top;color:#334155;line-height:1.55;}
+.table tr:last-child td{border-bottom:0;}
+.table td b{color:#0F172A;font-weight:600;}
+.table td code{font-family:var(--mono);font-size:11px;padding:0 4px;border:1px solid #E2E8F0;border-radius:4px;background:#F8FAFC;white-space:nowrap;}
+.table .num{font-variant-numeric:tabular-numeric;color:#64748B;white-space:nowrap;}
+.qlist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+.q{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+.q h4{margin:0 0 6px;font-size:12.5px;display:flex;gap:8px;align-items:center;}
+.q h4 .tag{flex:none;}
+.q p{margin:0;color:#475569;font-size:12px;line-height:1.6;}
+.q p b{color:#0F172A;font-weight:600;}
+.q .rec{margin-top:7px;padding:6px 8px;border-radius:6px;background:#F0F9FF;color:#0369A1;font-size:11.5px;line-height:1.5;}
+.tooltip-demo{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+.tipcard{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:14px;box-shadow:0 1px 2px rgba(15,23,42,.05);}
+.tipcard h4{margin:0 0 4px;font-size:12.5px;}
+.tipcard .sub{margin:0 0 12px;color:#64748B;font-size:11.5px;}
+.tip-old{display:inline-block;max-width:300px;background:#FFFFE1;border:1px solid #767676;padding:2px 4px;font-size:11px;line-height:1.35;color:#000;}
+.tip-new{display:inline-block;max-width:240px;background:#1E2530;color:#fff;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.45;box-shadow:0 10px 26px rgba(15,23,42,.2);}
+.callout{display:flex;gap:10px;padding:10px 12px;border:1px solid #FDE68A;border-radius:10px;background:#FFFBEB;color:#92400E;font-size:12px;line-height:1.6;margin:12px 0 0;}
+.callout b{color:#78350F;}
+.callout .i2{flex:none;width:18px;height:18px;border-radius:50%;background:#F59E0B;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700;}
+.callout.blue{background:#F0F9FF;border-color:#BAE6FD;color:#075985;}
+.callout.blue .i2{background:#0EA5E9;}
+.swatches{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;}
+.swt{background:#fff;border:1px solid #E2E8F0;border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;}
+.swt .d{width:26px;height:26px;border-radius:8px;border:1px solid rgba(15,23,42,.12);flex:none;}
+.swt .t{font-size:11.5px;color:#475569;line-height:1.35;}
+.swt .t b{display:block;color:#0F172A;font-size:12px;font-weight:600;}
+
+/* =====================================================================
+   ?shot= 单屏模式
+   ===================================================================== */
+body.shot{padding:0;background:#fff;}
+body.shot main{margin:0;}
+body.shot .page-head,body.shot .page-nav{display:none;}
+body.shot .sec{display:none;margin:0;}
+body.shot .sec.is-target{display:block;}
+body.shot .sec.is-target>.sec-head,body.shot .sec.is-target>.note,body.shot .sec.is-target>.hero-bar,body.shot .sec.is-target>.panel-label,body.shot .sec.is-target>.legend,body.shot .sec.is-target>.callout{display:none;}
+body.shot .panel.standalone{border:0;border-radius:0;box-shadow:none;}
+body.shot .editor{border:0;border-radius:0;box-shadow:none;}
+body.shot .panels{gap:0;}
+body.shot .panel-label{display:none;}
+body.only-page #wrap-button,body.only-page #wrap-trend{display:none;}
+body.only-button #wrap-page,body.only-button #wrap-trend{display:none;}
+body.only-trend #wrap-page,body.only-trend #wrap-button{display:none;}
+
+@media (max-width:1100px){
+  .grid3,.spec-grid,.layout-demo,.swatches{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .qlist{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<svg style="display:none" aria-hidden="true">
+  <defs>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 1 1 0 10h-2M8 12h8"/></symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+    <symbol id="i-page" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
+    <symbol id="i-widget" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="3"/><path d="M9 12h6"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 4-6 5 5"/><path d="M3 21h18"/></symbol>
+    <symbol id="i-fold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></symbol>
+    <symbol id="i-unfold" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></symbol>
+  </defs>
+</svg>
+
+<header class="page-head">
+  <div class="eyebrow">SCADA · 属性面板 · Web 设计稿 · 重构版</div>
+  <h1>SCADA 属性面板 <span class="ver">v2.2 重构 · 2026-10-28</span></h1>
+  <p class="meta">
+    对 v1 的彻底重构：不保留原有样式与布局。覆盖 <code>ScadaPropertyView.xaml</code>（300px 停靠面板）、
+    <code>ScadaEventEditor.xaml</code> 与 <code>ScadaPropertyViewModel.cs</code>。
+    设计语言：卡片化分组 + 三层深度 + 混合标签布局 + 绑定 chip + 事件/动画折叠卡。
+    配色说明见 §08（只用颜色名称与视觉描述）。
+  </p>
+  <div class="meta-row">
+    <span class="meta-chip"><strong>面板宽</strong>300px</span>
+    <span class="meta-chip"><strong>三层深度</strong>雾白底 → 纯白卡 → 浅灰输入</span>
+    <span class="meta-chip"><strong>标签</strong>左标签 72 / 上标签 / 成对网格</span>
+    <span class="meta-chip"><strong>控件高</strong>28px</span>
+    <span class="meta-chip"><strong>卡片圆角</strong>10px</span>
+  </div>
+</header>
+
+<nav class="page-nav">
+  <a href="#s0">00 评审结论</a>
+  <a href="#s1">01 主稿</a>
+  <a href="#s2">02 三对象</a>
+  <a href="#s3">03 布局体系</a>
+  <a href="#s4">04 行与状态</a>
+  <a href="#s5">05 事件与提示</a>
+  <a href="#s6">06 搜索折叠</a>
+  <a href="#s7">07 v1→v2 差异</a>
+  <a href="#s8">08 样式规范</a>
+  <a href="#s9">09 待裁定</a>
+</nav>
+
+<main>
+
+<!-- ============ 00 评审结论 ============ -->
+<section class="sec" id="s0">
+  <div class="sec-head"><span class="sec-index">00</span><h2>v1 复审结论与 v2 设计原则</h2>
+    <p>v1 是「忠实复刻现有 WPF」的保守稿；本轮按「现代化、简洁、层次感」重新评审，允许推翻。</p></div>
+
+  <div class="grid3">
+    <div class="card" style="padding:14px;">
+      <div class="tag danger">复审 1 · 层次扁平</div>
+      <h3 style="margin:8px 0 4px;font-size:13.5px;">全面板一个节奏，扫不到重点</h3>
+      <p class="note" style="margin:0;">组头 32px + 行 32px 完全均匀，分隔只有一条发丝线；长面板（趋势 34 行）滚到哪里、哪组有错，全靠记忆。</p>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="tag danger">复审 2 · 标签列是根矛盾</div>
+      <h3 style="margin:8px 0 4px;font-size:13.5px;">固定左标签在窄面板必截断</h3>
+      <p class="note" style="margin:0;">64px 截断、80px 勉强；而成对数值（X/Y、宽/高）、布尔行、事件行根本不需要左标签——一半行在为不需要的标签付宽度。</p>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="tag danger">复审 3 · 行数虚高</div>
+      <h3 style="margin:8px 0 4px;font-size:13.5px;">成对数值各占一行</h3>
+      <p class="note" style="margin:0;">X/Y、宽/高、偏移、值域全部单行单列，天然成对的字段被拆散，面板长度翻倍，滚动距离长。</p>
+    </div>
+  </div>
+  <div class="grid3" style="margin-top:14px;">
+    <div class="card" style="padding:14px;">
+      <div class="tag warn">复审 4 · 绑定态占行</div>
+      <h3 style="margin:8px 0 4px;font-size:13.5px;">绑定带挂在行下，越绑越长</h3>
+      <p class="note" style="margin:0;">每绑一个变量面板长 20px；绑定多时「值输入 + 绑定带」双份信息，视觉权重还颠倒了（该突出的是绑定来源）。</p>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="tag warn">复审 5 · 复合行无容器感</div>
+      <h3 style="margin:8px 0 4px;font-size:13.5px;">事件/动画只是文字行加勾选</h3>
+      <p class="note" style="margin:0;">「勾选=存在」与「展开=编辑」语义耦合，展开区与普通行无视觉边界，动作卡悬浮在面板底色上。</p>
+    </div>
+    <div class="card" style="padding:14px;">
+      <div class="tag warn">复审 6 · 输入是框中框</div>
+      <h3 style="margin:8px 0 4px;font-size:13.5px;">灰底上画白框，视觉噪音大</h3>
+      <p class="note" style="margin:0;">白底描边输入铺满灰底面板，几十个描边框抢视线；现代工具用「底色差」表达输入区，聚焦才给描边。</p>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px;">
+    <div class="card" style="padding:16px;">
+      <h3 style="margin:0 0 8px;font-size:13.5px;">v2 五条设计原则</h3>
+      <p class="note" style="margin:0 0 6px;"><b>① 三层深度：</b>雾白面板底 → 纯白卡片（淡蓝灰描边 + 极浅投影）→ 浅灰 filled 输入（无边框，聚焦才亮描边）。层次靠底色差，不靠三层描边。</p>
+      <p class="note" style="margin:0 0 6px;"><b>② 混合标签：</b>长文本字段用上标签；成对数值一行两列；其余左标签 72px。规则三条，消灭截断。</p>
+      <p class="note" style="margin:0 0 6px;"><b>③ 复合配置卡片化：</b>事件/动画是折叠卡——勾选管「配没配」，箭头管展开，摘要常显；动作/档位卡有序号与状态条。</p>
+      <p class="note" style="margin:0 0 6px;"><b>④ 绑定即状态：</b>绑定后输入框本体变成变量 chip（ƒ + 变量名 + ✕），不另占一行；ƒx 按钮实心。</p>
+      <p class="note" style="margin:0;"><b>⑤ 语义色收敛：</b>晴空蓝=可交互/焦点/选中；琥珀=待完成；赤红=错误/危险；苔绿=成功。四色各管一件事。</p>
+    </div>
+    <div class="card" style="padding:16px;">
+      <h3 style="margin:0 0 8px;font-size:13.5px;">信息架构：一处结构变化，其余不动</h3>
+      <p class="note" style="margin:0 0 6px;"><b>唯一结构变化：</b>多曲线趋势的 4 条曲线收成「曲线卡」（颜色点 + 名称 + 值 + ƒx 同行），4 个曲线颜色从「外观」组移入「数据」组卡——外观组 8 → 4，数据组 11 → 7。落盘键全部不变。</p>
+      <p class="note" style="margin:0 0 6px;"><b>其余不动：</b>组名与组序沿用 <code>ScadaPropertyGroups</code>；行、显示名、Choices、可绑语义、事件/动画/权限的模型全部不动；面板宽仍是 300px。</p>
+      <p class="note" style="margin:0;"><b>呈现升级（不影响模型）：</b>卡片化分组、折叠记忆、搜索强制展开、组头错误点、折叠全部按钮、对象头内联标题、底部 dock 页签。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 01 主稿 ============ -->
+<section class="sec" id="s1">
+  <div class="sec-head"><span class="sec-index">01</span><h2>主稿：编辑器上下文（按钮选中）</h2>
+    <p>1280×860；右侧 300px 面板：对象头 + 搜索/折叠全部 + 白卡分组 + 底部 dock 页签。</p></div>
+
+  <div class="hero-bar">
+    <div class="seg" id="hero-seg">
+      <button data-hero="page">画面</button>
+      <button data-hero="button" class="on">按钮</button>
+      <button data-hero="trend">多曲线趋势</button>
+    </div>
+    <span class="hero-note">三种编辑对象；面板结构与 02 节一致。</span>
+  </div>
+
+  <div class="editor">
+    <div class="topbar">
+      <div class="crumb">画面 <b>画面_1</b></div>
+      <div class="tsep"></div>
+      <button class="tbtn">＋ 新建</button>
+      <button class="tbtn">删除</button>
+      <button class="tbtn">↶ 撤销</button>
+      <button class="tbtn">↷ 重做</button>
+      <div class="tsep"></div>
+      <span class="tck"><i></i>网格</span>
+      <span class="tck"><i></i>吸附</span>
+      <div class="grow"></div>
+      <div class="zoom"><button>－</button><b>83%</b><button>＋</button></div>
+      <button class="tbtn">适应</button>
+      <button class="tbtn">1:1</button>
+      <button class="tbtn pri">▶ 运行画面</button>
+    </div>
+
+    <div class="workspace">
+      <div class="canvas">
+        <div class="grid"></div>
+        <div class="title">1# 反应釜单元</div>
+        <div class="sub">画面_1 · 1920 × 1080 · 网格 10px</div>
+        <div class="tank"><div class="body"><div class="liquid"></div></div><div class="label">T-101</div><div class="val">液位 62%</div></div>
+        <div class="kpi">
+          <div class="row"><span class="k">温度</span><span class="v">78.4<i>°C</i></span></div>
+          <div class="row"><span class="k">压力</span><span class="v">0.62<i>MPa</i></span></div>
+          <div class="row"><span class="k">搅拌</span><span class="v" style="color:var(--canvas-green);font-size:13px;">运行</span></div>
+        </div>
+        <div class="trend">
+          <div class="head"><span class="dot"></span><span>多曲线趋势</span><span class="grow"></span><span class="muted">最近 60s</span></div>
+          <svg viewBox="0 0 380 174" preserveAspectRatio="none" aria-hidden="true">
+            <g stroke="#22303C" stroke-width="1">
+              <line x1="0" y1="29" x2="380" y2="29"/><line x1="0" y1="68" x2="380" y2="68"/>
+              <line x1="0" y1="107" x2="380" y2="107"/><line x1="0" y1="146" x2="380" y2="146"/>
+              <line x1="95" y1="0" x2="95" y2="174"/><line x1="190" y1="0" x2="190" y2="174"/><line x1="285" y1="0" x2="285" y2="174"/>
+            </g>
+            <polyline fill="none" stroke="#38BDF8" stroke-width="1.6" points="0,116 28,108 56,114 84,92 112,100 140,82 168,88 196,66 224,74 252,58 280,66 308,48 336,56 364,40 380,44"/>
+            <polyline fill="none" stroke="#22C55E" stroke-width="1.4" points="0,134 28,132 56,124 84,128 112,116 140,122 168,110 196,114 224,100 252,106 280,94 308,100 336,88 364,92 380,86"/>
+            <polyline fill="none" stroke="#F59E0B" stroke-width="1.4" points="0,146 28,142 56,146 84,138 112,144 140,134 168,140 196,130 224,136 252,126 280,132 308,122 336,128 364,118 380,122"/>
+            <polyline fill="none" stroke="#A855F7" stroke-width="1.4" points="0,156 28,154 56,150 84,152 112,146 140,148 168,142 196,144 224,138 252,140 280,134 308,136 336,130 364,132 380,128"/>
+          </svg>
+          <div class="legend">
+            <span><i style="background:#38BDF8"></i>温度</span><span><i style="background:#22C55E"></i>压力</span>
+            <span><i style="background:#F59E0B"></i>转速</span><span><i style="background:#A855F7"></i>辅助量</span>
+          </div>
+        </div>
+        <div class="scada-btn ghost" style="left:300px;top:540px;">停止</div>
+        <div class="scada-btn" style="left:400px;top:540px;">按钮</div>
+        <div class="selbox" style="left:396px;top:536px;width:96px;height:40px;">
+          <i class="nw"></i><i class="n"></i><i class="ne"></i><i class="w"></i><i class="e"></i><i class="sw"></i><i class="s"></i><i class="se"></i>
+        </div>
+        <div class="seltool" style="left:390px;top:498px;">
+          <button title="左对齐">≡</button><button title="居中">≡</button><button title="右对齐">≡</button>
+          <span class="sep"></span><button title="置顶">⇧</button><button title="上移">↑</button>
+          <span class="sep"></span><button title="更多">…</button>
+        </div>
+        <div class="zoompill"><button>－</button><b>83%</b><button>＋</button></div>
+      </div>
+
+      <div class="panel" id="hero-panel">
+        <!-- 画面 -->
+        <div class="hv" data-view="page" style="display:none;" data-panel>
+          <header class="ph">
+            <span class="ph-ic"><svg class="i"><use href="#i-page"/></svg></span>
+            <div><div class="ph-name">画面_1</div><div class="ph-sub"><span class="ph-type">画面</span><span class="ph-type">1920 × 1080</span></div></div>
+          </header>
+          <div class="tools">
+            <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性" data-search-input><button class="clr">✕</button></div>
+            <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+          </div>
+          <div class="scroll">
+            <section class="grp" data-total="2"><button class="gh"><span class="gname">基本信息</span><span class="cnt">2</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fs" data-search="名称 Name 基本信息"><label class="lb2">名称</label><input class="in" value="画面_1"></div>
+                <div class="fs" data-search="说明 Description 基本信息"><label class="lb2">说明</label><textarea class="in"></textarea></div>
+              </div>
+            </section>
+            <section class="grp" data-total="2"><button class="gh"><span class="gname">画布尺寸</span><span class="cnt">2</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fp" data-search="宽 Width 高 Height 画布尺寸">
+                  <div class="pc"><span class="lb2">宽</span><div class="num"><input value="1920"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">高</span><div class="num"><input value="1080"><span class="un">px</span></div></div>
+                </div>
+              </div>
+            </section>
+            <section class="grp" data-total="4"><button class="gh"><span class="gname">背景</span><span class="cnt">4</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="背景色 Background 背景"><span class="lb">背景色</span>
+                  <div class="ed"><div class="cwr"><button class="csw" style="--c:#000000" data-palette="p1"></button><span class="grow"></span></div>
+                    <div class="pal" id="p1"><div class="cap">色板</div>
+                      <div class="cells"><button style="background:#000"></button><button style="background:#fff"></button><button style="background:#1E2530"></button><button style="background:#5B6673"></button><button style="background:#2F6BE4"></button><button style="background:#2F9E64"></button><button style="background:#D07A1D"></button><button style="background:#D24545"></button><button style="background:#A855F7"></button><button style="background:#38BDF8"></button><button style="background:#141B22"></button><button style="background:#E7EEF6"></button></div>
+                      <div class="arow"><span class="cap" style="margin:0;">透明度</span><div class="track"><i></i></div><b>255</b></div>
+                      <div class="hrow"><input class="in" value="#FF000000"><span class="prev" style="background:#000"></span></div>
+                      <div class="btns"><button class="btn-s">取消</button><button class="btn-s pri">确定</button></div>
+                    </div>
+                  </div><span class="slot"></span></div>
+                <div class="fr" data-search="背景图 BackgroundImage 背景"><span class="lb">背景图</span>
+                  <div class="ed"><div class="imgr"><span class="thumb">空</span><span class="imsum">未选择</span><span class="imb"><button class="mbtn wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-folder"/></svg>选择…</button></span></div></div>
+                  <span class="slot"></span></div>
+                <div class="fr" data-search="背景填充 BackgroundStretch 背景"><span class="lb">背景填充</span>
+                  <div class="ed"><div class="sel" tabindex="0"><span class="sv">保持比例</span><i class="chev"></i></div></div><span class="slot"></span></div>
+                <div class="fr" data-search="背景不透明度 BackgroundOpacity 背景"><span class="lb">不透明度</span>
+                  <div class="ed"><div class="num"><input value="100"><span class="un">%</span></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="1"><button class="gh"><span class="gname">设计辅助</span><span class="cnt">1</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="网格间距 GridSize 设计辅助"><span class="lb">网格间距</span>
+                  <div class="ed"><div class="num"><input value="10"><span class="un">px</span></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="5"><button class="gh"><span class="gname">运行</span><span class="cnt">5</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="所需权限 RequiredPermission 运行"><span class="lb">所需权限</span>
+                  <div class="ed"><div class="sel" tabindex="0"><span class="sv">不限制</span><i class="chev"></i></div></div><span class="slot"></span></div>
+                <div class="brow" data-search="弹窗页 IsPopup 运行"><input type="checkbox" class="ck"><span class="bl">弹窗页</span></div>
+                <div class="brow" data-search="启动画面 StartupPage 运行"><input type="checkbox" class="ck"><span class="bl">启动画面</span></div>
+                <div class="ev is-on is-open" data-search="加载完成 Loaded 运行">
+                  <div class="ev-h"><input type="checkbox" class="ck" checked><span class="ev-n">加载完成</span><span class="ev-sum">2 个动作</span><span class="grow"></span><i class="chev"></i></div>
+                  <div class="ev-b">
+                    <div class="ev-cap">动作（自上而下依次执行）：</div>
+                    <div class="ac"><div class="ac-h"><span class="stp">1</span><div class="sel sm"><span class="sv">记录日志</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                      <div class="ac-b"><input class="in sm" placeholder="留空则记录「图元名 + 事件名」"></div></div>
+                    <div class="ac"><div class="ac-h"><span class="stp">2</span><div class="sel sm"><span class="sv">写变量</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                      <div class="ac-b"><div class="vrow"><span class="vname">System.Recipe.Deviation</span><button class="mbtn wide">选择变量</button></div><input class="in sm" value="0"></div></div>
+                    <button class="add">＋ 添加动作</button>
+                  </div>
+                </div>
+                <div class="ev" data-search="卸载 Unloaded 运行">
+                  <div class="ev-h"><input type="checkbox" class="ck"><span class="ev-n">卸载</span><span class="grow"></span><i class="chev"></i></div>
+                  <div class="ev-b"></div>
+                </div>
+              </div>
+            </section>
+            <div class="pn-empty"><div class="empty"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div></div>
+          </div>
+          <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+        </div>
+
+        <!-- 按钮 -->
+        <div class="hv" data-view="button" data-panel>
+          <header class="ph">
+            <span class="ph-ic"><svg class="i"><use href="#i-widget"/></svg></span>
+            <div><div class="ph-name">按钮</div><div class="ph-sub"><span class="ph-type">Hmi.Button</span></div></div>
+            <div class="ph-lock"><span>锁定</span><button class="sw"></button></div>
+          </header>
+          <div class="tools">
+            <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性" data-search-input><button class="clr">✕</button></div>
+            <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+          </div>
+          <div class="scroll">
+            <section class="grp" data-total="1"><button class="gh"><span class="gname">基本</span><span class="cnt">1</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fs" data-search="名称 Name 基本"><label class="lb2">名称</label><input class="in" value="按钮"></div>
+              </div>
+            </section>
+            <section class="grp" data-total="5"><button class="gh"><span class="gname">外观</span><span class="cnt">5</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="填充色 Fill 外观"><span class="lb">填充色</span>
+                  <div class="ed"><div class="cwr"><button class="csw" style="--c:#2D7DD2" data-palette="p2"></button><span class="grow"></span></div>
+                    <div class="pal" id="p2"><div class="cap">色板</div>
+                      <div class="cells"><button style="background:#2D7DD2"></button><button style="background:#1F5C9E"></button><button style="background:#2F6BE4"></button><button style="background:#38BDF8"></button><button style="background:#2F9E64"></button><button style="background:#D07A1D"></button><button style="background:#D24545"></button><button style="background:#A855F7"></button><button style="background:#1E2530"></button><button style="background:#5B6673"></button><button style="background:#141B22"></button><button style="background:#fff"></button></div>
+                      <div class="arow"><span class="cap" style="margin:0;">透明度</span><div class="track"><i></i></div><b>255</b></div>
+                      <div class="hrow"><input class="in" value="#FF2D7DD2"><span class="prev" style="background:#2D7DD2"></span></div>
+                      <div class="btns"><button class="btn-s">取消</button><button class="btn-s pri">确定</button></div>
+                    </div>
+                  </div><span class="slot"></span></div>
+                <div class="fr" data-search="边框色 Stroke 外观"><span class="lb">边框色</span>
+                  <div class="ed"><div class="cwr"><button class="csw" style="--c:#1F5C9E"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+                <div class="fp" data-search="边框粗细 StrokeThickness 圆角 CornerRadius 外观">
+                  <div class="pc"><span class="lb2">边框粗细</span><div class="num"><input value="1"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">圆角</span><div class="num"><input value="3"><span class="un">px</span></div></div>
+                </div>
+                <div class="brow" data-search="危险动作 Danger 外观"><input type="checkbox" class="ck"><span class="bl">危险动作</span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="4"><button class="gh"><span class="gname">文本</span><span class="cnt">4</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fs" data-search="文字 Text 文本"><label class="lb2">文字</label><input class="in" value="按钮"></div>
+                <div class="fp" data-search="字号 FontSize 字重 FontWeight 文本">
+                  <div class="pc"><span class="lb2">字号</span><div class="num"><input value="12"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">字重</span><div class="sel"><span class="sv">常规</span><i class="chev"></i></div></div>
+                </div>
+                <div class="fr" data-search="文字颜色 Foreground 文本"><span class="lb">文字颜色</span>
+                  <div class="ed"><div class="cwr"><button class="csw alpha" style="--c:#FFFFFF"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="5"><button class="gh"><span class="gname">布局</span><span class="cnt">5</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fp" data-search="X Y 布局">
+                  <div class="pc"><span class="lb2">X</span><div class="num"><input value="1530"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">Y</span><div class="num"><input value="170"><span class="un">px</span></div></div>
+                </div>
+                <div class="fp" data-search="宽 Width 高 Height 布局">
+                  <div class="pc"><span class="lb2">宽</span><div class="num"><input value="88"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">高</span><div class="num"><input value="32"><span class="un">px</span></div></div>
+                </div>
+                <div class="fr" data-search="旋转 Rotation 布局"><span class="lb">旋转</span>
+                  <div class="ed"><div class="num"><input value="0"><span class="un">°</span></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="1"><button class="gh"><span class="gname">交互</span><span class="cnt">1</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="所需权限 RequiredPermission 交互"><span class="lb">所需权限</span>
+                  <div class="ed"><div class="sel" tabindex="0"><span class="sv">不限制</span><i class="chev"></i></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="2"><button class="gh"><span class="gname">事件</span><span class="cnt">2</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="ev is-on is-open" data-search="按下 Pressed 事件">
+                  <div class="ev-h"><input type="checkbox" class="ck" checked><span class="ev-n">按下</span><span class="ev-sum">1 个动作</span><span class="grow"></span><i class="chev"></i></div>
+                  <div class="ev-b">
+                    <div class="brow"><input type="checkbox" class="ck"><span class="bl">执行前确认</span></div>
+                    <div class="ev-cap">动作（自上而下依次执行）：</div>
+                    <div class="ac warn"><div class="ac-h"><span class="stp">1</span><div class="sel sm"><span class="sv">置位</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                      <div class="ac-b">
+                        <div class="vrow"><span class="vname miss">还没选变量</span><button class="mbtn wide">选择变量</button></div>
+                        <input class="in sm" placeholder="位号（Bool 留空）">
+                        <div class="wline">还没选变量，这条动作运行时会跳过。</div>
+                      </div></div>
+                    <button class="add">＋ 添加动作</button>
+                  </div>
+                </div>
+                <div class="ev" data-search="释放 Released 事件">
+                  <div class="ev-h"><input type="checkbox" class="ck"><span class="ev-n">释放</span><span class="grow"></span><i class="chev"></i></div>
+                  <div class="ev-b"></div>
+                </div>
+              </div>
+            </section>
+            <section class="grp" data-total="7"><button class="gh"><span class="gname">动画</span><span class="cnt">7</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="an is-on is-open" data-search="外观变化 Appearance 动画">
+                  <div class="an-h"><input type="checkbox" class="ck" checked><span class="an-n">外观变化</span><span class="an-sum">0 ~ 1 → 前景红 · 2 档</span><i class="chev"></i></div>
+                  <div class="an-b">
+                    <div class="an-row"><input type="checkbox" class="ck" checked><span class="bl" style="font-size:11px;">启用</span><span class="vname">T101_LEVEL</span><button class="mbtn wide">选变量</button><button class="ib dg" title="断开变量"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="statec">
+                      <div class="r1"><span class="cap">值</span><input class="in xs" value="0"><span class="cap">~</span><input class="in xs" value="1"><span class="grow"></span><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                      <div class="r2"><span class="cap">前景</span><button class="csw" style="--c:#D24545;width:20px;height:18px;"></button><span class="cap">背景</span><button class="csw alpha" style="--c:transparent;width:20px;height:18px;"></button><span class="grow"></span><label style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--ink-2);"><input type="checkbox" class="ck" style="width:13px;height:13px;">闪烁</label></div>
+                    </div>
+                    <button class="add">＋ 添加档位</button>
+                  </div>
+                </div>
+                <div class="an" data-search="水平移动 HorizontalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">水平移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="垂直移动 VerticalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">垂直移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="可见性 Visibility 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">可见性</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="启用对象 Enable 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">启用对象</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="对角线移动 DiagonalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">对角线移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="比例移动 ProportionalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">比例移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              </div>
+            </section>
+            <div class="pn-empty"><div class="empty"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div></div>
+          </div>
+          <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+        </div>
+
+        <!-- 多曲线趋势 -->
+        <div class="hv" data-view="trend" style="display:none;" data-panel>
+          <header class="ph">
+            <span class="ph-ic"><svg class="i"><use href="#i-trend"/></svg></span>
+            <div><div class="ph-name">多曲线趋势</div><div class="ph-sub"><span class="ph-type">Hmi.MultiTrend</span></div></div>
+            <div class="ph-lock"><span>锁定</span><button class="sw"></button></div>
+          </header>
+          <div class="tools">
+            <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性" data-search-input><button class="clr">✕</button></div>
+            <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+          </div>
+          <div class="scroll">
+            <section class="grp" data-total="1"><button class="gh"><span class="gname">基本</span><span class="cnt">1</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fs" data-search="名称 Name 基本"><label class="lb2">名称</label><input class="in" value="多曲线趋势"></div>
+              </div>
+            </section>
+            <section class="grp" data-total="4"><button class="gh"><span class="gname">外观</span><span class="cnt">4</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="填充色 Fill 外观"><span class="lb">填充色</span>
+                  <div class="ed"><div class="cwr"><button class="csw" style="--c:#141B22"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+                <div class="fr" data-search="边框色 Stroke 外观"><span class="lb">边框色</span>
+                  <div class="ed"><div class="cwr"><button class="csw" style="--c:#293645"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+                <div class="fp" data-search="边框粗细 StrokeThickness 圆角 CornerRadius 外观">
+                  <div class="pc"><span class="lb2">边框粗细</span><div class="num"><input value="1"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">圆角</span><div class="num"><input value="8"><span class="un">px</span></div></div>
+                </div>
+              </div>
+            </section>
+            <section class="grp" data-total="5"><button class="gh"><span class="gname">布局</span><span class="cnt">5</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fp" data-search="X Y 布局">
+                  <div class="pc"><span class="lb2">X</span><div class="num"><input value="1310"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">Y</span><div class="num"><input value="420"><span class="un">px</span></div></div>
+                </div>
+                <div class="fp" data-search="宽 Width 高 Height 布局">
+                  <div class="pc"><span class="lb2">宽</span><div class="num"><input value="360"><span class="un">px</span></div></div>
+                  <div class="pc"><span class="lb2">高</span><div class="num"><input value="200"><span class="un">px</span></div></div>
+                </div>
+                <div class="fr" data-search="旋转 Rotation 布局"><span class="lb">旋转</span>
+                  <div class="ed"><div class="num"><input value="0"><span class="un">°</span></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="7"><button class="gh"><span class="gname">数据</span><span class="cnt">7</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="series" data-search="曲线 Series 曲线卡 数据">
+                  <div class="series-h"><span></span><span>名称</span><span>值</span><span></span></div>
+                  <div class="srow has-bind"><button class="dot" style="--c:#38BDF8" title="曲线 1 颜色"></button><input class="in" value="温度"><input class="in val" value="78.4"><button class="fx on" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button>
+                    <div class="sbind"><span class="f">ƒ</span><span class="v" title="T101_TEMP">T101_TEMP</span><button class="x">✕</button></div></div>
+                  <div class="srow has-bind"><button class="dot" style="--c:#22C55E" title="曲线 2 颜色"></button><input class="in" value="压力"><input class="in val" value="0.62"><button class="fx on" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button>
+                    <div class="sbind"><span class="f">ƒ</span><span class="v" title="T101_PRESS">T101_PRESS</span><button class="x">✕</button></div></div>
+                  <div class="srow"><button class="dot" style="--c:#F59E0B" title="曲线 3 颜色"></button><input class="in" value="转速"><input class="in val" value="0"><button class="fx" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button></div>
+                  <div class="srow"><button class="dot" style="--c:#A855F7" title="曲线 4 颜色"></button><input class="in" value="辅助量"><input class="in val" value="0"><button class="fx" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button></div>
+                  <div class="series-f">色点 = 曲线颜色（自「外观」组移入）；ƒx 绑变量；名称留空 = 图例不显示该条。</div>
+                </div>
+                <div class="fr" data-search="时间窗 TimeWindow 数据"><span class="lb">时间窗</span>
+                  <div class="ed"><div class="num"><input value="60"><span class="un">s</span></div></div><span class="slot"></span></div>
+                <div class="fr" data-search="量程模式 RangeMode 数据"><span class="lb">量程模式</span>
+                  <div class="ed"><div class="sel" tabindex="0"><span class="sv">独立量程</span><i class="chev"></i></div></div><span class="slot"></span></div>
+                <div class="brow" data-search="显示图例 ShowLegend 数据"><input type="checkbox" class="ck" checked><span class="bl">显示图例</span></div>
+              </div>
+            </section>
+            <section class="grp" data-total="1"><button class="gh"><span class="gname">交互</span><span class="cnt">1</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="fr" data-search="所需权限 RequiredPermission 交互"><span class="lb">所需权限</span>
+                  <div class="ed"><div class="sel" tabindex="0"><span class="sv">不限制</span><i class="chev"></i></div></div><span class="slot"></span></div>
+              </div>
+            </section>
+            <section class="grp closed" data-total="7"><button class="gh"><span class="gname">动画</span><span class="cnt">7</span><i class="chev"></i></button>
+              <div class="gb">
+                <div class="an" data-search="外观变化 Appearance 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">外观变化</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="水平移动 HorizontalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">水平移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="垂直移动 VerticalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">垂直移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="可见性 Visibility 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">可见性</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="启用对象 Enable 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">启用对象</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="对角线移动 DiagonalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">对角线移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+                <div class="an" data-search="比例移动 ProportionalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">比例移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              </div>
+            </section>
+            <div class="pn-empty"><div class="empty"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div></div>
+          </div>
+          <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 三对象 ============ -->
+<section class="sec" id="s2">
+  <div class="sec-head"><span class="sec-index">02</span><h2>三种编辑对象（1:1 完整面板）</h2>
+    <p>卡片化分组 + 混合标签。画面 5 组 / 趋势 6 组；趋势的 4 条曲线收成曲线卡（外观组 8→4、数据组 11→7）。</p></div>
+  <div class="panels">
+    <div class="panel-wrap" id="wrap-page">
+      <div class="panel-label"><b>画面</b> · ScadaPage · 5 卡 14 项</div>
+      <div class="panel standalone" id="panel-page" data-panel>
+        <header class="ph">
+          <span class="ph-ic"><svg class="i"><use href="#i-page"/></svg></span>
+          <div><div class="ph-name">画面_1</div><div class="ph-sub"><span class="ph-type">画面</span><span class="ph-type">1920 × 1080</span></div></div>
+        </header>
+        <div class="tools">
+          <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性" data-search-input><button class="clr">✕</button></div>
+          <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+        </div>
+        <div class="scroll">
+          <section class="grp" data-total="2"><button class="gh"><span class="gname">基本信息</span><span class="cnt">2</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fs" data-search="名称 Name 基本信息"><label class="lb2">名称</label><input class="in" value="画面_1"></div>
+              <div class="fs" data-search="说明 Description 基本信息"><label class="lb2">说明</label><textarea class="in"></textarea></div>
+            </div>
+          </section>
+          <section class="grp" data-total="2"><button class="gh"><span class="gname">画布尺寸</span><span class="cnt">2</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fp" data-search="宽 Width 高 Height 画布尺寸">
+                <div class="pc"><span class="lb2">宽</span><div class="num"><input value="1920"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">高</span><div class="num"><input value="1080"><span class="un">px</span></div></div>
+              </div>
+            </div>
+          </section>
+          <section class="grp" data-total="4"><button class="gh"><span class="gname">背景</span><span class="cnt">4</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="背景色 Background 背景"><span class="lb">背景色</span>
+                <div class="ed"><div class="cwr"><button class="csw" style="--c:#000000" data-palette="p3"></button><span class="grow"></span></div>
+                  <div class="pal" id="p3"><div class="cap">色板</div>
+                    <div class="cells"><button style="background:#000"></button><button style="background:#fff"></button><button style="background:#1E2530"></button><button style="background:#5B6673"></button><button style="background:#2F6BE4"></button><button style="background:#2F9E64"></button><button style="background:#D07A1D"></button><button style="background:#D24545"></button><button style="background:#A855F7"></button><button style="background:#38BDF8"></button><button style="background:#141B22"></button><button style="background:#E7EEF6"></button></div>
+                    <div class="arow"><span class="cap" style="margin:0;">透明度</span><div class="track"><i></i></div><b>255</b></div>
+                    <div class="hrow"><input class="in" value="#FF000000"><span class="prev" style="background:#000"></span></div>
+                    <div class="btns"><button class="btn-s">取消</button><button class="btn-s pri">确定</button></div>
+                  </div>
+                </div><span class="slot"></span></div>
+              <div class="fr" data-search="背景图 BackgroundImage 背景"><span class="lb">背景图</span>
+                <div class="ed"><div class="imgr"><span class="thumb">空</span><span class="imsum">未选择</span><span class="imb"><button class="mbtn wide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-folder"/></svg>选择…</button></span></div></div><span class="slot"></span></div>
+              <div class="fr" data-search="背景填充 BackgroundStretch 背景"><span class="lb">背景填充</span>
+                <div class="ed"><div class="sel" tabindex="0"><span class="sv">保持比例</span><i class="chev"></i></div></div><span class="slot"></span></div>
+              <div class="fr" data-search="背景不透明度 BackgroundOpacity 背景"><span class="lb">不透明度</span>
+                <div class="ed"><div class="num"><input value="100"><span class="un">%</span></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="1"><button class="gh"><span class="gname">设计辅助</span><span class="cnt">1</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="网格间距 GridSize 设计辅助"><span class="lb">网格间距</span>
+                <div class="ed"><div class="num"><input value="10"><span class="un">px</span></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="5"><button class="gh"><span class="gname">运行</span><span class="cnt">5</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="所需权限 RequiredPermission 运行"><span class="lb">所需权限</span>
+                <div class="ed"><div class="sel" tabindex="0"><span class="sv">不限制</span><i class="chev"></i></div></div><span class="slot"></span></div>
+              <div class="brow" data-search="弹窗页 IsPopup 运行"><input type="checkbox" class="ck"><span class="bl">弹窗页</span></div>
+              <div class="brow" data-search="启动画面 StartupPage 运行"><input type="checkbox" class="ck"><span class="bl">启动画面</span></div>
+              <div class="ev is-on is-open" data-search="加载完成 Loaded 运行">
+                <div class="ev-h"><input type="checkbox" class="ck" checked><span class="ev-n">加载完成</span><span class="ev-sum">2 个动作</span><span class="grow"></span><i class="chev"></i></div>
+                <div class="ev-b">
+                  <div class="ev-cap">动作（自上而下依次执行）：</div>
+                  <div class="ac"><div class="ac-h"><span class="stp">1</span><div class="sel sm"><span class="sv">记录日志</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="ac-b"><input class="in sm" placeholder="留空则记录「图元名 + 事件名」"></div></div>
+                  <div class="ac"><div class="ac-h"><span class="stp">2</span><div class="sel sm"><span class="sv">写变量</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="ac-b"><div class="vrow"><span class="vname">System.Recipe.Deviation</span><button class="mbtn wide">选择变量</button></div><input class="in sm" value="0"></div></div>
+                  <button class="add">＋ 添加动作</button>
+                </div>
+              </div>
+              <div class="ev" data-search="卸载 Unloaded 运行">
+                <div class="ev-h"><input type="checkbox" class="ck"><span class="ev-n">卸载</span><span class="grow"></span><i class="chev"></i></div>
+                <div class="ev-b"></div>
+              </div>
+            </div>
+          </section>
+          <div class="pn-empty"><div class="empty"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div></div>
+        </div>
+        <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+      </div>
+    </div>
+
+    <div class="panel-wrap" id="wrap-button">
+      <div class="panel-label"><b>按钮</b> · Hmi.Button · 7 卡 25 项</div>
+      <div class="panel standalone" id="panel-button" data-panel>
+        <header class="ph">
+          <span class="ph-ic"><svg class="i"><use href="#i-widget"/></svg></span>
+          <div><div class="ph-name">按钮</div><div class="ph-sub"><span class="ph-type">Hmi.Button</span></div></div>
+          <div class="ph-lock"><span>锁定</span><button class="sw"></button></div>
+        </header>
+        <div class="tools">
+          <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性" data-search-input><button class="clr">✕</button></div>
+          <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+        </div>
+        <div class="scroll">
+          <section class="grp" data-total="1"><button class="gh"><span class="gname">基本</span><span class="cnt">1</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fs" data-search="名称 Name 基本"><label class="lb2">名称</label><input class="in" value="按钮"></div>
+            </div>
+          </section>
+          <section class="grp" data-total="5"><button class="gh"><span class="gname">外观</span><span class="cnt">5</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="填充色 Fill 外观"><span class="lb">填充色</span>
+                <div class="ed"><div class="cwr"><button class="csw" style="--c:#2D7DD2" data-palette="p4"></button><span class="grow"></span></div>
+                  <div class="pal" id="p4"><div class="cap">色板</div>
+                    <div class="cells"><button style="background:#2D7DD2"></button><button style="background:#1F5C9E"></button><button style="background:#2F6BE4"></button><button style="background:#38BDF8"></button><button style="background:#2F9E64"></button><button style="background:#D07A1D"></button><button style="background:#D24545"></button><button style="background:#A855F7"></button><button style="background:#1E2530"></button><button style="background:#5B6673"></button><button style="background:#141B22"></button><button style="background:#fff"></button></div>
+                    <div class="arow"><span class="cap" style="margin:0;">透明度</span><div class="track"><i></i></div><b>255</b></div>
+                    <div class="hrow"><input class="in" value="#FF2D7DD2"><span class="prev" style="background:#2D7DD2"></span></div>
+                    <div class="btns"><button class="btn-s">取消</button><button class="btn-s pri">确定</button></div>
+                  </div>
+                </div><span class="slot"></span></div>
+              <div class="fr" data-search="边框色 Stroke 外观"><span class="lb">边框色</span>
+                <div class="ed"><div class="cwr"><button class="csw" style="--c:#1F5C9E"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+              <div class="fp" data-search="边框粗细 StrokeThickness 圆角 CornerRadius 外观">
+                <div class="pc"><span class="lb2">边框粗细</span><div class="num"><input value="1"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">圆角</span><div class="num"><input value="3"><span class="un">px</span></div></div>
+              </div>
+              <div class="brow" data-search="危险动作 Danger 外观"><input type="checkbox" class="ck"><span class="bl">危险动作</span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="4"><button class="gh"><span class="gname">文本</span><span class="cnt">4</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fs" data-search="文字 Text 文本"><label class="lb2">文字</label><input class="in" value="按钮"></div>
+              <div class="fp" data-search="字号 FontSize 字重 FontWeight 文本">
+                <div class="pc"><span class="lb2">字号</span><div class="num"><input value="12"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">字重</span><div class="sel"><span class="sv">常规</span><i class="chev"></i></div></div>
+              </div>
+              <div class="fr" data-search="文字颜色 Foreground 文本"><span class="lb">文字颜色</span>
+                <div class="ed"><div class="cwr"><button class="csw alpha" style="--c:#FFFFFF"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="5"><button class="gh"><span class="gname">布局</span><span class="cnt">5</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fp" data-search="X Y 布局">
+                <div class="pc"><span class="lb2">X</span><div class="num"><input value="1530"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">Y</span><div class="num"><input value="170"><span class="un">px</span></div></div>
+              </div>
+              <div class="fp" data-search="宽 Width 高 Height 布局">
+                <div class="pc"><span class="lb2">宽</span><div class="num"><input value="88"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">高</span><div class="num"><input value="32"><span class="un">px</span></div></div>
+              </div>
+              <div class="fr" data-search="旋转 Rotation 布局"><span class="lb">旋转</span>
+                <div class="ed"><div class="num"><input value="0"><span class="un">°</span></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="1"><button class="gh"><span class="gname">交互</span><span class="cnt">1</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="所需权限 RequiredPermission 交互"><span class="lb">所需权限</span>
+                <div class="ed"><div class="sel" tabindex="0"><span class="sv">不限制</span><i class="chev"></i></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="2"><button class="gh"><span class="gname">事件</span><span class="cnt">2</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="ev is-on is-open" data-search="按下 Pressed 事件">
+                <div class="ev-h"><input type="checkbox" class="ck" checked><span class="ev-n">按下</span><span class="ev-sum">1 个动作</span><span class="grow"></span><i class="chev"></i></div>
+                <div class="ev-b">
+                  <div class="brow"><input type="checkbox" class="ck"><span class="bl">执行前确认</span></div>
+                  <div class="ev-cap">动作（自上而下依次执行）：</div>
+                  <div class="ac warn"><div class="ac-h"><span class="stp">1</span><div class="sel sm"><span class="sv">置位</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="ac-b">
+                      <div class="vrow"><span class="vname miss">还没选变量</span><button class="mbtn wide">选择变量</button></div>
+                      <input class="in sm" placeholder="位号（Bool 留空）">
+                      <div class="wline">还没选变量，这条动作运行时会跳过。</div>
+                    </div></div>
+                  <button class="add">＋ 添加动作</button>
+                </div>
+              </div>
+              <div class="ev" data-search="释放 Released 事件">
+                <div class="ev-h"><input type="checkbox" class="ck"><span class="ev-n">释放</span><span class="grow"></span><i class="chev"></i></div>
+                <div class="ev-b"></div>
+              </div>
+            </div>
+          </section>
+          <section class="grp" data-total="7"><button class="gh"><span class="gname">动画</span><span class="cnt">7</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="an is-on is-open" data-search="外观变化 Appearance 动画">
+                <div class="an-h"><input type="checkbox" class="ck" checked><span class="an-n">外观变化</span><span class="an-sum">0 ~ 1 → 前景红 · 2 档</span><i class="chev"></i></div>
+                <div class="an-b">
+                  <div class="an-row"><input type="checkbox" class="ck" checked><span class="bl" style="font-size:11px;">启用</span><span class="vname">T101_LEVEL</span><button class="mbtn wide">选变量</button><button class="ib dg" title="断开变量"><svg><use href="#i-x"/></svg></button></div>
+                  <div class="statec">
+                    <div class="r1"><span class="cap">值</span><input class="in xs" value="0"><span class="cap">~</span><input class="in xs" value="1"><span class="grow"></span><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="r2"><span class="cap">前景</span><button class="csw" style="--c:#D24545;width:20px;height:18px;"></button><span class="cap">背景</span><button class="csw alpha" style="--c:transparent;width:20px;height:18px;"></button><span class="grow"></span><label style="display:inline-flex;align-items:center;gap:4px;font-size:10.5px;color:var(--ink-2);"><input type="checkbox" class="ck" style="width:13px;height:13px;">闪烁</label></div>
+                  </div>
+                  <button class="add">＋ 添加档位</button>
+                </div>
+              </div>
+              <div class="an" data-search="水平移动 HorizontalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">水平移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="垂直移动 VerticalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">垂直移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="可见性 Visibility 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">可见性</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="启用对象 Enable 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">启用对象</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="对角线移动 DiagonalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">对角线移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="比例移动 ProportionalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">比例移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+            </div>
+          </section>
+          <div class="pn-empty"><div class="empty"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div></div>
+        </div>
+        <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+      </div>
+    </div>
+
+    <div class="panel-wrap" id="wrap-trend">
+      <div class="panel-label"><b>多曲线趋势</b> · Hmi.MultiTrend · 6 卡 31 项</div>
+      <div class="panel standalone" id="panel-trend" data-panel>
+        <header class="ph">
+          <span class="ph-ic"><svg class="i"><use href="#i-trend"/></svg></span>
+          <div><div class="ph-name">多曲线趋势</div><div class="ph-sub"><span class="ph-type">Hmi.MultiTrend</span></div></div>
+          <div class="ph-lock"><span>锁定</span><button class="sw"></button></div>
+        </header>
+        <div class="tools">
+          <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性" data-search-input><button class="clr">✕</button></div>
+          <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+        </div>
+        <div class="scroll">
+          <section class="grp" data-total="1"><button class="gh"><span class="gname">基本</span><span class="cnt">1</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fs" data-search="名称 Name 基本"><label class="lb2">名称</label><input class="in" value="多曲线趋势"></div>
+            </div>
+          </section>
+          <section class="grp" data-total="4"><button class="gh"><span class="gname">外观</span><span class="cnt">4</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="填充色 Fill 外观"><span class="lb">填充色</span>
+                <div class="ed"><div class="cwr"><button class="csw" style="--c:#141B22"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+              <div class="fr" data-search="边框色 Stroke 外观"><span class="lb">边框色</span>
+                <div class="ed"><div class="cwr"><button class="csw" style="--c:#293645"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+              <div class="fp" data-search="边框粗细 StrokeThickness 圆角 CornerRadius 外观">
+                <div class="pc"><span class="lb2">边框粗细</span><div class="num"><input value="1"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">圆角</span><div class="num"><input value="8"><span class="un">px</span></div></div>
+              </div>
+            </div>
+          </section>
+          <section class="grp" data-total="5"><button class="gh"><span class="gname">布局</span><span class="cnt">5</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fp" data-search="X Y 布局">
+                <div class="pc"><span class="lb2">X</span><div class="num"><input value="1310"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">Y</span><div class="num"><input value="420"><span class="un">px</span></div></div>
+              </div>
+              <div class="fp" data-search="宽 Width 高 Height 布局">
+                <div class="pc"><span class="lb2">宽</span><div class="num"><input value="360"><span class="un">px</span></div></div>
+                <div class="pc"><span class="lb2">高</span><div class="num"><input value="200"><span class="un">px</span></div></div>
+              </div>
+              <div class="fr" data-search="旋转 Rotation 布局"><span class="lb">旋转</span>
+                <div class="ed"><div class="num"><input value="0"><span class="un">°</span></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="7"><button class="gh"><span class="gname">数据</span><span class="cnt">7</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="series" data-search="曲线 Series 曲线卡 数据">
+                <div class="series-h"><span></span><span>名称</span><span>值</span><span></span></div>
+                <div class="srow has-bind"><button class="dot" style="--c:#38BDF8" title="曲线 1 颜色"></button><input class="in" value="温度"><input class="in val" value="78.4"><button class="fx on" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button>
+                  <div class="sbind"><span class="f">ƒ</span><span class="v" title="T101_TEMP">T101_TEMP</span><button class="x">✕</button></div></div>
+                <div class="srow has-bind"><button class="dot" style="--c:#22C55E" title="曲线 2 颜色"></button><input class="in" value="压力"><input class="in val" value="0.62"><button class="fx on" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button>
+                  <div class="sbind"><span class="f">ƒ</span><span class="v" title="T101_PRESS">T101_PRESS</span><button class="x">✕</button></div></div>
+                <div class="srow"><button class="dot" style="--c:#F59E0B" title="曲线 3 颜色"></button><input class="in" value="转速"><input class="in val" value="0"><button class="fx" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button></div>
+                <div class="srow"><button class="dot" style="--c:#A855F7" title="曲线 4 颜色"></button><input class="in" value="辅助量"><input class="in val" value="0"><button class="fx" title="绑定工程变量"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button></div>
+                <div class="series-f">色点 = 曲线颜色（自「外观」组移入）；ƒx 绑变量；名称留空 = 图例不显示该条。</div>
+              </div>
+              <div class="fr" data-search="时间窗 TimeWindow 数据"><span class="lb">时间窗</span>
+                <div class="ed"><div class="num"><input value="60"><span class="un">s</span></div></div><span class="slot"></span></div>
+              <div class="fr" data-search="量程模式 RangeMode 数据"><span class="lb">量程模式</span>
+                <div class="ed"><div class="sel" tabindex="0"><span class="sv">独立量程</span><i class="chev"></i></div></div><span class="slot"></span></div>
+              <div class="brow" data-search="显示图例 ShowLegend 数据"><input type="checkbox" class="ck" checked><span class="bl">显示图例</span></div>
+            </div>
+          </section>
+          <section class="grp" data-total="1"><button class="gh"><span class="gname">交互</span><span class="cnt">1</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr" data-search="所需权限 RequiredPermission 交互"><span class="lb">所需权限</span>
+                <div class="ed"><div class="sel" tabindex="0"><span class="sv">不限制</span><i class="chev"></i></div></div><span class="slot"></span></div>
+            </div>
+          </section>
+          <section class="grp closed" data-total="7"><button class="gh"><span class="gname">动画</span><span class="cnt">7</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="an" data-search="外观变化 Appearance 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">外观变化</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="水平移动 HorizontalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">水平移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="垂直移动 VerticalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">垂直移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="可见性 Visibility 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">可见性</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="启用对象 Enable 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">启用对象</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="对角线移动 DiagonalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">对角线移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+              <div class="an" data-search="比例移动 ProportionalMove 动画"><div class="an-h"><input type="checkbox" class="ck"><span class="an-n">比例移动</span><span class="grow"></span><i class="chev"></i></div><div class="an-b"></div></div>
+            </div>
+          </section>
+          <div class="pn-empty"><div class="empty"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div></div>
+        </div>
+        <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 布局体系 ============ -->
+<section class="sec" id="s3">
+  <div class="sec-head"><span class="sec-index">03</span><h2>布局体系：三种字段行</h2>
+    <p>窄面板消灭标签截断的办法不是加宽标签列，而是按字段形态选布局。三条规则覆盖全部行。</p></div>
+  <div class="layout-demo">
+    <div class="ld"><div class="cap"><b>① 左标签行</b><span class="tag">颜色 / 下拉 / 单数值 / 只读</span></div>
+      <div class="bd">
+        <div class="fr"><span class="lb">填充色</span><div class="ed"><div class="cwr"><button class="csw" style="--c:#2D7DD2"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+        <div class="fr"><span class="lb">量程模式</span><div class="ed"><div class="sel"><span class="sv">独立量程</span><i class="chev"></i></div></div><span class="slot"></span></div>
+        <div class="fr"><span class="lb">时间窗</span><div class="ed"><div class="num"><input value="60"><span class="un">s</span></div></div><span class="slot"></span></div>
+        <p class="note" style="margin:0;font-size:11px;">标签 ≤ 5 字；72px 标签列 + 编辑器 + 22px 槽位（ƒx）。</p>
+      </div>
+    </div>
+    <div class="ld"><div class="cap"><b>② 上标签字段</b><span class="tag">名称 / 文字 / 说明</span></div>
+      <div class="bd">
+        <div class="fs"><label class="lb2">名称</label><input class="in" value="按钮"></div>
+        <div class="fs"><label class="lb2">说明</label><textarea class="in"></textarea></div>
+        <p class="note" style="margin:0;font-size:11px;">长文本独占整行；标签在上方，控件全宽，永不截断。</p>
+      </div>
+    </div>
+    <div class="ld"><div class="cap"><b>③ 成对网格</b><span class="tag">X/Y · 宽/高 · 粗细/圆角 · 字号/字重</span></div>
+      <div class="bd">
+        <div class="fp">
+          <div class="pc"><span class="lb2">X</span><div class="num"><input value="1530"><span class="un">px</span></div></div>
+          <div class="pc"><span class="lb2">Y</span><div class="num"><input value="170"><span class="un">px</span></div></div>
+        </div>
+        <div class="fp">
+          <div class="pc"><span class="lb2">宽</span><div class="num"><input value="88"><span class="un">px</span></div></div>
+          <div class="pc"><span class="lb2">高</span><div class="num"><input value="32"><span class="un">px</span></div></div>
+        </div>
+        <p class="note" style="margin:0;font-size:11px;">天然成对的数值一行两列，行数减半；小标签 10.5px 雾灰。</p>
+      </div>
+    </div>
+  </div>
+  <div class="callout blue" style="margin-top:14px;">
+    <span class="i2">i</span>
+    <div><b>选择规则：</b>① 标签 ≤5 字且控件矮（颜色/下拉/单数值）→ 左标签；② 长文本（名称/文字/说明）→ 上标签；③ 模型上天然成对（几何、值域、偏移、字号/字重）→ 成对网格。布尔行与复合卡不占标签列。</div>
+  </div>
+</section>
+
+<!-- ============ 04 行与状态 ============ -->
+<section class="sec" id="s4">
+  <div class="sec-head"><span class="sec-index">04</span><h2>行类型与状态标本</h2>
+    <p>每张小卡是 1:1 面板片段；绑定态是「chip 替换输入」，不另占一行。</p></div>
+  <div class="spec-grid">
+    <div class="spec"><div class="cap"><b>文本（上标签）</b><span class="tag">Text</span></div><div class="bd">
+      <div class="fs"><label class="lb2">名称</label><input class="in" value="按钮"></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>成对数值 + 单位</b><span class="tag">Number</span></div><div class="bd">
+      <div class="fp">
+        <div class="pc"><span class="lb2">宽</span><div class="num"><input value="88"><span class="un">px</span></div></div>
+        <div class="pc"><span class="lb2">高</span><div class="num"><input value="32"><span class="un">px</span></div></div>
+      </div>
+      <div class="fr"><span class="lb">旋转</span><div class="ed"><div class="num"><input value="0"><span class="un">°</span></div></div><span class="slot"></span></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>布尔</b><span class="tag">Bool</span></div><div class="bd">
+      <div class="brow"><input type="checkbox" class="ck"><span class="bl">弹窗页</span></div>
+      <div class="brow"><input type="checkbox" class="ck" checked><span class="bl">显示图例</span></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>颜色（色块 + 取色）</b><span class="tag">Color</span></div><div class="bd">
+      <div class="fr"><span class="lb">填充色</span><div class="ed"><div class="cwr"><button class="csw" style="--c:#2D7DD2"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+      <div class="fr"><span class="lb">文字颜色</span><div class="ed"><div class="cwr"><button class="csw alpha" style="--c:#FFFFFF"></button><span class="grow"></span></div></div><span class="slot"></span></div>
+    </div></div>
+
+    <div class="spec"><div class="cap"><b>下拉（中文显示，值落盘）</b><span class="tag">Choice</span></div><div class="bd">
+      <div class="fr"><span class="lb">量程模式</span><div class="ed"><div class="sel"><span class="sv">独立量程</span><i class="chev"></i></div></div><span class="slot"></span></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>只读 / 系统计算</b><span class="tag">ReadOnly</span></div><div class="bd">
+      <div class="fr"><span class="lb" style="color:var(--ink-4);">管线 X</span><div class="ed"><div class="ro lk"><svg style="width:11px;height:11px;"><use href="#i-lock"/></svg><span class="sv">240</span></div></div><span class="slot"></span></div>
+      <div class="fr"><span class="lb" style="color:var(--ink-4);">管线 Y</span><div class="ed"><div class="ro lk"><svg style="width:11px;height:11px;"><use href="#i-lock"/></svg><span class="sv">120</span></div></div><span class="slot"></span></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>非法值（就地原因）</b><span class="tag danger">Invalid</span></div><div class="bd">
+      <div class="fr"><span class="lb">宽</span><div class="ed"><div class="num invalid"><input value="0"></div></div><span class="slot"></span></div>
+      <div class="rerr">宽必须 ≥ 1（当前 0）。</div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>绑定（chip 替换输入）</b><span class="tag ok">Bound</span></div><div class="bd">
+      <div class="fr is-bound"><span class="lb">曲线 1 值</span><div class="ed"><input class="in" value="78.4" style="display:none;"><div class="bchip"><span class="f">ƒ</span><span class="v">T101_TEMP</span><button class="x">✕</button></div></div><span class="slot"><button class="fx on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button></span></div>
+      <p class="note" style="margin:0;font-size:10.5px;">不增高；点击 chip 换绑，✕ 解绑回到值输入。</p>
+    </div></div>
+
+    <div class="spec"><div class="cap"><b>禁用</b><span class="tag">Disabled</span></div><div class="bd">
+      <div class="fr"><span class="lb" style="color:var(--ink-4);">X</span><div class="ed"><div class="num"><input value="240" disabled></div></div><span class="slot"></span></div>
+      <div class="rerr" style="color:var(--ink-3);">由系统计算（随两端图元自动重排），不能直接修改。</div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>图片文件（空值）</b><span class="tag">ImageFile</span></div><div class="bd">
+      <div class="fr"><span class="lb">背景图</span><div class="ed"><div class="imgr"><span class="thumb">空</span><span class="imsum">未选择</span><span class="imb"><button class="mbtn wide">选择…</button></span></div></div><span class="slot"></span></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>图片文件（已选）</b><span class="tag">ImageFile</span></div><div class="bd">
+      <div class="fr"><span class="lb">背景图</span><div class="ed"><div class="imgr"><span class="thumb" style="background:linear-gradient(135deg,#DCE6F2,#B9CBE0);"></span><span class="imsum has">line-bg.png</span><span class="imb"><button class="mbtn" title="更换"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-folder"/></svg></button><button class="mbtn" title="清除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><use href="#i-x"/></svg></button></span></div></div><span class="slot"></span></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>搜索命中</b><span class="tag accent">Search</span></div><div class="bd">
+      <div class="sr has" style="height:28px;"><svg class="i"><use href="#i-search"/></svg><input value="曲线"><button class="clr" style="display:grid;">✕</button></div>
+      <section class="grp"><button class="gh"><span class="gname">数据</span><span class="cnt">8/11</span><i class="chev"></i></button>
+        <div class="gb" style="padding-top:7px;">
+          <div class="fr"><span class="lb">曲线 1 值</span><div class="ed"><div class="num"><input value="0"></div></div><span class="slot"></span></div>
+          <div class="fr"><span class="lb">曲线 1 名称</span><div class="ed"><input class="in" value="温度"></div><span class="slot"></span></div>
+        </div>
+      </section>
+      <p class="note" style="margin:0;font-size:10.5px;">示意：命中 8 行，此处只画 2 行。</p>
+    </div></div>
+
+    <div class="spec"><div class="cap"><b>搜索无结果</b><span class="tag">Empty</span></div><div class="bd">
+      <div class="empty" style="padding:16px 12px;"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名。</div><button class="btn-s">清除搜索</button></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>事件折叠（有摘要）</b><span class="tag accent">Event</span></div><div class="bd">
+      <div class="ev is-on"><div class="ev-h"><input type="checkbox" class="ck" checked><span class="ev-n">加载完成</span><span class="ev-sum">2 个动作</span><span class="grow"></span><i class="chev"></i></div><div class="ev-b"></div></div>
+      <div class="ev"><div class="ev-h"><input type="checkbox" class="ck"><span class="ev-n">卸载</span><span class="grow"></span><i class="chev"></i></div><div class="ev-b"></div></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>动画折叠（有摘要）</b><span class="tag accent">Animation</span></div><div class="bd">
+      <div class="an is-on"><div class="an-h"><input type="checkbox" class="ck" checked><span class="an-n">外观变化</span><span class="an-sum">0 ~ 1 → 前景红 · 2 档</span><i class="chev"></i></div></div>
+      <div class="an is-on miss"><div class="an-h"><input type="checkbox" class="ck" checked><span class="an-n">可见性</span><span class="an-sum">未选变量</span><i class="chev"></i></div></div>
+    </div></div>
+
+    <div class="spec"><div class="cap"><b>组头错误聚合</b><span class="tag warn">Group</span></div><div class="bd">
+      <section class="grp"><button class="gh"><span class="gname">数据</span><span class="gd err"></span><span class="cnt">11</span><i class="chev"></i></button>
+        <div class="gb" style="padding-top:7px;">
+          <div class="fr"><span class="lb">曲线 3 值</span><div class="ed"><div class="num invalid"><input value="abc"></div></div><span class="slot"></span></div>
+          <div class="rerr">请输入数字。</div>
+        </div>
+      </section>
+    </div></div>
+    <div class="spec" style="overflow:visible;"><div class="cap"><b>取色板（248px 弹出）</b><span class="tag">Color</span></div><div class="bd">
+      <div class="fr" style="position:relative;"><span class="lb">填充色</span>
+        <div class="ed"><div class="cwr"><button class="csw" style="--c:#2D7DD2" data-palette="p5"></button><span class="grow"></span></div>
+          <div class="pal open" id="p5" style="top:34px;"><div class="cap">色板</div>
+            <div class="cells"><button style="background:#2D7DD2"></button><button style="background:#1F5C9E"></button><button style="background:#2F6BE4"></button><button style="background:#38BDF8"></button><button style="background:#2F9E64"></button><button style="background:#D07A1D"></button><button style="background:#D24545"></button><button style="background:#A855F7"></button><button style="background:#1E2530"></button><button style="background:#5B6673"></button><button style="background:#141B22"></button><button style="background:#fff"></button></div>
+            <div class="arow"><span class="cap" style="margin:0;">透明度</span><div class="track"><i></i></div><b>255</b></div>
+            <div class="hrow"><input class="in" value="#FF2D7DD2"><span class="prev" style="background:#2D7DD2"></span></div>
+            <div class="btns"><button class="btn-s">取消</button><button class="btn-s pri">确定</button></div>
+          </div>
+        </div><span class="slot"></span></div>
+      <p class="note" style="margin:0;font-size:10.5px;">色板 + 透明度 + 十六进制 + 预览；点「确定」才写回（一次提交 = 一条撤销记录）。</p>
+    </div></div>
+    <div class="spec"><div class="cap"><b>空态（未打开方案）</b><span class="tag">Empty</span></div><div class="bd">
+      <div class="empty" style="padding:16px 12px;"><div class="glyph"><svg class="i"><use href="#i-widget"/></svg></div><div class="title">还没有组态画面</div><div class="hint">先在左侧新建一个画面，或打开一个已有方案。</div></div>
+    </div></div>
+    <div class="spec"><div class="cap"><b>曲线卡（趋势数据组）</b><span class="tag ok">Series</span></div><div class="bd">
+      <div class="series">
+        <div class="series-h"><span></span><span>名称</span><span>值</span><span></span></div>
+        <div class="srow has-bind"><button class="dot" style="--c:#38BDF8"></button><input class="in" value="温度"><input class="in val" value="78.4"><button class="fx on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button>
+          <div class="sbind"><span class="f">ƒ</span><span class="v" title="T101_TEMP">T101_TEMP</span><button class="x">✕</button></div></div>
+        <div class="srow"><button class="dot" style="--c:#22C55E"></button><input class="in" value="压力"><input class="in val" value="0.62"><button class="fx"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><use href="#i-link"/></svg></button></div>
+      </div>
+    </div></div>
+  </div>
+</section>
+
+<!-- ============ 05 事件与提示 ============ -->
+<section class="sec" id="s5">
+  <div class="sec-head"><span class="sec-index">05</span><h2>事件与动作编辑器 + 工具提示</h2>
+    <p>事件卡折叠头 = 勾选（存在）+ 摘要 + 箭头；动作卡有序号、状态条与就地原因。</p></div>
+  <div class="panels">
+    <div class="panel-wrap">
+      <div class="panel-label"><b>事件：按下</b> · 3 条动作，1 条未完成</div>
+      <div class="panel standalone" style="height:auto;">
+        <header class="ph">
+          <span class="ph-ic"><svg class="i"><use href="#i-widget"/></svg></span>
+          <div><div class="ph-name">按钮</div><div class="ph-sub"><span class="ph-type">Hmi.Button</span></div></div>
+          <div class="ph-lock"><span>锁定</span><button class="sw"></button></div>
+        </header>
+        <div class="tools">
+          <div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性"></div>
+          <button class="tico" data-fold title="全部折叠"><svg class="i"><use href="#i-fold"/></svg></button>
+        </div>
+        <div class="scroll">
+          <section class="grp"><button class="gh"><span class="gname">事件</span><span class="gd"></span><span class="cnt">2</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="ev is-on is-open">
+                <div class="ev-h"><input type="checkbox" class="ck" checked><span class="ev-n">按下</span><span class="ev-sum">3 个动作</span><span class="grow"></span><i class="chev"></i></div>
+                <div class="ev-b">
+                  <div class="brow"><input type="checkbox" class="ck"><span class="bl">执行前确认</span></div>
+                  <div class="ev-cap">动作（自上而下依次执行）：</div>
+                  <div class="ac"><div class="ac-h"><span class="stp">1</span><div class="sel sm"><span class="sv">记录日志</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="ac-b"><input class="in sm" placeholder="留空则记录「图元名 + 事件名」"></div></div>
+                  <div class="ac"><div class="ac-h"><span class="stp">2</span><div class="sel sm"><span class="sv">写变量</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="ac-b"><div class="vrow"><span class="vname">System.Recipe.Deviation</span><button class="mbtn wide">选择变量</button></div><input class="in sm" value="0"><div class="brow"><input type="checkbox" class="ck" checked><span class="bl" style="font-size:10.5px;">仅在上一条成功时执行</span></div></div></div>
+                  <div class="ac warn"><div class="ac-h"><span class="stp">3</span><div class="sel sm"><span class="sv">写变量</span><i class="chev"></i></div><button class="ib" title="上移"><svg><use href="#i-up"/></svg></button><button class="ib" title="下移"><svg><use href="#i-down"/></svg></button><button class="ib dg" title="删除"><svg><use href="#i-x"/></svg></button></div>
+                    <div class="ac-b"><div class="vrow"><span class="vname miss">还没选变量</span><button class="mbtn wide">选择变量</button></div><input class="in sm" value="0"><div class="brow"><input type="checkbox" class="ck"><span class="bl" style="font-size:10.5px;">仅在上一条成功时执行</span></div><div class="wline">还没选变量，这条动作运行时会跳过。</div></div></div>
+                  <button class="add">＋ 添加动作</button>
+                </div>
+              </div>
+              <div class="ev"><div class="ev-h"><input type="checkbox" class="ck"><span class="ev-n">释放</span><span class="grow"></span><i class="chev"></i></div><div class="ev-b"></div></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:420px;max-width:640px;">
+      <div class="tooltip-demo">
+        <div class="tipcard"><h4>现状：系统默认 ToolTip</h4><p class="sub">黄底、11px、宽度不受控；长描述直接盖住动作卡。</p>
+          <div class="tip-old">勾选后，运行态命中该事件时按顺序执行这个事件下面配置的动作（新建时自动带一条“记录日志”便于排查；不勾选则事件不触发（Bool 留空）</div></div>
+        <div class="tipcard"><h4>v2：深色工具提示</h4><p class="sub">12px/1.45、最大宽 240、圆角 8；图标按钮用短提示并补自动化名。</p>
+          <div class="tip-new">勾选后，运行态命中该事件时按顺序执行下面配置的动作。新建时自动带一条「记录日志」便于排查；不勾选则事件不触发。</div></div>
+      </div>
+      <div class="callout" style="margin-top:14px;">
+        <span class="i2">!</span>
+        <div><b>复刻要点：</b>keyed <code>PropertyTooltip</code>（不改全局隐式 ToolTip）；事件卡头部 = 勾选（存在）+ 点击展开；勾选与展开解耦后，未配置的事件没有展开区，配置了的事件摘要在折叠时可见。</div>
+      </div>
+      <div class="callout blue" style="margin-top:10px;">
+        <span class="i2">i</span>
+        <div><b>可访问性：</b>动作卡的 ↑ / ↓ / ✕ 与 ƒx 必须带短 ToolTip 与 <code>AutomationProperties.Name</code>（纯图标按钮在 UIA 树里目前没有可读名）。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 搜索与折叠 ============ -->
+<section class="sec" id="s6">
+  <div class="sec-head"><span class="sec-index">06</span><h2>搜索、折叠与空态</h2>
+    <p>搜索期间命中卡强制展开、计数变「命中/总数」；工具行的「折叠全部」一键切换；组头错误点折叠时仍可见。</p></div>
+  <div class="panels">
+    <div class="panel-wrap">
+      <div class="panel-label"><b>搜索命中</b> · 「曲线」</div>
+      <div class="panel standalone" style="height:auto;">
+        <header class="ph"><span class="ph-ic"><svg class="i"><use href="#i-trend"/></svg></span><div><div class="ph-name">多曲线趋势</div><div class="ph-sub"><span class="ph-type">Hmi.MultiTrend</span></div></div><div class="ph-lock"><span>锁定</span><button class="sw"></button></div></header>
+        <div class="tools"><div class="sr has"><svg class="i"><use href="#i-search"/></svg><input value="曲线"><button class="clr" style="display:grid;">✕</button></div><button class="tico" data-fold><svg class="i"><use href="#i-fold"/></svg></button></div>
+        <div class="scroll">
+          <section class="grp"><button class="gh"><span class="gname">数据</span><span class="cnt">8/11</span><i class="chev"></i></button>
+            <div class="gb">
+              <div class="fr"><span class="lb">曲线 1 值</span><div class="ed"><div class="num"><input value="0"></div></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 2 值</span><div class="ed"><div class="num"><input value="0"></div></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 3 值</span><div class="ed"><div class="num"><input value="0"></div></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 4 值</span><div class="ed"><div class="num"><input value="0"></div></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 1 名称</span><div class="ed"><input class="in" value="温度"></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 2 名称</span><div class="ed"><input class="in" value="压力"></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 3 名称</span><div class="ed"><input class="in" value="转速"></div><span class="slot"></span></div>
+              <div class="fr"><span class="lb">曲线 4 名称</span><div class="ed"><input class="in" value="辅助量"></div><span class="slot"></span></div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+    <div class="panel-wrap">
+      <div class="panel-label"><b>搜索无结果</b> · 「流量」</div>
+      <div class="panel standalone" style="height:auto;">
+        <header class="ph"><span class="ph-ic"><svg class="i"><use href="#i-widget"/></svg></span><div><div class="ph-name">按钮</div><div class="ph-sub"><span class="ph-type">Hmi.Button</span></div></div><div class="ph-lock"><span>锁定</span><button class="sw"></button></div></header>
+        <div class="tools"><div class="sr has"><svg class="i"><use href="#i-search"/></svg><input value="流量"><button class="clr" style="display:grid;">✕</button></div><button class="tico" data-fold><svg class="i"><use href="#i-fold"/></svg></button></div>
+        <div class="scroll">
+          <div class="empty" style="padding:26px 18px;"><div class="glyph"><svg class="i"><use href="#i-search"/></svg></div><div class="title">没有匹配的属性</div><div class="hint">换个关键词试试。搜索匹配属性名、键名与分组名（如「宽」「Fill」「布局」）。</div><button class="btn-s">清除搜索</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel-wrap">
+      <div class="panel-label"><b>全部折叠</b> · 错误点仍可见</div>
+      <div class="panel standalone" style="height:auto;">
+        <header class="ph"><span class="ph-ic"><svg class="i"><use href="#i-trend"/></svg></span><div><div class="ph-name">多曲线趋势</div><div class="ph-sub"><span class="ph-type">Hmi.MultiTrend</span></div></div><div class="ph-lock"><span>锁定</span><button class="sw"></button></div></header>
+        <div class="tools"><div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性"></div><button class="tico"><svg class="i"><use href="#i-unfold"/></svg></button></div>
+        <div class="scroll">
+          <section class="grp closed"><button class="gh"><span class="gname">基本</span><span class="cnt">2</span><i class="chev"></i></button></section>
+          <section class="grp closed"><button class="gh"><span class="gname">外观</span><span class="cnt">4</span><i class="chev"></i></button></section>
+          <section class="grp closed"><button class="gh"><span class="gname">布局</span><span class="cnt">5</span><i class="chev"></i></button></section>
+          <section class="grp closed"><button class="gh"><span class="gname">数据</span><span class="gd err"></span><span class="cnt">7</span><i class="chev"></i></button></section>
+          <section class="grp closed"><button class="gh"><span class="gname">交互</span><span class="cnt">1</span><i class="chev"></i></button></section>
+          <section class="grp closed"><button class="gh"><span class="gname">动画</span><span class="cnt">7</span><i class="chev"></i></button></section>
+        </div>
+        <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+      </div>
+    </div>
+    <div class="panel-wrap">
+      <div class="panel-label"><b>空态</b> · 未打开方案</div>
+      <div class="panel standalone" style="height:auto;">
+        <header class="ph"><span class="ph-ic" style="background:var(--chip);color:var(--ink-3);"><svg class="i"><use href="#i-widget"/></svg></span><div><div class="ph-name">未选择对象</div><div class="ph-sub"><span class="ph-type">未打开方案</span></div></div></header>
+        <div class="tools"><div class="sr"><svg class="i"><use href="#i-search"/></svg><input placeholder="搜索属性"></div><button class="tico" data-fold><svg class="i"><use href="#i-fold"/></svg></button></div>
+        <div class="scroll">
+          <div class="empty" style="padding:30px 18px;"><div class="glyph"><svg class="i"><use href="#i-widget"/></svg></div><div class="title">还没有组态画面</div><div class="hint">先在左侧新建一个画面，或打开一个已有方案。</div></div>
+        </div>
+        <nav class="dtabs"><button class="on">属性</button><button>图层</button><button>图元工具箱</button></nav>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 v1→v2 差异 ============ -->
+<section class="sec" id="s7">
+  <div class="sec-head"><span class="sec-index">07</span><h2>v1 → v2 差异清单</h2>
+    <p>v1 已归档为 <code>design-v1.html</code>；本表是重构的全部决策点。</p></div>
+  <table class="table">
+    <thead><tr><th style="width:34px;">#</th><th style="width:30%;">v1（已归档）</th><th>v2（本稿）</th><th style="width:22%;">理由</th><th style="width:60px;">成本</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>分组 = 组头 + 发丝线，直接铺在面板底色上</td><td><b>卡片化分组</b>：纯白卡 + 淡蓝灰描边 + 极浅投影，卡间距 8px；折叠即收成一条卡头</td><td>三层深度；长面板的位置感与折叠目标明确</td><td class="cost">S</td></tr>
+      <tr><td class="num">2</td><td>全部行共用「左标签 80 + 编辑器 + 槽」</td><td><b>混合标签</b>：左标签 72（颜色/下拉/单数值）+ 上标签（名称/文字/说明）+ <b>成对网格</b>（X/Y、宽/高、粗细/圆角、字号/字重）</td><td>消灭截断；成对行数减半</td><td class="cost">M</td></tr>
+      <tr><td class="num">3</td><td>输入 = 白底 + 描边（框中框）</td><td><b>filled 输入</b>：浅灰底无边框，聚焦白底 + 主色描边 + 柔光；高 26 → 28</td><td>降噪；聚焦态更明确</td><td class="cost">S</td></tr>
+      <tr><td class="num">4</td><td>绑定 = 行下 20px 绑定带</td><td><b>绑定 chip 替换输入框</b>（ƒ + 变量名 + ✕），行高不变；曲线卡内为行下小 chip（列窄）</td><td>绑定态是「值被谁驱动」，应替换值而非追加</td><td class="cost">M</td></tr>
+      <tr><td class="num">5</td><td>事件/动画 = 文字行勾选 + 内联展开</td><td><b>折叠卡</b>：头部 = 勾选 + 名称 + 摘要 + 箭头；配置中的卡头晨雾蓝底；展开区有边界</td><td>存在/展开解耦；容器感</td><td class="cost">M</td></tr>
+      <tr><td class="num">6</td><td>趋势数据组 11 行平铺（方案 A/B 待定）</td><td><b>曲线卡定稿</b>：4 行「色点+名称+值+ƒx」+ 3 行设置；4 个曲线颜色自「外观」移入数据组（外观 8→4，数据 11→7）</td><td>每条曲线一行闭合；落盘键不变</td><td class="cost">L</td></tr>
+      <tr><td class="num">7</td><td>对象头 = 图标块 + 名称 + 类型键 + 锁定</td><td>保留结构；图标块晨雾蓝底 + 主色线性图标；类型键等宽字体；页面模式显示尺寸 chip</td><td>身份更清晰</td><td class="cost">S</td></tr>
+      <tr><td class="num">8</td><td>工具行只有搜索</td><td>搜索 + <b>「折叠全部/展开全部」</b>图标按钮（状态切换）</td><td>长面板一键收纳</td><td class="cost">S</td></tr>
+      <tr><td class="num">9</td><td>搜索时折叠组可能藏住命中</td><td>搜索期间命中卡<b>强制展开</b>，计数「命中/总数」，清除后恢复折叠</td><td>搜索永不漏</td><td class="cost">M</td></tr>
+      <tr><td class="num">10</td><td>组错误聚合、动画摘要等 Q1~Q8 未定</td><td>全部按 v2 默认实现：组头错误点、动画摘要、颜色 hex、单位、图片空值占位、只读锁图标</td><td>评审遗留项一次收口</td><td class="cost">M</td></tr>
+      <tr><td class="num">11</td><td>面板底灰 + 白描边输入，6px 圆角体系</td><td>卡片 10px 圆角、控件 7px、chip 6px；阴影只有卡与弹出层两层</td><td>现代视觉基线</td><td class="cost">S</td></tr>
+      <tr><td class="num">12</td><td>底部 dock 页签默认样式</td><td>34px；选中项主色 + 2px 下划线；hover 石板灰加深</td><td>与卡片语言一致</td><td class="cost">S</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 08 样式规范 ============ -->
+<section class="sec" id="s8">
+  <div class="sec-head"><span class="sec-index">08</span><h2>样式规范（配色用名称与视觉描述）</h2>
+    <p>配色、字阶、间距、圆角、阴影、图标与动效；WPF 复刻映射见本节末尾。</p></div>
+
+  <div class="swatches" style="margin-bottom:14px;">
+    <div class="swt"><span class="d" style="background:#F3F5F9;"></span><span class="t"><b>雾白</b>面板底：带一点冷调的近白</span></div>
+    <div class="swt"><span class="d" style="background:#FFFFFF;"></span><span class="t"><b>纯白</b>卡片与弹出层</span></div>
+    <div class="swt"><span class="d" style="background:#F2F4F8;"></span><span class="t"><b>浅灰</b>filled 输入底（比卡面深半档）</span></div>
+    <div class="swt"><span class="d" style="background:#E2E7EF;"></span><span class="t"><b>淡蓝灰</b>卡片描边 / 发丝分隔</span></div>
+    <div class="swt"><span class="d" style="background:#1E2530;"></span><span class="t"><b>墨黑</b>主文字、工具提示底</span></div>
+    <div class="swt"><span class="d" style="background:#5B6673;"></span><span class="t"><b>石板灰</b>次级文字、标签</span></div>
+    <div class="swt"><span class="d" style="background:#98A2B0;"></span><span class="t"><b>雾灰</b>占位、单位、弱化</span></div>
+    <div class="swt"><span class="d" style="background:#2F6BE4;"></span><span class="t"><b>晴空蓝</b>主色：焦点、选中、主按钮、ƒx</span></div>
+    <div class="swt"><span class="d" style="background:#EBF2FE;"></span><span class="t"><b>晨雾蓝</b>主色柔底：选中行、配置中的卡头、绑定 chip</span></div>
+    <div class="swt"><span class="d" style="background:#D24545;"></span><span class="t"><b>赤红</b>错误描边/文字、删除悬停、危险</span></div>
+    <div class="swt"><span class="d" style="background:#D07A1D;"></span><span class="t"><b>琥珀</b>待完成：未选变量、组头错误点</span></div>
+    <div class="swt"><span class="d" style="background:#2F9E64;"></span><span class="t"><b>苔绿</b>成功（预留：绑定成功回执）</span></div>
+    <div class="swt"><span class="d" style="background:#0D1218;"></span><span class="t"><b>深蓝黑</b>画布上下文（非面板域）</span></div>
+    <div class="swt"><span class="d" style="background:#38BDF8;"></span><span class="t"><b>浅晴蓝</b>画布内强调 / 曲线一（图元域）</span></div>
+  </div>
+
+  <div class="grid2">
+    <div class="card" style="padding:16px;">
+      <h3 style="margin:0 0 8px;font-size:13.5px;">排版 / 间距 / 圆角 / 阴影</h3>
+      <ul style="margin:0;padding-left:18px;color:#475569;font-size:12px;line-height:1.75;">
+        <li>字阶：<b>13</b>（对象名）/ <b>12.5</b>（组名）/ <b>12</b>(正文与输入) / <b>11.5</b>（左标签）/ <b>11</b>（上标签、辅助）/ <b>10.5</b>（计数、单位、脚注）；行高 1.35–1.5。</li>
+        <li>控件高 <b>28px</b>（紧凑型 24/22）；卡头 <b>38px</b>；对象头约 <b>52px</b>；dock 页签 <b>34px</b>。</li>
+        <li>间距：卡间距 8、卡内字段距 7、卡体水平内边距 11；滚动区左右 10。</li>
+        <li>圆角：卡 10、输入 7、chip/色块 6、对象头图标块 9、弹出层 12。</li>
+        <li>阴影两级：卡片「浮起一层纸」、弹出层「明显悬浮」；其余靠描边与底色差。</li>
+        <li>图标：16px 线性、1.5px 圆头描边，单色继承文字色；小尺寸 12–13px。</li>
+        <li>动效：120–160ms ease-out；折叠/箭头/开关/弹出淡入；不做位移动画。</li>
+      </ul>
+    </div>
+    <div class="card" style="padding:16px;">
+      <h3 style="margin:0 0 8px;font-size:13.5px;">WPF 复刻映射</h3>
+      <ul style="margin:0;padding-left:18px;color:#475569;font-size:12px;line-height:1.75;">
+        <li>卡片 = <code>Border CornerRadius=10</code> + 1px 描边 + 浅 <code>DropShadowEffect</code>；组头 = 卡内首行 Button。</li>
+        <li>filled 输入 = TextBox 无边框模板 + 外层 Border 提供底色与聚焦描边/柔光（聚焦用外层换色，避免行抖）。</li>
+        <li>成对网格 = Grid 两列；上标签 = StackPanel；绑定 chip = Border + TextBlock + Button（替换编辑器，DataTrigger 按 HasBinding）。</li>
+        <li>事件/动画折叠卡 = Expander（keyed 样式）+ 头部勾选/摘要/箭头；勾选与展开两个状态源。</li>
+        <li>曲线卡 = 新复合行类型（参照 EditorKind.Event/Animation），数据组内一行曲 face 卡 + 3 行普通行；落盘键不变。</li>
+        <li>新增令牌（进 <code>Colors.xaml</code>，R140）：卡片底/卡片描边/输入底/输入悬停/主色柔底/柔光环/绑定 chip 三色/警告柔底/错误柔底。</li>
+        <li>断言：卡圆角与间距、成对网格列宽、绑定 chip 替换、折叠卡两状态源、曲线卡 7 项、搜索强制展开、折叠全部。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 待裁定 ============ -->
+<section class="sec" id="s9">
+  <div class="sec-head"><span class="sec-index">09</span><h2>待裁定 Q1~Q6</h2>
+    <p>v1 的 Q1~Q8 已在 v2 给出默认答案（评审遗留项一次收口）；以下是 v2 新引入、需要拍板的六项。</p></div>
+  <div class="qlist">
+    <div class="q"><h4><span class="tag accent">Q1</span>卡片化分组是否接受</h4><p>v1 是「去卡片化」（省宽度），v2 反转为卡片化（要层次）。300px 下卡体编辑器约 187px，仍可用。</p><div class="rec">建议：接受。层次感与折叠收益大于 11px 宽度损失。</div></div>
+    <div class="q"><h4><span class="tag accent">Q2</span>混合标签布局是否接受</h4><p>上标签 + 成对网格会改变行节奏；WPF 复刻是三种 DataTemplate，不是一种。</p><div class="rec">建议：接受。截断与行数问题一次解决。</div></div>
+    <div class="q"><h4><span class="tag accent">Q3</span>绑定 chip 替换输入是否接受</h4><p>绑定后看不到当前值（值由变量驱动）；解绑后回到输入框。曲线卡内为行下小 chip。</p><div class="rec">建议：接受；若现场要看值，可在 chip 后附只读小字当前值（备选）。</div></div>
+    <div class="q"><h4><span class="tag danger">Q4</span>曲线卡定稿（外观组 8→4）</h4><p>4 个曲线颜色移入数据组卡；分组计数与 <code>ScadaChecks</code> 快照需同步。</p><div class="rec">建议：定稿；这是 v2 唯一的结构变化。</div></div>
+    <div class="q"><h4><span class="tag warn">Q5</span>事件卡「勾选=存在」与箭头解耦</h4><p>未配置的事件没有展开区；配置了的事件折叠时显示「N 个动作」。</p><div class="rec">建议：接受；语义与现有模型一致，只改呈现。</div></div>
+    <div class="q"><h4><span class="tag">Q6</span>控件高 26 → 28</h4><p>行高从 32 变 34；面板更长但更透气。紧凑档（24px）可留给表格类面板。</p><div class="rec">建议：接受 28；如需回 26 只改一个变量。</div></div>
+  </div>
+  <div class="callout" style="margin-top:16px;">
+    <span class="i2">i</span>
+    <div><b>确认后的下一步：</b>① 本稿定稿为 v2 并冻结；② 按样式规范复刻 WPF（含新增令牌）；③ 出「改前 / 改后」截图按 R132 验收。v1 保留在 <code>design-v1.html</code> 供对照。</div>
+  </div>
+</section>
+
+</main>
+
+<script>
+/* 交互：对象切换 / 卡片折叠 / 折叠全部 / 事件与动画展开 / 取色板 / 搜索 / 绑定演示
+   ?shot=<sectionId>&only=page|button|trend  → 单屏截图模式 */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var shot = q.get('shot');
+  if (shot) {
+    document.body.classList.add('shot');
+    document.querySelectorAll('.sec').forEach(function (s) {
+      s.classList.toggle('is-target', s.id === shot);
+    });
+    var only = q.get('only');
+    if (only) document.body.classList.add('only-' + only);
+  }
+
+  var seg = document.getElementById('hero-seg');
+  if (seg) {
+    seg.addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-hero]');
+      if (!btn) return;
+      seg.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+      document.querySelectorAll('#hero-panel .hv').forEach(function (v) {
+        v.style.display = v.getAttribute('data-view') === btn.getAttribute('data-hero') ? '' : 'none';
+      });
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    var fold = e.target.closest('[data-fold]');
+    if (fold) {
+      var scope = fold.closest('[data-panel]');
+      var groups = scope ? scope.querySelectorAll('.grp') : [];
+      var anyOpen = false;
+      groups.forEach(function (g) { if (!g.classList.contains('closed')) anyOpen = true; });
+      groups.forEach(function (g) { g.classList.toggle('closed', anyOpen); });
+      var use = fold.querySelector('use');
+      if (use) use.setAttribute('href', anyOpen ? '#i-unfold' : '#i-fold');
+      return;
+    }
+
+    var gh = e.target.closest('.gh');
+    if (gh) { var g0 = gh.closest('.grp'); if (g0) g0.classList.toggle('closed'); return; }
+
+    var dis = e.target.closest('.ev-h, .an-h');
+    if (dis && !e.target.closest('input')) {
+      var box = dis.closest('.ev, .an');
+      if (box && box.classList.contains('is-on')) box.classList.toggle('is-open');
+      return;
+    }
+
+    var sw = e.target.closest('[data-palette]');
+    if (sw) {
+      var pal = document.getElementById(sw.getAttribute('data-palette'));
+      if (pal) {
+        var was = pal.classList.contains('open');
+        document.querySelectorAll('.pal.open').forEach(function (p) { p.classList.remove('open'); });
+        if (!was) pal.classList.add('open');
+      }
+      return;
+    }
+    if (e.target.closest('.pal')) return;
+    document.querySelectorAll('.pal.open').forEach(function (p) { p.classList.remove('open'); });
+
+    var fx = e.target.closest('.fx');
+    if (fx) {
+      fx.classList.toggle('on');
+      var row = fx.closest('.fr');
+      if (row && row.querySelector('.bchip')) row.classList.toggle('is-bound');
+    }
+  });
+
+  document.addEventListener('change', function (e) {
+    var ck = e.target.closest('.ev-h input, .an-h input');
+    if (ck) {
+      var box = ck.closest('.ev, .an');
+      if (box) {
+        box.classList.toggle('is-on', ck.checked);
+        if (!ck.checked) box.classList.remove('is-open');
+      }
+    }
+  });
+
+  document.querySelectorAll('.dtabs').forEach(function (tabs) {
+    tabs.addEventListener('click', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      tabs.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    });
+  });
+
+  document.querySelectorAll('[data-panel]').forEach(function (panel) {
+    var input = panel.querySelector('[data-search-input]');
+    if (!input) return;
+    var sr = input.closest('.sr');
+    var clear = panel.querySelector('.sr .clr');
+    var pnEmpty = panel.querySelector('.pn-empty');
+    var groups = panel.querySelectorAll('.grp');
+
+    function apply() {
+      var term = (input.value || '').trim().toLowerCase();
+      sr.classList.toggle('has', !!term);
+      var hits = 0;
+      panel.querySelectorAll('.fr, .fs, .fp, .ev, .an, .series, .brow').forEach(function (r) {
+        var text = (r.getAttribute('data-search') || r.textContent || '').toLowerCase();
+        var ok = !term || text.indexOf(term) >= 0;
+        r.classList.toggle('is-hidden', !ok);
+        if (ok) hits++;
+      });
+      groups.forEach(function (g) {
+        var rows = g.querySelectorAll('.fr, .fs, .fp, .ev, .an, .series, .brow');
+        var visible = 0;
+        rows.forEach(function (r) { if (!r.classList.contains('is-hidden')) visible++; });
+        g.classList.toggle('is-hidden', !!term && visible === 0);
+        g.classList.toggle('search-open', !!term && visible > 0);
+        var c = g.querySelector('.cnt');
+        if (c) {
+          var total = g.getAttribute('data-total') || rows.length;
+          c.textContent = term ? visible + '/' + total : total;
+        }
+      });
+      if (pnEmpty) pnEmpty.style.display = (term && hits === 0) ? 'block' : 'none';
+      panel.classList.toggle('noresult', !!term && hits === 0);
+    }
+
+    input.addEventListener('input', apply);
+    if (clear) clear.addEventListener('click', function () { input.value = ''; apply(); input.focus(); });
+    apply();
+  });
+})();
+</script>
+</body>
+</html>

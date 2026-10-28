@@ -81,8 +81,9 @@ namespace Plugin.BlobDetect
             "标定（可选）：接「标定」插件 Transform 输出；用于拦住「去畸变标定 + 原始像素」的静默错数")
         { IsRequired = false };
 
-        /// <summary>标注图：原图上把缺陷圈红 + 左上角写判定结果与个数</summary>
-        public OutputPort<HImage> DefectImage { get; } = new("DefectImage", "标注图（原图 + 缺陷红圈 + 判定文字）");
+        /// <summary>标注图：原图上把缺陷圈红 + 左上角写判定结果与个数。
+        /// <see cref="KeepAnnotatedImage"/>=false 时本端口为空（几何走 <see cref="Defects"/>）。</summary>
+        public OutputPort<HImage> DefectImage { get; } = new("DefectImage", "标注图（原图 + 缺陷红圈 + 判定文字；KeepAnnotatedImage=false 时为空）");
 
         /// <summary>缺陷区域对象集合（可直接给下游做进一步分析）</summary>
         public OutputPort<HRegion> Defects { get; } = new("Defects", "缺陷区域对象集合");
@@ -466,6 +467,17 @@ namespace Plugin.BlobDetect
         /// </summary>
         [StepConfig, DefaultValue(DefaultDisplayViewIndex)]
         public partial int DisplayViewIndex { get; set; }
+
+        /// <summary>
+        /// 是否产出标注图（<see cref="DefectImage"/>）。**默认 true = 存量方案行为不变**。
+        ///
+        /// 关掉（新流程推荐这么配）= 本插件只输出数值与几何（<see cref="Defects"/>），
+        /// 文字/红框由下游「结果显示」统一烧：省掉每轮一次全幅 dump，也不会再出现
+        /// "算法烧一遍 + 结果显示再烧一遍"的文字重影（2026-10-27 现场）。
+        /// 配置态预览（右侧标注图）**不受**本开关影响——调参时仍要看得到框与编号。
+        /// </summary>
+        [StepConfig]
+        public bool KeepAnnotatedImage { get; set; } = true;
 
         #endregion
 
@@ -1362,7 +1374,7 @@ namespace Plugin.BlobDetect
             try
             {
                 using var pack = DetectBlob(src, p, context.Logger);
-                result = ArrangeJudgeRender(pack, src, p, context.Logger);
+                result = ArrangeJudgeRender(pack, src, p, context.Logger, renderAnnotation: KeepAnnotatedImage);
             }
             catch (Exception ex)
             {
@@ -1777,7 +1789,7 @@ namespace Plugin.BlobDetect
         /// src 用作标注底图（预览缓存传"预览私有副本"，运行期传当轮源图）。
         /// highlightIndex 大于 0 时（1 基，对应缺陷清单/端口顺序）在标注图上额外套黄色高亮框。
         /// </summary>
-        private BlobResult ArrangeJudgeRender(DetectPack pack, HImage src, BlobParams p, ILogService? logger, int highlightIndex = 0)
+        private BlobResult ArrangeJudgeRender(DetectPack pack, HImage src, BlobParams p, ILogService? logger, int highlightIndex = 0, bool renderAnnotation = true)
         {
             var result = new BlobResult();
             var temp = new List<HObject>();
@@ -1848,6 +1860,10 @@ namespace Plugin.BlobDetect
                 result.Defects = new HRegion(defectsObj);
 
                 // ── 6. 标注图（渲染只是"给人看"，失败最多丢 DefectImage，绝不能把成功判成失败）──
+                // KeepAnnotatedImage=false：只输出数值与几何（Defects），渲染交给下游「结果显示」。
+                // 这是"算法只输出结果"的落点：本插件不再烧文字，文字重影从源头消失。
+                if (!renderAnnotation) return result;
+
                 try
                 {
                     // 只在相关参数生效时才补行，避免默认配置下文字刷满整张图

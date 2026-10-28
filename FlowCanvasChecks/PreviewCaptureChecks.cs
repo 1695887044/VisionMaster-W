@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using Core.Events;
 using Core.Interfaces;
@@ -89,6 +90,8 @@ namespace FlowCanvasChecks
             Check("清理后钩子已摘除（不影响后续用例）", ImagePreviewCaptureHub.Current == null, "");
 
             RunHarvestWindowChecks(settings);
+            RunMultiFlowChecks();
+            RunUiCoalescingChecks();
         }
 
         /// <summary>
@@ -180,6 +183,227 @@ namespace FlowCanvasChecks
                 ImagePreviewCaptureHub.Current = null;
             }
         }
+
+        /// <summary>
+        /// 多流程并发：帧归属与清空范围（2026-10-27 现场："A 投窗口1、B 投窗口2 → 窗口2 被 A 清空"）。
+        ///
+        /// 缺陷原貌（两条都在旧实现里）：
+        ///  ① 归属靠**单例全局** <c>_currentFlowName</c>（"最后开轮的那条流程"）。A、B 并发时
+        ///     A 发布的帧被记成 B 的，于是"只清本流程"把 B 的窗口清掉——正是现场症状；
+        ///  ② <c>ClearAll</c>（旧"每轮清空整张画布"）是画布级口径，A 开一轮就能把 B 的窗口一起清掉。
+        ///
+        /// 修法：流程身份由 <see cref="PreviewScope"/> 在每轮执行期间注入发布事件；
+        /// 自动清空只允许"流程级 / 窗口级"，且每条流程每轮各清一次（不是每帧清一次）。
+        /// 本组断言按真实操作顺序驱动：先开轮、再发布，并故意让 B 的开轮夹在 A 的开轮与发布之间
+        /// ——这正是旧实现会归属错的那一段时序。
+        /// </summary>
+        private static void RunMultiFlowChecks()
+        {
+            Section("[MC] 多流程并发：帧归属按发布流程、清空不越界");
+
+            var settings = new VisionMaster.Services.AppSettingsService();
+            var gallery = settings.Current.ImageGallery ??= new VisionMaster.Models.ImageGallerySettings();
+
+            bool savedEnabled = gallery.Enabled;
+            bool savedRealtime = gallery.IncludeRealtimePreviews;
+            bool savedInjectedHistory = gallery.KeepInjectedHistory;
+            var savedMode = gallery.RunStartMode;
+
+            var svc = new VisionMaster.Services.ImageCollectionService(settings, null!);
+            var publisher = new PreviewPublisherStub { InstanceName = "并发断言.发布方" };
+            var flowA = new VisionMaster.Models.FlowSession { FlowName = "并发流程A" };
+            var flowB = new VisionMaster.Models.FlowSession { FlowName = "并发流程B" };
+
+            try
+            {
+                gallery.Enabled = true;
+                gallery.IncludeRealtimePreviews = true;
+                gallery.KeepInjectedHistory = false;   // 每格只留一张（现场默认）
+
+                // ── 第 1 轮：A→窗口1、B→窗口2（各自开轮后发布）──────────────────
+                gallery.RunStartMode = VisionMaster.Models.ImageGalleryRunStartMode.ReplaceFlow;
+
+                svc.OnFlowRunStarted(flowA);
+                PublishInScope(publisher, flowA.FlowName, 1);
+                svc.OnFlowRunStarted(flowB);
+                PublishInScope(publisher, flowB.FlowName, 2);
+
+                Check("[MC1] 两条流程各占一个窗口：帧归属各是各的",
+                    FrameOf(svc, 1)?.FlowName == flowA.FlowName
+                    && FrameOf(svc, 2)?.FlowName == flowB.FlowName,
+                    DescribeFrames(svc));
+
+                // ── 第 2 轮：A、B 都先开轮，再让 A 发布 ──────────────────────────
+                // 旧实现按"最后开轮的流程"归属 → A 的帧被记成 B → 清空 B 的帧（窗口2 被清）
+                svc.OnFlowRunStarted(flowA);
+                svc.OnFlowRunStarted(flowB);
+                PublishInScope(publisher, flowA.FlowName, 1);
+
+                Check("[MC2] A 开一轮不得清掉 B 在另一个窗口的图（回归：窗口2 被 A 影响）",
+                    FrameOf(svc, 2)?.FlowName == flowB.FlowName,
+                    DescribeFrames(svc));
+
+                // 归属错了会在同一窗口多留一张（新帧换了槽位，旧帧没被替换）——所以按"窗口1 恰好一张"判，
+                // 而不是"取第一张看名字"：后者在旧帧仍在时会假绿。
+                var view1Frames = svc.Frames.Where(f => f.ViewIndex == 1).ToList();
+                Check("[MC3] A 的帧仍归 A，且同一窗口只留本轮一张（不按“最后开轮者”归属）",
+                    view1Frames.Count == 1 && view1Frames[0].FlowName == flowA.FlowName,
+                    DescribeFrames(svc));
+
+                // ── 窗口级口径：只清目标窗口，另一个窗口不动 ────────────────────
+                gallery.RunStartMode = VisionMaster.Models.ImageGalleryRunStartMode.ClearView;
+                svc.Clear();
+
+                svc.OnFlowRunStarted(flowB);
+                PublishInScope(publisher, flowB.FlowName, 1);   // 跨窗口对照：B 占窗口1
+                svc.OnFlowRunStarted(flowA);
+                PublishInScope(publisher, flowA.FlowName, 2);   // A 占窗口2
+
+                svc.OnFlowRunStarted(flowA);                    // A 新开一轮
+                PublishInScope(publisher, flowA.FlowName, 1);   // 投窗口1
+
+                Check("[MC4] 窗口级口径只清目标窗口：窗口2 的帧不受影响",
+                    FrameOf(svc, 2) != null,
+                    DescribeFrames(svc));
+                Check("[MC5] 窗口级口径确实清掉了目标窗口里别的流程的旧帧",
+                    FrameOf(svc, 1)?.FlowName == flowA.FlowName && svc.Count == 2,
+                    DescribeFrames(svc));
+
+                // ── 流程级口径：每条流程每轮只清一次，不误删本轮新帧 ─────────────
+                gallery.RunStartMode = VisionMaster.Models.ImageGalleryRunStartMode.ReplaceFlow;
+                svc.Clear();
+
+                svc.OnFlowRunStarted(flowA);
+                PublishInScope(publisher, flowA.FlowName, 1);
+                PublishInScope(publisher, flowA.FlowName, 2);
+
+                Check("[MC6] 流程级口径每轮只清一次：同一轮两个窗口的新帧都在",
+                    FrameOf(svc, 1) != null && FrameOf(svc, 2) != null,
+                    DescribeFrames(svc));
+
+                // ── 反向：没有流程作用域时不猜"最后开轮的流程" ──────────────────
+                svc.Clear();
+                svc.OnFlowRunStarted(flowA);
+                using (var img = new HImage("byte", 8, 8))
+                    publisher.PublishPreview(img, 1);           // 故意不设 PreviewScope
+
+                Check("[MC7] 无流程作用域 → 落伪流程桶（绝不猜最后开轮的流程）",
+                    FrameOf(svc, 1)?.FlowName == VisionMaster.Services.ImageCollectionService.RealtimeFlowName,
+                    DescribeFrames(svc));
+            }
+            finally
+            {
+                gallery.Enabled = savedEnabled;
+                gallery.IncludeRealtimePreviews = savedRealtime;
+                gallery.KeepInjectedHistory = savedInjectedHistory;
+                gallery.RunStartMode = savedMode;
+                svc.Clear();
+                ImagePreviewCaptureHub.Current = null;
+                flowA.Dispose();
+                flowB.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 批 2（2026-10-27）：帧入 UI 合并——队列有界、同一 (流程,窗口) 只留最新。
+        ///
+        /// 缺陷原貌：每发布一帧就 `BeginInvoke` 一个"清空+插入+裁剪+通知"的动作（Normal 优先级，
+        /// 高于 Render/Input）。循环运行时一旦每帧 UI 成本超过帧间隔，队列永远排不空 → 界面卡死；
+        /// 积压的每个动作还各钉着一张全幅图像副本（500 万像素彩图约 15MB）。
+        ///
+        /// 修法：发布线程拷完图先进"每个 (流程,窗口) 只留最新一张"的待插表，UI 忙时后来的帧
+        /// 直接顶掉先来的（先来的当场释放），队列长度被"流程数 × 窗口数"封顶。
+        /// 断言用 `SuspendUiDrainForTest` 模拟"UI 忙不过来"，判定的是队列内容而不是时序。
+        /// </summary>
+        private static void RunUiCoalescingChecks()
+        {
+            Section("[UI] 帧入 UI 合并：队列有界、只留最新一张");
+
+            var settings = new VisionMaster.Services.AppSettingsService();
+            var gallery = settings.Current.ImageGallery ??= new VisionMaster.Models.ImageGallerySettings();
+
+            bool savedEnabled = gallery.Enabled;
+            bool savedRealtime = gallery.IncludeRealtimePreviews;
+            bool savedInjectedHistory = gallery.KeepInjectedHistory;
+
+            var svc = new VisionMaster.Services.ImageCollectionService(settings, null!);
+            var publisher = new PreviewPublisherStub { InstanceName = "合并断言.发布方" };
+
+            try
+            {
+                gallery.Enabled = true;
+                gallery.IncludeRealtimePreviews = true;
+                gallery.KeepInjectedHistory = false;   // 只有"不保留历史"时才合并
+
+                using (svc.SuspendUiDrainForTest())
+                {
+                    PublishSized(publisher, "合并流程", 1, 8, 8);
+                    PublishSized(publisher, "合并流程", 1, 16, 16);
+                    PublishSized(publisher, "合并流程", 1, 24, 24);
+
+                    Check("[UI1] UI 忙时同一 (流程,窗口) 只留最新一帧（待插队列不随帧率增长）",
+                        svc.PendingFrameCountForTest == 1,
+                        $"待插={svc.PendingFrameCountForTest}");
+                    Check("[UI2] 合并期间一帧都还没插进去（不会半批可见）",
+                        svc.Count == 0, $"已插={svc.Count}");
+                }
+
+                Check("[UI3] 恢复排空后只插入最后一张（中间帧被丢弃并释放）",
+                    svc.Count == 1
+                    && svc.Frames[0].Width == 24 && svc.Frames[0].Height == 24,
+                    svc.Count == 0
+                        ? "没有帧"
+                        : $"帧数={svc.Count} 尺寸={svc.Frames[0].Width}x{svc.Frames[0].Height}");
+
+                // 收容打开时不能合并（每帧都是一条记录）——反向钉住"不要为了省事一刀切"
+                gallery.KeepInjectedHistory = true;
+                svc.Clear();
+                using (svc.SuspendUiDrainForTest())
+                {
+                    PublishSized(publisher, "合并流程", 1, 8, 8);
+                    PublishSized(publisher, "合并流程", 1, 16, 16);
+                    PublishSized(publisher, "合并流程", 1, 24, 24);
+                }
+                Check("[UI4] 收容打开时不合并：三帧都在（历史不能丢）",
+                    svc.Count == 3, $"帧数={svc.Count}");
+            }
+            finally
+            {
+                gallery.Enabled = savedEnabled;
+                gallery.IncludeRealtimePreviews = savedRealtime;
+                gallery.KeepInjectedHistory = savedInjectedHistory;
+                svc.Clear();
+                ImagePreviewCaptureHub.Current = null;
+            }
+        }
+
+        /// <summary>在指定流程作用域内发布一张 w×h 的图（尺寸用来判定"哪一帧被留下了"）</summary>
+        private static void PublishSized(PreviewPublisherStub publisher, string flowName, int viewIndex, int width, int height)
+        {
+            using (PreviewScope.Begin(flowName))
+            using (var img = new HImage("byte", width, height))
+            {
+                publisher.PublishPreview(img, viewIndex);
+            }
+        }
+
+        /// <summary>在指定流程作用域内发布一帧（等价于流程线程里 RunAlgorithm 调 PublishPreview）</summary>
+        private static void PublishInScope(PreviewPublisherStub publisher, string flowName, int viewIndex)
+        {
+            using (PreviewScope.Begin(flowName))
+            using (var img = new HImage("byte", 8, 8))
+            {
+                publisher.PublishPreview(img, viewIndex);
+            }
+        }
+
+        private static Core.Halcon.Models.ImageFrame? FrameOf(VisionMaster.Services.ImageCollectionService svc, int viewIndex)
+            => svc.Frames.FirstOrDefault(f => f.ViewIndex == viewIndex);
+
+        private static string DescribeFrames(VisionMaster.Services.ImageCollectionService svc)
+            => svc.Frames.Count == 0
+                ? "帧=0"
+                : "帧=" + string.Join("；", svc.Frames.Select(f => $"{f.FlowName}→窗口{f.ViewIndex}"));
 
         /// <summary>兜底采集用：带 <c>DisplayViewIndex</c> 输出的桩插件。
         /// 属性形态与真插件一致（<c>[StepConfig] int</c> 是普通属性、不进端口表，

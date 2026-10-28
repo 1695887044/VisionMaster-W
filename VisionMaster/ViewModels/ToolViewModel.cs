@@ -88,10 +88,17 @@ namespace VisionMaster.ViewModels
             {
                 if (SetProperty(ref searchText, value))
                 {
+                    RaisePropertyChanged(nameof(HasSearchText));
                     ApplyFilter();
                 }
             }
         }
+
+        /// <summary>搜索框里有没有文字（v2 清空按钮的显隐判据）。</summary>
+        public bool HasSearchText => !string.IsNullOrEmpty(searchText);
+
+        /// <summary>有搜索词但一个都没命中（v2 搜索空态；与"还没收藏"的空态分开）。</summary>
+        public bool HasNoSearchResults => HasSearchText && !FilteredToolBarSource.Any(g => g.Children.Count > 0);
 
         private bool _isGridView;
         /// <summary>true = 网格视图（2 列卡片），false = 列表视图（单列行）</summary>
@@ -135,6 +142,9 @@ namespace VisionMaster.ViewModels
         /// <summary>收藏/取消收藏；参数是条目 <see cref="ToolItemModel"/></summary>
         public ICommand ToggleFavoriteCommand { get; }
 
+        /// <summary>清空搜索词（v2 搜索框右侧清空按钮）。</summary>
+        public ICommand ClearSearchCommand { get; }
+
         public ToolViewModel(IPluginProvider pluginProvider, AppSettingsService? settings = null, ILogService? log = null)
         {
             this.pluginProvider = pluginProvider;
@@ -147,6 +157,7 @@ namespace VisionMaster.ViewModels
             ToggleViewModeCommand = new DelegateCommand<object?>(_ => IsGridView = !IsGridView);
             SetViewModeCommand = new DelegateCommand<object?>(OnSetViewMode);
             ToggleFavoriteCommand = new DelegateCommand<object?>(OnToggleFavorite);
+            ClearSearchCommand = new DelegateCommand(() => SearchText = string.Empty);
 
             LoadFavorites();
             loadTools();
@@ -282,6 +293,7 @@ namespace VisionMaster.ViewModels
                 }
 
                 TotalCount = matchedTotal;
+                RaisePropertyChanged(nameof(HasNoSearchResults));
             }
             finally
             {
@@ -371,6 +383,9 @@ namespace VisionMaster.ViewModels
             Name = plan.Name,
             Icon = plan.Icon,
             AccentBrush = plan.AccentBrush,
+            SoftBrush = plan.IsFavorites
+                ? ToolboxCategoryVisuals.FavoriteSoftBrush
+                : ToolboxCategoryVisuals.SoftBrushFor(plan.Name),
             IsFavorites = plan.IsFavorites,
             ExpandedChanged = OnGroupExpandedChanged,
         };
@@ -457,6 +472,7 @@ namespace VisionMaster.ViewModels
                     Name = g.Key,
                     Icon = ToolboxCategoryVisuals.IconFor(g.Key),
                     AccentBrush = ToolboxCategoryVisuals.BrushFor(g.Key),
+                    SoftBrush = ToolboxCategoryVisuals.SoftBrushFor(g.Key),
                     ExpandedChanged = OnGroupExpandedChanged,
                 };
                 g.ToList().ForEach(p => group.Children.Add(p.Value));

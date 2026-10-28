@@ -25,6 +25,7 @@
             <local:LogLevelColorConverter x:Key="LevelColor" />
             <local:PreviewErrorConverter x:Key="PreviewError" />
             <local:UrlDisplayConverter x:Key="UrlDisplay" />
+            <local:InputPortConverter x:Key="InputPortConv" />
             <BooleanToVisibilityConverter x:Key="BoolToVis" />
 
             <!--
@@ -190,6 +191,27 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <!--
+                字段行内的端口编辑器（R189：绑定一律走公共控件 LinkableValueEditor）。
+                Port 用 MultiBinding：字段名 + 宿主插件 + PortsVersion 三路，
+                端口对象重建后（PortsVersion 推一格）自动重取，不会指着已丢弃的旧端口。
+                范式同 Plugin.DataRecord 的 ColumnPortEditorTemplate。
+            -->
+            <DataTemplate x:Key="FieldPortEditorTemplate">
+                <cv:LinkableValueEditor
+                    VerticalAlignment="Center"
+                    Label=""
+                    StepData="{Binding DataContext.StepData, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <cv:LinkableValueEditor.Port>
+                        <MultiBinding Converter="{StaticResource InputPortConv}">
+                            <Binding Path="Name" />
+                            <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                            <Binding Path="DataContext.PortsVersion" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                        </MultiBinding>
+                    </cv:LinkableValueEditor.Port>
+                </cv:LinkableValueEditor>
+            </DataTemplate>
 
             <!--  报文预设卡片：IsChecked 仍由 ui:EnumConverter 写 PayloadKind  -->
             <Style x:Key="ModeCardStyle" TargetType="RadioButton">
@@ -785,7 +807,7 @@
                             <TextBlock
                                 Margin="0,0,0,4"
                                 Style="{StaticResource HelpTextStyle}"
-                                Text="来源=端口：字段名就是动态输入端口名，画布上连线供值；来源=变量 / 内置：运行期按名取值。"
+                                Text="来源=端口：字段名就是输入端口名，点行内 🔗 选上游输出或全局变量；来源=变量 / 内置：运行期按名取值。"
                                 Visibility="{Binding PayloadKind, Converter={StaticResource EnumInVis}, ConverterParameter='DingTalkText,WeComText,RawJson'}" />
                             <TextBlock
                                 Margin="0,0,0,4"
@@ -853,9 +875,9 @@
                                                     Grid.Column="1"
                                                     Margin="4,0,0,0"
                                                     Style="{StaticResource RowInputStyle}"
-                                                    Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}">
+                                                    Text="{Binding Name}">
                                                     <TextBox.ToolTip>
-                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="字段名（JSON 键 / 占位符名；来源=端口时也是端口名）" />
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="字段名（JSON 键 / 占位符名；来源=端口时也是端口名。改名后连线会自动迁到新端口名）" />
                                                     </TextBox.ToolTip>
                                                 </TextBox>
                                                 <ComboBox
@@ -865,7 +887,7 @@
                                                     SelectedItem="{Binding Source}"
                                                     Style="{StaticResource RowComboStyle}">
                                                     <ComboBox.ToolTip>
-                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="取值来源：端口=画布连线 / 变量=运行期变量池 / 内置=自动供给" />
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="取值来源：端口=行内 🔗 连上游输出 / 变量=运行期变量池 / 内置=自动供给" />
                                                     </ComboBox.ToolTip>
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate>
@@ -896,12 +918,16 @@
                                                             </DataTemplate>
                                                         </ComboBox.ItemTemplate>
                                                     </ComboBox>
-                                                    <TextBlock
+                                                    <!--
+                                                        来源=端口：用公共控件 LinkableValueEditor（R189）。
+                                                        按需由 ContentControl 实例化而不是常驻 + Visibility：
+                                                        非端口行没有动态端口（GetInputPort 返回 null），常驻会留下一个 Port=null 的空编辑器。
+                                                        端口对象每次 RebuildDynamicInputs 都换新，靠 PortsVersion 这个 MultiBinding 锚点重取。
+                                                    -->
+                                                    <ContentControl
                                                         VerticalAlignment="Center"
-                                                        FontSize="10.5"
-                                                        Foreground="{StaticResource DialogSuccessTextBrush}"
-                                                        Text="画布上连线供值"
-                                                        TextTrimming="CharacterEllipsis"
+                                                        Content="{Binding}"
+                                                        ContentTemplate="{StaticResource FieldPortEditorTemplate}"
                                                         Visibility="{Binding Source, Converter={StaticResource EnumInVis}, ConverterParameter=Port}" />
                                                 </Grid>
                                                 <Button
@@ -963,6 +989,24 @@
                                 Command="{Binding AddFieldCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                 Content="+ 添加字段"
                                 Style="{StaticResource MiniButtonStyle}" />
+
+                            <!--  字段操作回执（绑定 / 解绑 / 改名的结果；空串时整行不占位）  -->
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding StatusMessage}"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
 
                             <!--  通知内容模板  -->
                             <StackPanel

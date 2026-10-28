@@ -205,7 +205,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 MinPasswordLengthText = config.MinPasswordLength.ToString(CultureInfo.InvariantCulture),
 
                 GalleryEnabled = gallery.Enabled,
-                GalleryClearOnRun = gallery.RunStartMode == ImageGalleryRunStartMode.ClearAll,
+                GalleryClearOnRun = gallery.RunStartMode != ImageGalleryRunStartMode.ReplaceFlow,
                 GalleryKeepHistory = gallery.KeepFrameHistory,
                 GalleryKeepInjectedHistory = gallery.KeepInjectedHistory,
                 GalleryShowThumbnailStrip = gallery.ShowThumbnailStrip,
@@ -353,7 +353,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 : ScadaRunWindowMode.AttachedToMainWindow;
             var newMonitor = ResolveMonitorDeviceName(Draft.MonitorLabel);
             var newRunStart = Draft.GalleryClearOnRun
-                ? ImageGalleryRunStartMode.ClearAll
+                ? ImageGalleryRunStartMode.ClearView
                 : ImageGalleryRunStartMode.ReplaceFlow;
             var newLogDirectory = (Draft.LogDirectory ?? string.Empty).Trim();
             var newPasswordLength = minPassword > 0 ? minPassword : AppConfigModel.DefaultMinPasswordLength;
@@ -668,7 +668,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>图集留存模式的中文名（审计说明列用）</summary>
         private static string RunStartText(ImageGalleryRunStartMode mode)
-            => mode == ImageGalleryRunStartMode.ClearAll ? "清空整张画布" : "覆盖本流程上一轮的图";
+            => mode == ImageGalleryRunStartMode.ReplaceFlow
+                ? "覆盖本流程上一轮的图"
+                : "每轮只保留本窗口本轮图";
 
         /// <summary>
         /// 落一条审计。落盘端自己吞掉 IO 异常并报一次诊断（见 <see cref="ScadaAuditWriter"/>），

@@ -1473,6 +1473,18 @@ namespace Core.Interfaces
         /// </summary>
         private void HandleLost(string reason, MotionFaultSeverity severity)
         {
+            // 先建好故障对象，**和状态在同一把锁里**落下：观察者一旦看到 SafeStopped，
+            // LastFault 必须已经就绪。否则"状态已停机、原因还是 null"的窗口会被
+            // 轮询方（UI/断言）撞上——2026-10-28 真机负载下就因此偶发过一条假红。
+            var fault = new MotionFault
+            {
+                Severity = severity,
+                Message = reason,
+                Suggestion = _capabilities.SupportsAbsoluteEncoder
+                    ? "检查网线/电源与卡是否死机，重新连接后即可继续"
+                    : "检查网线/电源与卡是否死机；增量编码器重新连接后**必须重新回零**再运动",
+            };
+
             bool changed;
             lock (_gate)
             {
@@ -1484,6 +1496,7 @@ namespace Core.Interfaces
                 // 增量式编码器：位置已不可信，必须重新回零；绝对式可保留
                 if (!_capabilities.SupportsAbsoluteEncoder) _isHomed = false;
 
+                _lastFault = fault;
                 changed = SetStateLocked(MotionCardState.SafeStopped, $"{reason}；已安全停机");
             }
 
@@ -1492,14 +1505,8 @@ namespace Core.Interfaces
 
             if (changed) RaiseStateChanged();
 
-            ReportFault(new MotionFault
-            {
-                Severity = severity,
-                Message = reason,
-                Suggestion = _capabilities.SupportsAbsoluteEncoder
-                    ? "检查网线/电源与卡是否死机，重新连接后即可继续"
-                    : "检查网线/电源与卡是否死机；增量编码器重新连接后**必须重新回零**再运动",
-            });
+            // 计数 / Faulted 事件 / 日志仍走统一出口（_lastFault 重复赋值无副作用）。
+            ReportFault(fault);
         }
 
         /// <summary>清空队列并把未完成的命令标为已取消（调用方须持 _gate）</summary>

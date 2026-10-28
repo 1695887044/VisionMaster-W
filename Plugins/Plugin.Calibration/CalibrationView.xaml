@@ -483,6 +483,14 @@
                                     Command="{Binding BrowseImageCommand}"
                                     Content="浏览…" />
                             </Grid>
+                            <ComboBox
+                                Margin="0,6,0,0"
+                                Style="{StaticResource DialogCombo}"
+                                ItemsSource="{Binding ImageAssetOptions}"
+                                DisplayMemberPath="Caption"
+                                SelectedValuePath="AssetIdText"
+                                SelectedValue="{Binding SourceImageAssetId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="从项目资产里选标定图：优先于上面的路径，换台机器不会断；批量内参标定仍用文件夹" />
                             <TextBlock
                                 Style="{StaticResource HelpTextStyle}"
                                 Text="{Binding SourceImageSizeText}" />

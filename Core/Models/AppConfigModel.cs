@@ -170,11 +170,29 @@ namespace VisionMaster.Models
     /// </summary>
     public enum ImageGalleryRunStartMode
     {
-        /// <summary>清空整张画布：本轮开始前把列表里所有图（含其它流程的）全部释放</summary>
-        ClearAll,
+        /// <summary>
+        /// 【旧值，加载时自动迁移为 <see cref="ClearView"/>】清空整张画布。
+        ///
+        /// 为什么不能再按原义使用：这个口径是**画布级**的——任一流程每开一轮都登记"清空全部"，
+        /// 下一条来自**任一流程**的帧到达时把集合里所有窗口的图一起释放。多流程并排循环时
+        /// A 的一轮就会把 B 的整个窗口清掉（2026-10-27 现场：A 投窗口 1、B 投窗口 2，
+        /// 窗口 2 被 A 反复清空）。自动口径只允许"窗口级"，真正的"清空整张画布"
+        /// 只保留右键/按钮的显式动作（<c>ImageCollectionService.Clear()</c>）。
+        /// 存量值由 <c>AppSettingsService.NormalizeLoadedCollections</c> 迁移。
+        /// </summary>
+        ClearAll = 0,
 
-        /// <summary>覆盖本流程：只清掉"即将运行的这条流程"上一轮产生的图，其它流程的图保留</summary>
-        ReplaceFlow
+        /// <summary>
+        /// 覆盖本流程：只清掉"即将运行的这条流程"上一轮产生的图（含它自己的所有窗口），
+        /// 其它流程的图保留。每条流程每轮只清一次。
+        /// </summary>
+        ReplaceFlow = 1,
+
+        /// <summary>
+        /// 清空本窗口：只清掉"本轮要显示的那个窗口"里的图（含其它流程在该窗口的图），
+        /// 其它窗口一律不动。多流程各占一个窗口时，这是"每轮只看本轮"的安全表达。
+        /// </summary>
+        ClearView = 2
     }
 
     /// <summary>

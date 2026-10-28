@@ -30,8 +30,8 @@ namespace VisionMaster.Helpers
         /// <summary>收藏分组的图标（实心星）</summary>
         public const string FavoriteIcon = "\uf005";
 
-        /// <summary>收藏分组的专属色（琥珀金，与 ScadaWarningBrush 同值但各守各的域）</summary>
-        public static readonly Color FavoriteColor = Color.FromRgb(0xE6, 0xA2, 0x3C);
+        /// <summary>收藏分组的专属色（暖金，与 ScadaFavoriteBrush 同值但各守各的域）</summary>
+        public static readonly Color FavoriteColor = Color.FromRgb(0xF5, 0x9E, 0x0B);
 
         /// <summary>未知分类的兜底色（与 ScadaSecondaryTextBrush 同值）</summary>
         public static readonly Color FallbackColor = Color.FromRgb(0x90, 0x93, 0x99);
@@ -70,6 +70,7 @@ namespace VisionMaster.Helpers
         public static IReadOnlyCollection<string> Categories => Map.Keys;
 
         private static readonly Dictionary<string, Brush> BrushCache = new(StringComparer.Ordinal);
+        private static readonly Dictionary<string, Brush> SoftBrushCache = new(StringComparer.Ordinal);
         private static readonly object BrushGate = new();
 
         /// <summary>分类图标码点；未知分类回落 <see cref="FallbackIcon"/>。</summary>
@@ -98,6 +99,33 @@ namespace VisionMaster.Helpers
 
         /// <summary>收藏分组的画刷（已冻结、单例）。</summary>
         public static Brush FavoriteBrush { get; } = CreateFrozen(FavoriteColor);
+
+        /// <summary>收藏分组的浅底（12% 暖金；分组头 18px 徽章底）。</summary>
+        public static Brush FavoriteSoftBrush { get; } = CreateFrozen(Blend(FavoriteColor, 0.88));
+
+        /// <summary>
+        /// 分类专属浅底（与白色按 88% 混合，给 18/20px 图标徽章用）。
+        /// 未知分类回落中性灰浅底；与 <see cref="CategorySoftBrushConverter"/> 同一配方，
+        /// 但这里是给分组 VM 直接持有的画刷（分组头不经过转换器）。
+        /// </summary>
+        public static Brush SoftBrushFor(string? category)
+        {
+            var key = category != null && Map.ContainsKey(category) ? category : string.Empty;
+
+            lock (BrushGate)
+            {
+                if (SoftBrushCache.TryGetValue(key, out var cached)) return cached;
+
+                var brush = CreateFrozen(Blend(ColorFor(category), 0.88));
+                SoftBrushCache[key] = brush;
+                return brush;
+            }
+        }
+
+        private static Color Blend(Color color, double whiteRatio) => Color.FromRgb(
+            (byte)Math.Round(color.R + (255 - color.R) * whiteRatio),
+            (byte)Math.Round(color.G + (255 - color.G) * whiteRatio),
+            (byte)Math.Round(color.B + (255 - color.B) * whiteRatio));
 
         private static Brush CreateFrozen(Color color)
         {

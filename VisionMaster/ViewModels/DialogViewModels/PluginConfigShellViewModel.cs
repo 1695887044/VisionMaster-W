@@ -4,6 +4,7 @@ using Core.Interfaces.Database;
 using Prism.Commands;
 using Prism.Dialogs;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
@@ -231,8 +232,48 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 // 打错的后果（找不到变量 / 值写进另一个同名变量）都很难倒查（真机 2026-10-10）
                 Variables = VisionMaster.Helpers.PluginVariableOptions.Build(_workspace, _stepData?.StepId ?? Guid.Empty),
                 // 数据库能力（测试语句用）：与执行期同一个单例，保证"测试"和"真跑"看到同一份配置
-                Database = _database
+                Database = _database,
+                // 有文件本体的资产（模板/模型/图像）+ 已解析绝对路径：配置态要能直接看到资产里的图，
+                // 而运行期那套 ProjectAssetPathResolver 要 IExecutionContext，配置态没有。
+                // 过滤口径复用运行期解析器：已归档 / 文件缺失 / 路径越界的资产不进来。
+                Assets = BuildAssetPathOptions()
             };
+        }
+
+        /// <summary>
+        /// 组装"资产 Id → 绝对路径"快照。
+        /// 复用 <see cref="SolutionProjectAssetResolver"/> 而不是自己拼路径：归档拦截、越界校验、
+        /// 文件存在性三处判据只有一份，配置态与运行期才不会出现"界面上选得到、跑起来报已归档"。
+        /// </summary>
+        private List<AssetPathOption> BuildAssetPathOptions()
+        {
+            var list = new List<AssetPathOption>();
+            if (_workspace?.CurrentSolution is not { } solution) return list;
+
+            var resolver = new SolutionProjectAssetResolver(solution);
+            foreach (var id in EnumerateFileAssetIds(solution))
+            {
+                if (!resolver.TryResolve(id, out var asset, out _) || asset == null) continue;
+                if (string.IsNullOrWhiteSpace(asset.AbsolutePath)) continue;
+
+                list.Add(new AssetPathOption
+                {
+                    AssetId = asset.AssetId,
+                    Kind = asset.Kind,
+                    Name = asset.Name,
+                    AbsolutePath = asset.AbsolutePath,
+                    Version = asset.Version,
+                });
+            }
+
+            return list;
+        }
+
+        private static IEnumerable<Guid> EnumerateFileAssetIds(SolutionModel solution)
+        {
+            foreach (var asset in solution.TemplateAssets) yield return asset.AssetId;
+            foreach (var asset in solution.ModelAssets) yield return asset.AssetId;
+            foreach (var asset in solution.ImageAssets) yield return asset.AssetId;
         }
 
         private void BuildAssetOptions()

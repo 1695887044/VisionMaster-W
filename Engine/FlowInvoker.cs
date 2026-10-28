@@ -137,17 +137,42 @@ namespace VisionMaster.Services
                 return FlowInvokeResult.Fail(
                     $"流程「{name}」正在运行中（被其它执行占用），本次子程序调用未执行", (int)sw.ElapsedMilliseconds);
 
-            var failedSteps = session.Blueprints.Count(s => s.State == StepState.Failed);
             var elapsed = (int)sw.ElapsedMilliseconds;
+            var round = session.LastRound;
 
+            if (round == null)
+            {
+                _log.Warn($"[调用流程] 流程「{name}」跑完但没有轮次记录（详见运行日志）");
+                return FlowInvokeResult.Fail($"流程「{name}」跑完但没有轮次记录（详见运行日志）", elapsed);
+            }
+
+            // 显式 OK/NG：跑完了，产品判定由调用方按 Outcome/IsOk 决定。
+            // 产品 NG 不是调用故障——这一步以前把"有步骤 Failed"当失败，判定表 NG 恰好会 Fail()。
+            if (round.Outcome is FlowRoundOutcome.Ok or FlowRoundOutcome.Ng)
+            {
+                _log.Info($"[调用流程] 流程「{name}」执行完成（{round.OutcomeText}），耗时 {elapsed}ms");
+                return FlowInvokeResult.Completed(
+                    $"流程「{name}」执行完成（{round.OutcomeText}）", elapsed, round.Outcome);
+            }
+
+            if (round.Outcome is FlowRoundOutcome.Aborted or FlowRoundOutcome.Faulted)
+            {
+                _log.Warn($"[调用流程] 流程「{name}」{round.OutcomeText}：{round.Reason}");
+                return FlowInvokeResult.Fail(
+                    $"流程「{name}」{round.OutcomeText}{(string.IsNullOrWhiteSpace(round.Reason) ? string.Empty : "：" + round.Reason)}",
+                    elapsed);
+            }
+
+            // 未判定：保持旧行为——有失败步骤算失败；全成功算"跑完但未判定"。
+            var failedSteps = session.Blueprints.Count(s => s.State == StepState.Failed);
             if (failedSteps > 0)
             {
                 _log.Warn($"[调用流程] 流程「{name}」跑完但有 {failedSteps} 个步骤失败（详见运行日志）");
                 return FlowInvokeResult.Fail($"流程「{name}」跑完但有 {failedSteps} 个步骤失败（详见运行日志）", elapsed);
             }
 
-            _log.Info($"[调用流程] 流程「{name}」执行完成，耗时 {elapsed}ms");
-            return FlowInvokeResult.Ok($"流程「{name}」执行完成", elapsed);
+            _log.Info($"[调用流程] 流程「{name}」执行完成（未判定），耗时 {elapsed}ms");
+            return FlowInvokeResult.Completed($"流程「{name}」执行完成（未判定）", elapsed, FlowRoundOutcome.Unknown);
         }
 
         private FlowModel FindFlow(string flowName)

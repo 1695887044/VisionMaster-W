@@ -42,7 +42,7 @@ namespace Plugin.Matching
         ShortName = "\uf140"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算（EnsureModelLoaded static 但只改本实例条目），可进并行分支
-    public partial class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig
+    public partial class MatchingPlugin : VisionPluginBase, IPluginCustomViewProvider, IAssetIdConfig, IPluginConfigContextProvider
     {
         // ==================================================================
         //  配置项（[StepConfig] 随方案落盘）
@@ -67,6 +67,61 @@ namespace Plugin.Matching
         {
             get => TemplateAssetId;
             set => TemplateAssetId = value ?? string.Empty;
+        }
+
+        /// <summary>
+        /// 可选的图像资产（配置壳打开时由宿主推送；含第一项"（不使用资产）"）。
+        /// 给"条目参考图"用：每个模板各学各的图，所以这里是**条目级**下拉，不是插件级
+        /// （插件级的 <see cref="TemplateAssetId"/> 已经被"模板库 JSON"占了）。
+        /// </summary>
+        public ObservableCollection<AssetPathOption> ImageAssetOptions { get; } = new();
+
+        private PluginConfigContext? _configContext;
+
+        /// <summary>宿主在配置窗口打开后推一次上下文快照（见 IPluginConfigContextProvider）</summary>
+        public void SetConfigContext(PluginConfigContext context)
+        {
+            _configContext = context;
+
+            ImageAssetOptions.Clear();
+            ImageAssetOptions.Add(new AssetPathOption { AssetId = Guid.Empty, Name = "（不使用资产）" });
+            if (context?.Assets != null)
+            {
+                foreach (var asset in context.Assets.Where(
+                             a => string.Equals(a.Kind, "image", StringComparison.OrdinalIgnoreCase)))
+                    ImageAssetOptions.Add(asset);
+            }
+
+            OnPropertyChanged(nameof(ImageAssetOptions));
+        }
+
+        /// <summary>
+        /// 条目参考图的实际路径：**图像资产优先**，其次条目自己的 <see cref="MatchingTemplateEntry.RefImagePath"/>。
+        /// 资产解析不到时明确报错，不静默退回旧路径 —— 否则"选了资产"看到的却是另一张图，
+        /// 学出来的模型与界面上框住的区域对不上。
+        /// </summary>
+        private bool TryGetEntryRefImagePath(MatchingTemplateEntry? entry, out string path, out string error)
+        {
+            path = string.Empty;
+            error = string.Empty;
+
+            if (entry == null)
+            {
+                error = "没有选中的模板条目";
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(entry.RefImageAssetId))
+                return PluginConfigAssetPaths.TryResolve(_configContext, entry.RefImageAssetId, "image", out path, out error);
+
+            path = entry.RefImagePath ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                error = "还没有参考图：填一个图像路径，或从图像资产里选一张";
+                return false;
+            }
+
+            return true;
         }
 
         /// <summary>
@@ -132,6 +187,9 @@ namespace Plugin.Matching
                 // 调一次属性通知让"需重新学习"提示立刻刷新，而不是等用户碰别的控件。
                 OnPropertyChanged(nameof(AlgorithmIndex));
                 OnPropertyChanged(nameof(IsNccAlgorithm));
+                OnPropertyChanged(nameof(IsShapeAlgorithm));
+                OnPropertyChanged(nameof(IsAnisoScaleEnabled));
+                OnPropertyChanged(nameof(IsEqualScaleEnabled));
                 TouchModelStaleness();
             }
         }
@@ -153,6 +211,18 @@ namespace Plugin.Matching
 
         /// <summary>当前条目是否形状算法（视图绑定取反用：`IsEnabled={Binding IsShapeAlgorithm}`）</summary>
         public bool IsShapeAlgorithm => !IsNccAlgorithm;
+
+        /// <summary>
+        /// 当前条目的各向异性缩放是否真正生效（形状算法 + 勾选）。
+        /// 视图用它把"行/列四个范围框"灰掉；NCC 下恒为 false（整组灰）。
+        /// </summary>
+        public bool IsAnisoScaleEnabled => IsShapeAlgorithm && (EditingEntry?.AnisoScaleEnabled ?? false);
+
+        /// <summary>
+        /// 等比缩放那一组（勾选框 + 最小/最大比例）是否可用：各向异性打开时它被忽略，界面必须灰掉。
+        /// **只灰不隐藏**：老方案里等比档的值仍在，隐藏会让用户以为参数丢了（R118：界面别替用户猜）。
+        /// </summary>
+        public bool IsEqualScaleEnabled => IsShapeAlgorithm && !(EditingEntry?.AnisoScaleEnabled ?? false);
 
         private bool _seedingCanvas; // 播种画布期间为真：CanvasRois 的变更来自"回填"，不回写参数
 
@@ -186,6 +256,16 @@ namespace Plugin.Matching
         /// <summary>运行显示窗口：正式运行时把标注图发布到主界面几号视图窗口（1~9），0 = 不发布</summary>
         [StepConfig, DefaultValue(DefaultDisplayViewIndex)]
         public partial int DisplayViewIndex { get; set; }
+
+        /// <summary>
+        /// 是否产出标注图（<see cref="MeasureImage"/>）。**默认 true = 存量方案行为不变**。
+        ///
+        /// 关掉（新流程推荐）= 只输出数值与几何（<see cref="MatchContours"/>），文字/轮廓由下游
+        /// 「结果显示」统一烧：省一次全幅 dump，也不会出现"算法烧一遍 + 结果显示再烧一遍"的重影。
+        /// 配置态预览（模板预览）不受影响。
+        /// </summary>
+        [StepConfig]
+        public bool KeepAnnotatedImage { get; set; } = true;
 
         /// <summary>是否输出位姿归一化图像（AlignedImage 端口）</summary>
         [StepConfig, DefaultValue(DefaultOutputAlignedImage)]
@@ -267,12 +347,37 @@ namespace Plugin.Matching
         /// <summary>各实例分数数组（0~1，顺序同 Rows）</summary>
         public OutputPort<HTuple> Scores { get; } = new("Scores", "各实例分数数组（0~1）");
 
-        /// <summary>各实例缩放倍率数组（未启用缩放时恒为 1，顺序同 Rows）</summary>
-        public OutputPort<HTuple> Scales { get; } = new("Scales", "各实例缩放倍率数组");
+        /// <summary>
+        /// 各实例缩放倍率数组（未启用缩放时恒为 1，顺序同 Rows）。
+        /// 口径：等比档 = 统一缩放倍率；**各向异性档 = 行方向缩放**（列方向见 <see cref="ScalesCol"/>）。
+        /// 老流程只连了这一个端口，值语义保持不变（等比/未缩放时与升级前逐位一致）。
+        /// </summary>
+        public OutputPort<HTuple> Scales { get; } =
+            new("Scales", "各实例缩放倍率数组（等比档 = 统一缩放；各向异性档 = 行缩放，列缩放见 ScalesCol）");
 
-        /// <summary>标注图：原图 + 命中实例的模板轮廓 + 判定文字</summary>
+        /// <summary>各实例行方向缩放倍率数组（各向异性档有效；等比/未缩放档与 Scales 相同）</summary>
+        public OutputPort<HTuple> ScalesRow { get; } =
+            new("ScalesRow", "各实例行方向缩放倍率数组（各向异性档有效；等比档与 Scales 相同）");
+
+        /// <summary>各实例列方向缩放倍率数组（各向异性档有效；等比/未缩放档与 Scales 相同）</summary>
+        public OutputPort<HTuple> ScalesCol { get; } =
+            new("ScalesCol", "各实例列方向缩放倍率数组（各向异性档有效；等比档与 Scales 相同）");
+
+        /// <summary>标注图：原图 + 命中实例的模板轮廓 + 判定文字。
+        /// <see cref="KeepAnnotatedImage"/>=false 时本端口为空（几何走 <see cref="MatchContours"/>）。</summary>
         public OutputPort<HImage> MeasureImage { get; } =
-            new("MeasureImage", "标注图（模板轮廓 + 位姿 + 判定文字）");
+            new("MeasureImage", "标注图（模板轮廓 + 位姿 + 判定文字；KeepAnnotatedImage=false 时为空）");
+
+        /// <summary>
+        /// 命中实例的模板轮廓（HXLD 对象集，**源图坐标系**，顺序 = 命中顺序）。
+        ///
+        /// 为什么必须有它：模板轮廓原先只在 <c>RenderResultAnnotation</c> 里画完就 Dispose，
+        /// 下游拿不到 → "算法只输出几何、渲染交给结果显示"根本无从落地（2026-10-27 评审）。
+        /// 多实例时每个命中一段（对象数 ≥ 命中数），未命中时为空。
+        /// 接「结果显示」的 OverlayContours / rN 即可；颜色与线宽由显示层决定。
+        /// </summary>
+        public OutputPort<HXLD> MatchContours { get; } =
+            new("MatchContours", "命中实例的模板轮廓（源图坐标系；未命中为空）");
 
         /// <summary>位姿归一化图像：目标被刚性变换到标准位置与 0°</summary>
         public OutputPort<HImage> AlignedImage { get; } =
@@ -328,6 +433,8 @@ namespace Plugin.Matching
                 OnPropertyChanged(nameof(AlgorithmIndex));
                 OnPropertyChanged(nameof(IsNccAlgorithm));
                 OnPropertyChanged(nameof(IsShapeAlgorithm));
+                OnPropertyChanged(nameof(IsAnisoScaleEnabled));
+                OnPropertyChanged(nameof(IsEqualScaleEnabled));
             }
         }
 
@@ -341,6 +448,14 @@ namespace Plugin.Matching
                 OnPropertyChanged(nameof(AlgorithmIndex));
                 OnPropertyChanged(nameof(IsNccAlgorithm));
                 OnPropertyChanged(nameof(IsShapeAlgorithm));
+                OnPropertyChanged(nameof(IsAnisoScaleEnabled));
+                OnPropertyChanged(nameof(IsEqualScaleEnabled));
+            }
+            if (e.PropertyName == nameof(MatchingTemplateEntry.AnisoScaleEnabled))
+            {
+                // 勾/去勾各向异性 = 等比那一组立刻灰/亮，必须当场重算（不能等换条目）
+                OnPropertyChanged(nameof(IsAnisoScaleEnabled));
+                OnPropertyChanged(nameof(IsEqualScaleEnabled));
             }
             TouchModelStaleness();
         }
@@ -700,10 +815,9 @@ namespace Plugin.Matching
         /// <summary>读当前编辑条目的参考图。路径空/不存在/读失败都给中文提示，不抛异常</summary>
         public void LoadPreviewImage()
         {
-            var path = EditingEntry?.RefImagePath;
-            if (string.IsNullOrWhiteSpace(path))
+            if (!TryGetEntryRefImagePath(EditingEntry, out var path, out var resolveError))
             {
-                SetStatus("还没有参考图路径：填一个图像路径后再点「载入」", StatusLevel.Warning);
+                SetStatus("参考图无法解析：" + resolveError, StatusLevel.Error);
                 return;
             }
 
@@ -997,16 +1111,18 @@ namespace Plugin.Matching
                     entry.GradientThreshold > 0
                         ? Math.Clamp(entry.GradientThreshold, 1, 255)
                         : (HTuple)"auto";
-                string metric = entry.UsePolarity ? "use_polarity" : "ignore_polarity";
+                string metric = MetricName(entry);
                 int numLevels = Math.Clamp(entry.NumLevels, 1, 10);
 
                 double scaleLo = 0.5,
                     scaleHi = 2.0;
+                // 各向异性档的行/列范围（学习与查找共用一份夹取口径）
+                var (anisoRowLo, anisoRowHi, anisoColLo, anisoColHi) = ResolveAnisoRanges(entry);
                 if (entry.Algorithm == MatchingAlgorithm.Ncc)
                 {
                     // NCC 模型：只看灰度纹理与灰度值本身，没有对比度/缩放那套参数。
                     // 缩放：HALCON 只有 create_ncc_model，**没有** Scaled 版 → 缩放开关在 NCC 下无意义，
-                    // 这里直接忽略并在状态栏与手册里写明（不静默当"已启用"）。
+                    // 各向异性同理（也没有 Aniso 版）→ 两者都忽略，并在状态栏写清（不静默当"已启用"）。
                     HOperatorSet.CreateNccModel(
                         gray,
                         numLevels,
@@ -1023,6 +1139,33 @@ namespace Plugin.Matching
                     HOperatorSet.AreaCenter(domainSource, out _, out HTuple nccCogRow, out HTuple nccCogCol);
                     entry.NccOffsetRow = CanvasRect[0] - nccCogRow.D;
                     entry.NccOffsetCol = CanvasRect[1] - nccCogCol.D;
+                }
+                else if (entry.AnisoScaleEnabled)
+                {
+                    // 各向异性（行/列分别缩放）：与等比档互斥 —— 走到这里就不再送 ScaleMin/ScaleMax。
+                    // 参数顺序照 HALCON 23.05：
+                    // (Template, NumLevels, AngleStart, AngleExtent, AngleStep,
+                    //  ScaleRMin, ScaleRMax, ScaleRStep, ScaleCMin, ScaleCMax, ScaleCStep,
+                    //  Optimization, Metric, Contrast, MinContrast : ModelID)
+                    HOperatorSet.CreateAnisoShapeModel(
+                        gray,
+                        numLevels,
+                        minAngleRad,
+                        angleExtent,
+                        angleStep,
+                        anisoRowLo,
+                        anisoRowHi,
+                        "auto",
+                        anisoColLo,
+                        anisoColHi,
+                        "auto",
+                        "auto",
+                        metric,
+                        contrast,
+                        "auto",
+                        out HTuple anisoModelId
+                    );
+                    entry.RuntimeModelId = anisoModelId;
                 }
                 else if (entry.ScaleEnabled)
                 {
@@ -1085,6 +1228,40 @@ namespace Plugin.Matching
                         // 与"用户画的区域中心"的偏差无法在模型里补偿。
                         // 换成在**输出侧**补偿：RunAlgorithm 里统一加上 Rect 中心与模型原点之差。
                         // 因此这里什么都不做（不做自匹配，也不必）。
+                    }
+                    else if (entry.AnisoScaleEnabled)
+                    {
+                        // 各向异性档自匹配：minScore 取 0.5 而不是等比的 0.8 ——
+                        // 行/列范围若不含 1.0（例如 1.2~1.5），参考图在最近的那个尺度上
+                        // 只能拿到 ~0.84 分，卡 0.8 会拿不到结果 → 锚定静默失效（B4）。
+                        HOperatorSet.FindAnisoShapeModel(
+                            gray,
+                            entry.RuntimeModelId,
+                            minAngleRad,
+                            angleExtent,
+                            anisoRowLo,
+                            anisoRowHi,
+                            anisoColLo,
+                            anisoColHi,
+                            0.5,
+                            1,
+                            0.5,
+                            "least_squares",
+                            numLevels,
+                            0.9,
+                            out HTuple sr,
+                            out HTuple sc,
+                            out _,
+                            out _,
+                            out _,
+                            out _
+                        );
+                        if (sr.Length > 0)
+                            HOperatorSet.SetShapeModelOrigin(
+                                entry.RuntimeModelId,
+                                sr[0].D - CanvasRect[0],
+                                sc[0].D - CanvasRect[1]
+                            );
                     }
                     else if (entry.ScaleEnabled)
                     {
@@ -1183,6 +1360,9 @@ namespace Plugin.Matching
                 entry.Shape = CanvasShape;
                 entry.Rect = (double[])CanvasRect.Clone();
                 entry.LearnedSignature = EntrySignature(entry);
+                // 学习快照：运行期靠它判断"开关改了但没重学"（HALCON 对此不报错，只会静默错结果）
+                entry.LearnedAnisoScaleEnabled =
+                    entry.Algorithm == MatchingAlgorithm.Shape && entry.AnisoScaleEnabled;
 
                 string levelsText;
                 if (entry.Algorithm == MatchingAlgorithm.Ncc)
@@ -1215,10 +1395,14 @@ namespace Plugin.Matching
                 }
                 string scaleNote =
                     entry.Algorithm == MatchingAlgorithm.Ncc
-                        ? "，NCC 不支持缩放"
-                        : entry.ScaleEnabled
-                            ? $"，缩放 {Math.Min(entry.ScaleMin, entry.ScaleMax):0.##}~{Math.Max(entry.ScaleMin, entry.ScaleMax):0.##}×"
-                            : string.Empty;
+                        ? entry.AnisoScaleEnabled
+                            ? "，NCC 不支持缩放/各向异性（两者都已忽略）"
+                            : "，NCC 不支持缩放"
+                        : entry.AnisoScaleEnabled
+                            ? $"，各向异性 行 {anisoRowLo:0.###}~{anisoRowHi:0.###}× / 列 {anisoColLo:0.###}~{anisoColHi:0.###}×"
+                            : entry.ScaleEnabled
+                                ? $"，缩放 {Math.Min(entry.ScaleMin, entry.ScaleMax):0.##}~{Math.Max(entry.ScaleMin, entry.ScaleMax):0.##}×"
+                                : string.Empty;
                 // 尺寸按形状给：圆只有 3 个参数，直接取 index 3/4 会显示 0×0
                 //（更要命的是早先这里取的是迁移字段 TemplateRect —— 新方案下它恒为空数组，
                 //  每次学习都会 IndexOutOfRange，被外层 catch 吞成"创建模板失败"，
@@ -1226,10 +1410,15 @@ namespace Plugin.Matching
                 string sizeNote = CanvasShape == RoiShapeNames.Circle
                     ? $"半径 {CanvasRect[2]:0} px"
                     : $"{CanvasRect[3] * 2:0}×{CanvasRect[4] * 2:0} px";
+                // NCC + 各向异性 = 用户要的功能没生效：成功消息也要用 Warning 级别，别让它读起来像"已启用"
+                bool anisoIgnoredByNcc =
+                    entry.Algorithm == MatchingAlgorithm.Ncc && entry.AnisoScaleEnabled;
                 SetStatus(
                     $"模板「{entry.Name}」已学习：{AlgorithmName(entry.Algorithm)}，金字塔 {levelsText} 层，角度 {Math.Min(entry.MinAngleDeg, entry.MaxAngleDeg):0}~{Math.Max(entry.MinAngleDeg, entry.MaxAngleDeg):0}°{scaleNote}，"
                         + $"特征区域 {sizeNote}，"
                         + $"载荷 {entry.Model.Length * 3 / 4 / 1024} KB。左下角为模板预览"
+                        + (anisoIgnoredByNcc ? "。注意：各向异性缩放只对基于形状的算法有效，本条已按 NCC 学习（开关未生效，需改用基于形状并重新学习）" : string.Empty),
+                    anisoIgnoredByNcc ? StatusLevel.Warning : StatusLevel.Info
                 );
                 TouchModelStaleness();
 
@@ -1261,10 +1450,64 @@ namespace Plugin.Matching
         /// <summary>清除模板区域（画布清空；已学习的条目要重新学习才会变）</summary>
         public void ClearTemplate() => CanvasRois.Clear();
 
-        /// <summary>条目参数指纹：区域 + 掩膜 + 算法 + 全部提取参数（学习时记下，之后不一致 = 需重新学习）</summary>
+        /// <summary>
+        /// 条目参数指纹：区域 + 掩膜 + 算法 + 全部提取参数（学习时记下，之后不一致 = 需重新学习）。
+        ///
+        /// 各向异性档的开关与四个范围必须进指纹：它们决定用哪个 create 算子、烤进哪些尺度变体，
+        /// 改一个就必须重学（否则模型与当前参数不一致，而 HALCON 对此不报错）。
+        /// 代价：升级到带各向异性的版本后，老模板的指纹串短一截 → 首次打开会显示"需重新学习"，
+        /// 重新学习一次即消失（不是误报，是"老指纹没记录过这些参数"）。
+        /// </summary>
         private static string EntrySignature(MatchingTemplateEntry e) =>
             $"{e.Algorithm}|{e.Shape}|{RectKeyOf(e.Rect)}|{e.NumLevels}|{e.GradientThreshold}|{e.MinAngleDeg}|{e.MaxAngleDeg}"
-            + $"|{e.AngleStepDeg}|{e.UsePolarity}|{e.ScaleEnabled}|{e.ScaleMin:0.###}|{e.ScaleMax:0.###}|{e.Mask.Length}";
+            + $"|{e.AngleStepDeg}|{e.UsePolarity}|{e.ScaleEnabled}|{e.ScaleMin:0.###}|{e.ScaleMax:0.###}|{e.Mask.Length}"
+            + $"|{e.AnisoScaleEnabled}|{e.ScaleRowMin:0.###}|{e.ScaleRowMax:0.###}|{e.ScaleColMin:0.###}|{e.ScaleColMax:0.###}";
+
+        /// <summary>
+        /// 各向异性行/列缩放范围的唯一夹取口径（学习与查找共用，两处必须一致）。
+        ///
+        /// 合法区间照 HALCON 23.05 参考手册的 `create_aniso_shape_model`：
+        /// `ScaleRMin &gt; 0`、`ScaleRMax &gt;= ScaleRMin`、`ScaleCMin &gt; 0`、`ScaleCMax &gt;= ScaleCMin`，
+        /// 默认 0.9/1.1（**不是**等比档那套 0.5~2.0）。本仓夹到 0.1~10（23.05 实测该区间可创建），
+        /// 上下限填反了自动交换。
+        /// 退化解（上下限相等）：HALCON 23.05 实测**接受**（不像等比那样报错），但仍撑开 ±0.005 的最小窗口——
+        /// 否则模型只有一个尺度、`find_aniso_shape_model` 的尺度搜索退化成单点，读数恒等于该值。
+        /// </summary>
+        private static (double RowMin, double RowMax, double ColMin, double ColMax) ResolveAnisoRanges(
+            MatchingTemplateEntry e
+        )
+        {
+            const double Lo = 0.1,
+                Hi = 10.0,
+                MinWindow = 0.005;
+            double rLo = Math.Clamp(Math.Min(e.ScaleRowMin, e.ScaleRowMax), Lo, Hi);
+            double rHi = Math.Clamp(Math.Max(e.ScaleRowMin, e.ScaleRowMax), Lo, Hi);
+            double cLo = Math.Clamp(Math.Min(e.ScaleColMin, e.ScaleColMax), Lo, Hi);
+            double cHi = Math.Clamp(Math.Max(e.ScaleColMin, e.ScaleColMax), Lo, Hi);
+            if (rHi - rLo < 1e-6)
+            {
+                rLo = Math.Max(Lo, rLo - MinWindow);
+                rHi = Math.Min(Hi, rHi + MinWindow);
+            }
+            if (cHi - cLo < 1e-6)
+            {
+                cLo = Math.Max(Lo, cLo - MinWindow);
+                cHi = Math.Min(Hi, cHi + MinWindow);
+            }
+            return (rLo, rHi, cLo, cHi);
+        }
+
+        /// <summary>
+        /// 极性开关 → HALCON 的匹配度量名。
+        ///
+        /// 踩过的坑：`"ignore_polarity"` 在 HALCON 23.05 **不是合法值**，三个 create 算子全拒
+        /// （实测 `create_shape_model` #1306 / `create_scaled_shape_model` #1309 /
+        /// `create_aniso_shape_model` #1312，错误信息都是"Wrong value of control parameter"）。
+        /// 合法值是 `use_polarity` / `ignore_global_polarity` / `ignore_local_polarity` / `ignore_color_polarity`；
+        /// "忽略极性"的语义对应 `ignore_global_polarity`（整体对比度反相也能找到）。
+        /// </summary>
+        private static string MetricName(MatchingTemplateEntry e) =>
+            e.UsePolarity ? "use_polarity" : "ignore_global_polarity";
 
         /// <summary>算法中文名（状态栏/提示用）</summary>
         private static string AlgorithmName(MatchingAlgorithm algorithm) =>
@@ -1638,8 +1881,9 @@ namespace Plugin.Matching
         }
 
         /// <summary>
-        /// 执行内核：选条目（配方驱动）→ 灰度化 → find_shape_model / find_scaled_shape_model
-        /// （按条目烤入的角度/缩放范围搜索）→ 端口赋值（最高分实例给标量端口，全部实例给数组端口）
+        /// 执行内核：选条目（配方驱动）→ 灰度化 → find_shape_model / find_scaled_shape_model /
+        /// find_aniso_shape_model（按条目烤入的角度/缩放范围搜索）
+        /// → 端口赋值（最高分实例给标量端口，全部实例给数组端口）
         /// → 位姿归一化图像 → 标注图 → 主界面发布。
         ///
         /// 失败语义（与平台契约一致）：输入为空/模板未学习/未知配方/未找到目标 = Fail，
@@ -1659,6 +1903,8 @@ namespace Plugin.Matching
             Angles.Value = new HTuple();
             Scores.Value = new HTuple();
             Scales.Value = new HTuple();
+            ScalesRow.Value = new HTuple();
+            ScalesCol.Value = new HTuple();
 
             var src = Image.ActualValue;
             if (src == null || !src.IsInitialized())
@@ -1698,6 +1944,18 @@ namespace Plugin.Matching
                 return;
             }
 
+            // 模型类型守卫：HALCON 对"各向异性模型 + find_scaled"（一个都找不到）与
+            // "等比模型 + find_aniso"（行/列恒相等）都不报错 —— 改了开关没重学就是静默错结果。
+            // 这里拿学习快照比对，只落一行 Warn（不判失败：模型本身没坏，重学即可）。
+            bool wantAniso = entry.Algorithm == MatchingAlgorithm.Shape && entry.AnisoScaleEnabled;
+            if (!string.IsNullOrEmpty(entry.LearnedSignature) && entry.LearnedAnisoScaleEnabled != wantAniso)
+            {
+                context.Logger?.Warn(
+                    $"{InstanceName} 模板「{entry.Name}」学习时各向异性={(entry.LearnedAnisoScaleEnabled ? "开" : "关")}"
+                        + $"，当前={(wantAniso ? "开" : "关")}：模型与当前参数不一致，结果可能不准，请在配置界面重新学习"
+                );
+            }
+
             var temp = new List<HObject>();
             try
             {
@@ -1726,6 +1984,9 @@ namespace Plugin.Matching
                     angles,
                     scores,
                     scales;
+                // 各向异性档的行/列缩放两路输出；等比/未缩放档在分支后统一回落成与 Scales 相同
+                HTuple? rowScales = null,
+                    colScales = null;
 
                 // 搜索域（P1-B A1）：开关打开且上游连了区域 → reduce_domain 后再 find。
                 // find_* 只处理域内像素，耗时按面积比下降；区域为空/未连线回落全图，
@@ -1794,6 +2055,43 @@ namespace Plugin.Matching
                         cols = adjustedCols;
                     }
                 }
+                else if (entry.AnisoScaleEnabled)
+                {
+                    // 各向异性（行/列分别缩放）：与等比档互斥，走 find_aniso_shape_model。
+                    // 参数顺序照 HALCON 23.05：
+                    // (Image, ModelID, AngleStart, AngleExtent, ScaleRMin, ScaleRMax, ScaleCMin, ScaleCMax,
+                    //  MinScore, NumMatches, MaxOverlap, SubPixel, NumLevels, Greediness
+                    //  : Row, Column, Angle, ScaleR, ScaleC, Score)
+                    // 范围与学习侧同一份夹取口径（ResolveAnisoRanges）——超出 create 范围的行为 HALCON 未定义。
+                    var (anisoRowLo, anisoRowHi, anisoColLo, anisoColHi) = ResolveAnisoRanges(entry);
+                    HOperatorSet.FindAnisoShapeModel(
+                        searchInput,
+                        entry.RuntimeModelId,
+                        minAngleRad,
+                        angleExtent,
+                        anisoRowLo,
+                        anisoRowHi,
+                        anisoColLo,
+                        anisoColHi,
+                        minScore,
+                        numMatches,
+                        maxOverlap,
+                        "least_squares",
+                        new HTuple(new[] { numLevels, entry.TrackingLevel }),
+                        greediness,
+                        out rows,
+                        out cols,
+                        out angles,
+                        out HTuple anisoRowScales,
+                        out HTuple anisoColScales,
+                        out scores
+                    );
+                    // Scales 保持"老流程不破线"：各向异性档填**行缩放**（列缩放见 ScalesCol），
+                    // 等比/未缩放档它仍是统一缩放 —— 老流程只连 Scales 时读到的量纲不变。
+                    scales = anisoRowScales;
+                    rowScales = anisoRowScales;
+                    colScales = anisoColScales;
+                }
                 else if (entry.ScaleEnabled)
                 {
                     double scaleLo = Math.Clamp(Math.Min(entry.ScaleMin, entry.ScaleMax), 0.5, 2.0);
@@ -1809,7 +2107,7 @@ namespace Plugin.Matching
                         numMatches,
                         maxOverlap,
                         "least_squares",
-                        numLevels,
+                        new HTuple(new[] { numLevels, entry.TrackingLevel }),
                         greediness,
                         out rows,
                         out cols,
@@ -1829,7 +2127,7 @@ namespace Plugin.Matching
                         numMatches,
                         maxOverlap,
                         "least_squares",
-                        numLevels,
+                        new HTuple(new[] { numLevels, entry.TrackingLevel }),
                         greediness,
                         out rows,
                         out cols,
@@ -1839,6 +2137,10 @@ namespace Plugin.Matching
                     scales = Enumerable.Repeat(1.0, rows.Length).ToArray();
                 }
 
+                // 等比/未缩放档：行/列两路回落成与 Scales 相同（端口描述承诺"两路都等于 Scales"）
+                rowScales ??= scales;
+                colScales ??= scales;
+
                 int n = rows.Length;
                 MatchCount.Value = n;
                 Rows.Value = rows;
@@ -1846,6 +2148,8 @@ namespace Plugin.Matching
                 Angles.Value = angles * 180.0 / Math.PI; // 弧度 → 度（平台口径）
                 Scores.Value = scores;
                 Scales.Value = scales;
+                ScalesRow.Value = rowScales;
+                ScalesCol.Value = colScales;
 
                 if (n == 0)
                 {
@@ -1866,7 +2170,11 @@ namespace Plugin.Matching
                 context.Logger?.Info(
                     $"{InstanceName} 模板「{entry.Name}」匹配 {n} 个实例，最高分 {Score.Value:0.00}"
                         + $"，位置 ({Row.Value:0.0},{Column.Value:0.0})，角度 {Angle.Value:0.0}°"
-                        + $"，算法 {AlgorithmName(entry.Algorithm)}{searchRegionNote}"
+                        + $"，算法 {AlgorithmName(entry.Algorithm)}"
+                        + (entry.Algorithm == MatchingAlgorithm.Shape && entry.AnisoScaleEnabled
+                            ? $"，各向异性 行×{rowScales[0].D:0.###}/列×{colScales[0].D:0.###}"
+                            : string.Empty)
+                        + searchRegionNote
                 );
 
                 // 位姿归一化图像：刚性变换把目标从"当前位姿"搬回"学习时的位姿"，
@@ -2020,6 +2328,15 @@ namespace Plugin.Matching
                         );
                     }
 
+                    // 几何端口：放置后的模板轮廓（源图坐标系，顺序 = 命中顺序）。
+                    // 算法只输出几何，画不画、什么颜色由下游「结果显示」决定。
+                    MatchContours.Value = placed != null && placed.IsInitialized()
+                        ? new HXLDCont(placed)
+                        : null!;
+
+                    // 只输出结果、不烧标注：渲染整段跳过（配置态预览走另一条路，不受影响）
+                    if (!KeepAnnotatedImage) return;
+
                     var lines = found
                         ? new[]
                         {
@@ -2070,12 +2387,12 @@ namespace Plugin.Matching
                 return;
             }
 
-            // 载入该条目自己的参考图（每个模板各学各的图；文件缺失时保留当前画布图）
-            if (!string.IsNullOrWhiteSpace(entry.RefImagePath) && File.Exists(entry.RefImagePath))
+            // 载入该条目自己的参考图（每个模板各学各的图；解析不到时保留当前画布图）
+            if (TryGetEntryRefImagePath(entry, out var refImagePath, out _) && File.Exists(refImagePath))
             {
                 try
                 {
-                    HOperatorSet.ReadImage(out HObject raw, entry.RefImagePath);
+                    HOperatorSet.ReadImage(out HObject raw, refImagePath);
                     DisplayImage?.Dispose();
                     DisplayImage = new HImage(raw);
                     raw.Dispose();

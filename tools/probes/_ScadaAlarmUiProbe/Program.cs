@@ -101,7 +101,7 @@ namespace ScadaAlarmUiProbe
             var workspace = new WorkspaceContext();
             var solution = new SolutionModel { SolutionName = "AlarmCfgProbe.vms" };
             solution.Flows.Clear();
-            solution.Flows.Add(new FlowModel { FlowName = "Main", Role = FlowRole.Main });
+            solution.Flows.Add(new FlowModel { FlowName = "Main", InvokeType = FlowInvokeType.LineStart });
             workspace.SwitchSolution(solution);
             workspace.GlobalVariables.Clear();
 

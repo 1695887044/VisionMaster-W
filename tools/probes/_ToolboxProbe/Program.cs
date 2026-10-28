@@ -120,6 +120,26 @@ namespace ToolboxProbe
             Layout(host);
             Layout(host);
 
+            // ---- 0. v2 紧凑尺寸（设计基线 toolbox-plugin v2） ----
+            var searchShell = view.FindName("SearchShell") as Border;
+            Check("v2 搜索框高度 28", searchShell != null && Math.Abs(searchShell.ActualHeight - 28) < 0.5,
+                $"height={searchShell?.ActualHeight:0.##}");
+
+            var mainScroll = Descendants<ScrollViewer>(view).FirstOrDefault(s => Grid.GetRow(s) == 3);
+            Check("v2 滚动区：右侧 10px gutter、左侧 6px",
+                mainScroll != null && mainScroll.Padding.Right >= 10 && Math.Abs(mainScroll.Margin.Left - 6) < 0.1,
+                mainScroll == null ? "没找到 ScrollViewer" : $"padding={mainScroll.Padding} margin={mainScroll.Margin}");
+
+            var groupToggles = Descendants<ToggleButton>(view)
+                .Where(t => t.DataContext is ToolboxGroupViewModel)
+                .ToList();
+            Check("v2 分组头高度 28",
+                groupToggles.Count > 0 && groupToggles.All(t => Math.Abs(t.ActualHeight - 28) < 0.5),
+                $"toggles={groupToggles.Count} heights=[{string.Join(",", groupToggles.Select(t => t.ActualHeight.ToString("0.#")))}]");
+
+            var countLabel = Descendants<TextBlock>(view).FirstOrDefault(t => t.Text == "个算子");
+            Check("v2 工具条：个算子计数在位（去掉重复标题）", countLabel != null, countLabel == null ? "没找到" : "在位");
+
             // ---- 1. 列表模式结构 ----
             var itemsControls = Descendants<ItemsControl>(view)
                 .Where(ic => GongSolutions.Wpf.DragDrop.DragDrop.GetIsDragSource(ic))
@@ -128,7 +148,7 @@ namespace ToolboxProbe
                 itemsControls.Count == provider.CategoryCount
                 && itemsControls.All(ic =>
                     GongSolutions.Wpf.DragDrop.DragDrop.GetUseDefaultDragAdorner(ic) == false
-                    && GongSolutions.Wpf.DragDrop.DragDrop.GetUseDefaultEffectDataTemplate(ic) == true
+                    && GongSolutions.Wpf.DragDrop.DragDrop.GetUseDefaultEffectDataTemplate(ic) == false
                     && GongSolutions.Wpf.DragDrop.DragDrop.GetDragAdornerTemplate(ic) != null),
                 $"拖拽源={itemsControls.Count} / 分组={provider.CategoryCount}");
 
@@ -147,6 +167,10 @@ namespace ToolboxProbe
                 itemBorders.Count == provider.ModulePlugins.Count
                 && itemBorders.All(b => b.DataContext.GetType() == typeof(ToolItemModel)),
                 $"条目容器={itemBorders.Count} / 算子={provider.ModulePlugins.Count}");
+
+            Check("v2 列表行高度 30",
+                itemBorders.Count > 0 && itemBorders.All(b => Math.Abs(b.ActualHeight - 30) < 0.5),
+                $"heights=[{string.Join(",", itemBorders.Select(b => b.ActualHeight.ToString("0.#")).Distinct())}]");
 
             Check("列表模式：单列 StackPanel（没有 UniformGrid）",
                 Descendants<UniformGrid>(view).Count == 0, "");
@@ -177,8 +201,8 @@ namespace ToolboxProbe
 
             vm.ToggleFavoriteCommand.Execute(leaf);
             Layout(host);
-            Check("收藏后：该行星标常显且换成主色",
-                leafStar != null && leafStar.Opacity == 1 && HasColor(leafStar.Foreground, "ScadaAccentBrush", view),
+            Check("收藏后：该行星标常显且换成暖金色",
+                leafStar != null && leafStar.Opacity == 1 && HasColor(leafStar.Foreground, "ScadaFavoriteBrush", view),
                 $"opacity={leafStar?.Opacity} fg={(leafStar?.Foreground as SolidColorBrush)?.Color}");
 
             Check("收藏后：收藏分组置顶，且组头含该项",
@@ -193,7 +217,7 @@ namespace ToolboxProbe
             var highlightRun = Descendants<TextBlock>(view)
                 .Where(tb => tb.DataContext is ToolItemModel)
                 .SelectMany(tb => tb.Inlines.OfType<Run>())
-                .FirstOrDefault(r => HasColor(r.Foreground, "ScadaAccentBrush", view));
+                .FirstOrDefault(r => r.Text == "图像" && HasColor(r.Foreground, "ScadaAccentBrush", view));
             Check("搜索高亮：命中片段被拆成独立 Run 并换主色",
                 highlightRun != null && highlightRun.Text == "图像",
                 highlightRun == null ? "没有换色的 Run" : $"命中 Run='{highlightRun.Text}'");
@@ -203,6 +227,34 @@ namespace ToolboxProbe
             Check("搜索高亮：命中条目在界面上确实存在", plainCount > 0, $"命中行={plainCount}");
             vm.SearchText = "";
             Layout(host);
+
+            // ---- 3a. v2 紧凑搜索：清空按钮 + 无结果空态 ----
+            var clearButton = Descendants<Button>(view)
+                .FirstOrDefault(b => ReferenceEquals(b.Command, vm.ClearSearchCommand));
+            Check("v2 清空按钮：无文字时隐藏",
+                clearButton != null && clearButton.Visibility == Visibility.Collapsed,
+                clearButton == null ? "没找到" : clearButton.Visibility.ToString());
+
+            vm.SearchText = "图像";
+            Layout(host);
+            Check("v2 清空按钮：有文字时显形",
+                clearButton?.Visibility == Visibility.Visible,
+                clearButton?.Visibility.ToString() ?? "null");
+
+            vm.SearchText = "zzzz";
+            Layout(host);
+            Pump(host);
+            var noResultTitle = Descendants<TextBlock>(view).FirstOrDefault(t => t.Text == "没有匹配的节点");
+            var noResultPanel = noResultTitle?.Parent as FrameworkElement;
+            Check("v2 搜索无结果：空态显形",
+                vm.HasNoSearchResults && noResultTitle != null && noResultPanel?.Visibility == Visibility.Visible,
+                $"HasNoSearchResults={vm.HasNoSearchResults} title={noResultTitle != null} panelVis={noResultPanel?.Visibility}");
+
+            vm.ClearSearchCommand.Execute(null);
+            Layout(host);
+            Check("v2 清空搜索：SearchText 空、按钮隐藏",
+                string.IsNullOrEmpty(vm.SearchText) && !vm.HasSearchText && clearButton?.Visibility == Visibility.Collapsed,
+                $"SearchText='{vm.SearchText}' HasSearchText={vm.HasSearchText} btn={clearButton?.Visibility}");
 
             // ---- 3b. 原地更新：保住的分组与条目连容器一起留住（ToolViewModel.ApplyFilter） ----
             // 旧实现每敲一个字符都 Clear+Add，把整棵可视树拆掉重建（42 条目量级实测 150~200 ms）。
@@ -275,6 +327,10 @@ namespace ToolboxProbe
                 gridItemBorders.Count == vm.FilteredToolBarSource.Sum(g => g.Children.Count),
                 $"界面条目={gridItemBorders.Count}"
                 + $" / VM 条目={vm.FilteredToolBarSource.Sum(g => g.Children.Count)}");
+
+            Check("v2 网格卡高度 38",
+                gridItemBorders.Count > 0 && gridItemBorders.All(b => Math.Abs(b.ActualHeight - 38) < 0.5),
+                $"heights=[{string.Join(",", gridItemBorders.Select(b => b.ActualHeight.ToString("0.#")).Distinct())}]");
             Render(host, "toolbox-grid.png");
 
             vm.SetViewModeCommand.Execute("List");
@@ -359,16 +415,24 @@ namespace ToolboxProbe
                 Render(stage, "toolbox-drag-ghost.png", Math.Max(stageSize.Width, 1), Math.Max(stageSize.Height, 1));
             }
 
-            // ---- 7. 条目图标的分类色（组 VM 的 AccentBrush 经 ItemsControl 祖先取到） ----
-            // leaf 已收藏：界面上它出现两次——收藏组里是金色、原分类组里是分类色，两处都要对
+            // ---- 7. 条目图标的分类色（条目自身 Category 经转换器取到；收藏组头另有暖金星） ----
+            var leafCategoryColor = VisionMaster.Helpers.ToolboxCategoryVisuals.ColorFor(leaf.Category);
             var iconColors = Descendants<TextBlock>(view)
                 .Where(t => ReferenceEquals(t.DataContext, leaf) && (t.Text ?? "") == leaf.Icon)
                 .Select(t => (t.Foreground as SolidColorBrush)?.Color)
                 .ToList();
-            Check("条目图标：前景色按所属分组的专属色（收藏组金 / 分类组分类色）",
-                iconColors.Contains(VisionMaster.Helpers.ToolboxCategoryVisuals.FavoriteColor)
-                && iconColors.Contains(VisionMaster.Helpers.ToolboxCategoryVisuals.ColorFor(leaf.Category)),
+            Check("条目图标：收藏组与原分类组两处都保持分类专属色",
+                iconColors.Count >= 2 && iconColors.All(c => c == leafCategoryColor),
                 string.Join(",", iconColors.Select(c => c?.ToString())));
+
+            var favGroup = vm.FilteredToolBarSource.FirstOrDefault(g => g.IsFavorites);
+            var favHeaderColor = Descendants<TextBlock>(view)
+                .Where(t => ReferenceEquals(t.DataContext, favGroup) && (t.Text ?? "") == favGroup?.Icon)
+                .Select(t => (t.Foreground as SolidColorBrush)?.Color)
+                .FirstOrDefault();
+            Check("收藏组头：图标是暖金色",
+                favHeaderColor == VisionMaster.Helpers.ToolboxCategoryVisuals.FavoriteColor,
+                favHeaderColor?.ToString() ?? "null");
 
             return Finish(bindingErrors);
         }

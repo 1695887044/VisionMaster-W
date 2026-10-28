@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using UI.CustomControl;
 using VisionMaster.Models;
 using VisionMaster.Services;
+using VisionMaster.ViewModels.DialogViewModels;
 
 namespace VisionMaster.ViewModels
 {
@@ -49,13 +50,116 @@ namespace VisionMaster.ViewModels
                 if (field != null && _subscribed)
                     field.PropertyChanged += OnSelectFlowPropertyChanged;
 
-                RaisePropertyChanged(nameof(FlowToggleHeader));
+                RefreshFlowMenuState();
                 Workspace.SwitchFlow(value);
             }
         }
 
         /// <summary>右键菜单「启用/禁用」的标题：跟随当前选中流程的启用状态</summary>
         public string FlowToggleHeader => SelectFlow?.IsEnabled == true ? "禁用" : "启用";
+
+        // ==================================================================
+        //  右键菜单的只读展示面（设计基线 docs/UI设计基线/flow-context-menu v1）
+        //
+        //  【为什么是 VM 属性而不是 XAML 里的转换器】
+        //  "某项能不能点 / 为什么不能点"是同一份判据，必须只有一处来源；
+        //  转换器散在 XAML 里既测不到，也会和命令体的拦截文案各说一套。
+        //  这里只做**展示**：命令体里的拦截（FlowCommandExecute）一个都不动，
+        //  所以这些属性即使漏刷新，行为仍然安全（最多是灰/亮不同步）。
+        //
+        //  【刷新时机】选中流程变化、流程的 IsEnabled / RunState / FlowName /
+        //  StepsEncrypted 变化、全局 MainRunState 变化——全部收在 RefreshFlowMenuState()。
+        // ==================================================================
+
+        /// <summary>行尾状态徽标：「当前：已启用 / 已禁用」</summary>
+        public string FlowStateBadge =>
+            SelectFlow == null ? string.Empty : (SelectFlow.IsEnabled ? "当前：已启用" : "当前：已禁用");
+
+        /// <summary>启用/禁用项的图标：已启用 → toggle-off（点了会禁用）；已禁用 → toggle-on</summary>
+        public string FlowToggleIcon => SelectFlow?.IsEnabled == true ? "\uf204" : "\uf205";
+
+        /// <summary>菜单页脚：写明这条菜单作用于哪条流程（锚在具体胶囊上，不该靠猜）</summary>
+        public string FlowMenuFooter =>
+            SelectFlow == null ? string.Empty : $"仅作用于「{SelectFlow.FlowName}」";
+
+        /// <summary>删除可用：骨架流程（Home/Main/End）不允许删除</summary>
+        public bool CanDeleteFlow => SelectFlow != null && !MandatoryFlows.IsMandatory(SelectFlow);
+
+        /// <summary>编译可用：流程启用、没有整体运行、且本流程不在跑</summary>
+        public bool CanCompileFlow =>
+            SelectFlow != null
+            && SelectFlow.IsEnabled
+            && !IsRunLocked
+            && SelectFlow.RunState == FlowRunState.Stopped;
+
+        /// <summary>
+        /// 运行可用：流程启用、步序未加密、本流程不在跑。
+        ///
+        /// 【不再判整体运行态（2026-10-28）】工位与主流程是平级的：整线跑着的时候，
+        /// 某工位被停掉后必须能单独把它重新拉起来，不能要求"先停整线"——那等于一有故障
+        /// 就整线停。互斥只按**本流程**的会话状态判（同一条不许跑两份），
+        /// 这与 SCADA「启动流程」的幂等口径一致（已在运行就跳过，不拒绝其它流程）。
+        /// </summary>
+        public bool CanRunFlow =>
+            SelectFlow != null
+            && SelectFlow.IsEnabled
+            && !SelectFlow.StepsEncrypted
+            && SelectFlow.RunState == FlowRunState.Stopped;
+
+        /// <summary>停止可用：本流程确实在跑（未运行时不给可点的空操作）</summary>
+        public bool CanStopFlow => SelectFlow != null && SelectFlow.RunState != FlowRunState.Stopped;
+
+        /// <summary>
+        /// 批量设置显示窗口可用：整体运行中（非暂停）拦截。
+        /// 口径与 <c>EditGate.ModuleParameters</c> 一致——暂停中允许调参，是调试的核心诉求。
+        /// </summary>
+        public bool CanBatchDisplayWindow =>
+            SelectFlow != null
+            && _runState is not (MainRunState.RunningOnce or MainRunState.RunningContinuous);
+
+        public string DeleteFlowToolTip =>
+            CanDeleteFlow ? "删除这条流程（连同步骤）" : "骨架流程不允许删除";
+
+        public string CompileFlowToolTip =>
+            SelectFlow == null ? "按当前图纸重新编译，供运行使用"
+            : !SelectFlow.IsEnabled ? "流程已禁用，编译会被跳过"
+            : (IsRunLocked || SelectFlow.RunState != FlowRunState.Stopped)
+                ? "流程运行中，禁止编译；如需编译请先停止"
+                : "按当前图纸重新编译，供运行使用";
+
+        public string RunFlowToolTip =>
+            SelectFlow == null ? "执行这条流程"
+            : !SelectFlow.IsEnabled ? "流程已禁用，请先启用"
+            : SelectFlow.StepsEncrypted ? "步序已加密，无法运行"
+            : SelectFlow.RunState != FlowRunState.Stopped
+                ? "这条流程正在运行，请先停止它"
+                : "执行这条流程（不影响其它正在运行的流程）";
+
+        public string BatchDisplayWindowToolTip =>
+            _runState is MainRunState.RunningOnce or MainRunState.RunningContinuous
+                ? "流程运行中，禁止编辑；如需修改请先停止"
+                : "把本流程所有出图算子的显示窗口一次设好";
+
+        public string StopFlowToolTip => CanStopFlow ? "停止这条流程的运行会话" : "当前未运行";
+
+        /// <summary>一次性刷新右键菜单的全部展示属性（时机见上方注释块）。</summary>
+        private void RefreshFlowMenuState()
+        {
+            RaisePropertyChanged(nameof(FlowToggleHeader));
+            RaisePropertyChanged(nameof(FlowStateBadge));
+            RaisePropertyChanged(nameof(FlowToggleIcon));
+            RaisePropertyChanged(nameof(FlowMenuFooter));
+            RaisePropertyChanged(nameof(CanDeleteFlow));
+            RaisePropertyChanged(nameof(CanCompileFlow));
+            RaisePropertyChanged(nameof(CanRunFlow));
+            RaisePropertyChanged(nameof(CanStopFlow));
+            RaisePropertyChanged(nameof(CanBatchDisplayWindow));
+            RaisePropertyChanged(nameof(DeleteFlowToolTip));
+            RaisePropertyChanged(nameof(CompileFlowToolTip));
+            RaisePropertyChanged(nameof(RunFlowToolTip));
+            RaisePropertyChanged(nameof(BatchDisplayWindowToolTip));
+            RaisePropertyChanged(nameof(StopFlowToolTip));
+        }
 
         public AsyncDelegateCommand<FlowAction?> FlowCommand { get; }
 
@@ -65,6 +169,12 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private MainRunState _runState = MainRunState.NotStarted;
         private bool IsRunLocked => _runState != MainRunState.NotStarted;
+
+        /// <summary>
+        /// 正在准备启动（编译已挪到后台线程）。期间重复点击直接忽略——否则双击会排两次编译，
+        /// 而两次编译最终只有一次能抢到会话锁，另一次只是白烧 CPU 并弹一条"未启动"。
+        /// </summary>
+        private bool _starting;
 
         public FlowListViewModel(
             IWorkspaceManager workspace,
@@ -142,12 +252,20 @@ namespace VisionMaster.ViewModels
                 FlowCommand.RaiseCanExecuteChanged();
         }
 
-        private void OnMainRunStateChanged(MainRunState state) => _runState = state;
+        private void OnMainRunStateChanged(MainRunState state)
+        {
+            _runState = state;
+            RefreshFlowMenuState();
+        }
 
         private void OnSelectFlowPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(FlowModel.IsEnabled))
-                RaisePropertyChanged(nameof(FlowToggleHeader));
+            // 菜单的标题 / 徽标 / 禁用态 / 页脚全部由流程状态派生，四类属性任一变化都要重算
+            if (e.PropertyName is nameof(FlowModel.IsEnabled)
+                or nameof(FlowModel.RunState)
+                or nameof(FlowModel.FlowName)
+                or nameof(FlowModel.StepsEncrypted))
+                RefreshFlowMenuState();
         }
 
         private async Task FlowCommandExecute(FlowAction? action)
@@ -248,6 +366,45 @@ namespace VisionMaster.ViewModels
                     // 不弹提示：列表项禁用态与菜单标题都会随即刷新
                     SelectFlow.IsEnabled = !SelectFlow.IsEnabled;
                     break;
+                case FlowAction.BatchDisplayWindow:
+                {
+                    if (SelectFlow == null)
+                        break;
+
+                    // 运行锁口径与 EditGate.ModuleParameters 一致：运行中（非暂停）拦截、暂停放行。
+                    // 本 VM 只镜像 MainRunState（单流程运行 / HTTP 触发不广播它，与 Compile 的既有判据同源）；
+                    // 批量改的是参数而不是结构，暂停中调参正是调试的核心诉求，不按结构编辑一刀切。
+                    if (_runState is MainRunState.RunningOnce or MainRunState.RunningContinuous)
+                    {
+                        Notifier.ShowWarning(EditGate.RunLockedMessage);
+                        break;
+                    }
+
+                    // 先扫后写：弹窗里的"影响范围"来自这次扫描，用户取消时一个字节都不动。
+                    var plan = BatchDisplayWindowService.BuildPlan(SelectFlow);
+                    if (plan.Targets.Count == 0)
+                    {
+                        Notifier.ShowInfo(plan.LinkedSkipped.Count > 0
+                            ? "本流程的显示窗口全部已链接到变量（固定值不生效），没有可批量设置的步骤"
+                            : "本流程没有带「显示窗口」的算子步骤");
+                        break;
+                    }
+
+                    var edit = new BatchDisplayWindowEditModel(plan);
+                    if (!EasyDialog.ShowPropertyGridSync("批量设置显示窗口", edit))
+                        break;   // 取消 = 草稿丢弃，不写流程
+
+                    // 越界不写：RangeValidation 只是行内红字，用户仍可能带着越界值点确认
+                    if (!BatchDisplayWindowService.IsValidValue(edit.DisplayViewIndex))
+                    {
+                        Notifier.ShowWarning("显示窗口号必须是 0~9（0 = 不显示）");
+                        break;
+                    }
+
+                    var result = BatchDisplayWindowService.Apply(plan, edit.DisplayViewIndex);
+                    Notifier.ShowSuccess(result.BuildMessage());
+                    break;
+                }
                 case FlowAction.Compile:
                     if (SelectFlow == null)
                         break;
@@ -295,7 +452,27 @@ namespace VisionMaster.ViewModels
                     // （ScadaDocument.VariableEvents 是一张方案级表）。
                     dialogService.ShowDialog("ScadaVariableEventDialogView");
                     break;
+                case FlowAction.ResultSource:
+                    ShowResultSourceDialog();
+                    break;
             }
+        }
+
+        /// <summary>
+        /// 「运行统计 · 结果源」：只对当前选中的那条流程开窗。
+        /// 传 Id 为主、名字兜底——与运行态解析同一顺序，避免"改完发现改的是同名的另一条"。
+        /// </summary>
+        private void ShowResultSourceDialog()
+        {
+            var flow = SelectFlow;
+            if (flow == null) return;
+
+            var parameters = new DialogParameters
+            {
+                { FlowResultSourceDialogViewModel.FlowIdKey, flow.FlowID ?? string.Empty },
+                { FlowResultSourceDialogViewModel.FlowNameKey, flow.FlowName ?? string.Empty },
+            };
+            dialogService.ShowDialog(FlowResultSourceDialogViewModel.DialogName, parameters);
         }
 
         /// <summary>
@@ -305,6 +482,14 @@ namespace VisionMaster.ViewModels
         /// 需要断点调试请用主界面的运行按钮（那里装调试门）。
         /// 会话准备与"编译本流程"同款：优先复用运行管理器里未过期的会话，
         /// 缺了或图纸改过（Version 涨了）才重编译——否则拿旧图纸跑新图，结果对不上用户看到的设计。
+        ///
+        /// 【编译挪出 UI 线程（2026-10-27）】
+        /// <see cref="FlowSessionFactory.TryEnsureSession"/> 里含 <c>FlowCompiler.Compile</c>：
+        /// 大流程几百毫秒到数秒。旧实现在 UI 线程同步跑，点"循环运行"那一下界面会顿住。
+        /// 而定时触发（<c>FlowAutoRunner</c>）与 HTTP 触发本来就是**在后台线程**编译的——
+        /// 手动入口没有理由特殊。竞态口径与它们一致：编译期间用户仍可编辑图纸，
+        /// 会话里记的是"编译前版本号"，图纸改过下一轮判过期自动重编译；真正互斥仍由会话锁保证。
+        /// 编译期间新增的两条竞态由这里复核：流程被删/禁用则放弃启动。
         /// </summary>
         private async Task RunSingleFlowAsync(bool continuous)
         {
@@ -332,30 +517,58 @@ namespace VisionMaster.ViewModels
                 return;
             }
 
-            // 会话准备：单点收口（查会话 → 判新鲜度[流程身份 FlowID + 版本] → 必要时重编译 → 注册）
-            if (!FlowSessionFactory.TryEnsureSession(_runtimeManager, _compiler, flow, out var session, out var sessionError, _log))
+            // 编译是异步的：不挡的话双击会排两次编译（命令的 CanExecute 不判"正在启动"）
+            if (_starting) return;
+            _starting = true;
+            try
             {
-                Notifier.ShowError($"[{flow.FlowName}] {sessionError}");
-                return;
-            }
+                // 会话准备：单点收口（查会话 → 判新鲜度[流程身份 FlowID + 版本] → 必要时重编译 → 注册）
+                // 放后台线程：这一句里最贵的是编译。await 之后回到 UI 线程（命令在 UI 线程发起）。
+                var (prepared, session, sessionError) = await Task.Run(() =>
+                {
+                    var ok = FlowSessionFactory.TryEnsureSession(
+                        _runtimeManager, _compiler, flow, out var preparedSession, out var error, _log);
+                    return (ok, preparedSession, error);
+                });
 
-            // 到这里 session 必定"没在跑"（上面已拦）；编译分支会把会话换成新实例，
-            // 复用的分支沿用原实例——两条路的 IsRunning 都是 false
-            if (continuous)
-            {
-                var continuousTask = _flowEngine.RunSessionAsync(session);
-                // 连续运行的"抢不到锁"没有返回值可判：引擎的抢锁与 IsRunning 置位在首个 await 之前
-                // **同步**完成，所以调用返回后取快照是准的（不猜时序）
-                bool startedNow = session.IsRunning;
-                _ = TrackSingleRunAsync(continuousTask, flow.FlowName);
-                Notifier.ShowSuccess(startedNow
-                    ? $"流程 [{flow.FlowName}] 已开始循环运行"
-                    : $"流程 [{flow.FlowName}] 未启动：会话正被其它触发占用（HTTP / 定时 / 手动）");
+                if (!prepared || session == null)
+                {
+                    Notifier.ShowError($"[{flow.FlowName}] {sessionError}");
+                    return;
+                }
+
+                // 编译期间界面仍可操作：流程可能被删除/禁用。启动前复核一次，
+                // 避免"点了运行、编译完却启动了一条已经不在方案里的流程"。
+                if (Workspace?.CurrentSolution?.Flows == null
+                    || !Workspace.CurrentSolution.Flows.Contains(flow)
+                    || !flow.IsEnabled)
+                {
+                    Notifier.ShowWarning($"流程 [{flow.FlowName}] 在编译期间已被删除或禁用，本次未启动");
+                    return;
+                }
+
+                // 到这里 session 必定"没在跑"（上面已拦）；编译分支会把会话换成新实例，
+                // 复用的分支沿用原实例——两条路的 IsRunning 都是 false
+                if (continuous)
+                {
+                    var continuousTask = _flowEngine.RunSessionAsync(session);
+                    // 连续运行的"抢不到锁"没有返回值可判：引擎的抢锁与 IsRunning 置位在首个 await 之前
+                    // **同步**完成，所以调用返回后取快照是准的（不猜时序）
+                    bool startedNow = session.IsRunning;
+                    _ = TrackSingleRunAsync(continuousTask, flow.FlowName);
+                    Notifier.ShowSuccess(startedNow
+                        ? $"流程 [{flow.FlowName}] 已开始循环运行"
+                        : $"流程 [{flow.FlowName}] 未启动：会话正被其它触发占用（HTTP / 定时 / 手动）");
+                }
+                else
+                {
+                    _ = TrackSingleRunAsync(_flowEngine.TryRunSessionOnceAsync(session), flow.FlowName);
+                    Notifier.ShowSuccess($"流程 [{flow.FlowName}] 单次运行已启动");
+                }
             }
-            else
+            finally
             {
-                _ = TrackSingleRunAsync(_flowEngine.TryRunSessionOnceAsync(session), flow.FlowName);
-                Notifier.ShowSuccess($"流程 [{flow.FlowName}] 单次运行已启动");
+                _starting = false;
             }
         }
 

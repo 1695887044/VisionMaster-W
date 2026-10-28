@@ -269,13 +269,14 @@ namespace VisionMaster.Models
             set => SetProperty(ref _galleryEnabled, value);
         }
 
-        /// <summary>每轮流程开始时是否清空整张画布</summary>
+        /// <summary>每轮流程开始时是否只保留本窗口的本轮图（窗口级清空）</summary>
         [SuperDisplay(
-            Name = "每轮开始清空整张画布",
+            Name = "每轮只保留本窗口本轮图",
             Group = new[] { GroupGallery },
             GroupOrder = "3",
             Order = 1,
-            Description = "勾选 = 清空全部（含其它流程的图）；不勾选 = 只覆盖「即将运行的这条流程」上一轮的图")]
+            Description = "勾选（默认）= 每轮只清掉「本轮要显示的那个窗口」里的图，其它窗口不动；"
+                        + "不勾选 = 只覆盖「即将运行的这条流程」自己上一轮的图（它自己的所有窗口）")]
         public bool GalleryClearOnRun
         {
             get => _galleryClearOnRun;

@@ -35,13 +35,13 @@ namespace Plugin.PreProcessing.Operators
     /// 不负责亚像素定位——要测尺寸请接卡尺/几何查找。
     /// </summary>
     [PreprocessOperator("sobel_edge", "Sobel 边缘", "边缘检测", Order = 180,
-        Description = "Sobel 梯度幅值边缘图；模板越大越平滑，sum_abs 比 sum 更稳")]
+        Description = "Sobel 梯度幅值边缘图；模板越大越平滑，sum_abs 抗抵消、sum_sqrt 更接近真实梯度模")]
     public sealed class SobelEdgeOperator : EdgeOperatorBase
     {
         private SobelFilterType _filterType = SobelFilterType.SumAbs;
 
         [SuperDisplay(Name = "滤波类型", Group = new string[] { "参数" }, Order = 2, ColSpan = 6,
-            Description = "绝对值和：|Gx|+|Gy|，抗抵消；代数和：Gx+Gy，可能抵消")]
+            Description = "sum_abs / sum_sqrt / thin_sum_abs / thin_max_abs / x / y，均为 HALCON 23.05 实际支持值")]
         public SobelFilterType FilterType
         {
             get => _filterType;

@@ -8,7 +8,7 @@
   starts with "| R<n>[A-Z]? |". Prose mentions do not count as ownership.
 
   Checks (any failure exits 1):
-    C1 union      - every R1..R187 (+ lettered variants) has an owner.
+    C1 union      - every R1..R190 (+ lettered variants) has an owner.
                     IDs that live in AGENTS.md prose only (no table row)
                     must be listed in $proseOwned AND mentioned in AGENTS.md.
     C2 uniqueness - at most one owner per ID; IDs in $dualAllowed must have
@@ -141,7 +141,7 @@ $agentsText = [IO.File]::ReadAllText($agentsPath, $utf8Strict)
 
 # C1 union
 $missing = @()
-for ($i = 1; $i -le 187; $i++) {
+for ($i = 1; $i -le 190; $i++) {
     if (-not $owners.ContainsKey('R' + $i)) { $missing += $i }
 }
 foreach ($p in $proseOwned) {

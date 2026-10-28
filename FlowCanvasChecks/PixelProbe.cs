@@ -56,5 +56,35 @@ namespace FlowCanvasChecks
             HOperatorSet.GetImageSize(img, out HTuple w, out HTuple h);
             return (w.I, h.I);
         }
+
+        /// <summary>
+        /// 非黑像素占比（0~1）：判断"窗口里到底画了东西没有"。
+        ///
+        /// 阈值取 &gt;0 即算非黑。**必须走 <see cref="Gray"/>（3 通道先 rgb1_to_gray）**：
+        /// 只看 R 通道会把绿色标注算成"没画"（绿色 (0,132,0) 的 R 是 0）——2026-10-27
+        /// 排查"黑底只剩绿字"时就被这个坑误导过一次。
+        /// </summary>
+        public static double NonBlackRatio(HImage img)
+        {
+            if (img == null || !img.IsInitialized()) return 0;
+            HObject gray = Gray(img);
+            try
+            {
+                HOperatorSet.GetDomain(gray, out HObject domain);
+                try
+                {
+                    HOperatorSet.Threshold(gray, out HObject bright, 1, 255);
+                    try
+                    {
+                        HOperatorSet.AreaCenter(bright, out HTuple area, out HTuple _, out HTuple _);
+                        HOperatorSet.AreaCenter(domain, out HTuple total, out HTuple _, out HTuple _);
+                        return total.D <= 0 ? 0 : area.D / total.D;
+                    }
+                    finally { bright.Dispose(); }
+                }
+                finally { domain.Dispose(); }
+            }
+            finally { gray.Dispose(); }
+        }
     }
 }

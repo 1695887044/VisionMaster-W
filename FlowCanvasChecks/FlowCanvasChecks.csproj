@@ -55,6 +55,11 @@
     <ProjectReference Include="..\Plugins\Plugin.BlobDetect\Plugin.BlobDetect.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.Matching\Plugin.Matching.csproj" />
     <!--
+      可形变模板匹配：直接引用插件工程（不走 Modules\ 反射加载）。
+      断言局部/平面两条链的学习/查找/模型缓存/失败语义，并与同进程 HALCON 真算子逐项对拍。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.DeformableMatching\Plugin.DeformableMatching.csproj" />
+    <!--
       胶路检测：直接引用（不走 Modules\ 反射加载）。
       断言方案说明书 §7.2 本批子集（1~9、13、14、15）：路径生成 / bead 模型 / 7 图真值表（P4）
       / NG 语义 / 单位换算 / 端口面 / 模型缓存（计数器）/ 树直径合并（P6）/ TargetWidth 下限（P10）
@@ -85,6 +90,8 @@
     -->
     <ProjectReference Include="..\Plugins\Plugin.Motion.ZMotion\Plugin.Motion.ZMotion.csproj" />
     <ProjectReference Include="..\Plugins\Plugin.Utility\Plugin.Util.csproj" />
+    <!-- 调用流程：直接引用（不走 Modules\ 反射加载），断言新增 IsOk/Outcome 端口与 NG 语义。 -->
+    <ProjectReference Include="..\Plugins\Plugin.RunFlow\Plugin.RunFlow.csproj" />
     <!--
       通讯立刻读/写：直接引用（不走 Modules\ 反射加载），断言插件面
       （元数据 / 端口候选 / 成功失败路径 / 发起前短路）。
@@ -110,6 +117,19 @@
       引用它也让构建顺带把 Plugin.ImageDiff.dll 刷新到 Modules。
     -->
     <ProjectReference Include="..\Plugins\Plugin.ImageDiff\Plugin.ImageDiff.csproj" />
+    <!--
+      图像质量检查（2026-10-27 新建插件）：直接引用（不走 Modules\ 反射加载）。
+      断言对焦/曝光/对比度/饱和度的合成真值、HALCON 对拍、uint2 归一化、灰度跳过、
+      阈值语义（IsUsable 不改 Success）与端口契约。引用它也让构建顺带把
+      Plugin.ImageQuality.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.ImageQuality\Plugin.ImageQuality.csproj" />
+    <!--
+      图像对齐（2026-10-27 新建插件）：直接引用（不走 Modules\ 反射加载）。
+      断言 2/3/4 点拟合、正逆矩阵往返、有效区、验证点错点检测，以及与 ImageDiff 的
+      “对齐前后差异面积下降”下游收益。引用它也让构建顺带把 Plugin.ImageAlign.dll 刷新到 Modules。
+    -->
+    <ProjectReference Include="..\Plugins\Plugin.ImageAlign\Plugin.ImageAlign.csproj" />
     <!--
       标定：直接引用（不走 Modules\ 反射加载）。
       断言两层——纯托管算法（CalibrationMath：合成已知仿射 → 精度/互逆/共线守卫/径向带诊断）

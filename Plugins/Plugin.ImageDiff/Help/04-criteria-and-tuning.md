@@ -35,7 +35,8 @@ Polarity = Darker   → 取 neg               （只留变暗，变亮处得 0�
 - `Absolute`：把上面选出的分量直接转 byte。
 - `Relative`：把上面选出的分量 ÷ `max(R, floor)` × 100 再转 byte。
 - `Signed`：**极性照样生效**，然后 `pos − neg + 零点`。也就是说 `Signed + Both` 是真正的双向有符号差
-  （变亮在中灰以上、变暗在中灰以下）；`Signed + Brighter` 会得到"只有中灰以上的部分"。
+  （变亮在中灰以上、变暗在中灰以下）；`Signed + Brighter` 会得到"只有中灰以上的部分"，
+  `Signed + Darker` 会得到"只有中灰以下的部分"（变暗量取负号，不是把幅度加到中灰上方）。
 
 > 一开始别碰 `Signed + Brighter` 这种组合。要么用 `Absolute` 配极性，要么用 `Signed` 配 `Both` 看双向。
 

@@ -56,5 +56,25 @@ namespace Plugin.ResultDisplay
             get => _enabled;
             set { _enabled = value; OnPropertyChanged(); }
         }
+
+        private string _color = "";
+        /// <summary>
+        /// 该项的几何颜色（HALCON 颜色名，如 red/green/cyan）。空 = 用默认（几何固定 cyan）。
+        /// **只影响几何项**（区域/轮廓/图形），不影响数值文字——文字颜色由判定项决定，
+        /// 否则"判定 NG 要变红"这条会被逐项颜色顶掉。
+        /// </summary>
+        public string Color
+        {
+            get => _color;
+            set { _color = value ?? ""; OnPropertyChanged(); }
+        }
+
+        private int _lineWidth;
+        /// <summary>该项的几何线宽（0 = 用默认 2；1~10 有效）。只影响几何项，不影响文字。</summary>
+        public int LineWidth
+        {
+            get => _lineWidth;
+            set { _lineWidth = value < 0 ? 0 : (value > 10 ? 10 : value); OnPropertyChanged(); }
+        }
     }
 }

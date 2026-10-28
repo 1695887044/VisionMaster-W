@@ -85,11 +85,10 @@ namespace FlowCanvasChecks
             Check("方案里能找到目标流程「线序检测」",
                 flow != null,
                 $"流程数={solution.Flows.Count} 流程={string.Join(",", solution.Flows.Select(f => f.FlowName))}");
-            // 加载器补齐强制骨架（Home/Main/End）后为 1 + 3；骨架是追加——目标流程按名查找仍命中
-            Check("加载后补齐三条骨架流程，原有流程保留（1 + 3 = 4）",
-                solution.Flows.Count == 4
+            // 加载器补齐强制骨架（Home/End）后为 1 + 2；骨架是追加——目标流程按名查找仍命中
+            Check("加载后补齐两条骨架流程，原有流程保留（1 + 2 = 3）",
+                solution.Flows.Count == 3
                 && MandatoryFlows.FindByRole(solution, FlowRole.Home) != null
-                && MandatoryFlows.FindByRole(solution, FlowRole.Main) != null
                 && MandatoryFlows.FindByRole(solution, FlowRole.End) != null,
                 $"流程数={solution.Flows.Count}: {string.Join(",", solution.Flows.Select(f => f.FlowName))}");
             if (flow == null) return;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -35,28 +36,53 @@ namespace VisionMaster.Views
 
             ShowCanvas(CurrentMode);
 
-            // 收到"切换画布布局"：重新摆一次格子（老方案存过的布局值据此恢复）
-            GlobalEventBus.Subscribe<ImageCanvasChangeEvent>(e => ShowCanvas(e.ViewMode));
+            // 构造期就订阅：断言宿主与"还没进可视树"的实例也要能收到布局切换（多格布局的
+            // 离线断言就是这么驱动的）。真正会泄漏的是"加载过又被丢弃"的实例（布局重建、
+            // 方案切换）——它们一定会走 Unloaded，在那里摘掉即可（见 OnViewUnloaded）。
+            GlobalEventBus.Subscribe<ImageCanvasChangeEvent>(OnCanvasChangeRequested);
 
-            // 缩略图条的显隐依赖采集配置（见 ShouldShowStrip）。设置保存后会经
-            // ApplySettingsNow → Changed 通知一声，这里跟着重算——否则用户得切一次布局才看到变化。
-            //
-            // 为什么挂 Loaded/Unloaded 而不是构造时挂一次：本视图不止一份（Shell 一份、
-            // 运行驾驶舱一份、布局重建时 LayoutHelper 还会再 new），构造期直接订阅
-            // 等于每建一份就永久留一个订阅，切几次布局就多几份幽灵重算。
-            Loaded += (_, __) =>
-            {
-                var collection = ImageCollectionService.Instance;
-                if (collection != null) collection.Changed += OnCollectionChanged;
+            Loaded += OnViewLoaded;
+            Unloaded += OnViewUnloaded;
+        }
 
-                ApplyStripVisibility();
-                RefreshHints();
-            };
-            Unloaded += (_, __) =>
-            {
-                var collection = ImageCollectionService.Instance;
-                if (collection != null) collection.Changed -= OnCollectionChanged;
-            };
+        /// <summary>
+        /// 重新挂接全局事件并按"当前形态"重摆一次。
+        ///
+        /// 订阅在构造期就挂（未进树的实例/离线断言也要能收到布局切换），但 **Unloaded 必须摘**：
+        /// 本视图不止一份（Shell 一份、运行驾驶舱一份、布局重建时 LayoutHelper 还会再 new），
+        /// 加载过又被丢弃的实例若不摘，静态事件表会把整棵可视树钉住——切几次布局就多几份
+        /// 幽灵格子（每帧都跑一次 Recompute）。
+        /// 顺带 ShowCanvas(CurrentMode)：卸载期间可能换过布局（静态值是全局唯一来源）。
+        /// </summary>
+        private void OnViewLoaded(object sender, RoutedEventArgs e)
+        {
+            // 先摘再挂：Loaded 可能重复触发（重新加入可视树），重复订阅会重复摆格子
+            GlobalEventBus.Unsubscribe<ImageCanvasChangeEvent>(OnCanvasChangeRequested);
+            GlobalEventBus.Subscribe<ImageCanvasChangeEvent>(OnCanvasChangeRequested);
+
+            ShowCanvas(CurrentMode);
+
+            var collection = ImageCollectionService.Instance;
+            if (collection != null) collection.Changed += OnCollectionChanged;
+
+            ApplyStripVisibility();
+            RefreshHints();
+        }
+
+        private void OnViewUnloaded(object sender, RoutedEventArgs e)
+        {
+            GlobalEventBus.Unsubscribe<ImageCanvasChangeEvent>(OnCanvasChangeRequested);
+
+            var collection = ImageCollectionService.Instance;
+            if (collection != null) collection.Changed -= OnCollectionChanged;
+        }
+
+        /// <summary>"切换画布布局"：重新摆一次格子（老方案存过的布局值据此恢复）</summary>
+        private void OnCanvasChangeRequested(ImageCanvasChangeEvent e)
+        {
+            // 换布局 = 退出放大：用户刚选了新形态，不该再被某一格的放大态盖住
+            _maximizedViewIndex = null;
+            ShowCanvas(e.ViewMode);
         }
 
         private void OnCollectionChanged(object? sender, EventArgs e) => ApplyStripVisibility();
@@ -109,11 +135,29 @@ namespace VisionMaster.Views
         public static eViewMode CurrentMode { get; private set; } = eViewMode.One;
 
         /// <summary>
+        /// 只把形态记到静态值（不摆格子）。
+        ///
+        /// 为什么需要：全局事件订阅已改成"随 Loaded/Unloaded 挂摘"（否则每建一份视图就永久留一个
+        /// 订阅）。于是"当前可能一份 ImageView 都不在树上"——此时发布事件没人收，
+        /// 方案里存的布局会在下次显示时丢掉。恢复方案/菜单切换的入口先调本方法落值，
+        /// 事件只负责通知已在树上的实例重摆。
+        /// </summary>
+        internal static void ApplyModeForRestore(eViewMode mode)
+            => CurrentMode = IsKnown(mode) ? mode : eViewMode.One;
+
+        /// <summary>
         /// 各格画布，键 = 归属窗口号（1~9）。
         /// 懒建 + 复用：切布局只是把它们重新摆进 Grid，格子里已显示的图与列表都还在
         /// （重建会丢选中项还要重新拉图，切一下布局就白一下，很难看）。
         /// </summary>
         private readonly Dictionary<int, ImageGallery> _canvases = new();
+
+        /// <summary>
+        /// 本实例当前摆着的布局（放大/还原只按它重摆）。
+        /// 不读静态 <see cref="CurrentMode"/>：Shell 与运行驾驶舱各有一份 ImageView，
+        /// 静态值是谁最后摆谁说了算，另一份照它重摆会把格子摆错。
+        /// </summary>
+        private LayoutSpec _layout = SpecOf(eViewMode.One);
 
         /// <summary>按形态重新摆格子</summary>
         private void ShowCanvas(eViewMode mode)
@@ -123,6 +167,7 @@ namespace VisionMaster.Views
             if (!IsKnown(mode)) mode = eViewMode.One;
 
             var spec = SpecOf(mode);
+            _layout = spec;
             CurrentMode = mode;
 
             grid.Children.Clear();
@@ -135,17 +180,80 @@ namespace VisionMaster.Views
 
             for (int i = 0; i < spec.Panes.Length; i++)
             {
-                var slot = spec.Panes[i];
-
                 // 第 i+1 格 ↔ 显示窗口号 i+1
-                var canvas = GetCanvas(i + 1);
-
-                grid.Children.Add(canvas);
-                Grid.SetRow(canvas, slot.Row);
-                Grid.SetColumn(canvas, slot.Col);
-                Grid.SetRowSpan(canvas, slot.RowSpan);
-                Grid.SetColumnSpan(canvas, slot.ColSpan);
+                grid.Children.Add(GetCanvas(i + 1));
             }
+
+            // 统一摆位（含"某格被双击放大"的覆盖）
+            ApplyPaneLayout(spec);
+        }
+
+        /// <summary>每格与画布边框之间的留白（放大时归零，让图真正占满）</summary>
+        private static readonly Thickness PaneMargin = new(5);
+
+        /// <summary>
+        /// 当前被双击放大的格（显示窗口号；null = 正常平铺）。
+        ///
+        /// 放大只改 Grid 的摆位与其余格的可见性，**不重建、不摘树**：格子里的图、列表、
+        /// 选中项都原样保留，还原时也不会有"白一下再刷回来"的观感。
+        /// 其余格用 Collapsed 而不是"垫在下面"——HALCON 画布是 HwndHost（独立 HWND），
+        /// WPF 的 ZIndex 压不住它，叠着放会露出邻居窗口。
+        /// </summary>
+        private int? _maximizedViewIndex;
+
+        /// <summary>按布局表摆好每一格，并套用当前放大态</summary>
+        private void ApplyPaneLayout(LayoutSpec spec)
+        {
+            var panes = grid.Children.OfType<ImageGallery>().ToList();
+            bool multi = panes.Count > 1;
+
+            // 单格布局没有"让位"可谈；放大的那一格不在当前布局里（换过形态）同样作废
+            if (!multi) _maximizedViewIndex = null;
+            if (_maximizedViewIndex is int current && !panes.Any(p => p.ViewIndexFilter == current))
+                _maximizedViewIndex = null;
+
+            for (int i = 0; i < panes.Count; i++)
+            {
+                var pane = panes[i];
+                var slot = spec.Panes[i];
+                bool maximized = multi && _maximizedViewIndex == pane.ViewIndexFilter;
+
+                pane.IsPaneMaximizable = multi;
+                pane.IsPaneMaximized = maximized;
+                pane.Margin = maximized ? new Thickness(0) : PaneMargin;
+                pane.Visibility = multi && _maximizedViewIndex != null && !maximized
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+
+                if (maximized)
+                {
+                    Grid.SetRow(pane, 0);
+                    Grid.SetColumn(pane, 0);
+                    Grid.SetRowSpan(pane, spec.Rows);
+                    Grid.SetColumnSpan(pane, spec.Cols);
+                }
+                else
+                {
+                    Grid.SetRow(pane, slot.Row);
+                    Grid.SetColumn(pane, slot.Col);
+                    Grid.SetRowSpan(pane, slot.RowSpan);
+                    Grid.SetColumnSpan(pane, slot.ColSpan);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 某一格双击了（或点了右键菜单"最大化本格"）：放大它 / 还原平铺。
+        /// 只重摆位，不重建格子——见 <see cref="_maximizedViewIndex"/> 的注释。
+        /// </summary>
+        private void OnCanvasMaximizeToggleRequested(object? sender, EventArgs e)
+        {
+            if (sender is not ImageGallery source) return;
+
+            var index = source.ViewIndexFilter;
+            _maximizedViewIndex = _maximizedViewIndex == index ? null : index;
+
+            ApplyPaneLayout(_layout);
         }
 
         private static bool IsKnown(eViewMode mode) => mode >= eViewMode.One && mode <= eViewMode.Night;
@@ -180,6 +288,7 @@ namespace VisionMaster.Views
             canvas.ClearRequested += (_, __) => ImageCollectionService.Instance?.Clear();
             canvas.ExportRequested += OnCanvasExportRequested;
             canvas.ThumbnailStripToggleRequested += OnThumbnailStripToggleRequested;
+            canvas.MaximizeToggleRequested += OnCanvasMaximizeToggleRequested;
             return canvas;
         }
 

@@ -482,7 +482,7 @@ namespace RecipeChecks
             var solution = new SolutionModel { SolutionName = "RecipeChecks" };
             solution.Flows.Clear();
 
-            var flow = new FlowModel { FlowName = "Main", Role = FlowRole.Main };
+            var flow = new FlowModel { FlowName = "Main", InvokeType = FlowInvokeType.LineStart };
             var step = new ActionStep("?", "测试步骤", "RecipeChecks.FakePlugin", "检测");
             step.SetInputValue("Threshold", 0.75);
             step.SetInputValue("Mode", "Circle");

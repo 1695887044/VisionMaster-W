@@ -331,10 +331,33 @@
                                 <ItemsControl ItemsSource="{Binding BasePageSelections}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
+                                            <!--  名字后面跟一句「无图元」：基座只合成图元，空基座勾了也不会有任何变化
+                                                  （底色/尺寸/网格取引用页自己的）。标注放在勾选之前，误解在这里就被挡住，
+                                                  而不是勾完盯着画布怀疑"引用没生效"。  -->
                                             <CheckBox
                                                 Margin="10,4"
-                                                Content="{Binding Name}"
-                                                IsChecked="{Binding IsSelected, Mode=TwoWay}" />
+                                                IsChecked="{Binding IsSelected, Mode=TwoWay}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                                    <TextBlock
+                                                        Margin="6,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10.5"
+                                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                        Text="无图元">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </CheckBox>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
@@ -378,6 +401,9 @@
                                 <MenuItem Command="{Binding AddPageCommand}" Header="新建画面" />
                                 <MenuItem Command="{Binding AddPopupPageCommand}" Header="新建弹窗页（特殊画面）" />
                                 <MenuItem Command="{Binding AddBasePageCommand}" Header="新建基座（跨页公共层）" />
+                                <!--  基座只合成图元（底色/尺寸/网格取引用页自己的），要公共底色就插一块铺满的矩形。
+                                      非基座页上命令不可用（自动置灰），不在菜单里另写一遍判据。  -->
+                                <MenuItem Command="{Binding InsertBaseBackdropCommand}" Header="插入公共底板矩形（铺满基座）" />
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>

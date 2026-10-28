@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -110,6 +111,7 @@ namespace UIThemeSmokeTest
                         // HandEye 的进度条在空表时整块 Collapsed；冒烟里先补 3 行有效数据，
                         // 让模板与绑定真的参与布局（否则 PART_Indicator.ActualWidth 恒 0，查不出问题）。
                         EnsureHandEyeSamples(plugin);
+                        EnsureVariableAssignmentRows(plugin);
 
                         var host = new Border
                         {
@@ -159,6 +161,24 @@ namespace UIThemeSmokeTest
                         var ports = editors.Select(e => e.Port?.Name ?? "(null)").ToList();
                         Check(label + " LinkableValueEditor.Port", editors.All(e => e.Port != null),
                             $"count={editors.Count} ports={string.Join(",", ports)}");
+
+                        // 变量赋值 v3：全局行的候选与选中项必须真的到位（否则 ComboBox 会显示空白）。
+                        if (plugin.GetType().FullName == "VisionMaster.Plugins.Util.VariableAssignmentPlugin")
+                        {
+                            var rowVms = plugin.GetType().GetProperty("RowVms")?.GetValue(plugin) as System.Collections.IEnumerable;
+                            var globalVm = rowVms?.Cast<object>().FirstOrDefault(vm =>
+                            {
+                                var row = vm.GetType().GetProperty("Row")?.GetValue(vm);
+                                return string.Equals(
+                                    row?.GetType().GetProperty("Scope")?.GetValue(row) as string,
+                                    "Global", StringComparison.OrdinalIgnoreCase);
+                            });
+                            var candidates = globalVm?.GetType().GetProperty("Candidates")?.GetValue(globalVm)
+                                as System.Collections.ICollection;
+                            var selected = globalVm?.GetType().GetProperty("SelectedGlobalCandidate")?.GetValue(globalVm);
+                            Check(label + " 全局行候选与选中项", candidates != null && candidates.Count > 0 && selected != null,
+                                $"candidates={candidates?.Count ?? -1} selected={(selected == null ? "null" : "ok")}");
+                        }
 
                         // LinkableValueEditor 内部的 🔗/✕ 按钮是共享控件的 Click 按钮，不是视图动作按钮；
                         // 只检查视图自己的按钮是否至少有一个 Command 绑定。
@@ -282,6 +302,60 @@ namespace UIThemeSmokeTest
                 for (int k = 0; k < 12; k++) values[k] = 1.0 + i + k * 0.1;
                 setRow.Invoke(row, new object[] { values });
                 samples.Add(row);
+            }
+        }
+
+        /// <summary>
+        /// 冒烟专用：变量赋值 v3 的行模板在空表时不实例化；补两行（运行时 + 全局）让它参与布局，
+        /// 才能检查每行 LinkableValueEditor.Port、ComboBox 绑定与行内按钮命令。
+        /// 用反射而不是引用 Plugin.Util（本宿主按 DLL 名加载插件，不编译期依赖插件工程）。
+        /// </summary>
+        private static void EnsureVariableAssignmentRows(object plugin)
+        {
+            var type = plugin.GetType();
+            if (type.FullName != "VisionMaster.Plugins.Util.VariableAssignmentPlugin") return;
+
+            var rowsProperty = type.GetProperty("Rows");
+            var rowType = type.Assembly.GetType("Plugin.Util.Models.AssignmentRow");
+            if (rowsProperty == null || rowType == null) return;
+
+            var collectionType = typeof(ObservableCollection<>).MakeGenericType(rowType);
+            if (Activator.CreateInstance(collectionType) is not System.Collections.IList rows) return;
+
+            object MakeRow(string id, string name, string scope, string port)
+            {
+                var row = Activator.CreateInstance(rowType)!;
+                rowType.GetProperty("RowId")!.SetValue(row, id);
+                rowType.GetProperty("VariableName")!.SetValue(row, name);
+                rowType.GetProperty("Scope")!.SetValue(row, scope);
+                rowType.GetProperty("CreateIfNotExists")!.SetValue(row, false);
+                rowType.GetProperty("ValuePortName")!.SetValue(row, port);
+                rowType.GetProperty("Enabled")!.SetValue(row, true);
+                return row;
+            }
+
+            rows.Add(MakeRow("smoke-r1", "OKCount", "Runtime", "Value_smoke-r1"));
+            rows.Add(MakeRow("smoke-r2", "LineName", "Global", "Value_smoke-r2"));
+            rowsProperty.SetValue(plugin, rows);
+
+            if (plugin is IPluginConfigContextProvider provider)
+            {
+                provider.SetConfigContext(new PluginConfigContext
+                {
+                    Variables = new List<VariableOption>
+                    {
+                        new VariableOption { Name = "OKCount", Scope = "Runtime", TypeName = "Int32", Description = "本轮累计良品数" },
+                        new VariableOption { Name = "LineName", Scope = "Global", TypeName = "String", Description = "产线名称" },
+                    }
+                });
+            }
+
+            // 补两个常量，让值行的 LinkableValueEditor 真实渲染文本态（不是空框）。
+            var inputs = type.GetProperty("Inputs")?.GetValue(plugin) as IReadOnlyDictionary<string, IInputPort>;
+            if (inputs != null)
+            {
+                if (inputs.TryGetValue("Value_smoke-r1", out var p1)) p1.Value = "21";
+                if (inputs.TryGetValue("Value_smoke-r2", out var p2)) p2.Value = "LineA";
             }
         }
 

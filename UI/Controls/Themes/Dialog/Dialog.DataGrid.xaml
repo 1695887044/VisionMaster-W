@@ -63,6 +63,17 @@
     <Setter Property="BorderThickness" Value="0,0,0,1" />
     <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
   </Style>
+  <!--
+      紧凑表头（36 高 / 11.5 号）：流程管理 v1.1 基线把行高从 96 压到 56，表头 42 显得头重脚轻。
+      只改密度，颜色与分隔线仍取 Dialog* 令牌。不要把它做成隐式样式——隐式样式会波及全应用每个表格。
+  -->
+  <Style
+      x:Key="DialogDataGridColumnHeaderCompact"
+      BasedOn="{StaticResource DialogDataGridColumnHeader}"
+      TargetType="DataGridColumnHeader">
+    <Setter Property="Height" Value="36" />
+    <Setter Property="FontSize" Value="11.5" />
+  </Style>
   <Style x:Key="DialogDataGrid" TargetType="DataGrid">
     <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
     <Setter Property="BorderThickness" Value="0" />

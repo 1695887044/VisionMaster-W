@@ -2,8 +2,13 @@ using Prism.Commands;
 using Prism.Mvvm;
 using Prism.Dialogs;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Reflection;
 using System.Windows;
 using VisionMaster.Helpers;
 using VisionMaster.Models;
@@ -15,12 +20,21 @@ namespace VisionMaster.ViewModels.DialogViewModels
 {
     /// <summary>
     /// 流程管理ViewModel
+    ///
+    /// 设计基线：<c>docs/UI设计基线/flow-manager/</c> v1.1（2026-10-28 用户裁定 Q1~Q5 + A 方案）。
+    /// 本版相对旧实现的结构性改动（判据都在基线 README 里）：
+    ///  · 调用方式 5 个复选框 → 5 个可点胶囊（绑定仍是 5 个独立 bool，位集与落盘不变）；
+    ///  · 删除「调用关系」列（取值完全由 InvokeType 位集派生，信息并入胶囊颜色 + 角色徽标）；
+    ///  · 操作列按状态收敛：锁定/解锁合成一个图标键，运行中两个键都不可点（Q1）；
+    ///  · 说明面板折叠（Q2）；搜索无结果给空态；
+    ///  · 新增「未配齐」提示 + A 方案配置入口（勾了定时/变量却没配参数 → 琥珀提示 + 齿轮小窗）。
     /// </summary>
     public class FlowManagerViewModel : BindableBase, IDialogAware
     {
         private ObservableCollection<FlowItem> _flows = new();
         private FlowItem? _selectedFlow;
         private string _searchText = string.Empty;
+        private bool _isLegendExpanded;
         private ObservableCollection<FlowModel>? _originalFlows;
 
         public DialogCloseListener RequestClose { get; set; }
@@ -31,7 +45,15 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public ObservableCollection<FlowItem> Flows
         {
             get => _flows;
-            set => SetProperty(ref _flows, value);
+            set
+            {
+                if (_flows != null) _flows.CollectionChanged -= OnFlowsCollectionChanged;
+                if (SetProperty(ref _flows, value) && _flows != null)
+                {
+                    _flows.CollectionChanged += OnFlowsCollectionChanged;
+                    RaiseListStateChanged();
+                }
+            }
         }
 
         /// <summary>
@@ -51,10 +73,41 @@ namespace VisionMaster.ViewModels.DialogViewModels
             get => _searchText;
             set
             {
-                SetProperty(ref _searchText, value);
-                FilterFlows();
+                if (SetProperty(ref _searchText, value))
+                {
+                    FilterFlows();
+                    RaisePropertyChanged(nameof(HasSearchText));
+                }
             }
         }
+
+        /// <summary>搜索框右侧清除键是否显示（空串时收起）</summary>
+        public bool HasSearchText => !string.IsNullOrEmpty(SearchText);
+
+        /// <summary>列表为空（搜索无结果时可达；无流程不可达，见基线 §6）</summary>
+        public bool IsEmpty => Flows.Count == 0;
+
+        /// <summary>空态标题：带关键词，用户才知道是"搜错了"而不是"列表坏了"</summary>
+        public string EmptyStateTitle => string.IsNullOrWhiteSpace(SearchText)
+            ? "当前方案没有流程"
+            : $"没有匹配「{SearchText.Trim()}」的流程";
+
+        /// <summary>工具栏计数</summary>
+        public string FlowCountText => $"{Flows.Count} 条";
+
+        /// <summary>说明面板是否展开（默认收起，Q2）</summary>
+        public bool IsLegendExpanded
+        {
+            get => _isLegendExpanded;
+            set
+            {
+                if (SetProperty(ref _isLegendExpanded, value))
+                    RaisePropertyChanged(nameof(LegendToggleText));
+            }
+        }
+
+        /// <summary>说明面板展开键文案</summary>
+        public string LegendToggleText => IsLegendExpanded ? "收起" : "展开";
 
         /// <summary>
         /// 所有流程（原始数据）
@@ -62,12 +115,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private ObservableCollection<FlowItem> _allFlows = new();
 
         /// <summary>
-        /// 加密命令
+        /// 加密命令（锁定：禁止运行，不改变文件内容）
         /// </summary>
         public DelegateCommand<FlowItem> EncryptFlowCommand { get; }
 
         /// <summary>
-        /// 解密命令
+        /// 解密命令（解锁：恢复可运行）
         /// </summary>
         public DelegateCommand<FlowItem> DecryptFlowCommand { get; }
 
@@ -75,6 +128,23 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// 启用/禁用流程命令
         /// </summary>
         public DelegateCommand<FlowItem> ToggleEnabledCommand { get; }
+
+        /// <summary>
+        /// 调用参数配置命令（A 方案：行内齿轮 → EasyDialog 属性网格小窗）
+        /// 参数是 FlowItem；用 object 型并按 R27 首行判型（绑定来源是 DataGrid 的 DataContext，
+        /// 编译期无法证明类型）。
+        /// </summary>
+        public DelegateCommand<object?> ConfigureInvokeCommand { get; }
+
+        /// <summary>
+        /// 展开/收起说明面板
+        /// </summary>
+        public DelegateCommand ToggleLegendCommand { get; }
+
+        /// <summary>
+        /// 清空搜索
+        /// </summary>
+        public DelegateCommand ClearSearchCommand { get; }
 
         /// <summary>
         /// 关闭命令
@@ -92,7 +162,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
             EncryptFlowCommand = new DelegateCommand<FlowItem>(ExecuteEncryptFlow);
             DecryptFlowCommand = new DelegateCommand<FlowItem>(ExecuteDecryptFlow);
             ToggleEnabledCommand = new DelegateCommand<FlowItem>(ExecuteToggleEnabled);
+            ConfigureInvokeCommand = new DelegateCommand<object?>(ExecuteConfigureInvoke);
+            ToggleLegendCommand = new DelegateCommand(() => IsLegendExpanded = !IsLegendExpanded);
+            ClearSearchCommand = new DelegateCommand(() => SearchText = string.Empty);
             CloseCommand = new DelegateCommand(ExecuteClose);
+
+            _flows.CollectionChanged += OnFlowsCollectionChanged;
 
             // 常驻面板模式：跟随工作区当前方案自动加载流程列表
             _workspace.PropertyChanged += OnWorkspacePropertyChanged;
@@ -107,6 +182,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 LoadFlowsFromWorkspace();
             }
+        }
+
+        private void OnFlowsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => RaiseListStateChanged();
+
+        /// <summary>列表级派生状态一起重发（计数 / 空态 / 空态标题）</summary>
+        private void RaiseListStateChanged()
+        {
+            RaisePropertyChanged(nameof(IsEmpty));
+            RaisePropertyChanged(nameof(FlowCountText));
+            RaisePropertyChanged(nameof(EmptyStateTitle));
         }
 
         /// <summary>
@@ -169,19 +255,35 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 if (string.IsNullOrWhiteSpace(SearchText) ||
                     flow.Flow.FlowName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) ||
-                    flow.Flow.Description.Contains(SearchText, StringComparison.OrdinalIgnoreCase))
+                    (flow.Flow.Description ?? string.Empty).Contains(SearchText, StringComparison.OrdinalIgnoreCase))
                 {
                     Flows.Add(flow);
                 }
             }
         }
 
+        // ==================================================================
+        //  运行中守卫（Q1：用户裁定"要补上对应的行为"）
+        //  R136 口径：按下前判（行内 IsEnabled 绑 CanToggle/CanLock）+ 命令执行前再判一次。
+        //  为什么执行前还要判：按钮 IsEnabled 是绑定的，从"按下"到"命令执行"之间流程可能刚被
+        //  定时器拉起来——只靠绑定会漏掉这个窗口。
+        // ==================================================================
+
+        /// <summary>运行中禁止变更锁定/启用状态；返回 true = 已拦截并提示</summary>
+        private bool RejectWhileRunning(FlowItem item, string action)
+        {
+            if (item.Flow.RunState != FlowRunState.Running) return false;
+            Notifier.ShowWarning($"流程 [{item.Flow.FlowName}] 正在运行，无法{action}；请先停止");
+            return true;
+        }
+
         /// <summary>
-        /// 加密流程
+        /// 加密流程（锁定：禁止运行）
         /// </summary>
         private void ExecuteEncryptFlow(FlowItem? item)
         {
             if (item == null) return;
+            if (RejectWhileRunning(item, "锁定")) return;
 
             if (item.Flow.StepsEncrypted)
             {
@@ -207,11 +309,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>
-        /// 解密流程
+        /// 解密流程（解锁：恢复可运行）
         /// </summary>
         private void ExecuteDecryptFlow(FlowItem? item)
         {
             if (item == null) return;
+            if (RejectWhileRunning(item, "解锁")) return;
 
             if (!item.Flow.StepsEncrypted)
             {
@@ -239,8 +342,36 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void ExecuteToggleEnabled(FlowItem? item)
         {
             if (item == null) return;
+            if (RejectWhileRunning(item, "启用/禁用")) return;
 
             item.Flow.IsEnabled = !item.Flow.IsEnabled;
+            item.Refresh();
+        }
+
+        /// <summary>
+        /// 调用参数配置（A 方案）。
+        ///
+        /// 【为什么这里才有意义】「定时」读 FlowModel.TimerIntervalMs、「变量」读 TriggerVariable，
+        /// 两者此前**没有任何界面入口**（全仓 XAML 零绑定），而 ShouldFire 把 0 判成"没配间隔"
+        /// 直接不触发、EvaluateCore 的空串永不匹配变量名——勾了等于没勾，且界面不提示。
+        /// 基线 §1.8 / §9.2 的 Q6 即此。
+        ///
+        /// 【为什么用 EasyDialog.ShowPropertyGridSync】与并行分组参数同一条路（R26 / 基线 A 方案）：
+        /// 弹窗自己建窗口、自己收口成 bool，不需要新的 Prism 视图注册名，也不需要新 XAML。
+        /// </summary>
+        private void ExecuteConfigureInvoke(object? parameter)
+        {
+            if (parameter is not FlowItem item) return;
+            if (RejectWhileRunning(item, "修改调用参数")) return;
+
+            var candidates = _workspace.CurrentSolution?.GlobalVariables?
+                .Select(v => v.Name) ?? Enumerable.Empty<string>();
+
+            var draft = new InvokeParamEditModel(item.Flow, candidates);
+            if (!EasyDialog.ShowPropertyGridSync($"调用参数 · {item.Flow.FlowName}", draft))
+                return;   // 取消 = 草稿整份丢弃，活模型一个字节都不动
+
+            draft.ApplyToModel();
             item.Refresh();
         }
 
@@ -268,15 +399,16 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>
         /// 调用方式文本（领域层单一口径：无自动触发显示「手动」，否则按勾选拼接）
+        /// 基线 v1.1 起表格不再显示这一行（与胶囊重复），保留给日志/其它消费方复用。
         /// </summary>
         public string InvokeTypeText => _flow.InvokeType.DisplayText();
 
         // ------------------------------------------------------------------
-        //  调用方式：多选勾选（直接改流程模型，落盘为位集）
-        //  四位全部接通：HTTP（/flow/ 门禁）、定时（FlowTimerScheduler）、变量（上升沿触发）、
-        //  子程序（「调用流程」插件 + FlowInvoker）。
+        //  调用方式：多选胶囊（直接改流程模型，落盘为位集）
+        //  五位全部接通：HTTP（/flow/ 门禁）、定时（FlowTimerScheduler）、变量（上升沿触发）、
+        //  子程序（「调用流程」插件 + FlowInvoker）、整线（FlowBatchSelector）。
         //  PendingReasonText 仍保留：将来加位而运行侧没跟上时，它把"哪一位还没接通"显示出来，
-        //  避免"勾了没反应 = 软件坏了"（当前四位全接通 → 返回空串，界面自动收起那一行）。
+        //  避免"勾了没反应 = 软件坏了"（当前五位全接通 → 返回空串，界面自动收起那一行）。
         // ------------------------------------------------------------------
 
         public bool IsTimerInvoke
@@ -305,15 +437,25 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>
+        /// 随整线启动：工具栏「启动整线」把它和其它同样勾了本位的流程各起各的会话一起启动。
+        /// 工位与主流程平级——一条出问题只停它自己，其余照常循环（2026-10-28 用户裁决）。
+        /// </summary>
+        public bool IsLineStartInvoke
+        {
+            get => HasFlag(FlowInvokeType.LineStart);
+            set => SetFlag(FlowInvokeType.LineStart, value);
+        }
+
+        /// <summary>
         /// 已勾选但运行侧还没接通的调用位的一句话原因（全部接通或没勾时为"[]"）。
-        /// 界面把它挂在勾选框的行尾，用户看到"待接通"就不会误以为勾了没生效是坏了。
+        /// 界面把它挂在胶囊的行尾，用户看到"待接通"就不会误以为勾了没生效是坏了。
         /// </summary>
         public string PendingReasonText
         {
             get
             {
-                var reasons = new System.Collections.Generic.List<string>(3);
-                foreach (var flag in new[] { FlowInvokeType.Timer, FlowInvokeType.Variable, FlowInvokeType.Subroutine })
+                var reasons = new List<string>(3);
+                foreach (var flag in new[] { FlowInvokeType.Timer, FlowInvokeType.Variable, FlowInvokeType.Subroutine, FlowInvokeType.LineStart })
                 {
                     if (HasFlag(flag) && flag.PendingReason() is { } reason)
                         reasons.Add(reason);
@@ -321,6 +463,51 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 return reasons.Count == 0 ? string.Empty : string.Join("；", reasons);
             }
         }
+
+        /// <summary>
+        /// 勾了「定时」/「变量」但缺参数 → 这一行永远不会触发（基线 §1.8）。
+        ///
+        /// 与 <see cref="PendingReasonText"/> 的分工：那个回答"这一位有没有接通运行侧"，
+        /// 这个回答"这一条流程有没有把参数配齐"。两者都为空才是真的能跑。
+        /// 判据与运行侧严格同源：ShouldFire 的 TimerIntervalMs &lt;= 0、EvaluateCore 的
+        /// TriggerVariable 空串比较——这里不另发明一套。
+        /// </summary>
+        public string InvokeConfigNote
+        {
+            get
+            {
+                var missing = new List<string>(2);
+                if (HasFlag(FlowInvokeType.Timer) && _flow.TimerIntervalMs <= 0)
+                    missing.Add("定时未设间隔");
+                if (HasFlag(FlowInvokeType.Variable) && string.IsNullOrWhiteSpace(_flow.TriggerVariable))
+                    missing.Add("变量未选触发源");
+                return missing.Count == 0 ? string.Empty : string.Join(" · ", missing) + "，不会触发";
+            }
+        }
+
+        /// <summary>
+        /// 派生小字（中性色）：删掉「调用关系」列之后，"仅子程序"与"手动"这两种情况
+        /// 没有别的表达——它们不是异常，只是提醒用户"这条流程自己不会跑起来"。
+        ///
+        /// 判据全部来自领域层，不在视图里重算：
+        ///  · <see cref="FlowModel.IsSubroutineOnly"/>：非主流程 + 勾了子程序 + 无外部触发 + 非整线成员；
+        ///  · <c>InvokeType == Manual</c>：一个位都没勾。
+        /// </summary>
+        public string DerivedNote
+        {
+            get
+            {
+                // 有「未配齐」时让位：那条是警告，优先级更高
+                if (InvokeConfigNote.Length > 0) return string.Empty;
+                if (_flow.IsSubroutineOnly) return "仅子程序";
+                if (_flow.InvokeType == FlowInvokeType.Manual) return "手动";
+                return string.Empty;
+            }
+        }
+
+        /// <summary>是否需要显示配置入口齿轮（勾了定时或变量才显示）</summary>
+        public bool NeedsInvokeParams =>
+            HasFlag(FlowInvokeType.Timer) || HasFlag(FlowInvokeType.Variable);
 
         private bool HasFlag(FlowInvokeType flag) => (_flow.InvokeType & flag) != 0;
 
@@ -330,38 +517,124 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 ? (_flow.InvokeType | flag)
                 : (_flow.InvokeType & ~flag);
             Refresh();
-            // 四个勾选框互相独立，但显示文本 / 待接通提示由整体位集派生：一次改动一并重发
+            // 五个胶囊互相独立，但显示文本 / 待接通 / 未配齐提示由整体位集派生：一次改动一并重发
             RaisePropertyChanged(nameof(IsTimerInvoke));
             RaisePropertyChanged(nameof(IsVariableInvoke));
             RaisePropertyChanged(nameof(IsSubroutineInvoke));
             RaisePropertyChanged(nameof(IsHttpInvoke));
+            RaisePropertyChanged(nameof(IsLineStartInvoke));
             RaisePropertyChanged(nameof(PendingReasonText));
+            RaisePropertyChanged(nameof(InvokeConfigNote));
+            RaisePropertyChanged(nameof(DerivedNote));
+            RaisePropertyChanged(nameof(NeedsInvokeParams));
         }
 
-        /// <summary>
-        /// 状态文本
-        /// </summary>
+        // ------------------------------------------------------------------
+        //  角色徽标（基线 §1.2：删掉「调用关系」列后，骨架角色由名称旁徽标表达）
+        //  文案来自 FlowRole 的 [Display(ShortName=…)]，不在视图里写死中文（R40）。
+        //  2026-10-28 起没有"主流程"角色：生产主任务由「调用方式」里的「整线」表达。
+        // ------------------------------------------------------------------
+
+        /// <summary>角色徽标短名（回零 / 收尾）；无角色时为空串，徽标整体收起</summary>
+        public string RoleBadgeText =>
+            FlowRoleNames.TryGetValue(_flow.Role, out var name) ? name.Short : string.Empty;
+
+        /// <summary>角色徽标的样式键后缀（home / end）；无角色时为空串</summary>
+        public string RoleBadgeKey => _flow.Role switch
+        {
+            FlowRole.Home => "home",
+            FlowRole.End => "end",
+            _ => string.Empty,
+        };
+
+        /// <summary>角色徽标 ToolTip：完整名 + 该角色的约束</summary>
+        public string RoleBadgeToolTip => _flow.Role switch
+        {
+            FlowRole.Home => "回零（Home）：开机与换产时的安全位姿流程；每个方案必须保留，不允许删除（可改名）",
+            FlowRole.End => "收尾（End）：停机 / 换产前把机构与状态收干净；每个方案必须保留，不允许删除（可改名）",
+            _ => string.Empty,
+        };
+
+        private static readonly Dictionary<FlowRole, (string Short, string Full)> FlowRoleNames = BuildRoleNames();
+
+        private static Dictionary<FlowRole, (string Short, string Full)> BuildRoleNames()
+        {
+            var map = new Dictionary<FlowRole, (string, string)>();
+            foreach (FlowRole role in Enum.GetValues(typeof(FlowRole)))
+            {
+                if (role == FlowRole.None) continue;
+                var attr = typeof(FlowRole)
+                    .GetField(role.ToString(), BindingFlags.Public | BindingFlags.Static)
+                    ?.GetCustomAttribute<DisplayAttribute>();
+                var shortName = attr?.ShortName;
+                if (string.IsNullOrWhiteSpace(shortName)) continue;
+                map[role] = (shortName!, attr!.Name ?? role.ToString());
+            }
+            return map;
+        }
+
+        // ------------------------------------------------------------------
+        //  状态（基线 §1.3）：四态，只有异常态给底色
+        // ------------------------------------------------------------------
+
+        /// <summary>已锁定（步序加密 = 禁止运行）；锁定优先级最高，压过运行/启用</summary>
+        public bool IsLocked => _flow.StepsEncrypted;
+
+        /// <summary>正在运行</summary>
+        public bool IsRunning => _flow.RunState == FlowRunState.Running;
+
+        /// <summary>状态文本（基线四态，比旧版短：旧的"🔒 已锁定（禁止运行）"在 120px 列里放不下）</summary>
         public string StatusText
         {
             get
             {
-                if (_flow.StepsEncrypted)
-                    return "🔒 已锁定（禁止运行）";
-                
-                if (_flow.RunState == FlowRunState.Running)
-                    return "▶ 运行中";
-                
-                if (_flow.IsEnabled)
-                    return "✓ 已启用";
-                else
-                    return "✗ 已禁用";
+                if (_flow.StepsEncrypted) return "已锁定";
+                if (_flow.RunState == FlowRunState.Running) return "运行中";
+                return _flow.IsEnabled ? "已启用" : "已禁用";
             }
         }
+
+        /// <summary>
+        /// 状态样式键：lock / run / on / off。
+        /// 用独立属性而不是拿 StatusText 做 DataTrigger 比较——文案会改（这一版就改了），
+        /// 样式不该跟着文案漂。
+        /// </summary>
+        public string StatusKind
+        {
+            get
+            {
+                if (_flow.StepsEncrypted) return "lock";
+                if (_flow.RunState == FlowRunState.Running) return "run";
+                return _flow.IsEnabled ? "on" : "off";
+            }
+        }
+
+        // ------------------------------------------------------------------
+        //  操作列可用性（Q1：运行中禁止变更锁定/启用）
+        // ------------------------------------------------------------------
+
+        /// <summary>启用/禁用键是否可点</summary>
+        public bool CanToggle => !IsRunning;
+
+        /// <summary>锁定/解锁键是否可点</summary>
+        public bool CanLock => !IsRunning;
+
+        /// <summary>
+        /// 行内操作区 ToolTip。
+        /// 不返回空串：空串 ToolTip 在 WPF 里仍会弹一个空框。运行中解释"为什么点不了"，
+        /// 平时解释"这两个键各改什么"——两条都有人会问。
+        /// </summary>
+        public string OpsToolTip => IsRunning
+            ? "流程正在运行，锁定 / 启用状态不可变更；请先停止"
+            : "锁定 = 该流程禁止运行（不改文件内容）；启用 / 禁用 = 是否参与自动调用";
 
         /// <summary>
         /// 启用状态文本
         /// </summary>
         public string EnabledText => _flow.IsEnabled ? "禁用" : "启用";
+
+        /// <summary>启用/禁用键的语义（true = 恢复动作，用主色）</summary>
+        public bool IsEnableAction => !_flow.IsEnabled;
 
         /// <summary>
         /// 构造函数
@@ -372,17 +645,31 @@ namespace VisionMaster.ViewModels.DialogViewModels
             _flow.PropertyChanged += (s, e) => Refresh();
         }
 
-        /// <summary>刷新显示（流程模型任何一处变更都会走到这里：勾选框 / 状态 / 汇总文本一起重发）</summary>
+        /// <summary>刷新显示（流程模型任何一处变更都会走到这里：胶囊 / 状态 / 角色 / 派生提示一起重发）</summary>
         public void Refresh()
         {
             RaisePropertyChanged(nameof(InvokeTypeText));
             RaisePropertyChanged(nameof(StatusText));
+            RaisePropertyChanged(nameof(StatusKind));
             RaisePropertyChanged(nameof(EnabledText));
+            RaisePropertyChanged(nameof(IsEnableAction));
+            RaisePropertyChanged(nameof(IsLocked));
+            RaisePropertyChanged(nameof(IsRunning));
+            RaisePropertyChanged(nameof(CanToggle));
+            RaisePropertyChanged(nameof(CanLock));
+            RaisePropertyChanged(nameof(OpsToolTip));
             RaisePropertyChanged(nameof(IsTimerInvoke));
             RaisePropertyChanged(nameof(IsVariableInvoke));
             RaisePropertyChanged(nameof(IsSubroutineInvoke));
             RaisePropertyChanged(nameof(IsHttpInvoke));
+            RaisePropertyChanged(nameof(IsLineStartInvoke));
             RaisePropertyChanged(nameof(PendingReasonText));
+            RaisePropertyChanged(nameof(InvokeConfigNote));
+            RaisePropertyChanged(nameof(DerivedNote));
+            RaisePropertyChanged(nameof(NeedsInvokeParams));
+            RaisePropertyChanged(nameof(RoleBadgeText));
+            RaisePropertyChanged(nameof(RoleBadgeKey));
+            RaisePropertyChanged(nameof(RoleBadgeToolTip));
         }
     }
 }

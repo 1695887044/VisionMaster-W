@@ -119,7 +119,7 @@ namespace FlowCanvasChecks
             {
                 FlowName = "往返流程",
                 InvokeType = FlowInvokeType.Timer | FlowInvokeType.Http,
-                Role = FlowRole.Main,
+                Role = FlowRole.Home,
             };
 
             var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
@@ -129,12 +129,12 @@ namespace FlowCanvasChecks
             Check("往返后调用方式位集原样（定时|HTTP）",
                 back != null && back.InvokeType == (FlowInvokeType.Timer | FlowInvokeType.Http),
                 $"InvokeType={back?.InvokeType}（{(int)(back?.InvokeType ?? 0)}）");
-            Check("往返后角色原样（Main）",
-                back != null && back.Role == FlowRole.Main, $"Role={back?.Role}");
+            Check("往返后角色原样（Home）",
+                back != null && back.Role == FlowRole.Home, $"Role={back?.Role}");
         }
 
         // ==================================================================
-        //  [E15] ④ 新建方案自带三条骨架流程
+        //  [E15] ④ 新建方案自带两条骨架流程 + 一条默认整线成员
         // ==================================================================
         private static void SkeletonIsPresetOnNewSolution()
         {
@@ -142,18 +142,22 @@ namespace FlowCanvasChecks
 
             var solution = new SolutionModel();
 
-            Check("新建方案预置 3 条流程", solution.Flows.Count == 3, $"Count={solution.Flows.Count}");
-            Check("★三条骨架的角色齐备（Home / Main / End）",
+            Check("新建方案预置 3 条流程（Home / Main / End）", solution.Flows.Count == 3, $"Count={solution.Flows.Count}");
+            Check("★两条骨架的角色齐备（Home / End）",
                 MandatoryFlows.FindByRole(solution, FlowRole.Home) != null
-                && MandatoryFlows.FindByRole(solution, FlowRole.Main) != null
                 && MandatoryFlows.FindByRole(solution, FlowRole.End) != null,
                 string.Join(",", solution.Flows.Select(f => $"{f.FlowName}:{f.Role}")));
             Check("默认名即角色名（Home / Main / End）",
                 solution.Flows[0].FlowName == "Home" && solution.Flows[1].FlowName == "Main"
                 && solution.Flows[2].FlowName == "End",
                 string.Join(",", solution.Flows.Select(f => f.FlowName)));
-            Check("骨架流程可判强制（IsMandatory）",
-                solution.Flows.All(f => MandatoryFlows.IsMandatory(f)), "");
+            Check("★中间的 Main 不是角色，而是默认整线成员（Role=None + 勾整线，可删可改名）",
+                solution.Flows[1].Role == FlowRole.None
+                && solution.Flows[1].IsLineStartMember
+                && !MandatoryFlows.IsMandatory(solution.Flows[1]),
+                $"Role={solution.Flows[1].Role} InvokeType={solution.Flows[1].InvokeType}");
+            Check("骨架流程可判强制（IsMandatory：恰好 Home / End 两条）",
+                solution.Flows.Count(f => MandatoryFlows.IsMandatory(f)) == 2, "");
             Check("普通流程不算强制（Role=None）",
                 !MandatoryFlows.IsMandatory(new FlowModel { FlowName = "普通" }), "");
         }
@@ -176,9 +180,9 @@ namespace FlowCanvasChecks
 
             int created = MandatoryFlows.Ensure(legacy);
 
-            Check("★老默认名被认领为骨架角色（GoHome→Home / MainTask→Main，不重复建）",
-                goHome.Role == FlowRole.Home && mainTask.Role == FlowRole.Main,
-                $"GoHome={goHome.Role} MainTask={mainTask.Role}");
+            Check("★老默认名被认领：GoHome→Home 角色；MainTask→无角色 + 勾整线（不重复建）",
+                goHome.Role == FlowRole.Home && mainTask.Role == FlowRole.None && mainTask.IsLineStartMember,
+                $"GoHome={goHome.Role} MainTask={mainTask.Role}/{mainTask.InvokeType}");
             Check("缺的 End 被补齐（本次新建 1 条）", created == 1, $"created={created}");
             Check("补齐后总数 4（2 老 + 1 普通 + 1 新 End）", legacy.Flows.Count == 4, $"Count={legacy.Flows.Count}");
             Check("新补的 End 带角色且默认名 End",
@@ -202,20 +206,20 @@ namespace FlowCanvasChecks
 
             var solution = new SolutionModel();
             solution.Flows.Clear();
-            // 用户手建了一条叫 Main 的普通流程（没有角色）
-            var userMain = new FlowModel { FlowName = "Main", Description = "用户自己的流程" };
-            solution.Flows.Add(userMain);
+            // 用户手建了一条叫 End 的普通流程（没有角色）
+            var userEnd = new FlowModel { FlowName = "End", Description = "用户自己的流程" };
+            solution.Flows.Add(userEnd);
 
             MandatoryFlows.Ensure(solution);
 
             Check("用户流程未被抢走/改名（仍是 None，说明没被当骨架认领）",
-                userMain.Role == FlowRole.None && userMain.FlowName == "Main",
-                $"{userMain.FlowName}:{userMain.Role}");
-            var skeletonMain = MandatoryFlows.FindByRole(solution, FlowRole.Main);
-            Check("★骨架 Main 退让后缀落位（Main2），不覆盖用户同名流程",
-                skeletonMain != null && skeletonMain.FlowName == "Main2",
-                skeletonMain?.FlowName ?? "(null)");
-            Check("三条骨架齐备", solution.Flows.Count(f => MandatoryFlows.IsMandatory(f)) == 3,
+                userEnd.Role == FlowRole.None && userEnd.FlowName == "End",
+                $"{userEnd.FlowName}:{userEnd.Role}");
+            var skeletonEnd = MandatoryFlows.FindByRole(solution, FlowRole.End);
+            Check("★骨架 End 退让后缀落位（End2），不覆盖用户同名流程",
+                skeletonEnd != null && skeletonEnd.FlowName == "End2",
+                skeletonEnd?.FlowName ?? "(null)");
+            Check("两条骨架齐备", solution.Flows.Count(f => MandatoryFlows.IsMandatory(f)) == 2,
                 $"骨架数={solution.Flows.Count(f => MandatoryFlows.IsMandatory(f))}");
         }
 
@@ -261,10 +265,11 @@ namespace FlowCanvasChecks
                 Check("老值 0 保持 Manual（手动）",
                     mainTask?.InvokeType == FlowInvokeType.Manual, $"MainTask.InvokeType={mainTask?.InvokeType}");
 
-                Check("★加载时老默认名认领角色（GoHome→Home / MainTask→Main）",
-                    goHome?.Role == FlowRole.Home && mainTask?.Role == FlowRole.Main,
-                    $"GoHome={goHome?.Role} MainTask={mainTask?.Role}");
-                Check("加载时补齐 End（老方案打开即三骨架齐备）",
+                Check("★加载时老默认名认领（GoHome→Home 角色；MainTask→无角色 + 勾整线）",
+                    goHome?.Role == FlowRole.Home && mainTask?.Role == FlowRole.None
+                    && mainTask?.IsLineStartMember == true,
+                    $"GoHome={goHome?.Role} MainTask={mainTask?.Role}/{mainTask?.InvokeType}");
+                Check("加载时补齐 End（老方案打开即两骨架齐备）",
                     MandatoryFlows.FindByRole(solution, FlowRole.End) != null, "");
                 Check("加载不丢用户流程（3 条原有 + 1 条补的 End = 4）",
                     solution.Flows.Count == 4, $"Count={solution.Flows.Count}");

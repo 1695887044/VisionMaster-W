@@ -464,6 +464,15 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<ImageCollectionService>();
             containerRegistry.Register<IReadOnlyWorkspaceContext>(c => c.Resolve<WorkspaceContext>());
             containerRegistry.Register<IWorkspaceManager>(c => c.Resolve<WorkspaceContext>());
+
+            // 流程判定解析器（L2）：引擎只依赖 IFlowVerdictResolver，宿主实现读结果输出步骤/约定变量。
+            // 必须早于 FlowEngineModule.Initialize 解析引擎——本方法（RegisterTypes）先于模块初始化执行。
+            containerRegistry.RegisterSingleton<VisionMaster.Services.FlowVerdictResolver>(c =>
+                new VisionMaster.Services.FlowVerdictResolver(
+                    c.Resolve<IWorkspaceManager>(),
+                    c.Resolve<IWorkspaceManager>().VariableRegistry));
+            containerRegistry.RegisterSingleton<VisionMaster.Models.IFlowVerdictResolver>(c =>
+                c.Resolve<VisionMaster.Services.FlowVerdictResolver>());
             // 系统变量统一宿主：**必须显式注册**，且集合只能是 workspace.SystemVariables。
             // 漏了这条不报任何错——Unity 会自己构造一个 SystemVariableHost，连它要的集合也新造一份空的；
             // 运动目录据此进入"托管模式"，投影全写进没人读的孤儿集合，界面「系统变量」恒为 0
@@ -760,6 +769,11 @@ namespace VisionMaster
             containerRegistry.RegisterSingleton<IScadaRecipePicker, ScadaRecipePicker>();
             containerRegistry.RegisterDialog<ScadaRecipePickerView, ScadaRecipePickerViewModel>(
                 ScadaRecipePicker.DialogName);
+            // 「运行统计 · 结果源」：流程栏右键入口。只读态走 IFlowConfigAccess（同一「编辑流程结构」Key），
+            // 弹窗本身只写 FlowModel 的结果源字段，不改流程图、下一轮生效。
+            containerRegistry.RegisterSingleton<IFlowConfigAccess, FlowConfigAccess>();
+            containerRegistry.RegisterDialog<FlowResultSourceDialogView, FlowResultSourceDialogViewModel>(
+                FlowResultSourceDialogViewModel.DialogName);
             containerRegistry.RegisterDialog<VariableBindingView, VariableBindingViewModel>("DataBindView");
             containerRegistry.RegisterDialog<GlobalVariableView, GlobalVariableManagerViewModel>("GlobalVariable");
             // 单设备变量表批量导入/导出（xlsx）：入口在变量管理卡片头，仅网络来源可见。

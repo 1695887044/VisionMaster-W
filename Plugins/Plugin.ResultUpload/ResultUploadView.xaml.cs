@@ -115,6 +115,26 @@ namespace Plugin.ResultUpload
     }
 
     /// <summary>
+    /// 连线桥接：把"字段名 + 宿主插件 + 端口重建计数"转换为该字段对应的动态输入端口，
+    /// 让字段行内的 <c>LinkableValueEditor</c> 能按名挂到插件的动态端口上（R189）。
+    /// 第三路 <c>PortsVersion</c> 只作重取锚点：端口对象每次重建都换新实例，
+    /// 少了这一路 MultiBinding 不会重新求值，编辑器会一直指着已丢弃的旧端口。
+    /// （与 Plugin.DataRecord / Plugin.CSharpScript 的 InputPortConverter 同一范式。）
+    /// </summary>
+    public class InputPortConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            string name = values?.Length > 0 ? values[0] as string : null;
+            var plugin = values?.Length > 1 ? values[1] as ResultUploadPlugin : null;
+            return plugin?.GetInputPort(name);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
     /// PasswordBox 的双向绑定桥：PasswordBox 出于安全设计不暴露 Password 依赖属性（XAML 直接 Binding 会被拒），
     /// 用附加属性中转。对应"只打码不加密"的拍板——持久化仍是明文，只是界面上打码显示。
     /// </summary>

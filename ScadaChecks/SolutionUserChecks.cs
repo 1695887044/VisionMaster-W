@@ -1096,9 +1096,9 @@ namespace ScadaChecks
                 .Concat(flow.Select(a => ScadaPermissionGate.RequiredPermission(a)))
                 .ToArray();
 
-            Check("[SL16-a] 四类动作 6+7+20+13=46 项全部有映射，且 Key 合法",
-                solution.Length == 6 && execution.Length == 7 && system.Length == 20 && flow.Length == 13
-                    && all.Length == 46
+            Check("[SL16-a] 四类动作 6+7+20+15=48 项全部有映射，且 Key 合法",
+                solution.Length == 6 && execution.Length == 7 && system.Length == 20 && flow.Length == 15
+                    && all.Length == 48
                     && all.All(k => k == ScadaPermissionKeys.Always
                                     || ScadaPermissionKeys.BuiltIn.Any(p => p.Key == k)),
                 string.Join(",", all.Distinct()));
@@ -1150,8 +1150,8 @@ namespace ScadaChecks
                 .Concat(system.Select(a => ScadaPermissionGate.Describe(a)))
                 .Concat(flow.Select(a => ScadaPermissionGate.Describe(a)))
                 .ToArray();
-            Check("[SL16-h] Describe 46 项非空且互不相同",
-                described.All(d => !string.IsNullOrWhiteSpace(d)) && described.Distinct().Count() == 46,
+            Check("[SL16-h] Describe 48 项非空且互不相同",
+                described.All(d => !string.IsNullOrWhiteSpace(d)) && described.Distinct().Count() == 48,
                 "重复/空白：" + described.Length);
 
             var methods = typeof(ScadaPermissionGate).GetMethods(BindingFlags.Public | BindingFlags.Static)
@@ -1213,14 +1213,14 @@ namespace ScadaChecks
 
         private static void SlFlowBarGate()
         {
-            Section("[SL16-m…s] 流程栏 13 项接同一 gate（B3：Stop 是普通 Key）");
+            Section("[SL16-m…s] 流程栏 15 项接同一 gate（B3：Stop 是普通 Key）");
 
             var allKeys = ScadaPermissionKeys.BuiltIn.Select(p => p.Key)
                 .Concat(new[] { ScadaPermissionKeys.Always }).ToArray();
             var flowActions = Enum.GetValues<FlowAction>();
 
-            Check("[SL16-m] FlowAction 13 项全部映射到内置 Key 或 Always",
-                flowActions.Length == 13
+            Check("[SL16-m] FlowAction 15 项全部映射到内置 Key 或 Always",
+                flowActions.Length == 15
                     && flowActions.All(a => allKeys.Contains(ScadaPermissionGate.RequiredPermission(a))),
                 string.Join(",", flowActions.Select(a => ScadaPermissionGate.RequiredPermission(a)).Distinct()));
 
@@ -1260,7 +1260,7 @@ namespace ScadaChecks
                 var denied = flowActions
                     .Where(a => ScadaPermissionGate.RequiredPermission(a) != ScadaPermissionKeys.Always)
                     .All(a => !f.Vm.CanExecuteFlow(a));
-                Check("[SL16-r] 未登录：非 Always 的 12 项全 false，BrowseList=true",
+                Check("[SL16-r] 未登录：非 Always 的 14 项全 false，BrowseList=true",
                     denied && f.Vm.CanExecuteFlow(FlowAction.BrowseList), "未登录仍放行");
             }
         }

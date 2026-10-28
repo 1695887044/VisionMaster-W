@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>运行态顶栏 v1 设计基线（待确认）</title>
+<style>
+  /* ===== 令牌（与 UI/Controls/Themes/Colors.xaml 的 ScadaRun* 一一对应，改这里必须同步 README 的映射表） ===== */
+  :root{
+    --bar:#22262C;          /* ScadaRunBarBrush */
+    --line:#33383F;         /* ScadaRunBarLineBrush */
+    --text:#D6DAE0;         /* ScadaRunTextBrush */
+    --muted:#8A929E;        /* ScadaRunMutedTextBrush */
+    --control:#2A2F36;      /* ScadaRunControlBrush */
+    --control-line:#3A4048; /* ScadaRunControlBorderBrush */
+    --control-hover:#323841;/* ScadaRunControlHoverBrush */
+    --toggle-on:#2B4C7E;    /* ScadaRunToggleOnBrush */
+    --accent:#4A8FE0;       /* ScadaRunAccentBrush */
+    --stop:#C0392B;         /* ScadaRunStopBrush */
+    --stop-line:#E05A4A;    /* ScadaRunStopBorderBrush */
+    --win:#16191D;          /* ScadaRunWindowBrush */
+    --page:#F4F5F7;         /* 画面底色（页面自身 Background，此处为示意） */
+    --sev-critical:#C0392B;
+    --sev-warning:#D08A2E;
+    --sev-info:#4A8FE0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:28px 32px 60px;background:#0E1116;color:#C9D1DA;
+       font:13px/1.7 "Microsoft YaHei UI","Segoe UI",sans-serif}
+  h1{font-size:19px;margin:0 0 4px;color:#E6EEF7;font-weight:600}
+  h2{font-size:14px;margin:34px 0 10px;color:#E6EEF7;font-weight:600;
+     border-left:3px solid var(--accent);padding-left:9px}
+  .sub{color:#7C8A99;font-size:12px;margin:0 0 18px}
+  .note{color:#8A929E;font-size:12px;margin:6px 0 0}
+  .legend{font-size:11px;color:#7C8A99;margin:6px 0 0}
+  .legend b{color:#A9B7C6;font-weight:600}
+
+  /* ===== 设备框：每个 mock 按 DIP 1:1 画，方便量尺寸 ===== */
+  .frame{position:relative;border:1px solid #2A2F36;border-radius:4px;overflow:hidden;margin-bottom:6px}
+  .frame-label{font-size:11px;color:#7C8A99;margin:0 0 4px;font-family:Consolas,monospace}
+
+  /* ===== 运行窗口顶栏 ===== */
+  .bar{height:26px;background:var(--bar);border-bottom:1px solid var(--line);
+       display:flex;align-items:center;padding:0 12px;gap:12px;
+       font-size:12px;color:var(--text);white-space:nowrap}
+  .ticker{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:6px;overflow:hidden}
+  .ticker .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+  .ticker .msg{overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+  .ticker .sev{font-weight:600;flex:0 0 auto}
+  .ticker .empty{color:var(--muted)}
+  .ticker .sep{color:#4A515A;flex:0 0 auto}
+  .ticker .time{color:var(--muted);font-family:Consolas,monospace;flex:0 0 auto}
+
+  .title{flex:0 0 auto;max-width:220px;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--text)}
+  .title.blank{color:var(--muted);font-weight:400}
+  .user{flex:0 0 auto;color:var(--muted)}
+  .clock{flex:0 0 auto;color:var(--muted);font-family:Consolas,monospace}
+
+  .actions{flex:0 0 auto;display:flex;align-items:center;gap:8px}
+  .btn{height:26px;display:inline-flex;align-items:center;gap:6px;padding:0 12px;
+       background:var(--control);border:1px solid var(--control-line);border-radius:3px;color:var(--text)}
+  .btn.on{background:var(--toggle-on);border-color:var(--accent);color:#fff}
+  .btn.icon{width:26px;padding:0;justify-content:center;font-size:13px;background:transparent;border-color:transparent;color:var(--text)}
+  .btn.stop{background:var(--stop);border-color:var(--stop-line);color:#fff;padding:0 14px}
+  .badge{min-width:16px;height:16px;border-radius:8px;background:var(--stop);color:#fff;
+         font-size:10px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+
+  /* ===== 画面区（只用来交代对比，不是本次设计对象） ===== */
+  .page{height:150px;background:var(--page);position:relative}
+  .page .ph{position:absolute;left:40px;top:26px;color:#9AA3AE;font-size:12px}
+  .page .card{position:absolute;background:#fff;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .page .c1{left:40px;top:56px;width:260px;height:74px}
+  .page .c2{left:320px;top:56px;width:260px;height:74px}
+
+  /* ===== 拖拽/点击分区条 ===== */
+  .zones{display:flex;height:12px;margin-top:2px;border-radius:2px;overflow:hidden;font-size:9px;
+         line-height:12px;text-align:center;color:#0E1116;font-weight:700}
+  .z-drag{background:#4A8FE0;flex:1 1 auto}
+  .z-hit{background:#D08A2E;flex:0 0 auto}
+
+  table{border-collapse:collapse;font-size:12px;margin-top:8px}
+  th,td{border:1px solid #2A2F36;padding:5px 9px;text-align:left;vertical-align:top}
+  th{background:#171C22;color:#A9B7C6;font-weight:600}
+  code{font-family:Consolas,monospace;color:#A9B7C6}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px;
+      border:1px solid rgba(255,255,255,.18)}
+</style>
+</head>
+<body>
+
+<h1>运行态顶栏 v1 · 设计基线（草案，待确认）</h1>
+<p class="sub">对象：<code>VisionMaster/Views/ScadaRuntimeWindow.xaml</code> 第 0 行顶栏 ·
+   窗口级固定 chrome，所有画面共用 · 尺寸单位 = DIP，稿内 1:1</p>
+
+<h2>1. 改后 · 1920 宽（现场一体机）</h2>
+<div class="frame-label">viewport 1920 × 1080</div>
+<div class="frame" style="width:1920px">
+  <div class="bar">
+    <div class="ticker">
+      <span class="dot" style="background:var(--sev-critical)"></span>
+      <span class="sev" style="color:var(--sev-critical)">严重</span>
+      <span class="msg">2 号工位 · 气压低（当前 0.42 MPa / 下限 0.50 MPa）</span>
+      <span class="sep">|</span>
+      <span class="msg" style="color:var(--muted)">5 号工位 · 相机温度偏高</span>
+      <span class="time">14:31:52</span>
+    </div>
+    <span class="title">七工位视觉检测线</span>
+    <span class="user">操作员 张三</span>
+    <span class="clock">14:32:07</span>
+    <div class="actions">
+      <span class="btn icon" title="返回上一页">←</span>
+      <span class="btn"><span>♪</span><span>声音</span></span>
+      <span class="btn on"><span>报警历史</span><span class="badge">2</span></span>
+      <span class="btn stop">■ 停止运行</span>
+    </div>
+  </div>
+  <div class="page">
+    <div class="ph">画面内容（设计对象不是它，仅交代深浅对比）</div>
+    <div class="card c1"></div><div class="card c2"></div>
+  </div>
+</div>
+<div class="zones" style="width:1920px">
+  <div class="z-drag">可拖区（WindowChrome 标题栏，含滚动条 / 标题 / 用户 / 时间）</div>
+  <div class="z-hit" style="width:352px">可点区（4 个控件须标 IsHitTestVisibleInChrome）</div>
+</div>
+<p class="legend"><b>可拖</b> = 不打标的只读元素，系统当标题栏处理（拖动 / 双击最大化 / 边缘吸附 / 触摸拖动）。
+   <b>可点</b> = 必须标 <code>WindowChrome.IsHitTestVisibleInChrome="True"</code>，漏标则点了没反应（静默）。</p>
+
+<h2>2. 改后 · 1549 宽（截图实际视口）</h2>
+<div class="frame-label">viewport 1549 × 925</div>
+<div class="frame" style="width:1549px">
+  <div class="bar">
+    <div class="ticker">
+      <span class="dot" style="background:var(--sev-critical)"></span>
+      <span class="sev" style="color:var(--sev-critical)">严重</span>
+      <span class="msg">2 号工位 · 气压低（当前 0.42 MPa / 下限 0.50 MPa）</span>
+      <span class="time">14:31:52</span>
+    </div>
+    <span class="title">七工位视觉检测线</span>
+    <span class="user">操作员 张三</span>
+    <span class="clock">14:32:07</span>
+    <div class="actions">
+      <span class="btn icon">←</span>
+      <span class="btn"><span>♪</span><span>声音</span></span>
+      <span class="btn on"><span>报警历史</span><span class="badge">2</span></span>
+      <span class="btn stop">■ 停止运行</span>
+    </div>
+  </div>
+  <div class="page" style="height:110px"></div>
+</div>
+<p class="note">滚动条在窄视口下只显示<b>一条</b>报警（其余按 2.5 s/条 循环），标题与用户仍完整可见；不换行、不换高度。</p>
+
+<h2>3. 状态矩阵（同一套结构，四种内容）</h2>
+
+<div class="frame-label">S1 无未确认报警 · 标题为空 · 未登录</div>
+<div class="frame" style="width:1549px">
+  <div class="bar">
+    <div class="ticker"><span class="empty">无未确认报警</span></div>
+    <span class="title blank">（标题未填写，整段不占位）</span>
+    <span class="user">未登录</span>
+    <span class="clock">14:32:07</span>
+    <div class="actions">
+      <span class="btn icon">←</span>
+      <span class="btn"><span>♪</span><span>声音</span></span>
+      <span class="btn"><span>报警历史</span></span>
+      <span class="btn stop">■ 停止运行</span>
+    </div>
+  </div>
+</div>
+
+<div class="frame-label">S2 只有警告（无严重）· 标题超长截断</div>
+<div class="frame" style="width:1549px">
+  <div class="bar">
+    <div class="ticker">
+      <span class="dot" style="background:var(--sev-warning)"></span>
+      <span class="sev" style="color:var(--sev-warning)">警告</span>
+      <span class="msg">5 号工位 · 相机温度偏高（46.2 ℃）</span>
+      <span class="time">14:29:03</span>
+    </div>
+    <span class="title">七工位视觉检测线 · 三号线 · 二〇二六年度生产…</span>
+    <span class="user">工程师 李四</span>
+    <span class="clock">14:32:07</span>
+    <div class="actions">
+      <span class="btn icon">←</span>
+      <span class="btn"><span>♪</span><span>声音</span></span>
+      <span class="btn on"><span>报警历史</span><span class="badge">1</span></span>
+      <span class="btn stop">■ 停止运行</span>
+    </div>
+  </div>
+</div>
+
+<div class="frame-label">S3 报警恢复后（已确认，滚动条回到空态）· 返回按钮不可用</div>
+<div class="frame" style="width:1549px">
+  <div class="bar">
+    <div class="ticker"><span class="empty">无未确认报警</span></div>
+    <span class="title">七工位视觉检测线</span>
+    <span class="user">操作员 张三</span>
+    <span class="clock">14:40:11</span>
+    <div class="actions">
+      <span class="btn icon" style="opacity:.45">←</span>
+      <span class="btn"><span>♪</span><span>声音</span></span>
+      <span class="btn"><span>报警历史</span></span>
+      <span class="btn stop">■ 停止运行</span>
+    </div>
+  </div>
+</div>
+
+<h2>4. 改前 → 改后 对照</h2>
+<div class="frame-label">改前（当前实现）</div>
+<div class="frame" style="width:1549px">
+  <div class="bar">
+    <span class="user" style="color:var(--muted)">运行画面</span>
+    <span class="btn" style="background:transparent;border-color:transparent;padding:0 8px;font-size:14px;font-weight:600">结果统计 <span style="font-size:11px;color:var(--muted)">▾</span></span>
+    <span class="btn" style="background:transparent;border-color:transparent;padding:0 8px">← 返回</span>
+    <div style="flex:1 1 auto"></div>
+    <div class="actions">
+      <span class="btn"><span>♪</span><span>声音</span></span>
+      <span class="btn on"><span>报警历史</span><span class="badge">2</span></span>
+      <span class="btn stop">■ 停止运行</span>
+    </div>
+  </div>
+</div>
+<p class="note">改前左侧被“页面菜单 + 返回”占住，没有任何运行信息；改后左侧整条给报警，页面名与菜单下线，返回降级为图标。</p>
+
+<h2>5. 规格与判据</h2>
+<table>
+  <tr><th>项</th><th>取值</th><th>说明 / 判据</th></tr>
+  <tr><td>顶栏高度</td><td>26 DIP</td><td>不变。按钮高 26、字号 12，行内单行不换行</td></tr>
+  <tr><td>CaptionHeight</td><td>26</td><td>与顶栏等高；整条除 4 个控件外都可拖</td></tr>
+  <tr><td>左右内边距</td><td>12 / 12</td><td>沿用现值</td></tr>
+  <tr><td>段间距</td><td>12</td><td>滚动条→标题→用户→时间；动作组内 8</td></tr>
+  <tr><td>滚动条</td><td>flex，min 320</td><td>一次显示 1 条；多条按 2.5 s/条 循环（复用 <code>AlarmBannerScroll</code> 取模口径）</td></tr>
+  <tr><td>滚动条空态</td><td>“无未确认报警”</td><td>颜色 <code>--muted</code>；不占位收缩</td></tr>
+  <tr><td>滚动条可点</td><td>否（锁死）</td><td>属可拖区；打开报警历史走右侧按钮</td></tr>
+  <tr><td>标题</td><td>≤220 DIP，超长省略</td><td>空值整段不占位（不是占位符文字）</td></tr>
+  <tr><td>用户</td><td>“角色 姓名” / “未登录”</td><td>取 <code>IScadaAccessPolicy.LoginStateText</code>，与底栏同一来源</td></tr>
+  <tr><td>时间</td><td><code>HH:mm:ss</code></td><td>Consolas 12；1 s 刷新；系统时钟</td></tr>
+  <tr><td>返回</td><td>26×26 图标按钮</td><td><code>CanGoBack=false</code> 时 45% 透明度且不可点</td></tr>
+  <tr><td>底栏</td><td>只留 视口 / 适配 / 耗时</td><td>“操作者”已上移顶栏，底栏删除，避免同一信息两处</td></tr>
+</table>
+
+<h2>6. 令牌映射</h2>
+<table>
+  <tr><th>稿内变量</th><th>WPF 令牌（Colors.xaml）</th><th>色值</th></tr>
+  <tr><td><span class="sw" style="background:#22262C"></span>--bar</td><td><code>ScadaRunBarBrush</code></td><td>#22262C</td></tr>
+  <tr><td><span class="sw" style="background:#33383F"></span>--line</td><td><code>ScadaRunBarLineBrush</code></td><td>#33383F</td></tr>
+  <tr><td><span class="sw" style="background:#D6DAE0"></span>--text</td><td><code>ScadaRunTextBrush</code></td><td>#D6DAE0</td></tr>
+  <tr><td><span class="sw" style="background:#8A929E"></span>--muted</td><td><code>ScadaRunMutedTextBrush</code></td><td>#8A929E</td></tr>
+  <tr><td><span class="sw" style="background:#2A2F36"></span>--control</td><td><code>ScadaRunControlBrush</code></td><td>#2A2F36</td></tr>
+  <tr><td><span class="sw" style="background:#3A4048"></span>--control-line</td><td><code>ScadaRunControlBorderBrush</code></td><td>#3A4048</td></tr>
+  <tr><td><span class="sw" style="background:#2B4C7E"></span>--toggle-on</td><td><code>ScadaRunToggleOnBrush</code></td><td>#2B4C7E</td></tr>
+  <tr><td><span class="sw" style="background:#4A8FE0"></span>--accent</td><td><code>ScadaRunAccentBrush</code></td><td>#4A8FE0</td></tr>
+  <tr><td><span class="sw" style="background:#C0392B"></span>--stop</td><td><code>ScadaRunStopBrush</code></td><td>#C0392B</td></tr>
+  <tr><td><span class="sw" style="background:#E05A4A"></span>--stop-line</td><td><code>ScadaRunStopBorderBrush</code></td><td>#E05A4A</td></tr>
+  <tr><td>严重 / 警告 / 提示</td><td>报警定义自身的严重度色（<code>AlarmBannerElement.CriticalColor</code> 等）</td><td>本稿取 #C0392B / #D08A2E / #4A8FE0</td></tr>
+</table>
+<p class="note">本稿 hex 全部落在上表内，不引入新令牌；WPF 侧一律引 <code>StaticResource</code>，视图里不出现 <code>#RRGGBB</code>（R140）。</p>
+
+</body>
+</html>

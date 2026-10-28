@@ -66,14 +66,15 @@ FontAwesome 私有区字形，换字体就是方框）+ `[ParallelSafe]`（:31�
 | `DistancePointLine` | :38 | `\|v × d\| = \|vr·dc − vc·dr\|`；`d` 是单位向量，所以不用再除模长 |
 | `AngleBetweenLines` | :48 | `\|φ1 − φ2\| % 180`，大于 90 取 `180 − d` → **无向夹角 [0,90]** |
 | `AreParallel` / `ArePerpendicular` | :55 / :59 | 夹角 ≤ 容差 / 与 90° 的差 ≤ 容差 |
-| `TryIntersectLines` | :63 | 参数式求交；`\|det\| < 1e-9` → false（近平行不硬算） |
+| `TryIntersectLines` | :63 | 参数式求交；只有方向完全共线（`\|det\| < 1e-15`）→ false；近平行按 HALCON 给远交点 |
 | `TryIntersectLineCircle` | :82 | 一元二次，`disc < 0` → false；取**较小 t** 的那个根；`count = sqrt<1e-9 ? 1 : 2`（count 不回传上游） |
-| `TryIntersectCircles` | :105 | 同心 `d<1e-9` / 相离 / 内含三类先拒；取 `+h·perp` 那一个解（**`A`/`B` 对调会翻到另一侧**，这就是用户页"对调取另一解"的出处） |
+| `TryIntersectCircles` | :105 | 同心 `d<1e-9` / 相离（超半径和 `1e-12`）/ 内含（差半径 `1e-12`）三类先拒；取 `+h·perp` 那一个解（**`A`/`B` 对调会翻到另一侧**，这就是用户页"对调取另一解"的出处） |
 | `PerpendicularFoot` | :130 | 投影长度 `t = vr·dr + vc·dc`，不夹取 → 落在延长线上照样返回 |
 | `LineThroughTwoPoints` | :140 | 锚点=中点，`atan2(b.Row−a.Row, b.Col−a.Col)`，经 `GeometryParam.Line` 工厂归一化 |
 | `TryCircleThroughThreePoints` | :149 | 行列式分母 `\|d\| < 1e-9` → false（共线） |
+| `PointResidual` / `EllipseDistance` | :160 / :206 | 线=点线距、圆=\|d−R\|、椭圆=**最短欧氏距**（法向 Newton + 16 点兜底，对齐 HALCON `distance_pc`） |
 
-`1e-9` 这一族阈值**散落在各函数内部**，没有统一常量：改判定严格度时要把这几处一起看，
+`1e-9` / `1e-15` 这一族阈值**散落在各函数内部**，没有统一常量：改判定严格度时要把这几处一起看，
 只改插件侧的 `AngleTolerance` 不会动到公式层的退化保护。
 
 ## 四、判定与当量

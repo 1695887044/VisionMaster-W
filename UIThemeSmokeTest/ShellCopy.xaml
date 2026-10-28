@@ -652,14 +652,14 @@
                     Content="&#xf061;"
                     Foreground="#2DA44E"
                     Style="{StaticResource TitleButton}"
-                    ToolTip="运行一次" />
+                    ToolTip="单次启动整线（勾了「随整线启动」的流程各起各的会话）" />
                 <Button
                     Command="{Binding ExecutionCommand}"
                     CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
                     Content="&#xf021;"
                     Foreground="#2DA44E"
                     Style="{StaticResource TitleButton}"
-                    ToolTip="循环运行" />
+                    ToolTip="循环启动整线（一条出问题只停它自己）" />
                 <Button
                     Command="{Binding ExecutionCommand}"
                     CommandParameter="{x:Static local:ExecutionAction.Stop}"

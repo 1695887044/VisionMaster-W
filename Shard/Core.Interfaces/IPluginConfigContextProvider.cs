@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Core.Interfaces.Database;
 
 namespace Core.Interfaces
@@ -91,6 +92,113 @@ namespace Core.Interfaces
         /// 因此不破坏"配置上下文不递活对象"的边界。默认是空实现，未接数据库时测试按钮给出明确失败。
         /// </summary>
         public IDatabaseAccess Database { get; set; } = NullDatabaseAccess.Instance;
+
+        /// <summary>
+        /// 当前方案里**有文件本体**的资产（模板 / 模型 / 图像），带已解析好的绝对路径。
+        ///
+        /// 为什么必须有：配置态的图（标定源图、模板参考图）要能在界面上直接看到，
+        /// 而 <c>ProjectAssetPathResolver.TryResolve</c> 只能在运行期用（要 IExecutionContext）。
+        /// 没有这份快照，插件就只能让用户手填绝对路径 —— 换台机器就断，正是资产系统要解决的问题。
+        ///
+        /// 与 <see cref="Cameras"/> 同一范式：拷贝值（Id/类型/名字/路径/版本），
+        /// 不递宿主方案里的活对象；已归档或文件缺失的资产**不进来**（宿主侧就过滤掉）。
+        /// 配方 / 标定没有独立文件，不在本表（它们的内联内容走运行期解析）。
+        /// </summary>
+        public List<AssetPathOption> Assets { get; set; } = new();
+    }
+
+    /// <summary>
+    /// 资产路径快照（供插件配置界面列出"能选哪些图像/模板/模型"并直接取到路径）。
+    /// </summary>
+    public class AssetPathOption
+    {
+        /// <summary>资产稳定身份（写回步骤配置的就是它，不是路径）</summary>
+        public Guid AssetId { get; set; }
+
+        /// <summary>资产类型：template / model / image</summary>
+        public string Kind { get; set; } = string.Empty;
+
+        /// <summary>资产名（资产页里的名字，可能随时改；寻址一律用 <see cref="AssetId"/>）</summary>
+        public string Name { get; set; } = string.Empty;
+
+        /// <summary>已解析的绝对路径（宿主保证非空且文件存在）</summary>
+        public string AbsolutePath { get; set; } = string.Empty;
+
+        /// <summary>资产版本号（版本库里的 vN）</summary>
+        public int Version { get; set; }
+
+        /// <summary>
+        /// 供 <c>ComboBox.SelectedValuePath</c> 用的字符串形式。
+        /// 不用 <see cref="AssetId"/> 直绑：ViewModel 侧存的是字符串（步骤配置里也是字符串），
+        /// Guid↔string 的隐式转换在"清空选择"时会抛转换失败，表现为选完又跳回去。
+        /// </summary>
+        public string AssetIdText => AssetId.ToString();
+
+        /// <summary>下拉框显示文本：名字（v版本）；空 Id 是"不使用资产"这一项，原样显示名字</summary>
+        public string Caption => AssetId == Guid.Empty
+            ? Name
+            : string.IsNullOrWhiteSpace(Name) ? AssetId.ToString("N")[..8] : $"{Name}（v{Math.Max(1, Version)}）";
+    }
+
+    /// <summary>
+    /// 配置态"资产 Id → 绝对路径"的解析口径。
+    ///
+    /// 与运行期的 <c>ProjectAssetPathResolver</c> 成对：那边拿 <c>IExecutionContext</c>，
+    /// 这边拿 <see cref="PluginConfigContext.Assets"/> 快照。判据保持一致（类型必须匹配、
+    /// 路径必须存在），报错文案也说清"该选哪类资产"，别让用户对着空画布猜。
+    /// </summary>
+    public static class PluginConfigAssetPaths
+    {
+        public static bool TryResolve(
+            PluginConfigContext? context,
+            string? assetId,
+            string expectedKind,
+            out string path,
+            out string error)
+        {
+            path = string.Empty;
+            error = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(assetId))
+            {
+                error = "未选择资产";
+                return false;
+            }
+
+            if (!Guid.TryParse(assetId.Trim(), out var id) || id == Guid.Empty)
+            {
+                error = $"资产 Id 不是合法 Guid：{assetId}";
+                return false;
+            }
+
+            if (context?.Assets == null)
+            {
+                error = "配置上下文缺失，无法解析资产";
+                return false;
+            }
+
+            var hit = context.Assets.FirstOrDefault(a => a.AssetId == id);
+            if (hit == null)
+            {
+                error = "当前方案里没有该资产（可能已归档、文件缺失或方案未保存）";
+                return false;
+            }
+
+            if (!string.Equals(hit.Kind, expectedKind, StringComparison.OrdinalIgnoreCase))
+            {
+                error = $"资产「{hit.Name}」的类型是 {hit.Kind}，这里需要 {expectedKind}";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(hit.AbsolutePath))
+            {
+                error = $"资产「{hit.Name}」没有可读取的文件路径";
+                return false;
+            }
+
+            path = hit.AbsolutePath;
+            return true;
+        }
     }
 
     /// <summary>

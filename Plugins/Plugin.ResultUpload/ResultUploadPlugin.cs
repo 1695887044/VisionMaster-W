@@ -63,6 +63,12 @@ namespace Plugin.ResultUpload
             Fields.Add(new UploadFieldDef { Name = "result", Source = FieldSource.Port });
             Fields.Add(new UploadFieldDef { Name = "time", Source = FieldSource.BuiltIn, BuiltIn = BuiltInField.Timestamp });
             HookFields(Fields);
+
+            // 构造期这三行 Add 发生在 HookFields 之前，集合通知一次都没触发，所以动态端口必须在这里补建一次：
+            // PluginService 扫描插件时拿的正是这个"空配置实例"的 Inputs 当 InputDefinitions 快照
+            //（见 Engine\PluginService.cs 的扫描分支）。漏了这一步的后果是**扫描期快照里没有 sn/result**，
+            // 画布拖线打开的完整绑定弹窗左侧只剩「上报触发」——用户看到"字段端口根本不在端口表里"。
+            RebuildDynamicInputs();
         }
 
         #region 内嵌配置（随 .vms 持久化）
@@ -218,6 +224,21 @@ namespace Plugin.ResultUpload
             RebuildDynamicInputs();
         }
 
+        public override void Initialize(IStepConfigData stepData)
+        {
+            base.Initialize(stepData);   // 内部 ApplyConfigValues → RebuildDynamicInputs
+            SnapshotPortNames();         // 载入时的端口名就是"已确认"基线（改名迁移的锚点）
+        }
+
+        public override void OnConfirm(IStepConfigData stepData)
+        {
+            // 改名迁移排在 base 之前：base 会给"未链接"的端口写 InputValues 固定值，
+            // 迁完新名才算已链接，才不会留下一条脏的固定值。
+            MigrateLinksOnRename(stepData);
+            base.OnConfirm(stepData);
+            SnapshotPortNames();
+        }
+
         /// <summary>
         /// 本步骤的有效名字（用于 {步骤名} 占位符）：
         /// 运行期用引擎注入的 InstanceName；配置期实例由界面新建、引擎还没命名（仍是"未赋值"），
@@ -281,13 +302,33 @@ namespace Plugin.ResultUpload
 
         private readonly List<string> _dynamicInputNames = new List<string>();
 
+        private int _portsVersion;
+        /// <summary>
+        /// 端口重建计数器（行内 <c>LinkableValueEditor</c> 的 Port MultiBinding 锚点）。
+        /// 端口对象每次重建都会换新实例，光靠"字段名"这一路绑定不会重取，编辑器会指着已丢弃的旧端口；
+        /// 每重建一次推一格，MultiBinding 才会重新调 <see cref="GetInputPort"/>。
+        /// </summary>
+        public int PortsVersion => _portsVersion;
+
+        /// <summary>按端口名取输入端口（供视图行内 <c>LinkableValueEditor</c> 绑定 <c>Port</c>）。</summary>
+        public IInputPort GetInputPort(string name) =>
+            !string.IsNullOrEmpty(name) && Inputs.TryGetValue(name, out var p) ? p : null;
+
+        /// <summary>
+        /// 字段 → **上一次确认时**的端口名。只在 <see cref="OnConfirm"/> 里用来把连线从旧端口名迁到新端口名。
+        ///
+        /// 【为什么不在每次重建时迁移】字段名是逐字符写进模型的，改个名会经过
+        /// 「sn → s → sn1」这类中间态；逐字符迁移会把连线搬到半截名字上（第一次迁到 s，
+        /// 第二次 s 已经无线可迁），最后线停在 s、字段叫 sn1——比"根本没迁"更难查。
+        /// 所以迁移只在确认时做一次，锚点也只在这里更新。
+        /// </summary>
+        private readonly Dictionary<UploadFieldDef, string> _confirmedPortNames =
+            new Dictionary<UploadFieldDef, string>();
+
         /// <summary>按字段定义（来源=端口 且 启用）重建动态输入端口。</summary>
         public void RebuildDynamicInputs()
         {
-            foreach (var name in _dynamicInputNames)
-                RemoveDynamicInput(name);
-            _dynamicInputNames.Clear();
-
+            var portNames = new List<string>();
             if (Fields != null)
             {
                 foreach (var f in Fields)
@@ -296,12 +337,77 @@ namespace Plugin.ResultUpload
                     if (f.Source != FieldSource.Port) continue;
                     if (string.IsNullOrWhiteSpace(f.Name)) continue;
                     var portName = f.Name.Trim();
-                    if (_dynamicInputNames.Contains(portName)) continue; // 重名字段只建一个端口
-                    // object 端口 + 非必填：任意上游可连、未连线不报[参数缺失]
-                    AddDynamicInput(new InputPort<object>(portName, null, portName) { IsRequired = false });
-                    _dynamicInputNames.Add(portName);
+                    if (portNames.Contains(portName)) continue; // 重名字段只建一个端口
+                    portNames.Add(portName);
                 }
             }
+
+            foreach (var name in _dynamicInputNames)
+                RemoveDynamicInput(name);
+            _dynamicInputNames.Clear();
+
+            foreach (var portName in portNames)
+            {
+                // object 端口 + 非必填：任意上游可连、未连线不报[参数缺失]
+                AddDynamicInput(new InputPort<object>(portName, null, portName) { IsRequired = false });
+                _dynamicInputNames.Add(portName);
+            }
+
+            // 端口对象已换新：推一格让行内 LinkableValueEditor 的 Port MultiBinding 重取
+            _portsVersion++;
+            OnPropertyChanged(nameof(PortsVersion));
+        }
+
+        /// <summary>把字段的当前端口名拍成"已确认"基线（载入与确认时各一次）。</summary>
+        private void SnapshotPortNames()
+        {
+            _confirmedPortNames.Clear();
+            if (Fields == null) return;
+            foreach (var f in Fields)
+            {
+                if (f == null) continue;
+                var portName = f.Source == FieldSource.Port && f.Enabled ? f.Name?.Trim() : null;
+                if (!string.IsNullOrEmpty(portName)) _confirmedPortNames[f] = portName;
+            }
+        }
+
+        /// <summary>
+        /// 字段改名 → 连线跟着迁（只在上一次确认的端口名与当前端口名不同时做）。
+        /// 新名已有连线时不覆盖（用户已经手工重连过），只删旧键——两条线同时挂着会让
+        /// 编译期按旧名找不到端口而静默取空值，比"少一条线"更难查。
+        /// </summary>
+        private void MigrateLinksOnRename(IStepConfigData stepData)
+        {
+            if (stepData == null || Fields == null) return;
+            var migrated = new List<string>();
+            foreach (var f in Fields)
+            {
+                if (f == null) continue;
+                var newName = f.Source == FieldSource.Port && f.Enabled ? f.Name?.Trim() : null;
+                if (string.IsNullOrEmpty(newName)) continue;
+                if (!_confirmedPortNames.TryGetValue(f, out var oldName)) continue;
+                if (string.Equals(oldName, newName, StringComparison.Ordinal)) continue;
+                if (!stepData.IsLinked(oldName)) continue;
+
+                var link = stepData.GetLink(oldName);
+                if (link != null && !stepData.IsLinked(newName))
+                    stepData.SetLink(newName, link);
+                stepData.RemoveLink(oldName);
+                migrated.Add(oldName + "→" + newName);
+            }
+            if (migrated.Count > 0)
+                StatusMessage = "字段改名：连线已迁移 " + string.Join("、", migrated) + "。";
+        }
+
+        /// <summary>
+        /// 字段表上的操作回执（目前只有"改名后连线已迁移"这一种；绑定/解绑的回显由行内
+        /// <c>LinkableValueEditor</c> 自己显示，不走这里）。纯界面态，不落盘。
+        /// </summary>
+        private string _statusMessage = "";
+        public string StatusMessage
+        {
+            get => _statusMessage;
+            private set => SetProperty(ref _statusMessage, value ?? "");
         }
 
         private void HookFields(ObservableCollection<UploadFieldDef> collection)

@@ -1345,6 +1345,15 @@ internal static partial class Program
 
     static JObject Flow(string name, string desc, int role, int invokeType, int triggerMode, JArray steps, bool enabled = true)
     {
+        // 2026-10-28：「主流程角色」退役（Role=2 只作保留位，运行时会被迁移）。
+        // 各调用点仍按老写法传 2（"这条是生产主任务"），这里统一翻译成
+        // 「无角色 + 勾整线」——落盘形态与界面口径一致：Role=0 / InvokeType|LineStart(128)。
+        if (role == 2)
+        {
+            role = 0;
+            invokeType |= 128;
+        }
+
         return new JObject
         {
             ["FlowID"] = G("flow:" + name).ToString("N"),

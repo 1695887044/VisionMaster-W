@@ -28,15 +28,23 @@
 | `Columns` | `HTuple` | 各实例中心列数组（亚像素） |
 | `Angles` | `HTuple` | 各实例角度数组（度） |
 | `Scores` | `HTuple` | 各实例分数数组（0~1） |
-| `Scales` | `HTuple` | 各实例缩放倍率数组（未启用缩放时恒为 1） |
-| `MeasureImage` | `HImage` | 标注图（模板轮廓 + 位姿 + 判定文字）；**未找到目标时也有** |
+| `Scales` | `HTuple` | 各实例缩放倍率数组（未启用缩放时恒为 1）。**口径**：等比档 = 统一缩放倍率；各向异性档 = **行方向**缩放（列方向见 `ScalesCol`） |
+| `ScalesRow` | `HTuple` | 各实例行方向缩放倍率数组（各向异性档有效；等比/未缩放档与 `Scales` 逐位相同） |
+| `ScalesCol` | `HTuple` | 各实例列方向缩放倍率数组（各向异性档有效；等比/未缩放档与 `Scales` 逐位相同） |
+| `MeasureImage` | `HImage` | 标注图（模板轮廓 + 位姿 + 判定文字）；**未找到目标时也有**。`KeepAnnotatedImage=false` 时为空 |
+| `MatchContours` | `HXLD` | 命中实例的模板轮廓（**源图坐标系**，顺序 = 命中顺序；多实例时每个命中一段，对象数 ≥ 命中数）。未命中为空。接「结果显示」的 `OverlayContours` / `rN` 即可，颜色与线宽由显示层决定 |
 | `AlignedImage` | `HImage` | 位姿归一化图像（目标在标准位姿）；开关关闭或本轮没找到 → 空 |
 
 另有基类的 `Success`（本步跑没跑通）与 `ErrorMessage`（失败原因）。
 
 **每轮开头的清零口径**：`Score`/`Row`/`Column`/`Angle`/`MatchCount` 归 0、`MatchedTemplate` 归空串、
-五个数组端口归空 `HTuple`（基类只自动回收 `HImage`/`IDisposable` 类端口，数值端口要插件自己清）。
+**七个数组端口**（`Rows`/`Columns`/`Angles`/`Scores`/`Scales`/`ScalesRow`/`ScalesCol`）归空 `HTuple`
+（基类只自动回收 `HImage`/`IDisposable` 类端口，数值端口要插件自己清）。
 所以失败轮下游读到的是 0/空，不是上一帧的"幽灵结果"。
+
+> **老流程不会断线**：`Scales` 名字与语义没变（等比/未缩放档与升级前逐位一致），
+> 只是各向异性档它装的是行缩放。要行、列两路分别用就接新增的 `ScalesRow`/`ScalesCol`；
+> 只接了 `Scales` 的存量流程升级后不需要改任何连线。
 
 ## 三、参数（`[StepConfig]`，随方案存盘）
 
@@ -48,7 +56,9 @@
 | `MaxMatches` | 1 | 1 ~ 100 | 最多输出几个实例（1 = 单目标） |
 | `MaxOverlap` | 0.3 | 0 ~ 1 | 两个命中允许的最大重叠比例（去重用） |
 | `Greediness` | 0.8 | 0.1 ~ 0.9 | 搜索激进度：越大越快、越容易漏 |
+| `TrackingLevel`（条目内） | 1 | -1 ~ 10 | 搜索的"最低跟踪层"（HALCON `find_shape_model` 的 `NumLevels` 第二个值）：1 = 跟踪到最细层（默认，精度最高，旧行为）；-1 = 不跟踪到最低层（散焦/高噪声场景更稳，HALCON 例程 `[0,-1]` 的用法）。只影响搜索，改它不用重学；NCC 下不生效 |
 | `DisplayViewIndex` | 1 | 0 ~ 9 | 标注图发布到主界面几号视图窗口，0（界面显示"不显示"）= 不发布；**只影响发布，不影响端口输出** |
+| `KeepAnnotatedImage` | true | 勾/不勾 | 关掉 = 只输出数值与几何（`MatchContours`），不烧标注图：省一次全幅 dump，也不会与下游「结果显示」各烧一遍造成重影。模板预览不受影响 |
 | `OutputAlignedImage` | true | — | 是否输出 `AlignedImage`（关掉省一次整图重采样） |
 
 填坏的离谱数值（含 NaN/Infinity）**不会把流程崩掉**：全部先夹进合法区间再送 HALCON，
@@ -63,8 +73,10 @@
 | `MinAngleDeg` / `MaxAngleDeg` | -180 / 180 | -180 ~ 180，填反了自动交换；区间外角度**直接找不到** | 创建态 |
 | `AngleStepDeg` | 0（= 自动） | 0 = 送 `"auto"`；非 0 时夹 0.1 ~ 30 度 | 创建态 |
 | `GradientThreshold` | 0（= 自动） | 0 = 送 `"auto"`；非 0 时夹 1 ~ 255。**NCC 下不生效** | 创建态 |
-| `UsePolarity` | true | true → `use_polarity`，false → `ignore_polarity`（界面下拉：使用极性 / 忽略极性）。**NCC 下界面灰掉** | 创建态 |
-| `ScaleEnabled` + `ScaleMin` / `ScaleMax` | 关 / 0.8 / 1.2 | 取 min/max 后夹 0.5 ~ 2.0；上下限相等时学习侧自动撑开极小窗口（±0.005）。**NCC 没有 Scaled 版算子，界面灰掉** | 创建态 |
+| `UsePolarity` | true | true → `use_polarity`，false → `ignore_global_polarity`（界面下拉：使用极性 / 忽略极性）。**NCC 下界面灰掉**。⚠ 早期代码送的是 `"ignore_polarity"`，**HALCON 23.05 不认这个值**（三个 create 算子分别报 `#1306`/`#1309`/`#1312`），现已统一走 `ignore_global_polarity` | 创建态 |
+| `ScaleEnabled` + `ScaleMin` / `ScaleMax` | 关 / 0.8 / 1.2 | 取 min/max 后夹 0.5 ~ 2.0；上下限相等时学习侧自动撑开极小窗口（±0.005）。**NCC 没有 Scaled 版算子，界面灰掉**。**勾了各向异性时这一档被忽略**（界面灰掉，数值仍保留） | 创建态 |
+| `AnisoScaleEnabled` + `ScaleRowMin` / `ScaleRowMax` / `ScaleColMin` / `ScaleColMax` | 关 / 0.9 / 1.1 / 0.9 / 1.1 | 各向异性档（`create_aniso_shape_model`）：行、列**各自**一个范围；取 min/max 后夹 **0.1 ~ 10**（HALCON 只要求 `> 0` 且 `max ≥ min`，23.05 实测该区间可创建，**不是等比那套 0.5~2.0**），上下限填反自动交换、相等时撑开 ±0.005。打开后**忽略**等比档三个字段。**NCC 不支持**（没有对应算子）：学习仍成功，但状态栏转 Warning 并写明"已忽略"。**范围应包含 1.0**：否则参考图自匹配可能失败、原点锚定退回 HALCON 默认原点（位置差 1~2px，不报错） | 创建态 |
+| `LearnedAnisoScaleEnabled` | false | 学习那一刻"各向异性是否生效"的快照（**不是**可调参数，随方案落盘）。运行期拿它与当前 `AnisoScaleEnabled` 比对，不一致就落一行 Warn 提醒重学——HALCON 对"模型类型与查找算子不匹配"**不报错**（`find_aniso` 查等比模型 = 行/列恒相等；`find_scaled` 查各向异性模型 = 一个都找不到），不提醒就是静默错结果。老方案没有该字段 → false（升级前的模型都不是各向异性的） | 创建态 |
 | `Metric`（极性） | — | 上面 `UsePolarity` 的 HALCON 侧映射，界面上没有这一项 | 创建态 |
 
 ### ③ 搜索域（P1-B A1）
@@ -99,7 +111,8 @@
 | `Model` | string | 模型本体（`write_shape_model` / `write_ncc_model` 出来的字节流的 base64）；为空 = 未学习。**形状模型与 NCC 模型不是同一种文件，装载器按 `Algorithm` 决定读哪个** |
 | `RefImagePath` | string | 学习时那张参考图的本机绝对路径（只影响重开界面时画布显示与重学） |
 | `NumLevels` / `MinAngleDeg` / `MaxAngleDeg` / `AngleStepDeg` / `GradientThreshold` / `UsePolarity` / `ScaleEnabled` / `ScaleMin` / `ScaleMax` | 见上表 | 提取参数，跟着条目走 |
-| `LearnedSignature` | string | 学完那一刻的**参数指纹**（形状、区域、层数、梯度、角度、步长、极性、缩放、掩膜长度拼成的串）。当前指纹 ≠ 该串 → 徽标转橙"参数已改·需重新学习" |
+| `AnisoScaleEnabled` / `ScaleRowMin` / `ScaleRowMax` / `ScaleColMin` / `ScaleColMax` / `LearnedAnisoScaleEnabled` | 见上表 | 各向异性档的开关、四个范围与学习快照，跟着条目走。**老 JSON 没有这几个字段 → 关 + 0.9/1.1 + false**（升级前保存的条目照旧打开、行为不变） |
+| `LearnedSignature` | string | 学完那一刻的**参数指纹**（形状、区域、层数、梯度、角度、步长、极性、缩放、**各向异性开关与四个范围**、掩膜长度拼成的串）。当前指纹 ≠ 该串 → 徽标转橙"参数已改·需重新学习"。**升级后老模板第一次打开会显示橙色**：老指纹没记录过各向异性字段，重新学习一次即恢复绿色（不是误报） |
 
 ## 五、类型与显示口径
 

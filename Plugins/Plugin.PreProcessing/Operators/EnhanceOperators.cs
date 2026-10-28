@@ -94,8 +94,8 @@ namespace Plugin.PreProcessing.Operators
         {
             Width = OddAtLeast(Width, 3);
             Height = OddAtLeast(Height, 3);
-            // Halcon 的 illuminate 只接受开区间 (0,1)，端点会抛异常
-            Factor = Clamp(Factor, 0.01, 0.99);
+            // HALCON 的 illuminate 接受闭区间 [0,1]；端点 0/1 合法，不要夹成 0.01/0.99
+            Factor = Clamp(Factor, 0, 1);
         }
 
         protected override HImage Process(HImage input)
@@ -132,6 +132,12 @@ namespace Plugin.PreProcessing.Operators
 
         protected override HImage Process(HImage input)
             => PreprocessHService.ScaleIntensity(input, Multiplier, Addend);
+
+        protected override void Normalize()
+        {
+            Multiplier = Clamp(Multiplier, 0, 100);
+            Addend = Clamp(Addend, -255, 255);
+        }
 
         public override string Summary => $"×{Multiplier:0.###}  {Addend:+0.##;-0.##;0}";
     }

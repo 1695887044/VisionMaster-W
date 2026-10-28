@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Core.Events;
 using Core.Halcon.Helpers;
 using Core.Halcon.Models;
@@ -41,9 +42,15 @@ namespace VisionMaster.Services
     /// "显示窗口在黑屏和图片之间来回切换"。推迟后语义一字不改（仍是"每轮只看最新一轮"），
     /// 但界面只会看到"旧图 → 新图"的一次切换。
     /// 本轮**没有任何新图**（采集失败/未产出）⇒ 不清空，画布保持上一轮的图。
+    /// **清空范围**（2026-10-27）：窗口级（<c>ClearView</c>，默认自动口径）只清"本轮要显示的那一格"，
+    /// 流程级（<c>ReplaceFlow</c>）只清"这条流程自己的所有窗口"——两者都**不碰其它流程在别的窗口的图**。
+    /// 旧值 <c>ClearAll</c>（画布级）会在多流程并排时互相清屏，加载时自动迁移为窗口级。
     ///
-    /// 归属：插件注入的图记到"当前正在跑的流程"（<c>_currentFlowName</c>），
-    /// 所以"覆盖本流程"清的是该流程上一轮的图；「清空整张画布」则是首帧到达时全清。
+    /// 归属：帧的流程身份由**发布事件自带**（引擎在每轮执行期间经
+    /// <see cref="Core.Interfaces.PreviewScope"/> 注入），取不到才落伪流程桶——
+    /// **不按"最后开轮的那条流程"猜**：多流程并发时那会把 A 的帧记成 B 的，
+    /// 进而清错 B 的窗口（2026-10-27 现场：A 投窗口1、B 投窗口2 → 窗口2 被 A 反复清空）。
+    /// 清空口径只有两种：窗口级（默认）/ 流程级，两者都不跨窗口误伤其它流程。
     ///
     /// 所有权与生命周期（本类是全库唯一"持有并释放 HImage 副本"的地方）
     /// ---------
@@ -58,6 +65,11 @@ namespace VisionMaster.Services
     /// 统一经 <see cref="RunOnUi"/> 封送；封送前先在流程线程把图**拷贝**好（下一轮开始前必须拷完，
     /// 否则会把插件正在写的那张图拷出撕裂帧）。插件注入帧的拷贝时机同理——由
     /// <see cref="IImagePreviewCapture"/> 保证在发布线程上完成（循环运行时的必现缺陷，见其注释）。
+    ///
+    /// 注入帧进 UI 前还要过一道**合并队列**（<see cref="_pendingFrames"/>）：每个（流程，窗口号）
+    /// 只留最新一张，队列长度被"流程数 × 窗口数"封顶，排空动作走 Background 优先级。
+    /// 这是"循环运行时界面卡死"的修法：旧实现每帧投一个 Normal 优先级动作，一旦每帧 UI 成本
+    /// 超过帧间隔，队列永远排不空（Normal 比 Render/Input 都高），积压的动作还各钉一张全幅副本。
     /// </summary>
     public sealed class ImageCollectionService : IImagePreviewCapture
     {
@@ -82,20 +94,57 @@ namespace VisionMaster.Services
         private long _deadSourceSkips;
 
         /// <summary>
-        /// 本轮登记的"待清空"（方案 A）：本轮开始只登记、不真清——真清推迟到"本轮第一张新图到达"，
-        /// 与插入在同一个 UI 批次里完成，界面因此看不到"旧图 → 空 → 新图"的中间态（循环闪黑）。
-        /// 本轮没有任何新图 ⇒ 不清空，画布保持上一轮的图。
-        /// 流程线程写（OnFlowRunStarted / Capture）、UI 线程在批次里消费，加锁保护（多流程可并发）。
+        /// 每轮开始的"待清空"记账（方案 A）：开轮只记序号、不真清——真清推迟到
+        /// "本轮第一张新图到达"，与插入在同一个 UI 批次里完成，界面因此看不到
+        /// "旧图 → 空 → 新图"的中间态（循环闪黑）。本轮没有任何新图 ⇒ 不清空，画布保持上一轮的图。
+        ///
+        /// 为什么记"每条流程的本轮序号"而不是一个 bool / 一个流程名集合：
+        /// 多流程并发时"谁开的轮"必须各记各的，否则 A 开轮会把 B 的待清空状态一起消费掉
+        /// （2026-10-27 现场：窗口 2 被 A 反复清空）。序号还让"每轮只清一次"可判定——
+        /// 同一（流程，清空粒度）在本轮序号下只清一次，而不是每帧清一次。
+        ///
+        /// 流程线程写（OnFlowRunStarted）、UI 线程在批次里消费，加锁保护（多流程可并发）。
+        /// 键的数量被"方案里的流程数 × 窗口数"封顶，不随运行时长增长。
         /// </summary>
         private readonly object _pendingClearGate = new();
-        private readonly HashSet<string> _pendingClearFlows = new(StringComparer.Ordinal);
-        private bool _pendingClearAll;
+        private readonly Dictionary<string, long> _roundToken = new(StringComparer.Ordinal);
+        private readonly Dictionary<(string Flow, int View), long> _clearedToken = new();
+        private long _roundSequence;
 
         /// <summary>
-        /// 当前正在跑的流程名（由"一轮开始"事件写入）。插件注入的图要归属到它，
-        /// 这样"覆盖本流程"才能把上一轮注入的图一并替换掉。不在流程里发布时为 null。
+        /// 待插入 UI 的帧（每个 (流程, 窗口号) 只留最新一张）。
+        ///
+        /// 为什么要合并：<see cref="Capture"/> 每帧都往 UI 线程投一个动作，动作里要做
+        /// "清空 + 插入 + 裁剪 + 通知"，而选中帧变化会触发整幅 HALCON 重绘。循环运行时一旦
+        /// "每帧 UI 成本 &gt; 帧间隔"，Normal 优先级队列就再也排不空（Normal 比 Render/Input 都高），
+        /// 界面表现为卡死；积压的每个动作还各钉着一张全幅图像副本（500 万像素彩图约 15MB）。
+        /// 合并后队列长度被"流程数 × 窗口数"封顶，中间帧在**进 UI 之前**就被顶掉并释放。
+        ///
+        /// 只在"不保留注入历史"时合并；收容打开时每帧都是一条记录，不能丢（走原路径）。
         /// </summary>
-        private volatile string? _currentFlowName;
+        private readonly object _pendingFrameGate = new();
+        private readonly Dictionary<(string Flow, int View), (long Order, ImageFrame Frame)> _pendingFrames = new();
+        private long _captureOrder;
+        private int _uiDrainScheduled;
+        private int _drainSuspended;
+
+        /// <summary>
+        /// 下一次允许排空的时间点（<see cref="Environment.TickCount64"/>）。0 = 不限速。
+        ///
+        /// 合并队列只封顶"队列长度"，不封顶"提交速率"：只要来帧快于 UI 提交，
+        /// 排空动作就会一轮接一轮地重排，UI 线程永远不空闲（2026-10-27 真机：
+        /// 7 条流程循环运行约 860 帧/秒，UI 线程被这一项吃掉大半，叠加日志洪水后界面失去响应）。
+        /// 有积压时按 <see cref="MinCommitIntervalMs"/> 分片提交，窗口内到达的帧被合并队列顶掉——
+        /// 只留最新一张本来就是本队列的约定，所以限速不改变可见语义。
+        /// </summary>
+        private long _nextCommitAllowedTick;
+
+        /// <summary>已挂一个"到点再排"的延迟排空（0/1），防止每来一帧都排一个延迟动作</summary>
+        private int _delayedDrainScheduled;
+
+        /// <summary>有积压时两次提交之间的最小间隔（毫秒）：20Hz 足够让预览"看着是连续的"，
+        /// 同时保证每个间隔之间渲染与输入都有机会插进来。</summary>
+        private const int MinCommitIntervalMs = 50;
 
         public ImageCollectionService(AppSettingsService settings, FlowEngineService engine, ILogService? log = null)
         {
@@ -141,6 +190,8 @@ namespace VisionMaster.Services
         {
             RunOnUi(() =>
             {
+                // 还没插进界面的待插帧也要一起丢掉：否则"清空画布"之后它们会再冒出来
+                DiscardPendingFrames();
                 foreach (var frame in _frames) frame.Dispose();
                 _frames.Clear();
                 _slotIndex.Clear();
@@ -334,68 +385,308 @@ namespace VisionMaster.Services
         #region 采集
 
         /// <summary>
-        /// 一轮流程开始（流程线程）：记下"当前流程"供注入图归属，并按设置**登记待清空**。
+        /// 一轮流程开始（流程线程）：按设置**登记待清空**。
+        ///
+        /// internal 而非 private：断言（FlowCanvasChecks）要按真实顺序驱动"多流程并发开轮"，
+        /// 直接调本方法等价于 <see cref="FlowEngineService.FlowRunStarted"/> 事件（同一个入口）。
         ///
         /// 这里刻意**不立刻清空**：清完到本轮的图产出之间隔着整个采集+处理耗时，
         /// 循环节拍下这段空窗会被渲染看见（"黑屏 ↔ 图片"来回切换）。清空改由
         /// <see cref="ApplyPendingClearFor"/> 在本轮第一张新图到达时与插入同批完成。
         /// </summary>
-        private void OnFlowRunStarted(FlowSession session)
+        internal void OnFlowRunStarted(FlowSession session)
         {
             if (session == null) return;
-
-            _currentFlowName = session.FlowName;
 
             var cfg = CurrentSettings();
             if (!cfg.Enabled) return;
 
             var flowName = session.FlowName;
+            if (string.IsNullOrEmpty(flowName)) return;
 
+            // 只记"这条流程开了一轮"，不动任何全局"当前流程"——
+            // 多流程并发时那个全局值必然是错的（最后写入者赢）。
             lock (_pendingClearGate)
             {
-                if (cfg.RunStartMode == ImageGalleryRunStartMode.ClearAll)
-                {
-                    _pendingClearAll = true;
-                }
-                else if (!string.IsNullOrEmpty(flowName))
-                {
-                    _pendingClearFlows.Add(flowName);
-                }
+                _roundToken[flowName] = ++_roundSequence;
             }
         }
 
         /// <summary>
         /// UI 线程：把本轮登记的"待清空"落到实处——**必须与本次插入同批**（调用方在本方法返回后
         /// 立即 InsertOrReplace，中间不产生调度点），界面只会看到"旧图 → 新图"的一次切换。
+        ///
+        /// 清空范围 = 配置口径 × 本轮序号：
+        ///  · <see cref="ImageGalleryRunStartMode.ClearView"/>（默认自动口径）→ 只清这一格；
+        ///  · <see cref="ImageGalleryRunStartMode.ReplaceFlow"/> → 只清这条流程（它自己的所有窗口）。
+        /// 两种口径都**绝不碰其它流程在别的窗口的图**——那正是"窗口2 被 A 清空"的根因。
         /// </summary>
-        private void ApplyPendingClearFor(string flowName)
+        private void ApplyPendingClearFor(string flowName, int viewIndex)
         {
-            bool clearAll;
-            bool clearFlow = false;
+            if (string.IsNullOrEmpty(flowName)) return;
+
+            var cfg = CurrentSettings();
+            // 旧值 ClearAll（画布级）按窗口级处理：自动口径不允许跨窗口清屏（见枚举注释）。
+            bool clearView = cfg.RunStartMode != ImageGalleryRunStartMode.ReplaceFlow;
 
             lock (_pendingClearGate)
             {
-                clearAll = _pendingClearAll;
-                if (clearAll)
-                {
-                    _pendingClearAll = false;
-                    _pendingClearFlows.Clear();
-                }
-                else if (!string.IsNullOrEmpty(flowName))
-                {
-                    clearFlow = _pendingClearFlows.Remove(flowName);
-                }
+                // 不在流程的一轮里（伪流程桶 / 从未开轮）→ 不清：没有"上一轮"可言
+                if (!_roundToken.TryGetValue(flowName, out var token)) return;
+
+                // 记账粒度必须与清空粒度一致：
+                //  · 窗口级 →（流程, 窗口）每轮各一次；
+                //  · 流程级 →（流程, 0）每轮一次。流程级会连本流程其它窗口一起清，
+                //    若按窗口记账，第二个窗口的第一帧会把第一个窗口刚插进去的新帧再清掉。
+                var key = (flowName, clearView ? viewIndex : 0);
+                if (_clearedToken.TryGetValue(key, out var done) && done == token) return;
+                _clearedToken[key] = token;
             }
 
-            if (clearAll)
+            if (clearView) RemoveFramesOfView(viewIndex);
+            else RemoveFramesOfFlow(flowName);
+        }
+
+        /// <summary>
+        /// 把一帧交进 UI 合并队列（见 <see cref="_pendingFrames"/> 的说明）。
+        ///
+        /// 拷贝已经在本方法返回前完成（发布线程上拷，见 <see cref="Capture"/>），这里只决定
+        /// "什么时候把它插进界面"。收容打开时不能合并（每帧都是一条记录），走原路径。
+        /// </summary>
+        private void EnqueueFrame(ImageFrame frame, ImageGallerySettings cfg)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+
+            // 已在 UI 线程（断言宿主直接调 Capture、或同线程宿主）：不存在"排队"的意义，
+            // 直接提交——与合并前的 RunOnUi（CheckAccess 时同步执行）行为逐字一致。
+            // 唯一例外是断言显式暂停排空：那时必须走队列，否则测不到"同一 (流程,窗口) 只留最新"。
+            if ((dispatcher == null || dispatcher.CheckAccess())
+                && Volatile.Read(ref _drainSuspended) == 0)
             {
-                // 「清空整张画布」：本轮第一张新图到达时才清（含其它流程上一轮的图）
-                Clear();
+                CommitFrame(frame);
                 return;
             }
 
-            if (clearFlow) RemoveFramesOfFlow(flowName);
+            if (cfg.KeepInjectedHistory)
+            {
+                // 收容打开：每帧都是一条记录，合并会丢历史 → 走原路径（一帧一个 UI 动作）
+                RunOnUi(() => CommitFrame(frame));
+                return;
+            }
+
+            var key = (frame.FlowName, frame.ViewIndex);
+            long order = Interlocked.Increment(ref _captureOrder);
+            ImageFrame? replaced = null;
+            lock (_pendingFrameGate)
+            {
+                if (_pendingFrames.TryGetValue(key, out var old)) replaced = old.Frame;
+                _pendingFrames[key] = (order, frame);
+            }
+
+            // 被顶掉的帧从没进过界面：直接释放，别让它跟着队列一起攒内存
+            replaced?.Dispose();
+
+            ScheduleUiDrain();
         }
+
+        /// <summary>安排一次排空（同一时刻只挂一个动作）</summary>
+        private void ScheduleUiDrain()
+        {
+            if (Volatile.Read(ref _drainSuspended) != 0) return;   // 断言用：模拟"UI 忙不过来"
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.HasShutdownStarted)
+            {
+                // 断言宿主 / 退出链：没有消息循环，直接同步排空（行为与合并前一致）。
+                // 这条路径**不受限速影响**——断言判的是队列内容，不是时序。
+                if (Interlocked.Exchange(ref _uiDrainScheduled, 1) == 1) return;
+                DrainPendingFrames();
+                return;
+            }
+
+            // 限速窗口内：挂一个"到点再排"的动作，而不是立刻又跑一轮
+            long wait = _nextCommitAllowedTick - Environment.TickCount64;
+            if (wait > 0)
+            {
+                ScheduleDelayedDrain(dispatcher, (int)wait);
+                return;
+            }
+
+            if (Interlocked.Exchange(ref _uiDrainScheduled, 1) == 1) return;
+
+            // Background(4)：低于 Render(7)/Input(5)/Normal(9)。合并后每个 (流程,窗口) 只挂一个动作，
+            // 不会再出现"Normal 洪水饿死重绘与输入"（图集重算就踩过 Background 饿死的坑，
+            // 那时是因为插帧本身在 Normal 且每帧一个动作——合并之后这个前提没了）。
+            dispatcher.BeginInvoke(new Action(DrainPendingFrames), DispatcherPriority.Background);
+        }
+
+        /// <summary>延迟排空：只在限速窗口内使用，同一时刻最多挂一个</summary>
+        private void ScheduleDelayedDrain(Dispatcher dispatcher, int delayMs)
+        {
+            if (Interlocked.Exchange(ref _delayedDrainScheduled, 1) == 1) return;
+            _ = RunDelayedDrainAsync(dispatcher, delayMs);
+        }
+
+        private async Task RunDelayedDrainAsync(Dispatcher dispatcher, int delayMs)
+        {
+            try
+            {
+                await Task.Delay(delayMs).ConfigureAwait(false);
+            }
+            catch
+            {
+                // 关停阶段的取消：下面照样尝试投递一次，投不进去由外层 try 兜住
+            }
+
+            try
+            {
+                dispatcher.BeginInvoke(new Action(() =>
+                {
+                    Volatile.Write(ref _delayedDrainScheduled, 0);
+                    if (Interlocked.Exchange(ref _uiDrainScheduled, 1) == 1) return;
+                    DrainPendingFrames();
+                }), DispatcherPriority.Background);
+            }
+            catch
+            {
+                // Dispatcher 已关闭：放开标志，别让 _delayedDrainScheduled 永久停在 1
+                Volatile.Write(ref _delayedDrainScheduled, 0);
+            }
+        }
+
+        /// <summary>
+        /// UI 线程：把待插队列排空。一次只提交一批（按到达顺序），提交完若还有积压就
+        /// 进限速窗口（见 <see cref="MinCommitIntervalMs"/>），把控制权还给渲染与输入。
+        ///
+        /// 为什么不再"连排若干轮直到排空"：那样一轮里的提交次数只受 CPU 限制，
+        /// 来帧越快提交越多，UI 线程被自己占死——这正是"循环运行时界面卡死"的一半成因。
+        ///
+        /// 异常隔离：单帧提交失败只丢那一帧（释放副本 + 记 Warn），整批照跑；
+        /// 任何逃逸异常都必须把 <see cref="_uiDrainScheduled"/> 放回 0——否则它永久停在 1，
+        /// 之后**再也不会有任何帧进界面**（图窗静默停止更新，最难查的一类）。
+        /// </summary>
+        private void DrainPendingFrames()
+        {
+            try
+            {
+                DrainPendingFramesCore();
+            }
+            catch (Exception ex)
+            {
+                Volatile.Write(ref _uiDrainScheduled, 0);
+                _log?.Warn($"[图像集] 帧入 UI 合并排空失败（已放开队列，下一帧继续）：{ex.Message}");
+            }
+        }
+
+        private void DrainPendingFramesCore()
+        {
+            List<(long Order, ImageFrame Frame)> batch;
+            lock (_pendingFrameGate)
+            {
+                if (_pendingFrames.Count == 0)
+                {
+                    // 与入队同锁复位：入队方要么已被本次取走，要么会在复位后重新排一次（不丢唤醒）
+                    Volatile.Write(ref _uiDrainScheduled, 0);
+                    return;
+                }
+
+                batch = _pendingFrames.Values.ToList();
+                _pendingFrames.Clear();
+            }
+
+            foreach (var item in batch.OrderBy(x => x.Order))
+            {
+                try
+                {
+                    CommitFrame(item.Frame);
+                }
+                catch (Exception ex)
+                {
+                    item.Frame.Dispose();
+                    _log?.Warn($"[图像集] 帧入界面失败（已丢弃该帧，其余照常）：{ex.Message}");
+                }
+            }
+
+            lock (_pendingFrameGate)
+            {
+                if (_pendingFrames.Count == 0)
+                {
+                    Volatile.Write(ref _uiDrainScheduled, 0);
+                    return;
+                }
+            }
+
+            // 还有积压 = 来帧快于 UI 提交：下一次排空推迟到限速窗口之后。
+            // 窗口内到达的新帧由合并队列顶掉（同一 (流程,窗口) 只留最新一张），
+            // 所以限速不改变可见语义，只是把"提交多少帧"从"来多少提交多少"变成"每 50ms 一批"。
+            _nextCommitAllowedTick = Environment.TickCount64 + MinCommitIntervalMs;
+
+            Volatile.Write(ref _uiDrainScheduled, 0);
+            ScheduleUiDrain();
+        }
+
+        /// <summary>
+        /// 把一帧真正写进集合（UI 线程）。清空与本帧插入**同一批**完成（中间无调度点）——
+        /// 界面只会看到"旧图 → 新图"，看不到中间空态（循环闪黑）。
+        /// </summary>
+        private void CommitFrame(ImageFrame frame)
+        {
+            var cfg = CurrentSettings();
+            ApplyPendingClearFor(frame.FlowName, frame.ViewIndex);
+            InsertOrReplace(frame, cfg);
+            TrimToLimits(cfg);
+            OnChanged();
+        }
+
+        /// <summary>丢掉还没插入界面的待插帧（清空画布时用；调用方负责在 UI 线程执行）</summary>
+        private void DiscardPendingFrames()
+        {
+            List<ImageFrame> dropped;
+            lock (_pendingFrameGate)
+            {
+                if (_pendingFrames.Count == 0) return;
+                dropped = _pendingFrames.Values.Select(v => v.Frame).ToList();
+                _pendingFrames.Clear();
+            }
+
+            foreach (var frame in dropped) frame.Dispose();
+        }
+
+        // ── 断言辅助（internal + InternalsVisibleTo FlowCanvasChecks）──
+
+        /// <summary>待插队列长度（断言"队列有界"用）</summary>
+        internal int PendingFrameCountForTest
+        {
+            get { lock (_pendingFrameGate) return _pendingFrames.Count; }
+        }
+
+        /// <summary>
+        /// 暂停 UI 排空（断言用）：模拟"UI 线程忙不过来"，让待插帧在队列里堆着，
+        /// 从而可判定"同一 (流程,窗口) 只留最新一张"。Dispose 时恢复并补一次排空。
+        /// </summary>
+        internal IDisposable SuspendUiDrainForTest()
+        {
+            Interlocked.Increment(ref _drainSuspended);
+            return new DrainSuspension(this);
+        }
+
+        private sealed class DrainSuspension : IDisposable
+        {
+            private ImageCollectionService? _owner;
+
+            public DrainSuspension(ImageCollectionService owner) => _owner = owner;
+
+            public void Dispose()
+            {
+                var owner = _owner;
+                if (owner == null) return;
+                _owner = null;
+
+                if (Interlocked.Decrement(ref owner._drainSuspended) == 0)
+                    owner.ScheduleUiDrain();
+            }
+        }
+
 
         /// <summary>运行完成回调（流程线程）：先拷好图，再封送到 UI 线程写集合</summary>
         private void OnFlowRunCompleted(FlowSession session)
@@ -542,9 +833,9 @@ namespace VisionMaster.Services
                 return;
             }
 
-            // 归属到"当前正在跑的流程"（没有流程在执行时才落到伪流程桶）：
-            // 于是"覆盖本流程"能把该流程上一轮注入的图一并替换掉
-            var flow = _currentFlowName ?? RealtimeFlowName;
+            // 归属到**发布方自己声明的流程**（引擎在每轮执行期间经 PreviewScope 注入）。
+            // 取不到就落伪流程桶：绝不回退成"最后开轮的那条流程"——多流程并发时会清错别人的窗口。
+            var flow = ResolveFlowName(e.FlowName);
             var source = string.IsNullOrWhiteSpace(e.PluginName) ? $"视图{e.ViewIndex}" : e.PluginName!;
 
             var frame = BuildFrame(flow, source, string.Empty, e.Image,
@@ -561,15 +852,9 @@ namespace VisionMaster.Services
                 _log?.Info($"[图像集] 已收录 {captured} 帧（最近 {flow}·{source} "
                           + $"{frame.Width}x{frame.Height} → 窗口 {e.ViewIndex}）");
 
-            RunOnUi(() =>
-            {
-                // 方案 A：本轮的清空与本帧插入**同一批**完成（中间无调度点）——
-                // 界面只会看到"旧图 → 新图"，看不到中间空态（循环闪黑）
-                ApplyPendingClearFor(frame.FlowName);
-                InsertOrReplace(frame, cfg);
-                TrimToLimits(cfg);
-                OnChanged();
-            });
+            // 交给 UI 合并队列：同一 (流程,窗口) 只留最新一张，队列长度被"流程数×窗口数"封顶。
+            // 清空与插入仍在同一个 UI 批次里完成（见 CommitFrame），界面看不到中间空态。
+            EnqueueFrame(frame, cfg);
         }
 
         /// <summary>
@@ -588,24 +873,17 @@ namespace VisionMaster.Services
             if (e?.Image == null || e.ViewIndex <= 0) return;
             if (!SafeIsInitialized(e.Image)) return;
 
-            // 归属到"当前正在跑的流程"（没有流程在执行时才落到伪流程桶）：
-            // 于是"覆盖本流程"能把该流程上一轮注入的图一并替换掉
-            var flow = _currentFlowName ?? RealtimeFlowName;
+            // 归属到**发布方自己声明的流程**（同 Capture：不按"最后开轮的那条流程"猜）
+            var flow = ResolveFlowName(e.FlowName);
             var source = string.IsNullOrWhiteSpace(e.PluginName) ? $"视图{e.ViewIndex}" : e.PluginName!;
 
             var frame = BuildFrame(flow, source, string.Empty, e.Image,
                 e.Title, e.InfoRows, e.Annotations, uniqueSlot: true, viewIndex: e.ViewIndex, cfg);
             if (frame == null) return;
 
-            RunOnUi(() =>
-            {
-                // 方案 A：本轮的清空与本帧插入**同一批**完成（中间无调度点）——
-                // 界面只会看到"旧图 → 新图"，看不到中间空态（循环闪黑）
-                ApplyPendingClearFor(frame.FlowName);
-                InsertOrReplace(frame, cfg);
-                TrimToLimits(cfg);
-                OnChanged();
-            });
+            // 交给 UI 合并队列：同一 (流程,窗口) 只留最新一张，队列长度被"流程数×窗口数"封顶。
+            // 清空与插入仍在同一个 UI 批次里完成（见 CommitFrame），界面看不到中间空态。
+            EnqueueFrame(frame, cfg);
         }
 
         /// <summary>把源图拷成独立副本 + 生成缩略图，组装成一帧（失败返回 null，不抛）</summary>
@@ -726,12 +1004,15 @@ namespace VisionMaster.Services
         private void ApplyHarvest(List<ImageFrame> frames, ImageGallerySettings cfg)
         {
             // 方案 A：本轮的清空与首批兜底图**同一批**完成（同 Capture：清空绝不单独先于图出现；
-            // 本轮只有兜底图、没有插件注入时，这条路径就是那"第一张新图"）
-            if (frames.Count > 0)
-                ApplyPendingClearFor(frames[0].FlowName);
-
+            // 本轮只有兜底图、没有插件注入时，这条路径就是那"第一张新图"）。
+            //
+            // 逐帧应用（而不是只看 frames[0]）：兜底帧可能落在不同窗口，窗口级口径要各清各的；
+            // "每轮只清一次"由 ApplyPendingClearFor 的序号记账保证，同一流程不会重复清。
             foreach (var frame in frames)
+            {
+                ApplyPendingClearFor(frame.FlowName, frame.ViewIndex);
                 InsertOrReplace(frame, cfg);
+            }
 
             TrimToLimits(cfg);
         }
@@ -740,9 +1021,12 @@ namespace VisionMaster.Services
         {
             frame.Sequence = ++_sequence;
 
-            // 默认（不保留历史帧）：同一"流程 + 步骤 + 端口"占一个槽，后来者覆盖并释放旧帧。
-            // 于是图集张数被"输出端口数"封顶，循环运行也不会越跑越多。
-            if (!cfg.KeepFrameHistory && _slotIndex.TryGetValue(frame.SlotKey, out var existing) && existing != null)
+            // 默认（不保留历史帧）：同一槽位后来者覆盖并释放旧帧。
+            // 两类帧的“收容”开关不同：注入帧看 KeepInjectedHistory，兜底采集帧看 KeepFrameHistory。
+            // 不能统一用 KeepFrameHistory：只打开它时，注入帧的槽键仍是“流程+窗口号”，
+            // 却因为“保留历史”不替换，同一窗口会留下多条重复帧。
+            bool keepHistory = frame.IsInjectedPreview ? cfg.KeepInjectedHistory : cfg.KeepFrameHistory;
+            if (!keepHistory && _slotIndex.TryGetValue(frame.SlotKey, out var existing) && existing != null)
             {
                 int index = _frames.IndexOf(existing);
                 _slotIndex[frame.SlotKey] = frame;
@@ -762,6 +1046,21 @@ namespace VisionMaster.Services
             {
                 var frame = _frames[i];
                 if (!string.Equals(frame.FlowName, flowName, StringComparison.Ordinal)) continue;
+                RemoveFrameAt(i);
+            }
+        }
+
+        /// <summary>
+        /// 清掉某一格（窗口号）里的全部帧——**含其它流程在该格的图**。
+        /// 这是"每轮只看本窗口本轮图"的实现；别的窗口一张都不动。
+        /// </summary>
+        private void RemoveFramesOfView(int viewIndex)
+        {
+            if (viewIndex <= 0) return;
+
+            for (int i = _frames.Count - 1; i >= 0; i--)
+            {
+                if (_frames[i].ViewIndex != viewIndex) continue;
                 RemoveFrameAt(i);
             }
         }
@@ -829,6 +1128,17 @@ namespace VisionMaster.Services
             try { return image != null && image.IsInitialized(); }
             catch { return false; }
         }
+
+        /// <summary>
+        /// 帧归属的流程名：优先用发布事件自带的（引擎在每轮执行期间经
+        /// <see cref="Core.Interfaces.PreviewScope"/> 注入）。
+        ///
+        /// 取不到 = 不在流程的一轮里发布（插件自建线程/定时器、非流程宿主）→ 落伪流程桶。
+        /// **绝不猜**"最后开轮的那条流程"：猜错会把别人的帧当成自己的清掉，
+        /// 那正是多流程并排时"窗口互相清屏"的成因。
+        /// </summary>
+        private static string ResolveFlowName(string? flowName)
+            => string.IsNullOrWhiteSpace(flowName) ? RealtimeFlowName : flowName!;
 
         private void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);
 

@@ -1,0 +1,1058 @@
+<UserControl
+    x:Class="Plugin.JudgeTable.JudgeTableView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:cc="clr-namespace:Core.Controls;assembly=Core.Controls"
+    xmlns:local="clr-namespace:Plugin.JudgeTable"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ui="clr-namespace:UI.CustomControl;assembly=UI"
+    MinWidth="{DynamicResource PluginViewMinWidth}"
+    MinHeight="{DynamicResource PluginViewMinHeight}"
+    d:DesignHeight="620"
+    d:DesignWidth="1020"
+    mc:Ignorable="d">
+
+    <!--
+        判定表配置视图 —— 设计基线 docs/UI设计基线/判定表/design.html（v1）。
+
+        复刻要点（与设计稿逐项对应）：
+          · 顶部标题 + 摘要（整体徽标 / 通过 / 失败 / 停用 / 结果输出 N 条 / 表级端口）；
+          · 工具条：新增 / 删除 / 上移 / 下移 / 展开全部 / 收起全部；
+          · 全宽表格（ListView + GridView）：展开 / 启用 / 规则 / 数据源 / 模式 / 期望 / Actual / 结果 / 原因 / 操作；
+          · 可展开行：判定规则卡片（左）+ 结果输出卡片（右）；
+          · 结果输出卡片：开关（生成运行时变量/端口）、只读全名 + 复制、类型 bool、口径提示。
+
+        纪律：
+          · 颜色/圆角/字号一律走既有令牌（Dialog* / Plugin*），本文件零十六进制（R140）；
+          · ListView + GridView 三件套齐全：GridListViewStyle + ItemContainerStyle + GridViewRowPresenter，
+            并就地合并 GridView.xaml（R19-R22，断言宿主里也能解析）；
+          · 输入框直接 BasedOn DialogInput / DialogCombo，不另写 PART_ContentHost 模板（R184 二次内缩坑）；
+          · 可聚焦控件挂 DialogFocusVisual（R135）。
+    -->
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/UI;component/Themes/Generic.xaml" />
+                <ResourceDictionary Source="/UI;component/Themes/Controls/GridView.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+            <local:ZeroToVisibleConverter x:Key="ZeroToVisible" />
+            <local:InputPortConverter x:Key="InputPortConv" />
+
+            <!--
+                行内端口编辑器（R189：绑定一律走公共控件 LinkableValueEditor）。
+                Port 用 MultiBinding：端口名 + 宿主插件 + PortsVersion 三路 —— 端口对象每次重建
+                都换新实例，少了 PortsVersion 这一路 MultiBinding 不会重新求值，编辑器会一直
+                指着已丢弃的旧端口。按需实例化（ContentControl）而非常驻 + Visibility。
+            -->
+            <DataTemplate x:Key="RulePortEditorTemplate">
+                <cc:LinkableValueEditor
+                    VerticalAlignment="Center"
+                    Label=""
+                    LinkAddress="{Binding LinkAddress, Mode=TwoWay}"
+                    StepData="{Binding DataContext.StepData, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                    <cc:LinkableValueEditor.Port>
+                        <MultiBinding Converter="{StaticResource InputPortConv}">
+                            <Binding Path="InputPortName" />
+                            <Binding Path="DataContext" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                            <Binding Path="DataContext.PortsVersion" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                        </MultiBinding>
+                    </cc:LinkableValueEditor.Port>
+                </cc:LinkableValueEditor>
+            </DataTemplate>
+
+            <!--  ==================== 文字 ====================  -->
+            <Style x:Key="JudgeTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+            </Style>
+
+            <Style x:Key="JudgeSectionTitle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="JudgeFieldLabel" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="JudgeHint" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="JudgeBodyText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="JudgeStrongText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="JudgeMono" TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="{StaticResource PluginMonoFontFamily}" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <!--  原因列：NG 时标红（不写 hex，走令牌）  -->
+            <Style x:Key="JudgeReasonText" TargetType="TextBlock" BasedOn="{StaticResource JudgeBodyText}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding LastOk}" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Enabled}" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  ==================== 输入控件（紧凑档） ====================  -->
+            <Style x:Key="JudgeInput" TargetType="TextBox" BasedOn="{StaticResource DialogInput}">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <!--  数值输入：NumericBox 继承自 TextBox，同一份样式可直接套（换行口径见速查 §8A）  -->
+            <Style x:Key="JudgeNumeric" TargetType="TextBox" BasedOn="{StaticResource JudgeInput}" />
+
+            <Style x:Key="JudgeCombo" TargetType="ComboBox" BasedOn="{StaticResource DialogCombo}">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="8,0,26,0" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style x:Key="JudgeCheckBox" TargetType="CheckBox" BasedOn="{StaticResource DialogCheckBox}">
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <!--  ==================== 按钮 ====================  -->
+            <Style x:Key="JudgeToolButton" TargetType="Button" BasedOn="{StaticResource DialogSecondaryButton}">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style x:Key="JudgeToolPrimaryButton" TargetType="Button" BasedOn="{StaticResource DialogPrimaryButton}">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+            </Style>
+
+            <Style x:Key="JudgeToolDangerButton" TargetType="Button" BasedOn="{StaticResource DialogDangerOutlineButton}">
+                <Setter Property="Height" Value="28" />
+                <Setter Property="Padding" Value="10,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="MinWidth" Value="0" />
+            </Style>
+
+            <Style x:Key="JudgeMiniButton" TargetType="Button" BasedOn="{StaticResource DialogTextButton}">
+                <Setter Property="Height" Value="22" />
+                <Setter Property="Padding" Value="6,0" />
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+            </Style>
+
+            <Style x:Key="JudgeRowActionButton" TargetType="Button" BasedOn="{StaticResource DialogTextButton}">
+                <Setter Property="Width" Value="20" />
+                <Setter Property="Height" Value="20" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+            </Style>
+
+            <!--  行展开箭头：IsChecked 决定 ▾ / ▸（纯展示，不参与判定）  -->
+            <Style x:Key="JudgeCaretButton" TargetType="ToggleButton">
+                <Setter Property="Width" Value="20" />
+                <Setter Property="Height" Value="20" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Focusable" Value="True" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border
+                                x:Name="Bg"
+                                Background="Transparent"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                                <TextBlock
+                                    x:Name="Glyph"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    Foreground="{StaticResource DialogTextMutedBrush}"
+                                    Text="&#x25B8;" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Glyph" Property="Text" Value="&#x25BE;" />
+                                    <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bg" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  结果输出开关：28×16 药丸（设计稿 .switch）。对齐显式声明（R148）  -->
+            <Style x:Key="JudgeSwitch" TargetType="ToggleButton">
+                <Setter Property="Width" Value="28" />
+                <Setter Property="Height" Value="16" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToggleButton">
+                            <Border
+                                x:Name="Track"
+                                Width="28"
+                                Height="16"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource DialogBorderStrongBrush}"
+                                CornerRadius="8"
+                                SnapsToDevicePixels="True">
+                                <Ellipse
+                                    x:Name="Knob"
+                                    Width="12"
+                                    Height="12"
+                                    Margin="2,0,0,0"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Fill="{StaticResource DialogSurfaceBrush}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Track" Property="Background" Value="{StaticResource DialogAccentBrush}" />
+                                    <Setter TargetName="Knob" Property="HorizontalAlignment" Value="Right" />
+                                    <Setter TargetName="Knob" Property="Margin" Value="0,0,2,0" />
+                                </Trigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter Property="Opacity" Value="0.45" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!--  ==================== 胶囊 / 卡片 ====================  -->
+            <Style x:Key="JudgeResultChip" TargetType="Border">
+                <Setter Property="Height" Value="18" />
+                <Setter Property="Padding" Value="7,0" />
+                <Setter Property="CornerRadius" Value="9" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding LastOk}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding LastOk}" Value="False">
+                        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Enabled}" Value="False">
+                        <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="JudgeResultChipText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10.5" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding LastOk}" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding LastOk}" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding Enabled}" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--  折叠行的结果输出小标签：生成时浅蓝胶囊，未生成时虚线灰  -->
+            <Style x:Key="JudgeBindChip" TargetType="Border">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="Padding" Value="5,0" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasResultPort}" Value="False">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="BorderBrush" Value="{StaticResource DialogBorderStrongBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="JudgeBindChipText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="9.5" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding HasResultPort}" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="JudgeModeChip" TargetType="Border">
+                <Setter Property="Padding" Value="6,1" />
+                <Setter Property="CornerRadius" Value="7" />
+                <Setter Property="HorizontalAlignment" Value="Left" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <Style x:Key="JudgeModeChipText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="10" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+            </Style>
+
+            <Style x:Key="JudgeReadonlyBox" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="7,4" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <Style x:Key="JudgePreviewBox" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="7,5" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <Style x:Key="JudgeFormulaBox" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="8,5" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <Style x:Key="JudgeResultCard" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="{StaticResource PluginCardCornerRadius}" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="VerticalAlignment" Value="Top" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <Style x:Key="JudgeCard" TargetType="Border">
+                <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource DialogBorderLightBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="{StaticResource PluginCardCornerRadius}" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+            </Style>
+
+            <!--  摘要条整体徽标：OK 绿 / NG 红 / — 灰  -->
+            <Style x:Key="JudgeOverallChip" TargetType="Border">
+                <Setter Property="Height" Value="20" />
+                <Setter Property="MinWidth" Value="34" />
+                <Setter Property="Padding" Value="8,0" />
+                <Setter Property="CornerRadius" Value="10" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                <Setter Property="SnapsToDevicePixels" Value="True" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding OverallOk}" Value="True">
+                        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding OverallOk}" Value="False">
+                        <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="JudgeOverallChipText" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding OverallOk}" Value="True">
+                        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                    </DataTrigger>
+                    <DataTrigger Binding="{Binding OverallOk}" Value="False">
+                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <!--
+                ==================== 表格行 ====================
+                ListViewItem 模板必须自带 GridViewRowPresenter（R20：裸 ContentPresenter 会让列塌成
+                一行行类型全名）；行内边距取 4 与列头对齐（R21）；展开行的详情块放在 presenter 下方，
+                于是"可展开行"不必牺牲 GridView 的列布局。
+            -->
+            <Style x:Key="JudgeRowStyle" TargetType="ListViewItem">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="FocusVisualStyle" Value="{StaticResource DialogFocusVisual}" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListViewItem">
+                            <Border
+                                x:Name="RowBorder"
+                                Background="Transparent"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="0,0,0,1"
+                                SnapsToDevicePixels="True">
+                                <StackPanel>
+                                    <Border Padding="4,2" Background="Transparent">
+                                        <GridViewRowPresenter
+                                            Columns="{TemplateBinding GridView.ColumnCollection}"
+                                            Content="{TemplateBinding Content}"
+                                            HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                            SnapsToDevicePixels="True"
+                                            VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                                    </Border>
+
+                                    <!--  展开行：判定规则（左）+ 结果输出（右）  -->
+                                    <Border
+                                        x:Name="Detail"
+                                        Padding="12,10,12,12"
+                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                        BorderThickness="0,1,0,0"
+                                        Visibility="Collapsed">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="1.4*" />
+                                                <ColumnDefinition Width="14" />
+                                                <ColumnDefinition Width="1*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!--  ========== 左：判定规则 ==========  -->
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Style="{StaticResource JudgeSectionTitle}" Text="判定规则" />
+
+                                                <!--
+                                                    数据源：全仓通用的可链接编辑器（固定值 / 上游链接二合一，R189）。
+                                                    未连线 = 手填常量（按模式解析，可试运行）；
+                                                    🔗 = 变量绑定（控件内部发 LinkPathEvent 单绑定模式，
+                                                         目标端口就是本行的 实际_{规则名}）；
+                                                    ✕ = 解绑（StepData.RemoveLink + 回显清空）。
+                                                    必须走单绑定通道：完整绑定窗口的端口表是扫描期快照，
+                                                    列不出动态输入端口（详见 Help/02 与 R188/R189）。
+                                                -->
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="82" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="数据源" />
+                                                    <ContentControl
+                                                        Grid.Column="1"
+                                                        VerticalAlignment="Center"
+                                                        Content="{Binding}"
+                                                        ContentTemplate="{StaticResource RulePortEditorTemplate}" />
+                                                    <Button
+                                                        Grid.Column="2"
+                                                        Margin="6,0,0,0"
+                                                        Command="{Binding DataContext.CopyTextCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        CommandParameter="{Binding InputPortName}"
+                                                        Content="复制端口名"
+                                                        Style="{StaticResource JudgeMiniButton}" />
+                                                </Grid>
+
+                                                <!--  模式  -->
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="82" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="模式" />
+                                                    <ComboBox
+                                                        Grid.Column="1"
+                                                        DisplayMemberPath="Display"
+                                                        IsEnabled="{Binding Enabled}"
+                                                        ItemsSource="{Binding DataContext.ModeOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        SelectedValue="{Binding Mode, Mode=TwoWay}"
+                                                        SelectedValuePath="Value"
+                                                        Style="{StaticResource JudgeCombo}" />
+                                                    <TextBlock Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource JudgeHint}" Text="判定语义" />
+                                                </Grid>
+
+                                                <!--  期望 / 规格  -->
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="82" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="期望 / 规格" />
+                                                    <TextBox
+                                                        Grid.Column="1"
+                                                        IsEnabled="{Binding Enabled}"
+                                                        Style="{StaticResource JudgeInput}"
+                                                        Tag="12.00 ± 0.05 / 18 ~ 24 / ≥ 2.5 / CODE-A, CODE-B / true"
+                                                        Text="{Binding Expected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource JudgeHint}" Text="按模式解析" />
+                                                </Grid>
+
+                                                <!--  数值：容差  -->
+                                                <Grid Margin="0,6,0,0" Visibility="{Binding IsNumericMode, Converter={StaticResource BoolToVisibility}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="82" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="容差 ±" />
+                                                    <ui:NumericBox
+                                                        Grid.Column="1"
+                                                        Maximum="1000000"
+                                                        Minimum="0"
+                                                        Style="{StaticResource JudgeNumeric}"
+                                                        Value="{Binding Tolerance, Mode=TwoWay}" />
+                                                    <TextBlock Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource JudgeHint}" Text="期望只写中心值时生效" />
+                                                </Grid>
+
+                                                <!--  文本：选项  -->
+                                                <StackPanel Margin="0,6,0,0" Visibility="{Binding IsTextMode, Converter={StaticResource BoolToVisibility}}">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox
+                                                            Margin="0,0,14,0"
+                                                            Content="忽略大小写"
+                                                            IsChecked="{Binding IgnoreCase, Mode=TwoWay}"
+                                                            Style="{StaticResource JudgeCheckBox}" />
+                                                        <CheckBox
+                                                            Content="忽略空白"
+                                                            IsChecked="{Binding IgnoreWhitespace, Mode=TwoWay}"
+                                                            Style="{StaticResource JudgeCheckBox}" />
+                                                    </StackPanel>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="82" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="编辑距离" />
+                                                        <ui:NumericBox
+                                                            Grid.Column="1"
+                                                            Width="72"
+                                                            DecimalPlaces="0"
+                                                            Maximum="1000"
+                                                            Minimum="0"
+                                                            Style="{StaticResource JudgeNumeric}"
+                                                            Value="{Binding MaxEditDistance, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            Margin="8,0,0,0"
+                                                            Style="{StaticResource JudgeInput}"
+                                                            Tag="易混字符组，如 0O,1I,5S"
+                                                            Text="{Binding Confusables, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    </Grid>
+                                                </StackPanel>
+
+                                                <!--  集合：语义  -->
+                                                <Grid Margin="0,6,0,0" Visibility="{Binding IsSetMode, Converter={StaticResource BoolToVisibility}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="82" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="集合语义" />
+                                                    <ComboBox
+                                                        Grid.Column="1"
+                                                        DisplayMemberPath="Display"
+                                                        ItemsSource="{Binding DataContext.SetSemanticsOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                        SelectedValue="{Binding SetSemantics, Mode=TwoWay}"
+                                                        SelectedValuePath="Value"
+                                                        Style="{StaticResource JudgeCombo}" />
+                                                    <TextBlock Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource JudgeHint}" Text="可配合忽略大小写" />
+                                                </Grid>
+
+                                                <!--  Actual（上次运行）  -->
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="82" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Style="{StaticResource JudgeFieldLabel}" Text="Actual" />
+                                                    <Border Grid.Column="1" Style="{StaticResource JudgeReadonlyBox}">
+                                                        <TextBlock Style="{StaticResource JudgeMono}" Text="{Binding ActualDisplay}" />
+                                                    </Border>
+                                                    <TextBlock Grid.Column="2" Margin="8,0,0,0" Style="{StaticResource JudgeHint}" Text="上次运行" />
+                                                </Grid>
+
+                                                <!--  判定算式 / 原因  -->
+                                                <Border Margin="0,8,0,0" Style="{StaticResource JudgeFormulaBox}">
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource JudgeMono}" Text="{Binding FormulaDisplay}" TextWrapping="Wrap" />
+                                                        <TextBlock
+                                                            Margin="0,4,0,0"
+                                                            Style="{StaticResource JudgeReasonText}"
+                                                            Text="{Binding ReasonDisplay}"
+                                                            TextWrapping="Wrap" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+
+                                            <!--  ========== 右：结果输出 ==========  -->
+                                            <Border Grid.Column="2" Style="{StaticResource JudgeResultCard}">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <TextBlock Style="{StaticResource JudgeSectionTitle}" Text="结果输出" />
+                                                        <ToggleButton
+                                                            IsChecked="{Binding GenerateResult, Mode=TwoWay}"
+                                                            IsEnabled="{Binding Enabled}"
+                                                            Style="{StaticResource JudgeSwitch}" />
+                                                    </Grid>
+
+                                                    <TextBlock
+                                                        Margin="0,10,0,4"
+                                                        Style="{StaticResource JudgeFieldLabel}"
+                                                        Text="运行时变量 / 输出端口" />
+                                                    <Border Style="{StaticResource JudgeReadonlyBox}">
+                                                        <TextBlock Style="{StaticResource JudgeMono}" Text="{Binding ResultPortDisplay}" />
+                                                    </Border>
+
+                                                    <Grid Margin="0,8,0,0">
+                                                        <StackPanel HorizontalAlignment="Left" Orientation="Horizontal">
+                                                            <TextBlock Style="{StaticResource JudgeFieldLabel}" Text="类型" />
+                                                            <Border
+                                                                Margin="6,0,0,0"
+                                                                Padding="6,1"
+                                                                Background="{StaticResource DialogSurfaceBrush}"
+                                                                BorderBrush="{StaticResource DialogBorderBrush}"
+                                                                BorderThickness="1"
+                                                                CornerRadius="7">
+                                                                <TextBlock Style="{StaticResource JudgeModeChipText}" Text="bool" />
+                                                            </Border>
+                                                        </StackPanel>
+                                                        <Button
+                                                            HorizontalAlignment="Right"
+                                                            Command="{Binding DataContext.CopyTextCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding ResultPortName}"
+                                                            Content="复制端口名"
+                                                            Style="{StaticResource JudgeMiniButton}" />
+                                                    </Grid>
+
+                                                    <TextBlock
+                                                        Margin="0,8,0,0"
+                                                        Style="{StaticResource JudgeHint}"
+                                                        Text="每轮写运行时变量；要全局用下游「变量赋值」Scope=Global 映射；判定表不写全局变量。"
+                                                        TextWrapping="Wrap" />
+
+                                                    <Border Margin="0,8,0,0" Style="{StaticResource JudgePreviewBox}">
+                                                        <StackPanel>
+                                                            <TextBlock Style="{StaticResource JudgeHint}" Text="写入" />
+                                                            <TextBlock
+                                                                Margin="0,2,0,0"
+                                                                Style="{StaticResource JudgeMono}"
+                                                                Text="{Binding WritePreview}"
+                                                                TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <TextBlock
+                                                        Margin="0,8,0,0"
+                                                        Style="{StaticResource JudgeHint}"
+                                                        Text="停用或关闭本开关的行不生成端口、不写变量，但仍不参与总判定。"
+                                                        TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                </Trigger>
+                                <DataTrigger Binding="{Binding IsExpanded}" Value="True">
+                                    <Setter TargetName="Detail" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Enabled}" Value="False">
+                                    <Setter Property="Opacity" Value="0.6" />
+                                </DataTrigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="{StaticResource PluginViewMargin}" Background="{StaticResource DialogSurfaceBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  ==================== 标题 ====================  -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Style="{StaticResource JudgeTitle}" Text="判定表" />
+            <TextBlock
+                Margin="0,3,0,0"
+                Style="{StaticResource JudgeHint}"
+                Text="每条启用规则的结果生成一个 bool 动态输出端口 + 同名运行时变量；判定表不写全局变量，要对外请用下游「变量赋值」Scope=Global。"
+                TextWrapping="Wrap" />
+        </StackPanel>
+
+        <!--  ==================== 摘要 ====================  -->
+        <Border
+            Grid.Row="1"
+            Padding="10,7"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource PluginCardCornerRadius}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource JudgeOverallChip}">
+                    <TextBlock Style="{StaticResource JudgeOverallChipText}" Text="{Binding OverallBadge}" />
+                </Border>
+
+                <TextBlock
+                    Grid.Column="1"
+                    Margin="10,0,0,0"
+                    Style="{StaticResource JudgeBodyText}"
+                    Text="{Binding SummaryText}" />
+
+                <Border
+                    Grid.Column="2"
+                    Padding="8,2"
+                    Background="{StaticResource DialogAccentSoftBrush}"
+                    BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                    <TextBlock Style="{StaticResource JudgeBindChipText}" Text="{Binding TablePortText}" />
+                </Border>
+            </Grid>
+        </Border>
+
+        <!--  ==================== 工具条 ====================  -->
+        <StackPanel
+            Grid.Row="2"
+            Margin="0,8,0,8"
+            Orientation="Horizontal">
+            <Button
+                Command="{Binding AddRuleCommand}"
+                Content="＋ 新增规则"
+                Style="{StaticResource JudgeToolPrimaryButton}" />
+            <Border
+                Width="1"
+                Height="18"
+                Margin="8,0"
+                Background="{StaticResource DialogBorderBrush}" />
+            <Button
+                Command="{Binding MoveUpCommand}"
+                CommandParameter="{Binding SelectedRule}"
+                Content="上移"
+                Style="{StaticResource JudgeToolButton}" />
+            <Button
+                Margin="6,0,0,0"
+                Command="{Binding MoveDownCommand}"
+                CommandParameter="{Binding SelectedRule}"
+                Content="下移"
+                Style="{StaticResource JudgeToolButton}" />
+            <Button
+                Margin="6,0,0,0"
+                Command="{Binding RemoveRuleCommand}"
+                CommandParameter="{Binding SelectedRule}"
+                Content="删除"
+                Style="{StaticResource JudgeToolDangerButton}" />
+            <Border
+                Width="1"
+                Height="18"
+                Margin="8,0"
+                Background="{StaticResource DialogBorderBrush}" />
+            <Button
+                Command="{Binding ExpandAllCommand}"
+                Content="展开全部"
+                Style="{StaticResource JudgeToolButton}" />
+            <Button
+                Margin="6,0,0,0"
+                Command="{Binding CollapseAllCommand}"
+                Content="收起全部"
+                Style="{StaticResource JudgeToolButton}" />
+        </StackPanel>
+
+        <!--  ==================== 规则表 ====================  -->
+        <Border
+            Grid.Row="3"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="{StaticResource PluginCardCornerRadius}">
+            <Grid>
+                <ListView
+                    x:Name="RulesList"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ItemContainerStyle="{StaticResource JudgeRowStyle}"
+                    ItemsSource="{Binding Rules}"
+                    MouseDoubleClick="RulesList_MouseDoubleClick"
+                    ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    SelectedItem="{Binding SelectedRule, Mode=TwoWay}"
+                    Style="{StaticResource GridListViewStyle}">
+                    <ListView.View>
+                        <GridView ColumnHeaderContainerStyle="{StaticResource GridListHeaderStyle}">
+                            <!--  展开  -->
+                            <GridViewColumn Width="28">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <ToggleButton
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                            Style="{StaticResource JudgeCaretButton}"
+                                            ToolTip="展开 / 收起本行" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  启用  -->
+                            <GridViewColumn Width="46" Header="启用">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <CheckBox
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            IsChecked="{Binding Enabled, Mode=TwoWay}"
+                                            Style="{StaticResource JudgeCheckBox}"
+                                            ToolTip="停用后不判定、不生成端口、不写运行时变量" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  规则名（就地改名；端口名随之重建）  -->
+                            <GridViewColumn Width="116" Header="规则">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBox
+                                            Height="24"
+                                            Padding="5,0"
+                                            FontSize="11.5"
+                                            FontWeight="SemiBold"
+                                            Style="{StaticResource JudgeInput}"
+                                            Text="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            ToolTip="规则名同时是端口名的一部分：改名会重建端口并迁移连线" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  数据源  -->
+                            <GridViewColumn Width="130" Header="数据源">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            Style="{StaticResource JudgeBodyText}"
+                                            Text="{Binding SourceText}"
+                                            ToolTip="{Binding InputPortName}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  模式  -->
+                            <GridViewColumn Width="62" Header="模式">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource JudgeModeChip}">
+                                            <TextBlock Style="{StaticResource JudgeModeChipText}" Text="{Binding ModeText}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  期望 / 规格  -->
+                            <GridViewColumn Width="168" Header="期望 / 规格">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            Style="{StaticResource JudgeBodyText}"
+                                            Text="{Binding SpecText}"
+                                            ToolTip="{Binding SpecText}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  Actual（上次运行）  -->
+                            <GridViewColumn Width="84" Header="Actual">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Style="{StaticResource JudgeMono}" Text="{Binding ActualDisplay}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  结果 + 结果输出标签  -->
+                            <GridViewColumn Width="106" Header="结果">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <Border Style="{StaticResource JudgeResultChip}">
+                                                <TextBlock Style="{StaticResource JudgeResultChipText}" Text="{Binding ResultBadge}" />
+                                            </Border>
+                                            <Border Style="{StaticResource JudgeBindChip}">
+                                                <TextBlock Style="{StaticResource JudgeBindChipText}" Text="{Binding ResultPortShort}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  原因  -->
+                            <GridViewColumn Width="168" Header="原因">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock
+                                            Style="{StaticResource JudgeReasonText}"
+                                            Text="{Binding ReasonDisplay}"
+                                            ToolTip="{Binding ReasonDisplay}" />
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+
+                            <!--  行内操作  -->
+                            <GridViewColumn Width="66">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal">
+                                            <Button
+                                                Command="{Binding DataContext.MoveUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="↑"
+                                                Style="{StaticResource JudgeRowActionButton}"
+                                                ToolTip="上移" />
+                                            <Button
+                                                Command="{Binding DataContext.MoveDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="↓"
+                                                Style="{StaticResource JudgeRowActionButton}"
+                                                ToolTip="下移" />
+                                            <Button
+                                                Command="{Binding DataContext.RemoveRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"
+                                                Content="✕"
+                                                Style="{StaticResource JudgeRowActionButton}"
+                                                ToolTip="删除本行（若下游接过它的结果端口，删除后请检查下游连线）" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+
+                <!--  空态：没有任何规则时给出下一步动作  -->
+                <StackPanel
+                    Margin="0,40,0,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Top"
+                    IsHitTestVisible="False"
+                    Visibility="{Binding Rules.Count, Converter={StaticResource ZeroToVisible}}">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource JudgeStrongText}"
+                        Text="还没有规则" />
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource JudgeHint}"
+                        Text="点左上「＋ 新增规则」开始；每条规则接一个上游值，判定结果写运行时变量。" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!--  ==================== 底栏提示 ====================  -->
+        <Grid Grid.Row="4" Margin="0,8,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock
+                Grid.Column="0"
+                Style="{StaticResource JudgeHint}"
+                Text="展开行配置模式 / 期望 / 结果输出；结果输出为运行时变量（可关），全局映射交给下游「变量赋值」。"
+                TextWrapping="Wrap" />
+            <TextBlock
+                Grid.Column="1"
+                Margin="12,0,0,0"
+                Style="{StaticResource JudgeHint}"
+                Text="{Binding StatusMessage}"
+                TextTrimming="CharacterEllipsis" />
+        </Grid>
+    </Grid>
+</UserControl>

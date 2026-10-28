@@ -2,6 +2,7 @@ using Core.Interfaces;
 using Prism.Ioc;
 using System;
 using VisionMaster.Lifetime;
+using VisionMaster.Models;
 using VisionMaster.Services;
 
 namespace VisionMaster.Engine

@@ -21,7 +21,8 @@
 | --- | --- | --- |
 | `IsOk` | `bool` | 判定结果（true = 合格）。过滤碎段后错误段数为 0 才算合格 |
 | `NgReason` | `string` | NG 原因串（如 `缺胶 2 段、太细 1 段`）；OK 时为空串 |
-| `AnnotatedImage` | `HImage` | 标注图：对齐图 + 参考路径（橙）+ 左右轮廓（绿）+ 错误段（红，线宽 2）+ 角上判定文字 |
+| `AnnotatedImage` | `HImage` | 标注图：对齐图 + 参考路径（橙）+ 左右轮廓（绿）+ 错误段（红，线宽 2）+ 角上判定文字。`KeepAnnotatedImage=false` 时为空（配置态试运行仍会渲染） |
+| `ReferenceContour` | `HXLD` | 学习到的参考路径轮廓（**对齐图坐标系**）。配方未学习时为空；接「结果显示」统一画 |
 | `ErrorCount` | `int` | 错误段总数（已按 `MinErrorLength` 过滤） |
 | `ErrorTypes` | `HTuple` | 各错误段类型字符串数组（HALCON 四类字面量，见检测口径页） |
 | `ErrorLengths` | `HTuple` | 各错误段长度（像素），与 `ErrorTypes` 逐项对齐 |
@@ -62,6 +63,7 @@
 | `UnitOutput` | `Pixel`（「像素」） | 像素 / 毫米 | 只影响 `TotalErrorLength` 的换算层，模型参数永远以像素计 |
 | `PixelSizeMm` | 0（未填） | 界面 0 ~ 1000；> 0 才有效 | 毫米输出的兜底当量；有 `Transform` 时轮不到它。**配置界面 ④ 卡「像素当量(mm/px)」** |
 | `DisplayViewIndex` | 1 | 0 ~ 9，0 = 不发布 | 标注图发布到主界面几号视图窗口 |
+| `KeepAnnotatedImage` | true | 勾/不勾 | 关掉 = 只输出数值与几何（`ErrorSegments` / `BeadContours` / `ReferenceContour`），不烧标注图。配置态试运行仍会渲染（编辑态预览） |
 | `OutputAlignedImage` | true | — | 关闭后 `AlignedImage` 输出侧不再写图（对齐本身照做）。**配置界面 ④ 卡「输出对齐图」勾选框** |
 | `RecipeLibraryJson` | `[]` | — | 整个配方库的序列化文本，由配置界面维护，不建议手改 |
 | `DefaultRecipeName` | 空 | — | 「设为默认」写入；`RecipeName` 未连接/为空时使用 |

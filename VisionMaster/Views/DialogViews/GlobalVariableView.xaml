@@ -857,12 +857,14 @@
                                             共享皮肤给的是 Margin="0,1"（上下各 1px）。本表根行 54 / 子行 40 是硬指标，
                                             再叠 2px 会让默认 9 行（6 根 + 3 子）超出视口、末行被状态条裁掉。
                                             行分隔已由 GridLinesVisibility=Horizontal 画，这里把 Margin 归零。
+                                            用 MinHeight 而不是 Height：设计基线（design.html .gv-row.is-child）
+                                            写的是 min-height，两行文字在 150% DPI / 字体回退下若超过 40，行要长高而不是把描述切掉。
                                         -->
                                         <Setter Property="Margin" Value="0" />
-                                        <Setter Property="Height" Value="54" />
+                                        <Setter Property="MinHeight" Value="54" />
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding IsChildNode}" Value="True">
-                                                <Setter Property="Height" Value="40" />
+                                                <Setter Property="MinHeight" Value="40" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
@@ -875,7 +877,15 @@
                                 </DataGrid.ColumnHeaderStyle>
                                 <DataGrid.Columns>
                                     <!--  变量名：缩进 + 展开箭头 + 类型图标块 + 名称/描述 + N 项  -->
-                                    <DataGridTemplateColumn Width="220" MinWidth="220" Header="变量名">
+                                    <!--
+                                        变量名是唯一的内容列：固定 220 在宽窗口下把余量全让给"当前值"，
+                                        系统变量的描述行 8/8 被截成省略号；改弹性 1.6* 并保留 220 下限，
+                                        1200 窄档（网络来源最紧的一档）仍然只到 220，不会挤掉"当前值"。
+                                    -->
+                                    <DataGridTemplateColumn
+                                        Width="1.6*"
+                                        MinWidth="220"
+                                        Header="变量名">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Grid Background="Transparent">
@@ -1007,13 +1017,21 @@
                                                                 <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding DisplayFullName}" />
                                                             </TextBlock.ToolTip>
                                                         </TextBlock>
+                                                        <!--
+                                                            名称与描述之间留 3（基线 design.html 写 1）：真机 150% DPI 下两行几乎贴在一起，
+                                                            读起来像被压扁；3 仍能让两行 + 行高 40 装得下（内容 33.6 < 40）。
+                                                        -->
                                                         <TextBlock
-                                                            Margin="0,1,0,0"
+                                                            Margin="0,3,0,0"
                                                             FontSize="10.5"
                                                             Foreground="{StaticResource DialogTextMutedBrush}"
                                                             Text="{Binding Description}"
                                                             TextTrimming="CharacterEllipsis"
-                                                            Visibility="{Binding Description, Converter={StaticResource StringNotEmptyToVisibilityConverter}}" />
+                                                            Visibility="{Binding Description, Converter={StaticResource StringNotEmptyToVisibilityConverter}}">
+                                                            <TextBlock.ToolTip>
+                                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding Description}" />
+                                                            </TextBlock.ToolTip>
+                                                        </TextBlock>
                                                     </StackPanel>
 
                                                     <Border
@@ -1037,11 +1055,19 @@
                                     </DataGridTemplateColumn>
 
                                     <!--  类型：中性 chip + 类型色点  -->
-                                    <DataGridTemplateColumn Width="104" MinWidth="104" Header="类型">
+                                    <!--
+                                        类型按内容自适应：chip 原来写死 MaxWidth=92，把 FlowRuntimeSnapshot
+                                        截成 "FlowRun…"；Auto + MaxWidth 220 让 19 字符的类型名整词上屏，
+                                        短类型仍落在 MinWidth 104，窄档布局不变。
+                                    -->
+                                    <DataGridTemplateColumn
+                                        Width="Auto"
+                                        MinWidth="104"
+                                        MaxWidth="220"
+                                        Header="类型">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <Border
-                                                    MaxWidth="92"
                                                     HorizontalAlignment="Left"
                                                     Style="{StaticResource DialogTag}">
                                                     <Grid>

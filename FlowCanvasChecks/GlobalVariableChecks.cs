@@ -601,6 +601,10 @@ namespace FlowCanvasChecks
         // 右栏视口 = 窗口宽 −(232+12) 两栏结构 −(16×2) 外边距 = 宽 −276（2026-10-20 Web v1）。
         // 同时断言本地（424+160）与网络（736+160）两档——网络来源是最紧的一档。
         // 2026-10-20 用户按 1200 窄档定稿：220/104/120/104/88/*160/100（早期 280/88/100 已废弃）。
+        // 2026-10-28 修订：变量名 220 固定 → 1.5*（下限仍 220）；类型 104 固定 → Auto（104~160）。
+        //   原因：固定 220 在宽窗口下把余量全给"当前值"，系统变量描述行 8/8 被省略号截断；
+        //   类型 chip 写死 MaxWidth=92 把 FlowRuntimeSnapshot 截成 "FlowRun…"。
+        //   窄档约束不变：1200 下变量名仍退到 220，网络来源的六列合计仍 ≤ 视口。
 
         private static readonly string[] DetailCollapsedInLocalSource =
             { "GroupColumn", "ScanGroupColumn", "AddressColumn" };
@@ -632,9 +636,9 @@ namespace FlowCanvasChecks
             Check("【列宽】星号列（当前值）存在且 MinWidth ≥ 160", starTag != null && starMin >= 160,
                 starTag == null ? "没找到 Width=\"*\" 的列" : $"MinWidth={starMin}");
 
-            // 2026-10-20 用户按 1200 窄档定稿：220/104/120/104/88/*/100。
+            // 2026-10-28 契约：变量名 1.6*（下限 220）/ 类型 Auto（104~220）/ 其余固定。
             // 只判"合计 ≤ 视口"会让任意列被改窄也照样绿（列宽回归就是这么漏掉的），必须逐列钉住。
-            string[] expectedWidths = { "220", "104", "120", "104", "88", "*", "100" };
+            string[] expectedWidths = { "1.6*", "Auto", "120", "104", "88", "*", "100" };
             string[] expectedMinWidths = { "220", "104", "120", "104", "88", "160", "100" };
             var actualWidths = columnTags
                 .Select(t => Regex.Match(t, @"[\s""]Width=""([^""]+)"""))
@@ -646,7 +650,7 @@ namespace FlowCanvasChecks
                 .Where(m => m.Success)
                 .Select(m => m.Groups[1].Value)
                 .ToList();
-            Check("【列宽】逐列宽度与 2026-10-20 定稿一致（变量名/类型/分组/扫描组/地址/当前值/操作）",
+            Check("【列宽】逐列宽度与 2026-10-28 契约一致（变量名/类型/分组/扫描组/地址/当前值/操作）",
                 actualWidths.SequenceEqual(expectedWidths),
                 $"actual=[{string.Join(",", actualWidths)}] expected=[{string.Join(",", expectedWidths)}]");
             Check("【列宽】逐列 MinWidth 与定稿一致（窄档锁定，不靠星号列兜底）",
@@ -659,12 +663,40 @@ namespace FlowCanvasChecks
             foreach (var tag in columnTags)
             {
                 var w = Regex.Match(tag, @"[\s""]Width=""([^""]+)""");
-                if (!w.Success || w.Groups[1].Value.EndsWith("*")) continue;
-                if (!double.TryParse(w.Groups[1].Value, out var px)) continue;
-                fixedNetworkSum += px;
+                if (!w.Success) continue;
+                string raw = w.Groups[1].Value;
+                if (raw == "*") continue;   // 星号列只判 MinWidth，单独断言
+
+                double minPx = ReadWidth(tag, "MinWidth");
+                double maxPx = ReadWidth(tag, "MaxWidth");
+                double pxLocal;
+                double pxNetwork;
+                if (raw.EndsWith("*", StringComparison.Ordinal))
+                {
+                    // 弹性列（1.5*）：最坏退到 MinWidth，和固定列一样占视口
+                    pxLocal = pxNetwork = minPx;
+                }
+                else if (string.Equals(raw, "Auto", StringComparison.OrdinalIgnoreCase))
+                {
+                    // 类型列：长类型名（FlowRuntimeSnapshot）只出现在本地/系统来源，那里三列收起、
+                    // 视口充裕 → 按 MaxWidth 计最坏；网络来源的类型全是基元/数组（≤8 字符），
+                    // Auto 不会超过 MinWidth → 按 MinWidth 计。
+                    pxLocal = maxPx > 0 ? maxPx : minPx;
+                    pxNetwork = minPx;
+                }
+                else if (!double.TryParse(raw, out var px))
+                {
+                    continue;
+                }
+                else
+                {
+                    pxLocal = pxNetwork = px;
+                }
+
+                fixedNetworkSum += pxNetwork;
                 if (DetailCollapsedInLocalSource.Any(tag.Contains)) continue;
-                fixedLocalSum += px;
-                fixedLocal.Add(px.ToString("0"));
+                fixedLocalSum += pxLocal;
+                fixedLocal.Add(pxLocal.ToString("0"));
             }
 
             // 2026-10-20 两栏结构：左栏 232 + 间隔 12 + 外边距 16×2 = 276。
@@ -676,13 +708,18 @@ namespace FlowCanvasChecks
                 : 0;
             double viewport = minWidth - 276;
 
-            Check("【列宽】本地来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（当前值列必须始终可见）",
+            Check("【列宽】本地/系统来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（类型列按 MaxWidth 最坏）",
                 viewport > 0 && fixedLocalSum + starMin <= viewport,
                 $"固定列=[{string.Join(",", fixedLocal)}] 合计={fixedLocalSum:0} + 星号下限={starMin:0} ≤ 视口({MinWidthText(minWidth)}−276)={viewport:0}");
 
-            Check("【列宽】网络来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（最紧的一档）",
+            Check("【列宽】网络来源固定列合计 + 当前值下限 ≤ 最小窗口右栏视口（最紧的一档，类型列按 MinWidth）",
                 viewport > 0 && fixedNetworkSum + starMin <= viewport,
                 $"网络固定列合计={fixedNetworkSum:0} + 星号下限={starMin:0} ≤ 视口={viewport:0}");
+
+            var typeTag = columnTags.FirstOrDefault(t => t.Contains(@"Header=""类型""", StringComparison.Ordinal));
+            Check("【列宽】类型列 Auto 必须带 MaxWidth ≤ 220（没有上限会把当前值挤出视口；220 = FlowRuntimeSnapshot 整词宽度）",
+                typeTag != null && ReadWidth(typeTag, "MaxWidth") is > 0 and <= 220,
+                typeTag == null ? "没找到类型列" : $"MaxWidth={ReadWidth(typeTag, "MaxWidth"):0}");
 
             Check("【列宽】行高/交替色/窗口下限契约",
                 text.Contains("RowHeight=\"{x:Static sys:Double.NaN}\"")
@@ -739,6 +776,13 @@ namespace FlowCanvasChecks
         }
 
         private static string MinWidthText(double minWidth) => minWidth > 0 ? $"MinWidth={minWidth:0}" : "未读到";
+
+        /// <summary>读列标签上的宽度属性（MinWidth / MaxWidth）；没有该属性返回 0。</summary>
+        private static double ReadWidth(string columnTag, string property)
+        {
+            var m = Regex.Match(columnTag, @"[\s""]" + property + @"=""(\d+(?:\.\d+)?)""");
+            return m.Success && double.TryParse(m.Groups[1].Value, out var px) ? px : 0;
+        }
 
         /// <summary>从输出目录往上找仓库根，再拼相对路径（定位不到返回 null，由调用方跳过）</summary>
         private static string? FindRepoFile(string relative)

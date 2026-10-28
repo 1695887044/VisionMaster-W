@@ -91,6 +91,7 @@ namespace FlowCanvasChecks
             ["ImageAcquisitionPlugin"] = ManualTier.L,
             ["ImageScriptPlugin"] = ManualTier.L,
             ["MatchingPlugin"] = ManualTier.L,
+            ["DeformableMatchingPlugin"] = ManualTier.L,
             ["PoseTransformPlugin"] = ManualTier.L,
             ["PreProcessingPlugin"] = ManualTier.L,
             ["ZMotionCard"] = ManualTier.L,
@@ -113,6 +114,9 @@ namespace FlowCanvasChecks
             // ImageDiff：5 用户页 / 3 开发页 / 最长开发页 237 行 —— 超 M（4/2/150），
             // 未到 L（5/3/300），按"交了的必须合法、必须够厚"登记 M（HM13 按此下限判）。
             ["ImageDiffPlugin"] = ManualTier.M,
+            ["ImageQualityPlugin"] = ManualTier.M,
+            ["ImageAlignPlugin"] = ManualTier.M,
+            ["JudgeTablePlugin"] = ManualTier.M,
             ["HandEyePlugin"] = ManualTier.M,
             ["HikvisionCameraDevice"] = ManualTier.M,
             ["VirtualMotionCard"] = ManualTier.M,
@@ -129,6 +133,7 @@ namespace FlowCanvasChecks
             ["DataConversionPlugin"] = ManualTier.S,
             ["DelayPlugin"] = ManualTier.S,
             ["LogicOperationPlugin"] = ManualTier.S,
+            ["ResultOutputPlugin"] = ManualTier.S,
             ["MathCalculationPlugin"] = ManualTier.S,
             ["GeometryFinderPlugin"] = ManualTier.S,
             ["ImageAssignPlugin"] = ManualTier.S,

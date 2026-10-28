@@ -136,6 +136,7 @@ namespace FlowCanvasChecks
             EulerLayer();
             NonFiniteLayer();
             PluginLayer();
+            CatalogLayer();
             ZBLayer();
             CsvLayer();
             PasteLayer();
@@ -376,6 +377,100 @@ namespace FlowCanvasChecks
 
         #endregion
 
+        #region 资产目录（2026-10-28）
+
+        /// <summary>
+        /// 手眼结果 → 方案标定资产（ICalibrationCatalog）。
+        ///
+        /// 为什么必须有这组断言：4×4 只活在端口里的话，资产页看不到它、没有版本、也不能回滚；
+        /// 而这类"每次运行都保存"的逻辑最容易出的错是 **Id 不稳定**（重跑一次多一条同名标定，
+        /// 引用方认的 Id 就此断掉），以及**锁被绕过**（资产页锁了却仍被覆盖）。
+        /// </summary>
+        private static void CatalogLayer()
+        {
+            static (ExecutionContext Ctx, SolutionModel Solution, WorkspaceContext Workspace) NewContext()
+            {
+                var workspace = new WorkspaceContext();
+                var solution = new SolutionModel();
+                workspace.SwitchSolution(solution);
+                var ctx = new ExecutionContext(
+                    new StubLog(), new FlowSession { FlowName = "手眼标定资产断言" }, workspace, CancellationToken.None);
+                return (ctx, solution, workspace);
+            }
+
+            // ⑯ 开关打开 → 写入资产，矩阵就是本次解
+            var a = NewContext();
+            var pSave = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)), saveToCatalog: true);
+            pSave.InstanceName = "手眼1";
+            pSave.RunAlgorithm(a.Ctx);
+
+            var saved = a.Solution.Calibrations.FirstOrDefault();
+            Check("[HE] 资产①：SaveToCatalog=true → 写入 1 条标定资产（Kind=HandEye、矩阵一致、名字带步骤名）",
+                pSave.Success.Value is true && a.Solution.Calibrations.Count == 1
+                && saved?.Transform?.Kind == CalibrationKind.HandEye
+                && saved.Transform.HandEyeMatrix != null
+                && MatchesMatrix(saved.Transform.HandEyeMatrix, TrueX1(), 1e-6)
+                && saved.Name.Contains("手眼1"),
+                $"成功={pSave.Success.Value} 条数={a.Solution.Calibrations.Count} 名字={saved?.Name}");
+
+            // ⑰ 同数据重跑 → 同一条资产、版本不涨（Id 由步骤名确定性生成）
+            pSave.RunAlgorithm(a.Ctx);
+            Check("[HE] 资产②：同数据重跑 → 不新增记录、版本不涨",
+                a.Solution.Calibrations.Count == 1 && saved!.Version == 1,
+                $"条数={a.Solution.Calibrations.Count} 版本={saved?.Version}");
+
+            // ⑱ 换数据 → 覆盖同一条、版本 +1、矩阵换成新解
+            var pSave2 = NewPlugin(RowsFrom(MakeSamples(TrueX2(), RobotPoses)), saveToCatalog: true);
+            pSave2.InstanceName = "手眼1";
+            pSave2.RunAlgorithm(a.Ctx);
+            Check("[HE] 资产③：换数据重跑 → 仍 1 条、版本 v2、矩阵是新解",
+                a.Solution.Calibrations.Count == 1 && saved!.Version == 2
+                && saved.Transform?.HandEyeMatrix != null
+                && MatchesMatrix(saved.Transform.HandEyeMatrix, TrueX2(), 1e-6),
+                $"条数={a.Solution.Calibrations.Count} 版本={saved?.Version}");
+
+            // ⑲ 资产锁定 → 不覆盖（矩阵仍是 v2 那份），但本次输出仍然有效
+            saved.IsLocked = true;
+            var pLocked = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)), saveToCatalog: true);
+            pLocked.InstanceName = "手眼1";
+            pLocked.RunAlgorithm(a.Ctx);
+            Check("[HE] 资产④：资产已锁定 → 不覆盖（矩阵仍是上一版），但本次输出仍有效",
+                pLocked.Success.Value is true
+                && saved.Transform?.HandEyeMatrix != null
+                && MatchesMatrix(saved.Transform.HandEyeMatrix, TrueX2(), 1e-6)
+                && saved.Version == 2,
+                $"成功={pLocked.Success.Value} 版本={saved.Version}");
+
+            // ⑳ 开关关闭 → 不写资产
+            var b = NewContext();
+            var pNoSave = NewPlugin(RowsFrom(MakeSamples(TrueX1(), RobotPoses)), saveToCatalog: false);
+            pNoSave.RunAlgorithm(b.Ctx);
+            Check("[HE] 资产⑤：SaveToCatalog=false → 不写资产（输出照旧有效）",
+                pNoSave.Success.Value is true && b.Solution.Calibrations.Count == 0,
+                $"成功={pNoSave.Success.Value} 条数={b.Solution.Calibrations.Count}");
+
+            // ㉑ 资产页类型标签 = 手眼标定（不是兜底「标定」）
+            string typeLabel;
+            string buildError = string.Empty;
+            try
+            {
+                var item = new SolutionProjectAssetCatalog(a.Workspace).Build()
+                    .FirstOrDefault(i => string.Equals(i.Kind, "calibration", StringComparison.OrdinalIgnoreCase));
+                typeLabel = item?.TypeLabel ?? "（资产页没列出这条标定）";
+            }
+            catch (Exception ex)
+            {
+                typeLabel = string.Empty;
+                buildError = ex.Message;
+            }
+
+            Check("[HE] 资产⑥：资产页类型标签 = 手眼标定（不走兜底「标定」）",
+                typeLabel == "手眼标定",
+                buildError.Length > 0 ? "Build 抛异常：" + buildError : "TypeLabel=" + typeLabel);
+        }
+
+        #endregion
+
         #region 插件层
 
         private static void PluginLayer()
@@ -514,7 +609,8 @@ namespace FlowCanvasChecks
             bool requireRecommended = true,
             double maxTrans = 1.0,
             double maxRot = 0.5,
-            HandEyePoseKind pose = HandEyePoseKind.EyeInHand)
+            HandEyePoseKind pose = HandEyePoseKind.EyeInHand,
+            bool saveToCatalog = false)
         {
             // ⚠ 这些属性都带 [DefaultValue]，但只有走 Initialize 才会被填；
             // 断言里直接 new 出来必须**逐个显式赋值**，否则默认是 0/false 而不是 1.0/true。
@@ -524,6 +620,7 @@ namespace FlowCanvasChecks
                 MaxTranslationRmsMm = maxTrans,
                 MaxRotationRmsDeg = maxRot,
                 PoseKind = pose,
+                SaveToCatalog = saveToCatalog,
             };
             foreach (var r in rows)
                 plugin.Samples.Add(r);

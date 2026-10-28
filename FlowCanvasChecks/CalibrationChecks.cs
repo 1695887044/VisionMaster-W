@@ -293,6 +293,73 @@ namespace FlowCanvasChecks
                     string.Join(",", probe2.GridSizeOptions));
             }
 
+            // ---- 15b) 标定图 × 图像资产（2026-10-28）----
+            // 判据三条：① 选了资产就用资产图（端口为空也能载入）；② 资产解析不到 → 明确报错，
+            // 且**不动**当前预览（不静默退回端口值）；③ 候选里含「（不使用资产）」。
+            {
+                string? boardImage = null;
+                var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
+                for (int i = 0; i < 8 && dir != null && boardImage == null; i++, dir = dir.Parent)
+                {
+                    var candidate = System.IO.Path.Combine(dir.FullName, "Image", "board", "board_01.png");
+                    if (System.IO.File.Exists(candidate)) boardImage = candidate;
+                }
+
+                if (boardImage == null)
+                {
+                    // 判红而不是跳过：仓库自带这张样例图，缺了说明工作区不完整（R38）
+                    Check("[CAL] 仓库样例图 Image\\board\\board_01.png 存在", false, "找不到该文件");
+                }
+                else
+                {
+                    var imageAssetId = Guid.NewGuid();
+                    var context = new PluginConfigContext
+                    {
+                        Assets =
+                        {
+                            new AssetPathOption
+                            {
+                                AssetId = imageAssetId,
+                                Kind = "image",
+                                Name = "标定板",
+                                AbsolutePath = boardImage,
+                                Version = 2,
+                            },
+                        },
+                    };
+
+                    var assetPlugin = new CalibrationPlugin { InstanceName = "标定_源图资产" };
+                    try
+                    {
+                        assetPlugin.SetConfigContext(context);
+                        Check("[CAL] 源图资产：候选含「（不使用资产）」+ 1 张图像资产",
+                            assetPlugin.ImageAssetOptions.Count == 2
+                            && assetPlugin.ImageAssetOptions[0].AssetId == Guid.Empty,
+                            $"候选 {assetPlugin.ImageAssetOptions.Count} 项");
+
+                        assetPlugin.SourceImageAssetId = imageAssetId.ToString();   // 触发预览载入
+                        for (int i = 0; i < 60 && assetPlugin.PreviewImagePath.Length == 0; i++)
+                            Thread.Sleep(50);   // 最多 3s
+
+                        Check("[CAL] 源图资产：选了资产 → 端口为空也载入资产图",
+                            string.Equals(assetPlugin.PreviewImagePath, boardImage, StringComparison.OrdinalIgnoreCase)
+                            && assetPlugin.DisplayImage != null,
+                            $"路径='{assetPlugin.PreviewImagePath}' 画布={(assetPlugin.DisplayImage == null ? "空" : "非空")}");
+
+                        // 资产解析不到 → 明确报错，且预览保持原样（不退回端口）
+                        assetPlugin.SourceImageAssetId = Guid.NewGuid().ToString();
+                        Check("[CAL] 源图资产：资产解析不到 → 明确报错，且不动当前预览",
+                            assetPlugin.StatusMessage.Contains("标定图资产无法解析")
+                            && string.Equals(assetPlugin.PreviewImagePath, boardImage, StringComparison.OrdinalIgnoreCase),
+                            $"状态='{assetPlugin.StatusMessage}' 路径='{assetPlugin.PreviewImagePath}'");
+                    }
+                    finally
+                    {
+                        assetPlugin.Dispose();
+                    }
+                }
+            }
+
             // ---- 16) 清空预览路径 → 在途读图不得"复活"（轮次号守卫） ----
             // 病根：EnsurePreviewLoaded 的空路径分支清了图但没递增 _previewLoadId，
             // 在途的 Task 完成后守卫（loadId != _previewLoadId）判断仍成立 → 已清空的预览又出现。

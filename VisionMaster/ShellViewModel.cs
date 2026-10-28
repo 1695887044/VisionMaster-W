@@ -95,6 +95,18 @@ namespace VisionMaster
         /// </summary>
         private readonly FlowEngineService _flowEngineService;
 
+        /// <summary>流程运行统计来源：底栏 KPI 的唯一数据源（每流程一份，按 FlowId 归属）</summary>
+        private readonly FlowRuntimeVariableSource _flowStats;
+
+        /// <summary>SCADA 监控宿主：底栏「告警」读它的未确认产线告警数（不是日志警告）</summary>
+        private readonly ScadaMonitoringHost _monitoringHost;
+
+        /// <summary>工位浮窗的行缓存：按 FlowId 增量更新，不整表重建（否则 200ms 刷一次会丢滚动/焦点）</summary>
+        private readonly Dictionary<Guid, FlowStatsRow> _flowRows = new();
+
+        /// <summary>null = 「全部在跑」；有值 = 底栏跟这条流程</summary>
+        private Guid? _selectedFlowId;
+
         // ================= DWV 第 1 期：调试暂停 / 命中窗 =================
 
         /// <summary>暂停前的运行态（进入 Paused 时记住，最后一个暂停会话恢复时还原）</summary>
@@ -245,12 +257,260 @@ namespace VisionMaster
             set { SetProperty(ref field, value); }
         }
 
-        // 生产 KPI 的显示位先留给状态栏；数据源（节拍 / OK / NG / 告警）尚未接入时
-        // 明确显示占位符，不用 0 冒充真实计数。接入后只需在这四个属性里换源。
-        public string CycleTimeText => "—";
-        public string OkCountText => "—";
-        public string NgCountText => "—";
-        public string AlarmCountText => "—";
+        // 生产 KPI：数据来自 FlowRuntimeVariableSource（订阅引擎每轮事件）。
+        // 多流程并发时不再给"一个全局数"：节拍取在跑流程的瓶颈，OK/NG 取主流程的线级汇总，
+        // 未判定单独一桶；没有数据时显示"—"（不拿 0 冒充真实计数）。
+        public string CycleTimeText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "—";
+
+        public string OkCountText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "—";
+
+        public string NgCountText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "—";
+
+        /// <summary>未判定轮次合计（判定步骤跳过 / 未配置 / 类型不符；不混进 NG）</summary>
+        public string UnknownCountText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "0";
+
+        /// <summary>在跑的生产流程数（不含 Home/End/调试）</summary>
+        public string RunningFlowCountText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "未运行";
+
+        /// <summary>工位浮窗的文本版（悬浮提示）：每流程一行</summary>
+        public string FlowStatsToolTip
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "当前没有生产流程在运行";
+
+        /// <summary>底栏统计范围：选中流程名，或「全部在跑 · N 条」</summary>
+        public string ScopeText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "全部在跑";
+
+        /// <summary>工位浮窗的行（全部流程；Home/End/子程序/调试行 IsIncluded=false，置灰）</summary>
+        public ObservableCollection<FlowStatsRow> FlowStatsRows { get; } = new();
+
+        /// <summary>轮次下钻的当前记录（null = 没开/该流程还没有轮次）</summary>
+        public FlowRoundResult? RoundDetail
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        }
+
+        public DelegateCommand<FlowStatsRow> SelectFlowCommand { get; }
+        public DelegateCommand ShowAllFlowsCommand { get; }
+
+        /// <summary>告警 KPI：SCADA 未确认产线告警数（≠ 日志警告）；未加载方案时显示 —</summary>
+        public string AlarmCountText
+        {
+            get => field;
+            private set => SetProperty(ref field, value);
+        } = "—";
+
+        /// <summary>
+        /// 流程统计变化：来源在引擎/定时器线程上触发，这里封送到 UI 线程并合并到 Background，
+        /// 不跟输入/渲染抢 Normal 队列（2026-10-27 多流程卡顿的教训）。
+        /// </summary>
+        private void OnFlowStatsChanged(object? sender, EventArgs e)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.InvokeAsync(RefreshFlowKpis, DispatcherPriority.Background);
+                return;
+            }
+
+            RefreshFlowKpis();
+        }
+
+        private void RefreshFlowKpis()
+        {
+            var snapshots = _flowStats.Snapshot();
+            var byId = snapshots
+                .GroupBy(s => s.FlowId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            // 行同步：删掉已不存在的流程；新增/更新其余行（不整表重建，避免 200ms 刷一次丢滚动/焦点）。
+            foreach (var stale in _flowRows.Keys.Where(id => !byId.ContainsKey(id)).ToList())
+            {
+                FlowStatsRows.Remove(_flowRows[stale]);
+                _flowRows.Remove(stale);
+            }
+
+            var ordered = snapshots
+                .OrderBy(s => s.Role == "整线" ? 0 : 1)
+                .ThenBy(s => s.FlowName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var s in ordered)
+            {
+                if (!_flowRows.TryGetValue(s.FlowId, out var row))
+                {
+                    row = new FlowStatsRow(s.FlowId);
+                    _flowRows[s.FlowId] = row;
+                    FlowStatsRows.Add(row);
+                }
+
+                row.Name = s.FlowName;
+                row.Station = s.Role;
+                row.Role = s.Role;
+                row.StateText = s.State;
+                row.IsRunning = s.IsRunning;
+                row.CycleText = s.HasRound ? $"{s.CycleTimeMs:N0} ms" : "—";
+                row.OkText = s.HasRound ? s.OkCount.ToString("N0") : "—";
+                row.NgText = s.HasRound ? s.NgCount.ToString("N0") : "—";
+                row.UnknownText = s.HasRound ? s.UnknownCount.ToString("N0") : "—";
+                row.SourceText = s.VerdictSource;
+                row.LastRoundText = string.IsNullOrEmpty(s.LastRoundAt) ? "—" : s.LastRoundAt;
+                row.IsIncluded = IsIncludedRole(s.Role) && !s.IsDebug;
+                row.IsSelected = _selectedFlowId == s.FlowId;
+            }
+
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                var row = _flowRows[ordered[i].FlowId];
+                int current = FlowStatsRows.IndexOf(row);
+                if (current >= 0 && current != i)
+                    FlowStatsRows.Move(current, i);
+            }
+
+            // 选中的流程被删/被排除（改成 Home/End/子程序/调试）：退回「全部」。
+            if (_selectedFlowId.HasValue
+                && (!byId.TryGetValue(_selectedFlowId.Value, out var selected) || !IsIncludedRole(selected.Role) || selected.IsDebug))
+            {
+                _selectedFlowId = null;
+            }
+
+            var included = ordered.Where(s => IsIncludedRole(s.Role) && !s.IsDebug).ToList();
+            var running = included.Where(s => s.IsRunning).ToList();
+
+            RunningFlowCountText = running.Count == 0 ? "未运行" : $"{running.Count} 条在跑";
+
+            if (_selectedFlowId.HasValue && byId.TryGetValue(_selectedFlowId.Value, out var sel))
+            {
+                ScopeText = $"{sel.FlowName} · {sel.Role}";
+                CycleTimeText = sel.HasRound ? $"{sel.CycleTimeMs:N0} ms" : "—";
+                OkCountText = sel.HasRound ? sel.OkCount.ToString("N0") : "—";
+                NgCountText = sel.HasRound ? sel.NgCount.ToString("N0") : "—";
+                UnknownCountText = sel.UnknownCount.ToString("N0");
+            }
+            else
+            {
+                ScopeText = $"全部在跑 · {running.Count} 条";
+
+                // 「全部」口径：节拍取在跑流程的瓶颈（最大值），不取平均、不求和。
+                // 都停下来时回落到"最近完成过轮次"的流程——否则跑完一轮节拍立刻变 —，
+                // 用户看到的 OK/NG 还在、节拍却消失。
+                var bottleneckPool = running.Where(s => s.HasRound).ToList();
+                if (bottleneckPool.Count == 0)
+                    bottleneckPool = included.Where(s => s.HasRound).ToList();
+                var bottleneck = bottleneckPool.OrderByDescending(s => s.CycleTimeMs).FirstOrDefault();
+                CycleTimeText = bottleneck.HasRound ? $"{bottleneck.CycleTimeMs:N0} ms" : "—";
+
+                // OK/NG 取「线级判定来源」那一条的汇总；串联线不把各工位相加。
+                // 来源由 SolutionModel.ResolveLineVerdictFlow 解析：显式配置（结果源弹窗里勾
+                // "作为线级汇总来源"）优先，否则第一条勾「整线」的启用流程；都没有就显示「—」。
+                // 未判定同样取线级：各工位自己的未判定在工位浮窗里逐行看，底栏不把辅助子程序的轮次累进来。
+                var lineFlow = Workspace?.CurrentSolution?.ResolveLineVerdictFlow();
+                bool lineHasRound = false;
+                long lineOk = 0, lineNg = 0, lineUnknown = 0;
+                if (lineFlow != null
+                    && Guid.TryParse(lineFlow.FlowID, out var lineFlowId)
+                    && byId.TryGetValue(lineFlowId, out var lineCandidate))
+                {
+                    lineHasRound = lineCandidate.HasRound;
+                    lineOk = lineCandidate.OkCount;
+                    lineNg = lineCandidate.NgCount;
+                    lineUnknown = lineCandidate.UnknownCount;
+                }
+
+                OkCountText = lineHasRound ? lineOk.ToString("N0") : "—";
+                NgCountText = lineHasRound ? lineNg.ToString("N0") : "—";
+                UnknownCountText = lineHasRound
+                    ? lineUnknown.ToString("N0")
+                    : included.Sum(s => s.UnknownCount).ToString("N0");
+            }
+
+            FlowStatsToolTip = running.Count == 0
+                ? "当前没有生产流程在运行"
+                : string.Join(Environment.NewLine, running.Select(s =>
+                    $"{s.FlowName} · {s.State} · {(s.HasRound ? $"{s.CycleTimeMs:N0} ms" : "待首轮")} · " +
+                    $"OK {s.OkCount:N0} / NG {s.NgCount:N0} / 未判定 {s.UnknownCount:N0} · {s.VerdictSource}"));
+
+            // 下钻窗开着时跟着选中流程的最新轮次走。
+            if (RoundDetail != null && _selectedFlowId.HasValue)
+            {
+                var latest = _flowStats.GetLatestRound(_selectedFlowId.Value);
+                if (latest != null && !ReferenceEquals(latest, RoundDetail))
+                    RoundDetail = latest;
+            }
+        }
+
+        /// <summary>
+        /// 计入底栏/浮窗的流程：只排除 Home / End（调试轮另行排除）。
+        /// **子程序按工位计入**：本仓样例线的主流程就是调用 7 个工位子流程，
+        /// 一刀切排除子程序会让"多工位同时运行"只剩主流程一条、工位行全部置灰不可下钻。
+        /// 线级 OK/NG 仍只取主流程，不会因为计入工位而重复计数。
+        /// </summary>
+        private static bool IsIncludedRole(string role)
+            => role != "回原点" && role != "收尾";
+
+        private void SelectFlow(FlowStatsRow row)
+        {
+            if (row == null || !row.IsIncluded) return;
+            _selectedFlowId = row.FlowId;
+            RoundDetail = null;
+            RefreshFlowKpis();
+        }
+
+        private void ShowAllFlows()
+        {
+            _selectedFlowId = null;
+            RoundDetail = null;
+            RefreshFlowKpis();
+        }
+
+        /// <summary>
+        /// 打开当前范围最近一轮（选中流程优先；「全部」时取线级判定来源，其次第一条生产流程）。
+        /// </summary>
+        public void OpenLatestRound()
+        {
+            Guid? flowId = _selectedFlowId;
+            if (!flowId.HasValue)
+            {
+                // 线级来源由方案解析（显式配置 → 第一条勾整线的流程）；解析不到再退回第一行
+                Guid? lineId = null;
+                var lineFlow = Workspace?.CurrentSolution?.ResolveLineVerdictFlow();
+                if (lineFlow != null && Guid.TryParse(lineFlow.FlowID, out var parsed))
+                    lineId = parsed;
+
+                var preferred = lineId.HasValue
+                    ? FlowStatsRows.FirstOrDefault(r => r.IsIncluded && r.FlowId == lineId.Value)
+                    : null;
+                flowId = (preferred ?? FlowStatsRows.FirstOrDefault(r => r.IsIncluded))?.FlowId;
+            }
+
+            RoundDetail = flowId.HasValue ? _flowStats.GetLatestRound(flowId.Value) : null;
+        }
         #endregion
         #region 登录会话（状态栏显示）
         /// <summary>
@@ -334,6 +594,11 @@ namespace VisionMaster
                     // 向全应用广播运行状态（流程栏编辑锁等消费方经 GlobalEventBus 订阅）；
                     // setter 必在 UI 线程调用，总线同步派发，订阅者拿不到脏线程上下文
                     GlobalEventBus.Publish(value);
+
+                    // 同步写"最近一次运行态"镜像：总线不缓存最后一条消息，而编辑门禁的订阅
+                    // 会随面板挂/摘反复摘除再挂上，离树期间的变化只能靠这个镜像补种
+                    // （否则运行中重新显示流程栏后，双击算子仍会弹出参数窗把主窗置灰）。
+                    EditGate.PublishRunState(value);
                 }
             }
         }
@@ -698,6 +963,23 @@ namespace VisionMaster
             }
 
             RaisePropertyChanged(nameof(HasInspectorCapsules));
+            SyncAutoHideTabsWithCapsules();
+        }
+
+        /// <summary>
+        /// 自定义胶囊与 AvalonDock 自带自动隐藏页签二选一：有胶囊的面板隐藏库页签。
+        /// 视觉树在布局更新后才生成，所以立即同步一次、Loaded/ApplicationIdle 再各补一次。
+        /// </summary>
+        private void SyncAutoHideTabsWithCapsules()
+        {
+            var ids = InspectorCapsules.Select(c => c.ContentId).ToList();
+            void Apply() => LayoutHelper.SyncAutoHideTabs(LayoutHelper.FindManager(), ids);
+
+            Apply();
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(Apply));
+            dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(Apply));
         }
 
         /// <summary>点胶囊：面板钉回右侧 300 列，胶囊随之消失。</summary>
@@ -764,7 +1046,9 @@ namespace VisionMaster
             DebugModeService debugMode,
             SolutionSessionCoordinator sessionCoordinator,
             FlowEngineService flowEngineService,
-            Services.CommunicationSolutionBinder communicationBinder
+            Services.CommunicationSolutionBinder communicationBinder,
+            FlowRuntimeVariableSource flowStats,
+            ScadaMonitoringHost monitoringHost
         )
         {
             StartBackgroundMonitoring();
@@ -782,6 +1066,8 @@ namespace VisionMaster
             ShowInspectorCapsuleCommand = new DelegateCommand<InspectorCapsuleItem>(ShowInspectorCapsule);
             OpenProjectAssetsCommand = new DelegateCommand(() => dialogService.ShowDialog("ProjectAssetsView"));
             OpenDebugPanelCommand = new DelegateCommand(OpenDebugPanel);
+            SelectFlowCommand = new DelegateCommand<FlowStatsRow>(SelectFlow);
+            ShowAllFlowsCommand = new DelegateCommand(ShowAllFlows);
             // 布局加载/重载后：重挂监听 + 按模式收敛面板组（不能只挂 AttachDockWatchers，
             // 否则磁盘 Layout.xml 恢复出来的旧可见性会盖掉本次改造）
             LayoutHelper.LayoutLoaded += OnLayoutLoaded;
@@ -807,6 +1093,12 @@ namespace VisionMaster
             // 这里负责把"暂停 / 恢复"镜像到 RunState、按暂停原因驱动命中窗。
             this._flowEngineService = flowEngineService;
             _flowEngineService.SessionStateChanged += OnSessionStateChanged;
+
+            // 底栏 KPI：订阅流程运行统计（来源在引擎/定时器线程，RefreshFlowKpis 内部封送 UI 线程）。
+            this._flowStats = flowStats;
+            _flowStats.Changed += OnFlowStatsChanged;
+            this._monitoringHost = monitoringHost;
+            RefreshFlowKpis();
 
             // 空闲超时登出要"说一声"。挂在这里（而不是弹窗里）是因为主窗口是唯一
             // 从头到尾开着的那一个——超时那一刻弹窗多半关着（见 ScadaLoginViewModel 注释①）。
@@ -1815,6 +2107,15 @@ namespace VisionMaster
                             ThreadCountStr = $"THD: {metrics.ThreadCount}";
                             HandleCountStr = $"HDL: {metrics.HandleCount}";
                             CurrentTimeText = DateTime.Now.ToString(" HH:mm:ss");
+                            try
+                            {
+                                AlarmCountText = _monitoringHost?.Context?.Alarms?.UnacknowledgedCount.ToString("N0") ?? "—";
+                            }
+                            catch
+                            {
+                                // 方案切换/监控宿主释放的窗口：告警数读不到就显示占位，不影响其它状态采样。
+                                AlarmCountText = "—";
+                            }
                         }
                         catch (OperationCanceledException)
                         {
@@ -2050,14 +2351,14 @@ namespace VisionMaster
             if (selection.Selected.Count == 0)
             {
                 RunState = MainRunState.NotStarted;
-                Notifier.ShowWarning(selection.Warning ?? "没有可运行的主流程");
+                Notifier.ShowWarning(selection.Warning ?? "没有可运行的流程");
                 return;
             }
 
             if (selection.EnabledButExcluded.Count > 0)
             {
                 Notifier.ShowInfo(
-                    "以下启用流程不参与批量运行（非主流程）："
+                    "以下启用流程不参与整线运行（未勾选「随整线启动」）："
                     + string.Join("、", selection.EnabledButExcluded.Select(f => f.FlowName)));
             }
 
@@ -2145,14 +2446,14 @@ namespace VisionMaster
             if (selection.Selected.Count == 0)
             {
                 RunState = MainRunState.NotStarted;
-                Notifier.ShowWarning(selection.Warning ?? "没有可运行的主流程");
+                Notifier.ShowWarning(selection.Warning ?? "没有可运行的流程");
                 return;
             }
 
             if (selection.EnabledButExcluded.Count > 0)
             {
                 Notifier.ShowInfo(
-                    "以下启用流程不参与批量运行（非主流程）："
+                    "以下启用流程不参与整线运行（未勾选「随整线启动」）："
                     + string.Join("、", selection.EnabledButExcluded.Select(f => f.FlowName)));
             }
 

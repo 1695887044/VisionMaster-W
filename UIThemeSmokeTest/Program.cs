@@ -593,9 +593,10 @@ namespace UIThemeSmokeTest
                 int loginFailures = RunLoginChecks();
                 int userManagerFailures = RunUserManagerViewChecks();
                 int pluginEntryFailures = RunPluginEntryIsolationChecks();
+                int capsuleTabFailures = RunCapsuleAutoHideTabChecks(window);
                 return paneLayoutFailures + shellLayoutFailures + panelModeFailures + shellModeFailures + gridFailures + colorTokenFailures
                      + flowCanvasFailures + logConsoleFailures + firstBatchFailures + loginFailures
-                     + userManagerFailures + pluginEntryFailures == 0 ? 0 : 1;
+                     + userManagerFailures + pluginEntryFailures + capsuleTabFailures == 0 ? 0 : 1;
             }
             catch (Exception ex)
             {
@@ -845,6 +846,45 @@ namespace UIThemeSmokeTest
             gallery.Recompute();
             Check("新增帧后可见（集合通知通路）", gallery.FilteredFrames.Count == 4, $"期望 4，实际 {gallery.FilteredFrames.Count}");
 
+            // ---- 多流程并存：选中必须跟随最新发布（按 Sequence，不按流程名） ----
+            // 现场症状：先跑 NCC、再跑二维码，图像窗口一直停在 NCC 帧。
+            // 根因是 Recompute 取“排序后的最后一个”（排序键是流程名），而“模板匹配”排在“二维码”之后。
+            {
+                var multi = new ObservableCollection<ImageFrame>
+                {
+                    new ImageFrame { FlowName = "模板匹配_NCC散焦图", StepName = "结果显示", Sequence = 1 },
+                    new ImageFrame { FlowName = "二维码读取_QR", StepName = "结果显示", Sequence = 2 },
+                };
+                var multiGallery = new ImageGallery
+                {
+                    ItemsSource = multi,
+                    ViewIndexFilter = 1,
+                    SupportsFrameHistory = false,
+                };
+                var multiHost = new Border { Width = 900, Height = 600, Child = multiGallery };
+                multiHost.Measure(new Size(900, 600));
+                multiHost.Arrange(new Rect(0, 0, 900, 600));
+                multiHost.UpdateLayout();
+                multiHost.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+
+                Check("多流程并存时选中最新发布帧（按 Sequence，不按流程名）",
+                    ReferenceEquals(multiGallery.SelectedFrame, multi[1]),
+                    $"选中={multiGallery.SelectedFrame?.FlowName ?? "null"}");
+
+                var third = new ImageFrame { FlowName = "Blob缺陷检测_标签字符", StepName = "结果显示", Sequence = 3 };
+                multi.Add(third);
+                multiHost.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Check("新增帧后仍跟随最新（流程名更小也要选中）",
+                    ReferenceEquals(multiGallery.SelectedFrame, third),
+                    $"选中={multiGallery.SelectedFrame?.FlowName ?? "null"}");
+
+                multi.Remove(third);
+                multiHost.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+                Check("选中帧被移除后回落到最新 Sequence",
+                    ReferenceEquals(multiGallery.SelectedFrame, multi[1]),
+                    $"选中={multiGallery.SelectedFrame?.FlowName ?? "null"}");
+            }
+
             // ---- 循环运行刷新公平性：Normal 洪水不得饿死重算 ----
             // 背景：循环运行时"采集插帧"以 Normal 优先级连续到达；重算原先挂 Background，
             // 会被 Normal 洪水永久饿死 → 帧明明在集合里，界面却一直停在"本格暂无图像"
@@ -1091,13 +1131,17 @@ namespace UIThemeSmokeTest
             var flags = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
             var insert = typeof(VisionMaster.Services.ImageCollectionService).GetMethod("InsertOrReplace", flags)!;
             var onStarted = typeof(VisionMaster.Services.ImageCollectionService).GetMethod("OnFlowRunStarted", flags)!;
-            var currentFlowField = typeof(VisionMaster.Services.ImageCollectionService).GetField("_currentFlowName", flags)!;
+
+            // 帧的流程归属由**发布事件自带**（引擎每轮经 PreviewScope 注入），
+            // 宿主不再维护"当前流程"全局字段——多流程并发时那个值必然是错的。
+            void StartRound(string flowName)
+                => onStarted.Invoke(svc, new object[] { new VisionMaster.Models.FlowSession { FlowName = flowName } });
 
             void Seed()
             {
-                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程A", StepName = "预处理", PortName = "图像" }, cfg });
-                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程A", StepName = "定位", PortName = "结果" }, cfg });
-                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程B", StepName = "测量", PortName = "图像" }, cfg });
+                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程A", StepName = "预处理", PortName = "图像", ViewIndex = 1 }, cfg });
+                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程A", StepName = "定位", PortName = "结果", ViewIndex = 1 }, cfg });
+                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程B", StepName = "测量", PortName = "图像", ViewIndex = 2 }, cfg });
             }
 
             // ---- ④ 每轮流程开始：登记待清空，第一张新图到达时同批原子替换（方案 A：循环不闪黑） ----
@@ -1111,14 +1155,15 @@ namespace UIThemeSmokeTest
                 return img;
             }
 
-            void CaptureFrame()
+            void CaptureFrame(string? flowName, int viewIndex)
             {
                 using var img = MakeTestImage();
                 svc.Capture(new Core.Events.ImageDisplayEvent<HalconDotNet.HImage>
                 {
-                    ViewIndex = 1,
+                    ViewIndex = viewIndex,
                     Image = img,
-                    PluginName = "流程A.预处理"   // 流程归属取 _currentFlowName（见 ImageCollectionService.Capture）
+                    PluginName = "流程A.预处理",
+                    FlowName = flowName          // 流程身份随发布事件走（等价于引擎注入的 PreviewScope）
                 });
             }
 
@@ -1136,15 +1181,12 @@ namespace UIThemeSmokeTest
             svc.Changed += onChange;
             try
             {
-                onStarted.Invoke(svc, new object[] { new VisionMaster.Models.FlowSession { FlowName = "流程A" } });
+                StartRound("流程A");
                 Check("本轮开始不立刻清空（旧图保持可见——循环不闪黑的前提）",
                     svc.Count == 3,
                     $"剩余 {svc.Count} 张：[{string.Join(",", svc.Frames.Select(f => f.FlowName))}]");
 
-                Check("记录当前流程（注入图归属用）",
-                    (string?)currentFlowField.GetValue(svc) == "流程A", (string?)currentFlowField.GetValue(svc) ?? "(null)");
-
-                CaptureFrame();   // 本轮第一张新图：清上一轮的 A + 插入本帧 → 同一批
+                CaptureFrame("流程A", 1);   // 本轮第一张新图：清上一轮的 A + 插入本帧 → 同一批
                 Check("第一张新图到达时同批完成清空+插入（A 换新、B 不动）",
                     svc.Count == 2
                     && svc.Frames.Any(f => f.FlowName == "流程A")
@@ -1155,26 +1197,40 @@ namespace UIThemeSmokeTest
                     $"批次张数：[{string.Join(",", batchCounts)}]");
 
                 // 本轮再无任何新图：不清空，画布保持上一轮（监视器语义）
-                onStarted.Invoke(svc, new object[] { new VisionMaster.Models.FlowSession { FlowName = "流程A" } });
+                StartRound("流程A");
                 Check("本轮没有新图 → 不清空（保持上一轮画面）",
                     svc.Count == 2, $"剩余 {svc.Count} 张");
 
-                // 「清空整张画布」同样推迟到首帧
-                cfg.RunStartMode = VisionMaster.Models.ImageGalleryRunStartMode.ClearAll;
-                var beforeClearAll = svc.Count;
-                onStarted.Invoke(svc, new object[] { new VisionMaster.Models.FlowSession { FlowName = "流程A" } });
-                Check("清空整张画布：登记时先不动（同样不闪黑）",
-                    svc.Count == beforeClearAll && beforeClearAll > 0, $"剩余 {svc.Count} 张");
+                // 「窗口级清空」同样推迟到首帧：只清本轮要显示的那一格，别的窗口不动。
+                // 旧口径 ClearAll（画布级）在多流程并排时会互相清屏，已废弃并自动迁移到本口径。
+                cfg.RunStartMode = VisionMaster.Models.ImageGalleryRunStartMode.ClearView;
+                insert.Invoke(svc, new object[] { new ImageFrame { FlowName = "流程B", StepName = "跨窗口", PortName = "图", ViewIndex = 1 }, cfg });
+                var beforeClearView = svc.Count;
+                StartRound("流程A");
+                Check("窗口级清空：登记时先不动（同样不闪黑）",
+                    svc.Count == beforeClearView && beforeClearView > 0, $"剩余 {svc.Count} 张");
 
-                CaptureFrame();
-                Check("清空整张画布：首帧到达时全清并只留本帧",
-                    svc.Count == 1, $"剩余 {svc.Count} 张");
+                CaptureFrame("流程A", 1);
+                Check("窗口级清空：首帧到达时只清窗口1，窗口2 的图保留",
+                    svc.Count == 2
+                    && svc.Frames.Any(f => f.ViewIndex == 2 && f.FlowName == "流程B")
+                    && svc.Frames.Any(f => f.ViewIndex == 1 && f.FlowName == "流程A"),
+                    $"剩余 {svc.Count} 张：[{string.Join(",", svc.Frames.Select(f => $"{f.FlowName}@窗口{f.ViewIndex}"))}]");
+
+                // 没有流程身份 → 落伪流程桶（绝不回退成"最后开轮的流程"）
+                CaptureFrame(null, 2);
+                Check("没有流程身份 → 落伪流程桶（不猜最后开轮的流程）",
+                    svc.Frames.Any(f => f.ViewIndex == 2
+                        && f.FlowName == VisionMaster.Services.ImageCollectionService.RealtimeFlowName),
+                    $"剩余 {svc.Count} 张：[{string.Join(",", svc.Frames.Select(f => $"{f.FlowName}@窗口{f.ViewIndex}"))}]");
 
                 svcGallery.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-                Check("画廊跟随：切换后显示的是本轮新图（不是空、也不是上一轮）",
-                    svcGallery.FilteredFrames.Count == 1
-                    && ReferenceEquals(svcGallery.FilteredFrames[0], svc.Frames[0]),
-                    $"画廊 {svcGallery.FilteredFrames.Count} 张 / 服务 {svc.Count} 张");
+                var newest = svc.Frames.OrderBy(f => f.Sequence).LastOrDefault();
+                Check("画廊跟随：显示的是本轮新图（不是空、也不是上一轮）",
+                    newest != null
+                    && svcGallery.FilteredFrames.Count == svc.Count
+                    && ReferenceEquals(svcGallery.SelectedFrame, newest),
+                    $"画廊 {svcGallery.FilteredFrames.Count} 张 / 服务 {svc.Count} 张 / 选中={svcGallery.SelectedFrame?.FlowName}@窗口{svcGallery.SelectedFrame?.ViewIndex}");
             }
             finally { svc.Changed -= onChange; }
 
@@ -1256,6 +1312,7 @@ namespace UIThemeSmokeTest
             var cfg = settings.Current.ImageGallery;
             bool savedEnabled = cfg.Enabled, savedRealtime = cfg.IncludeRealtimePreviews;
             bool savedRetention = cfg.KeepInjectedHistory;
+            bool savedFrameHistory = cfg.KeepFrameHistory;
             int savedTotal = cfg.TotalLimit, savedPerFlow = cfg.PerFlowLimit;
 
             try
@@ -1340,6 +1397,16 @@ namespace UIThemeSmokeTest
                     Publish(1);
                     Check("[RT] 收容开：新帧独立成条，不被旧帧合并掉",
                         svc.Count == 2, $"帧数={svc.Count}");
+
+                    // ---- ⑨ 只打开 KeepFrameHistory（兜底帧留历史）时，注入帧仍按 KeepInjectedHistory 覆盖 ----
+                    // 两类帧的收容开关不同：注入帧看 KeepInjectedHistory，兜底帧看 KeepFrameHistory。
+                    // 统一用 KeepFrameHistory 会让"只开兜底历史"时注入帧出现重复帧（同窗口多条）。
+                    cfg.KeepFrameHistory = true;
+                    cfg.KeepInjectedHistory = false;
+                    svc.Clear();
+                    Publish(1); Publish(1);
+                    Check("[RT] 只开 KeepFrameHistory：注入帧仍只留 1 张（不被当成兜底帧留历史）",
+                        svc.Count == 1, $"帧数={svc.Count}");
                 }
                 finally
                 {
@@ -1352,6 +1419,7 @@ namespace UIThemeSmokeTest
                 cfg.Enabled = savedEnabled;
                 cfg.IncludeRealtimePreviews = savedRealtime;
                 cfg.KeepInjectedHistory = savedRetention;
+                cfg.KeepFrameHistory = savedFrameHistory;
                 cfg.TotalLimit = savedTotal;
                 cfg.PerFlowLimit = savedPerFlow;
             }
@@ -1542,6 +1610,31 @@ namespace UIThemeSmokeTest
                     four.Count == 4 && four.All(p => p.Template?.FindName("PART_Big", p) != null),
                     $"格数={four.Count}，带大图 {four.Count(p => p.Template?.FindName("PART_Big", p) != null)} 格");
 
+                // 双击放大本格（2026-10-28）：多格时每格都能放大；放大后本格跨满整个 Grid、
+                // 其余格折叠（HALCON 画布是 HwndHost，ZIndex 压不住，只能折叠）；再双击还原。
+                Check("四宫格：每格都可放大（双击接管）",
+                    four.All(p => p.IsPaneMaximizable),
+                    $"可放大 {four.Count(p => p.IsPaneMaximizable)}/{four.Count} 格");
+
+                var maximized = four.First();
+                maximized.TogglePaneMaximize();
+                host.UpdateLayout();
+                Check("放大本格：跨满 2×2 且贴左上",
+                    maximized.Visibility == Visibility.Visible
+                    && Grid.GetRow(maximized) == 0 && Grid.GetColumn(maximized) == 0
+                    && Grid.GetRowSpan(maximized) == 2 && Grid.GetColumnSpan(maximized) == 2,
+                    $"vis={maximized.Visibility}，row/col={Grid.GetRow(maximized)}/{Grid.GetColumn(maximized)}，span={Grid.GetRowSpan(maximized)}×{Grid.GetColumnSpan(maximized)}");
+                Check("放大本格：其余三格折叠",
+                    four.Where(p => !ReferenceEquals(p, maximized)).All(p => p.Visibility == Visibility.Collapsed),
+                    $"其余={string.Join(",", four.Where(p => !ReferenceEquals(p, maximized)).Select(p => p.Visibility))}");
+
+                maximized.TogglePaneMaximize();
+                host.UpdateLayout();
+                Check("再双击还原：四格都可见且不跨格",
+                    four.All(p => p.Visibility == Visibility.Visible
+                        && Grid.GetRowSpan(p) == 1 && Grid.GetColumnSpan(p) == 1),
+                    string.Join(",", four.Select(p => $"{p.Visibility}/{Grid.GetRowSpan(p)}×{Grid.GetColumnSpan(p)}")));
+
                 // 越界值（老方案里存过 29 = 已下线的"全部输出"）：回落单画面，不能摆出空画布
                 Switch((VisionMaster.eViewMode)29);
                 var fallback = Descendants<ImageGallery>(view).ToList();
@@ -1555,6 +1648,10 @@ namespace UIThemeSmokeTest
                 Check("单画面：1 格且绑窗口号 1",
                     one.Count == 1 && one[0].ViewIndexFilter == 1,
                     $"格数={one.Count}，窗口号={one.FirstOrDefault()?.ViewIndexFilter}");
+                // 单格没有"让位"可谈：双击必须仍是「适应窗口/1:1」，不能被放大功能吞掉
+                Check("单画面：不接管双击（保留适应/1:1）",
+                    one.Count == 1 && !one[0].IsPaneMaximizable,
+                    $"IsPaneMaximizable={one.FirstOrDefault()?.IsPaneMaximizable}");
             }
             catch (Exception ex)
             {
@@ -1597,6 +1694,7 @@ namespace UIThemeSmokeTest
                 }
 
                 var doc = XDocument.Load(path);
+                var shellText = File.ReadAllText(path);
                 var canvas = ByContentId(doc, "Panel_FlowCanvasView");
                 var image = ByContentId(doc, "Panel_ImageView");
                 var process = ByContentId(doc, "Panel_ProcessView");
@@ -1750,6 +1848,67 @@ namespace UIThemeSmokeTest
                 Check("状态栏生产 KPI 占位齐全（节拍 / OK / NG / 告警）",
                     new[] { "节拍", "OK", "NG", "告警" }.All(t => statusTexts.Contains(t)),
                     string.Join("，", statusTexts.Where(t => t is "节拍" or "OK" or "NG" or "告警")));
+                Check("状态栏新增「未判定」与「N 条在跑」绑定（多流程口径）",
+                    statusTexts.Contains("未判定")
+                    && doc.Descendants().Any(e => ((string)e.Attribute("Text") ?? string.Empty).Contains("UnknownCountText", StringComparison.Ordinal))
+                    && doc.Descendants().Any(e => ((string)e.Attribute("Text") ?? string.Empty).Contains("RunningFlowCountText", StringComparison.Ordinal)),
+                    "未判定 + RunningFlowCountText");
+                Check("工位浮窗与轮次下钻结构齐全（FlowStatsRows / FlowStatsPopup / FlowRoundPopup）",
+                    doc.Descendants().Any(e => NameOf(e) == "FlowStatsPopup")
+                    && doc.Descendants().Any(e => NameOf(e) == "FlowRoundPopup")
+                    && doc.Descendants().Any(e => ((string)e.Attribute("ItemsSource") ?? string.Empty).Contains("FlowStatsRows", StringComparison.Ordinal))
+                    && shellCode.Contains("FlowRoundDetail_Click", StringComparison.Ordinal),
+                    "浮窗 + 下钻 + FlowStatsRows");
+
+                // ---- 结果源配置弹窗（设计基线 flow-result-source v1.1）----
+                // 五个模式面板 + 三组候选 + 保存/取消都只靠绑定接线，绑错编译期全绿，
+                // 所以这里按结构点名；行为口径（候选过滤/校验/写回）由 FlowCanvasChecks 的 DLG-1~17 守。
+                var resultSourceViewPath = Path.Combine(@"d:\C#\VM", "VisionMaster", "Views", "DialogViews", "FlowResultSourceDialogView.xaml");
+                var resultSourceViewText = File.Exists(resultSourceViewPath) ? File.ReadAllText(resultSourceViewPath) : string.Empty;
+                XDocument resultSourceDoc = null;
+                try
+                {
+                    resultSourceDoc = resultSourceViewText.Length == 0 ? null : XDocument.Parse(resultSourceViewText);
+                }
+                catch
+                {
+                    resultSourceDoc = null;
+                }
+
+                var appCodePath = Path.Combine(@"d:\C#\VM", "VisionMaster", "App.xaml.cs");
+                var appCode = File.Exists(appCodePath) ? File.ReadAllText(appCodePath) : string.Empty;
+                var flowListPath = Path.Combine(@"d:\C#\VM", "VisionMaster", "Views", "FlowListView.xaml");
+                var flowListText = File.Exists(flowListPath) ? File.ReadAllText(flowListPath) : string.Empty;
+
+                bool BindsTo(XDocument d, string property) => d.Descendants().Any(e =>
+                    ((string)e.Attribute("ItemsSource") ?? string.Empty).Contains(property, StringComparison.Ordinal)
+                    || ((string)e.Attribute("SelectedItem") ?? string.Empty).Contains(property, StringComparison.Ordinal));
+
+                Check("结果源弹窗结构齐全（五模式 + 变量/步骤/端口候选 + 保存/取消）",
+                    resultSourceDoc != null
+                    && BindsTo(resultSourceDoc, "Modes")
+                    && new[] { "IsAutoMode", "IsResultStepMode", "IsVariableMode", "IsStepPortMode", "IsNoneMode" }
+                        .All(p => resultSourceDoc.Descendants().Any(e =>
+                            ((string)e.Attribute("Visibility") ?? string.Empty).Contains(p, StringComparison.Ordinal)))
+                    && BindsTo(resultSourceDoc, "Variables")
+                    && BindsTo(resultSourceDoc, "Steps")
+                    && BindsTo(resultSourceDoc, "Ports")
+                    && resultSourceDoc.Descendants().Any(e =>
+                        ((string)e.Attribute("Command") ?? string.Empty).Contains("SaveCommand", StringComparison.Ordinal))
+                    && resultSourceDoc.Descendants().Any(e =>
+                        ((string)e.Attribute("Command") ?? string.Empty).Contains("CancelCommand", StringComparison.Ordinal)),
+                    resultSourceDoc == null ? "XAML 不存在或解析失败" : "五模式 + 三候选 + 保存/取消");
+
+                Check("结果源弹窗入口与注册齐全（右键菜单 / 只读探针 / Dialog 注册）",
+                    flowListText.Contains("FlowAction.ResultSource", StringComparison.Ordinal)
+                    && appCode.Contains("RegisterDialog<FlowResultSourceDialogView", StringComparison.Ordinal)
+                    && appCode.Contains("IFlowConfigAccess", StringComparison.Ordinal),
+                    "菜单 + 注册 + 只读探针");
+
+                Check("结果源弹窗无硬编码颜色（R140）",
+                    resultSourceViewText.Length > 0
+                    && !System.Text.RegularExpressions.Regex.IsMatch(resultSourceViewText, @"#[0-9A-Fa-f]{6,8}"),
+                    resultSourceViewText.Length == 0 ? "文件不存在" : "无 #RRGGBB");
                 Check("状态栏有控制台展开/收起入口（ToggleConsoleCommand）",
                     doc.Descendants().Any(e => ((string)e.Attribute("Command") ?? string.Empty).Contains("ToggleConsoleCommand", StringComparison.Ordinal)),
                     "已接线");
@@ -1926,6 +2085,13 @@ namespace UIThemeSmokeTest
                 {
                     Check("PasswordBoxHelper 双向绑定：输入回写 VM、VM 清空回写 UI", false, ex.Message);
                 }
+
+                // v2.1 胶囊：18px 轨道 + 16×48~72（设计基线 toolbox-plugin）
+                var capsuleRail = Regex.Match(shellText, @"x:Name=""InspectorCapsuleRail""[\s\S]{0,240}?Width=""18""");
+                var capsuleBody = Regex.Match(shellText, @"x:Name=""Bd""[\s\S]{0,240}?Width=""16""[\s\S]{0,160}?MinHeight=""48""[\s\S]{0,160}?MaxHeight=""72""");
+                Check("v2.1 胶囊模板：18px 轨道 + 16×48~72",
+                    capsuleRail.Success && capsuleBody.Success,
+                    $"rail={capsuleRail.Success} body={capsuleBody.Success}");
             }
             catch (Exception ex)
             {
@@ -2105,6 +2271,39 @@ namespace UIThemeSmokeTest
                 Check("来回切换多次后两个模式仍各自收敛到同一条基线（幂等、无累积错）",
                     backToScada && backToNormal,
                     $"切回组态={backToScada}，切回非组态={backToNormal}");
+
+                // ---- ③a 检查器面板的列归属：不许与流程导航共列（2026-10-28 现场）----
+                // 现场：Layout.xml 把工具箱停在左侧工作列（流程导航那个 pane），下次启动恢复布局、
+                // 点胶囊走 ToggleAutoHide 收回原 pane →「流程栏 / 工具箱」成了同一容器的两个标签，
+                // 且每启动一次复现一次。这里复刻坏现场再调修复，钉住"迁回右侧检查器列"。
+                // 反证：把 LayoutHelper.EnsureInspectorPanelsOnRightColumn 的调用去掉 → 本断言红。
+                {
+                    var leftWorkPane = FindAncestorPane(dock, "Panel_ProcessView");
+                    var toolAnchorable = VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ToolView")
+                        as AvalonDock.Layout.LayoutAnchorable;
+                    if (leftWorkPane == null || toolAnchorable == null)
+                    {
+                        Check("检查器面板的列归属：工具箱不许与流程导航共列", false,
+                            $"找不到流程列/工具箱（pane={leftWorkPane != null}，tool={toolAnchorable != null}）");
+                    }
+                    else
+                    {
+                        if (toolAnchorable.Parent is AvalonDock.Layout.LayoutAnchorablePane oldPane)
+                            oldPane.Children.Remove(toolAnchorable);
+                        leftWorkPane.Children.Add(toolAnchorable);
+                        dock.UpdateLayout();
+                        bool sharesPane = ReferenceEquals(toolAnchorable.Parent, leftWorkPane);
+
+                        int moved = VisionMaster.Services.LayoutHelper.EnsureInspectorPanelsOnRightColumn(dock);
+                        dock.UpdateLayout();
+                        bool backToInspector = toolAnchorable.Parent is AvalonDock.Layout.LayoutAnchorablePane restoredPane
+                                               && !ReferenceEquals(restoredPane, leftWorkPane);
+
+                        Check("检查器面板的列归属：工具箱不许与流程导航共列（恢复布局后自动迁回右侧）",
+                            sharesPane && moved == 1 && backToInspector,
+                            $"复刻共列={sharesPane}，迁移条数={moved}，迁回右侧={backToInspector}（父={toolAnchorable.Parent?.GetType().Name ?? "null"}）");
+                    }
+                }
 
                 // ---- ③b 组态模式的"让空间"收敛（v4）：左栏收起、底部日志收 0、属性/图层合并成标签页 ----
                 static AvalonDock.Layout.LayoutAnchorablePane FindAncestorPane(AvalonDock.DockingManager manager, string contentId)
@@ -2420,6 +2619,81 @@ namespace UIThemeSmokeTest
             Console.WriteLine(failures == 0
                 ? "=== Panel 模式：全部通过 ==="
                 : $"### Panel 模式：{failures} 项失败");
+            return failures;
+        }
+
+        /// <summary>
+        /// 胶囊与 AvalonDock 自带自动隐藏页签二选一：
+        /// 有自定义胶囊时隐藏库页签（否则右边缘会并排两条“工具箱”），
+        /// 不在胶囊集合里的面板仍保留库页签（流程导航等恢复入口不能被误藏）。
+        /// 需要真实窗口：无窗口时 DockingManager 不会生成 LayoutAnchorControl。
+        /// </summary>
+        private static int RunCapsuleAutoHideTabChecks(Window window)
+        {
+            var failures = 0;
+            void Check(string name, bool ok, string detail)
+            {
+                Console.WriteLine($"[{(ok ? "PASS" : "FAIL")}] {name}  {detail}");
+                if (!ok) failures++;
+            }
+
+            var dock = _shellDock;
+            var tool = dock == null
+                ? null
+                : VisionMaster.Services.LayoutHelper.FindPanel(dock, "Panel_ToolView") as AvalonDock.Layout.LayoutAnchorable;
+            if (dock == null || tool == null)
+            {
+                Check("胶囊与库自动隐藏页签二选一", false, $"dock={dock != null} tool={tool != null}");
+                return failures;
+            }
+
+            var wasVisible = window.IsVisible;
+            try
+            {
+                window.WindowStartupLocation = WindowStartupLocation.Manual;
+                window.Left = -4000;
+                window.Top = -4000;
+                window.ShowInTaskbar = false;
+                if (!window.IsVisible) window.Show();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+                if (tool.IsAutoHidden) tool.ToggleAutoHide();
+                if (!tool.IsVisible) tool.IsVisible = true;
+                window.UpdateLayout();
+                tool.ToggleAutoHide();
+                window.UpdateLayout();
+                window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+                LayoutHelper.SyncAutoHideTabs(dock, new[] { "Panel_ToolView" });
+                window.UpdateLayout();
+                var tabs = Descendants<AvalonDock.Controls.LayoutAnchorControl>(dock)
+                    .Where(t => (t.Model as AvalonDock.Layout.LayoutAnchorable)?.ContentId == "Panel_ToolView")
+                    .ToList();
+                Check("有自定义胶囊时隐藏库自动隐藏页签",
+                    tabs.Count == 1 && tabs[0].Visibility == Visibility.Collapsed,
+                    $"命中={tabs.Count} 可见性={(tabs.Count == 1 ? tabs[0].Visibility.ToString() : "-")}");
+
+                LayoutHelper.SyncAutoHideTabs(dock, Array.Empty<string>());
+                window.UpdateLayout();
+                Check("不在胶囊集合的面板仍保留库自动隐藏页签（反证）",
+                    tabs.Count == 1 && tabs[0].Visibility == Visibility.Visible,
+                    $"可见性={(tabs.Count == 1 ? tabs[0].Visibility.ToString() : "-")}");
+            }
+            catch (Exception ex)
+            {
+                Check("胶囊与库自动隐藏页签二选一", false, ex.Message);
+            }
+            finally
+            {
+                try { if (tool.IsAutoHidden) VisionMaster.Services.LayoutHelper.ShowPanel(dock, "Panel_ToolView"); }
+                catch { /* 清理失败不覆盖原始断言 */ }
+                if (!wasVisible) window.Hide();
+            }
+
+            Console.WriteLine(failures == 0
+                ? "=== 胶囊页签去重：全部通过 ==="
+                : $"### 胶囊页签去重：{failures} 项失败");
             return failures;
         }
 
@@ -3248,18 +3522,76 @@ namespace UIThemeSmokeTest
                 monitor.Contains("Padding=\"0\"", StringComparison.Ordinal),
                 "检查 Width=24 / Padding=0");
 
-            // 流程胶囊条：零 hex + 11 个 FlowAction 齐 + 菜单挂在胶囊上而不是 ListBox 上
+            // 流程胶囊条：零 hex + 13 个 FlowAction 齐 + 菜单挂在胶囊上而不是 ListBox 上
             var flowActions = new[]
             {
                 "FlowAction.Create", "FlowAction.Delete", "FlowAction.Rename", "FlowAction.EditComment",
-                "FlowAction.ToggleEnabled", "FlowAction.Compile", "FlowAction.RunOnce",
-                "FlowAction.RunContinuous", "FlowAction.Stop", "FlowAction.Manager", "FlowAction.VariableEvents",
+                "FlowAction.ToggleEnabled", "FlowAction.Compile", "FlowAction.BatchDisplayWindow",
+                "FlowAction.RunOnce", "FlowAction.RunContinuous", "FlowAction.Stop",
+                "FlowAction.Manager", "FlowAction.VariableEvents", "FlowAction.ResultSource",
             };
             var flowMissing = flowActions.Where(a => !flow.Contains(a, StringComparison.Ordinal)).ToList();
-            Check("流程胶囊条：零硬编码色 + 11 个 FlowAction 全部保留",
+            Check("流程胶囊条：零硬编码色 + 13 个 FlowAction 全部保留",
                 flow.Length > 0 && !Regex.IsMatch(flow, "#[0-9A-Fa-f]{6,8}") && flowMissing.Count == 0,
                 flow.Length == 0 ? "找不到 FlowListView.xaml"
-                    : (flowMissing.Count > 0 ? ("缺：" + string.Join(" | ", flowMissing)) : "hex=0 + 11 项齐"));
+                    : (flowMissing.Count > 0 ? ("缺：" + string.Join(" | ", flowMissing)) : "hex=0 + 13 项齐"));
+
+            // 右键菜单 v1（设计基线 flow-context-menu）：样式键 + 四个分组标题 + 状态绑定。
+            // 这些是"写了才有"的字符串契约：漏一个不会编译失败，只会静默退回默认菜单/常亮项。
+            var flowMenuWires = new[]
+            {
+                "FlowContextMenuStyle", "FlowMenuItemStyle", "FlowMenuGroupHeaderStyle",
+                "Tag=\"流程\"", "Tag=\"配置\"", "Tag=\"运行\"", "Tag=\"方案\"",
+                "Data.CanDeleteFlow", "Data.CanCompileFlow", "Data.CanRunFlow",
+                "Data.CanStopFlow", "Data.CanBatchDisplayWindow",
+                "Data.FlowMenuFooter", "Data.FlowStateBadge", "Data.FlowToggleIcon",
+            };
+            var flowMenuMissing = flowMenuWires.Where(w => !flow.Contains(w, StringComparison.Ordinal)).ToList();
+            Check("流程右键菜单：样式键 + 四个分组 + 状态绑定齐（漏一处会静默退回默认样式）",
+                flow.Length > 0 && flowMenuMissing.Count == 0,
+                flowMenuMissing.Count == 0 ? "15 处契约齐" : ("缺：" + string.Join(" | ", flowMenuMissing)));
+
+            // 真实例化菜单样式：静态扫描只能证明"写了字符串"，这里证明三个样式可解析、
+            // 行模板能套上，图标 / 标题 / 徽标真的出现在可视树里（无 Application 的宿主）。
+            try
+            {
+                var menuDict = new ResourceDictionary
+                {
+                    Source = new Uri("/UI;component/Themes/Controls/StepContextMenu.xaml", UriKind.Relative),
+                };
+                var menuStyle = menuDict["FlowContextMenuStyle"] as Style;
+                var itemStyle = menuDict["FlowMenuItemStyle"] as Style;
+                var headStyle = menuDict["FlowMenuGroupHeaderStyle"] as Style;
+
+                var probeItem = new MenuItem
+                {
+                    Style = itemStyle,
+                    Header = "添加流程",
+                    Icon = "\uf067",
+                };
+                UI.AttachedProperties.MenuItemEx.SetTone(probeItem, UI.AttachedProperties.MenuItemTone.Accent);
+                UI.AttachedProperties.MenuItemEx.SetBadge(probeItem, "当前：已启用");
+                probeItem.Measure(new Size(300, double.PositiveInfinity));
+                probeItem.Arrange(new Rect(0, 0, 300, probeItem.DesiredSize.Height));
+                probeItem.UpdateLayout();
+
+                var itemTexts = Descendants<TextBlock>(probeItem).Select(t => t.Text).ToList();
+                Check("流程右键菜单：三个样式可解析 + 行模板出图标/标题/徽标",
+                    menuStyle?.TargetType == typeof(ContextMenu)
+                        && itemStyle?.TargetType == typeof(MenuItem)
+                        && headStyle?.TargetType == typeof(Separator)
+                        && probeItem.ActualWidth > 0
+                        && itemTexts.Contains("添加流程")
+                        && itemTexts.Contains("当前：已启用")
+                        && itemTexts.Contains("\uf067"),
+                    $"styles={menuStyle != null}/{itemStyle != null}/{headStyle != null} "
+                        + $"尺寸={probeItem.ActualWidth:F0}×{probeItem.ActualHeight:F0} 文本={string.Join("|", itemTexts)}");
+            }
+            catch (Exception ex)
+            {
+                Check("流程右键菜单：三个样式可解析 + 行模板出图标/标题/徽标", false,
+                    ex.GetType().Name + ": " + ex.Message);
+            }
 
             Check("流程胶囊条：右键菜单挂在胶囊上（挂在 ListBox 上会让空白区也弹菜单、靶点错位）",
                 flow.Contains("<Grid.ContextMenu>", StringComparison.Ordinal) &&
@@ -3984,6 +4316,18 @@ namespace UIThemeSmokeTest
 
                 Check("外壳 MinWidth=640 被本视图改回 560（设计基线宽度落地）",
                     Math.Abs(window.ActualWidth - 560) < 1.0, $"actual={window.ActualWidth:0.##}");
+
+                // Fluent 的 ScrollBar 是覆盖式：内容不留 gutter 时滚动条会压住卡片右圆角/文字。
+                var paramScroll = Descendants<ScrollViewer>(view).FirstOrDefault();
+                Check("参数面板 ScrollViewer 右侧留出 12px gutter（Fluent 覆盖式滚动条不压卡片）",
+                    paramScroll != null && paramScroll.Padding.Right >= 12,
+                    paramScroll == null ? "没找到 ScrollViewer" : $"padding={paramScroll.Padding}");
+
+                var hint = Descendants<TextBlock>(view)
+                    .FirstOrDefault(t => t.Text?.Contains("需要上游供值点链接") == true);
+                Check("参数面板提示文字过长时用省略号 + ToolTip（不再硬裁）",
+                    hint != null && hint.TextTrimming == TextTrimming.CharacterEllipsis && hint.ToolTip != null,
+                    hint == null ? "没找到提示文字" : $"trimming={hint.TextTrimming} tooltip={hint.ToolTip != null}");
 
                 var rows = Descendants<AutoPortRow>(view).ToList();
                 Check("行数 = 8 个输入端口", rows.Count == 8, $"rows={rows.Count}");

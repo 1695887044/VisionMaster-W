@@ -20,7 +20,13 @@ namespace VisionMaster.Plugins.Util
     {
         /// <summary>
         /// 延时时间输入端口（毫秒）
+        ///
+        /// 【[PortDefaultOnCreate]】500ms 是"拖进来就能跑"的默认值：标了特性，步骤创建时
+        /// 默认值就写进 InputValues，不必先打开参数窗点一次「确定」才编得过。
+        /// 不标的话，编译期必填检查只认 InputValues（端口默认值不算），
+        /// 现象是"默认参数明明是 500ms，编译却报 [参数缺失] 必填参数 'Delay' 未配置"。
         /// </summary>
+        [PortDefaultOnCreate]
         public InputPort<int> DelayTimePort { get; } = new InputPort<int>("Delay", 500, "延时时间(ms)") { IsRequired = true };
 
         /// <summary>

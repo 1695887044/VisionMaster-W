@@ -1512,17 +1512,17 @@
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.RunOnce}"
-                        Content="运行主流程"
+                        Content="启动整线"
                         Foreground="{StaticResource DialogSuccessBrush}"
                         Style="{StaticResource RunBarButton}"
-                        ToolTip="运行一次主流程（Role=Main）；工位/子流程请由主流程调用" />
+                        ToolTip="单次启动所有勾选「随整线启动」的流程：各起各的会话，互不阻塞；一条都没勾时提示先去「流程管理」勾「整线」" />
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.RunContinuous}"
-                        Content="循环主流程"
+                        Content="整线循环"
                         Foreground="{StaticResource DialogSuccessBrush}"
                         Style="{StaticResource RunBarButton}"
-                        ToolTip="循环运行主流程（Role=Main）；工位/子流程不参与批量启动" />
+                        ToolTip="循环启动所有勾选「随整线启动」的流程：各起各的会话，一条出问题只停它自己；一条都没勾时提示先去「流程管理」勾「整线」" />
                     <Button
                         Command="{Binding ExecutionCommand}"
                         CommandParameter="{x:Static local:ExecutionAction.Pause}"
@@ -1709,12 +1709,12 @@
             </avalonDock:DockingManager>
 
             <!--  ============ VS 式胶囊轨道（收起的面板贴右边） ============  -->
-            <!--  只覆盖停靠区右侧 34px；胶囊 30×112，点击把面板钉回 300 列。
+            <!--  18px 轨道；胶囊 16×48~72（v2.1），点击把面板钉回 300 列。
                   数据来自 ShellViewModel.InspectorCapsules：当前模式本应显示、但用户收起的面板。
                   不写进 AvalonDock 模板：auto-hide 页签是库内部控件，无法稳定拿到实例。  -->
             <Border
                 x:Name="InspectorCapsuleRail"
-                Width="24"
+                Width="18"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Stretch"
                 Panel.ZIndex="5"
@@ -1722,7 +1722,7 @@
                 BorderBrush="{StaticResource DialogBorderBrush}"
                 BorderThickness="1,0,0,0"
                 Visibility="{Binding HasInspectorCapsules, Converter={ui:BooleanToVisibilityConverter}}">
-                <ItemsControl Margin="0,6,6,0" ItemsSource="{Binding InspectorCapsules}">
+                <ItemsControl Margin="0,6,2,0" ItemsSource="{Binding InspectorCapsules}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel />
@@ -1743,10 +1743,10 @@
                                     <ControlTemplate TargetType="Button">
                                         <Border
                                             x:Name="Bd"
-                                            Width="20"
-                                            MinHeight="64"
-                                            MaxHeight="100"
-                                            Margin="0,0,0,3"
+                                            Width="16"
+                                            MinHeight="48"
+                                            MaxHeight="72"
+                                            Margin="0,0,0,2"
                                             BorderThickness="1"
                                             CornerRadius="2">
                                             <Border.Style>
@@ -1770,19 +1770,19 @@
                                                     </Border.Style>
                                                 </Border>
                                                 <StackPanel
-                                                    Margin="0,6"
+                                                    Margin="0,4"
                                                     HorizontalAlignment="Center"
                                                     VerticalAlignment="Center">
                                                     <TextBlock
                                                         HorizontalAlignment="Center"
                                                         FontFamily="{StaticResource Icon}"
-                                                        FontSize="11"
+                                                        FontSize="9"
                                                         Foreground="{StaticResource DialogAccentBrush}"
                                                         Text="{Binding Icon}" />
                                                     <TextBlock
-                                                        Margin="0,3,0,0"
+                                                        Margin="0,2,0,0"
                                                         HorizontalAlignment="Center"
-                                                        FontSize="9"
+                                                        FontSize="8"
                                                         FontWeight="Normal"
                                                         Foreground="{StaticResource DialogTextSecondaryBrush}"
                                                         Text="{Binding Title}">
@@ -1859,7 +1859,17 @@
                         Foreground="{Binding RunStateBrush}"
                         Text="{Binding RunStateText}" />
 
-                    <!--  生产 KPI 占位：数据源未接入时显示“—”，不用 0 冒充真实计数  -->
+                    <Button
+                        x:Name="FlowScopeChip"
+                        Height="22"
+                        Margin="8,0,0,0"
+                        Padding="8,0"
+                        Command="{Binding ShowAllFlowsCommand}"
+                        Content="{Binding ScopeText}"
+                        Style="{StaticResource StatusBarItemButton}"
+                        ToolTip="当前统计范围；点击回到全部" />
+
+                    <!--  生产 KPI（FlowRuntimeVariableSource）：节拍/OK/NG/未判定/告警  -->
                     <TextBlock
                         Margin="10,0,0,0"
                         FontSize="12"
@@ -1876,7 +1886,7 @@
                         FontWeight="Bold"
                         Foreground="{StaticResource ScadaTextBrush}"
                         Text="{Binding CycleTimeText}"
-                        ToolTip="待接入运行统计：节拍" />
+                        ToolTip="在跑流程瓶颈（全部）/ 选中流程上一轮" />
                     <TextBlock
                         Margin="8,0,0,0"
                         FontSize="12"
@@ -1893,7 +1903,7 @@
                         FontWeight="Bold"
                         Foreground="{StaticResource DialogSuccessBrush}"
                         Text="{Binding OkCountText}"
-                        ToolTip="待接入运行统计：OK 数" />
+                        ToolTip="线级 OK 数（取「线级汇总来源」流程；选中流程时为该流程）" />
                     <TextBlock
                         Margin="8,0,0,0"
                         FontSize="12"
@@ -1910,7 +1920,24 @@
                         FontWeight="Bold"
                         Foreground="{StaticResource DialogDangerBrush}"
                         Text="{Binding NgCountText}"
-                        ToolTip="待接入运行统计：NG 数" />
+                        ToolTip="线级 NG 数（取「线级汇总来源」流程；串联线不跨站求和）" />
+                    <TextBlock
+                        Margin="8,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="|" />
+                    <TextBlock
+                        Margin="6,0,0,0"
+                        FontSize="12"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="未判定" />
+                    <TextBlock
+                        Margin="4,0,0,0"
+                        FontSize="12"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogWarningBrush}"
+                        Text="{Binding UnknownCountText}"
+                        ToolTip="判定步骤跳过 / 未配置判定源 / 类型不符；不混进 NG" />
                     <TextBlock
                         Margin="8,0,0,0"
                         FontSize="12"
@@ -1927,7 +1954,26 @@
                         FontWeight="Bold"
                         Foreground="{StaticResource DialogWarningBrush}"
                         Text="{Binding AlarmCountText}"
-                        ToolTip="待接入运行统计：未确认告警数" />
+                        ToolTip="未确认的产线告警（≠ 日志警告）" />
+
+                    <Button
+                        x:Name="FlowRunningChip"
+                        Height="22"
+                        Margin="8,0,0,0"
+                        Padding="8,0"
+                        Background="{StaticResource DialogAccentSoftBrush}"
+                        Click="FlowRunningChip_Click"
+                        PreviewMouseLeftButtonDown="FlowRunningChip_PreviewMouseLeftButtonDown"
+                        Style="{StaticResource StatusBarItemButton}"
+                        ToolTip="{Binding FlowStatsToolTip}"
+                        ToolTipService.ShowDuration="20000">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource DialogAccentBrush}"
+                            Text="{Binding RunningFlowCountText}" />
+                    </Button>
 
                     <TextBlock
                         Margin="10,0"
@@ -2371,6 +2417,411 @@
                                         Text="阈值：CPU ≥ 80%、内存 ≥ 1 GB、磁盘剩余 &lt; 5% 时数字变橙；句柄 ≥ 10 000 视为异常。"
                                         TextWrapping="Wrap" />
                                 </Border>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!--  工位浮窗：点底栏「N 条在跑」打开；点外面自动关（StaysOpen=False）  -->
+                    <Popup
+                        x:Name="FlowStatsPopup"
+                        AllowsTransparency="True"
+                        Focusable="False"
+                        Placement="Top"
+                        PlacementTarget="{Binding ElementName=FlowRunningChip}"
+                        PopupAnimation="Fade"
+                        StaysOpen="False">
+                        <Border
+                            Width="860"
+                            Margin="10"
+                            Padding="10"
+                            Background="{StaticResource DialogSurfaceBrush}"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    BlurRadius="24"
+                                    Direction="270"
+                                    Opacity="0.16"
+                                    ShadowDepth="6"
+                                    Color="Black" />
+                            </Border.Effect>
+                            <StackPanel>
+                                <Grid Margin="2,0,2,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource ScadaTextBrush}"
+                                            Text="在跑流程" />
+                                        <TextBlock
+                                            Margin="8,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontSize="10.5"
+                                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                                            Text="只统计生产流程 · Home / End / 调试轮不计入；子程序按工位计入" />
+                                    </StackPanel>
+                                    <Button
+                                        HorizontalAlignment="Right"
+                                        Click="FlowStatsPopupClose_Click"
+                                        Content="✕"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        ToolTip="关闭" />
+                                </Grid>
+
+                                <Grid Margin="6,0,6,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="62" />
+                                        <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="60" />
+                                        <ColumnDefinition Width="60" />
+                                        <ColumnDefinition Width="68" />
+                                        <ColumnDefinition Width="118" />
+                                        <ColumnDefinition Width="70" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="1" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="流程 / 工位" />
+                                    <TextBlock Grid.Column="2" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="状态" />
+                                    <TextBlock Grid.Column="3" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="节拍" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="4" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="OK" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="5" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="NG" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="6" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="未判定" TextAlignment="Right" />
+                                    <TextBlock Grid.Column="7" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="判定源" />
+                                    <TextBlock Grid.Column="8" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="最近一轮" TextAlignment="Right" />
+                                </Grid>
+
+                                <ScrollViewer MaxHeight="300" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding FlowStatsRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Button
+                                                    Margin="0,1"
+                                                    Padding="6,5"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    Command="{Binding DataContext.SelectFlowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    IsEnabled="{Binding IsIncluded}"
+                                                    ToolTip="{Binding Station}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Background" Value="Transparent" />
+                                                            <Setter Property="BorderThickness" Value="0" />
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border
+                                                                            Padding="{TemplateBinding Padding}"
+                                                                            Background="{TemplateBinding Background}"
+                                                                            CornerRadius="6">
+                                                                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource DialogRowHoverBrush}" />
+                                                                </Trigger>
+                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                    <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsIncluded}" Value="False">
+                                                                    <Setter Property="Opacity" Value="0.55" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="14" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="62" />
+                                                            <ColumnDefinition Width="80" />
+                                                            <ColumnDefinition Width="60" />
+                                                            <ColumnDefinition Width="60" />
+                                                            <ColumnDefinition Width="68" />
+                                                            <ColumnDefinition Width="118" />
+                                                            <ColumnDefinition Width="70" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse
+                                                            Grid.Column="0"
+                                                            Width="7"
+                                                            Height="7"
+                                                            VerticalAlignment="Center">
+                                                            <Ellipse.Style>
+                                                                <Style TargetType="Ellipse">
+                                                                    <Setter Property="Fill" Value="{StaticResource ScadaFaintTextBrush}" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding StateText}" Value="暂停">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding StateText}" Value="故障">
+                                                                            <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Ellipse.Style>
+                                                        </Ellipse>
+                                                        <StackPanel Grid.Column="1" Margin="4,0,8,0" VerticalAlignment="Center">
+                                                            <TextBlock
+                                                                FontSize="11"
+                                                                FontWeight="SemiBold"
+                                                                Foreground="{StaticResource ScadaTextBrush}"
+                                                                Text="{Binding Name}"
+                                                                TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock
+                                                                FontSize="9.5"
+                                                                Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                                Text="{Binding Station}"
+                                                                TextTrimming="CharacterEllipsis" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="2" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaSecondaryTextBrush}" Text="{Binding StateText}" />
+                                                        <TextBlock Grid.Column="3" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding CycleText}" TextAlignment="Right" />
+                                                        <TextBlock Grid.Column="4" VerticalAlignment="Center" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogSuccessBrush}" Text="{Binding OkText}" TextAlignment="Right" />
+                                                        <TextBlock Grid.Column="5" VerticalAlignment="Center" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogDangerBrush}" Text="{Binding NgText}" TextAlignment="Right" />
+                                                        <TextBlock Grid.Column="6" VerticalAlignment="Center" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource DialogWarningBrush}" Text="{Binding UnknownText}" TextAlignment="Right" />
+                                                        <Border
+                                                            Grid.Column="7"
+                                                            Margin="0,0,8,0"
+                                                            Padding="5,1"
+                                                            HorizontalAlignment="Left"
+                                                            VerticalAlignment="Center"
+                                                            Background="{StaticResource DialogAccentSoftBrush}"
+                                                            CornerRadius="4">
+                                                            <TextBlock
+                                                                FontSize="9.5"
+                                                                Foreground="{StaticResource DialogAccentBrush}"
+                                                                Text="{Binding SourceText}"
+                                                                TextTrimming="CharacterEllipsis" />
+                                                        </Border>
+                                                        <TextBlock Grid.Column="8" VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource ScadaFaintTextBrush}" Text="{Binding LastRoundText}" TextAlignment="Right" />
+                                                    </Grid>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <Grid Margin="2,8,2,0">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        Text="串联线不跨站求和；线级取「线级汇总来源」流程的汇总。" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button
+                                            Command="{Binding ShowAllFlowsCommand}"
+                                            Content="全部在跑"
+                                            Style="{StaticResource StatusBarItemButton}" />
+                                        <Button
+                                            Click="FlowRoundDetail_Click"
+                                            Content="查看最近一轮"
+                                            Style="{StaticResource StatusBarItemButton}" />
+                                        <Button
+                                            Click="FlowStatsPopupClose_Click"
+                                            Content="关闭"
+                                            Style="{StaticResource StatusBarItemButton}" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!--  轮次下钻：选中流程最近一轮的不可变记录（宿主侧第一批）  -->
+                    <Popup
+                        x:Name="FlowRoundPopup"
+                        AllowsTransparency="True"
+                        Focusable="False"
+                        Placement="Top"
+                        PlacementTarget="{Binding ElementName=FlowRunningChip}"
+                        PopupAnimation="Fade"
+                        StaysOpen="False">
+                        <Border
+                            Width="480"
+                            Margin="10"
+                            Padding="12"
+                            Background="{StaticResource DialogSurfaceBrush}"
+                            BorderBrush="{StaticResource DialogBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10">
+                            <Border.Effect>
+                                <DropShadowEffect
+                                    BlurRadius="24"
+                                    Direction="270"
+                                    Opacity="0.16"
+                                    ShadowDepth="6"
+                                    Color="Black" />
+                            </Border.Effect>
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock
+                                        FontSize="12"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource ScadaTextBrush}"
+                                        Text="轮次详情" />
+                                    <Button
+                                        HorizontalAlignment="Right"
+                                        Click="FlowRoundPopupClose_Click"
+                                        Content="✕"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        ToolTip="关闭" />
+                                </Grid>
+
+                                <StackPanel Margin="0,8,0,8" Orientation="Horizontal">
+                                    <TextBlock
+                                        VerticalAlignment="Center"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        Foreground="{StaticResource ScadaTextBrush}"
+                                        Text="{Binding RoundDetail.FlowName}" />
+                                    <TextBlock
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                        Text="{Binding RoundDetail.RoundText}" />
+                                    <Border
+                                        Margin="10,0,0,0"
+                                        Padding="8,1"
+                                        Background="{StaticResource DialogRowHoverBrush}"
+                                        BorderBrush="{StaticResource DialogBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="999">
+                                        <TextBlock Text="{Binding RoundDetail.OutcomeText}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="FontSize" Value="11" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogWarningBrush}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RoundDetail.OutcomeText}" Value="OK">
+                                                            <Setter Property="Foreground" Value="{StaticResource DialogSuccessBrush}" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding RoundDetail.OutcomeText}" Value="NG">
+                                                            <Setter Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                </StackPanel>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="64" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="24" />
+                                        <RowDefinition Height="24" />
+                                        <RowDefinition Height="24" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaFaintTextBrush}" Text="开始" />
+                                    <TextBlock Grid.Row="0" Grid.Column="1" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding RoundDetail.StartedText}" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaFaintTextBrush}" Text="结束" />
+                                    <TextBlock Grid.Row="0" Grid.Column="3" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding RoundDetail.CompletedText}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaFaintTextBrush}" Text="节拍" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" VerticalAlignment="Center" FontSize="10.5" FontWeight="SemiBold" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding RoundDetail.CycleText}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaFaintTextBrush}" Text="判定源" />
+                                    <TextBlock Grid.Row="1" Grid.Column="3" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding RoundDetail.VerdictSourceText}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaFaintTextBrush}" Text="失败步骤" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding RoundDetail.FailedStepName}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaFaintTextBrush}" Text="步骤" />
+                                    <TextBlock Grid.Row="2" Grid.Column="3" VerticalAlignment="Center" FontSize="10.5" Foreground="{StaticResource ScadaTextBrush}" Text="{Binding RoundDetail.StepsText}" />
+                                </Grid>
+
+                                <TextBlock
+                                    Margin="0,8,0,4"
+                                    FontSize="10.5"
+                                    FontWeight="SemiBold"
+                                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                                    Text="步骤时间线" />
+                                <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding RoundDetail.Steps}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid Height="20" Margin="0,1">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="64" />
+                                                        <ColumnDefinition Width="56" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Width="6" Height="6" VerticalAlignment="Center">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="{StaticResource ScadaFaintTextBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding State}" Value="Success">
+                                                                        <Setter Property="Fill" Value="{StaticResource DialogSuccessBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding State}" Value="Failed">
+                                                                        <Setter Property="Fill" Value="{StaticResource DialogDangerBrush}" />
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding State}" Value="Skipped">
+                                                                        <Setter Property="Fill" Value="{StaticResource DialogWarningBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Margin="4,0,6,0"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10"
+                                                        Foreground="{StaticResource ScadaTextBrush}"
+                                                        Text="{Binding StepName}"
+                                                        TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock
+                                                        Grid.Column="2"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10"
+                                                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                                                        Text="{Binding State}"
+                                                        TextAlignment="Right" />
+                                                    <TextBlock
+                                                        Grid.Column="3"
+                                                        VerticalAlignment="Center"
+                                                        FontSize="10"
+                                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                                        Text="{Binding ElapsedText}"
+                                                        TextAlignment="Right" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+
+                                <Border
+                                    Margin="0,8,0,0"
+                                    Padding="9,7"
+                                    Background="{StaticResource DialogRowHoverBrush}"
+                                    BorderBrush="{StaticResource DialogBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="6">
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                        Text="{Binding RoundDetail.Reason}"
+                                        TextWrapping="Wrap" />
+                                </Border>
+
+                                <TextBlock
+                                    Margin="0,8,0,0"
+                                    FontSize="10"
+                                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                                    Text="NG ≠ 技术故障：判定表 Failed 仍按 IsOk 计 NG；结果输出步骤始终 Success。"
+                                    TextWrapping="Wrap" />
                             </StackPanel>
                         </Border>
                     </Popup>

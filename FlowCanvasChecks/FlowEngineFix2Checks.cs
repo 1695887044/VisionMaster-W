@@ -162,6 +162,43 @@ namespace FlowCanvasChecks
             Check("★HTTP 的会话准备已收口到单点（不再保留第二份 TryBuildSession 实现）",
                 httpText.Contains("FlowSessionFactory.TryEnsureSession(") && !httpText.Contains("private bool TryBuildSession("),
                 httpFile == null ? "定位不到 HttpImageServer.cs" : "");
+
+            // 启动流程（循环/单次）：会话准备里含 FlowCompiler.Compile（大流程数百毫秒到数秒），
+            // 必须在 Task.Run 里跑。判据：方法体内 TryEnsureSession 出现在 await Task.Run 之后。
+            // 反向情形（有人把 Task.Run 删掉、退回 UI 线程同步编译）会让这条变红。
+            var flowListFile = ResolveRepoFile(@"VisionMaster\ViewModels\FlowListViewModel.cs");
+            var flowListText = flowListFile != null ? File.ReadAllText(flowListFile) : string.Empty;
+            var runMethod = ExtractMethod(flowListText, "private async Task RunSingleFlowAsync(bool continuous)");
+            var taskRunAt = runMethod.IndexOf("await Task.Run(", StringComparison.Ordinal);
+            var ensureAt = runMethod.IndexOf("FlowSessionFactory.TryEnsureSession(", StringComparison.Ordinal);
+            Check("★启动流程的会话准备（含编译）在 Task.Run 内，不在 UI 线程同步跑",
+                taskRunAt >= 0 && ensureAt > taskRunAt,
+                runMethod.Length == 0
+                    ? "定位不到 RunSingleFlowAsync"
+                    : $"Task.Run@{taskRunAt} TryEnsureSession@{ensureAt}");
+        }
+
+        /// <summary>按签名截出方法体（大括号计数；本仓没有含裸大括号的字符串字面量，够用）</summary>
+        private static string ExtractMethod(string text, string signature)
+        {
+            int start = text.IndexOf(signature, StringComparison.Ordinal);
+            if (start < 0) return string.Empty;
+
+            int open = text.IndexOf('{', start);
+            if (open < 0) return string.Empty;
+
+            int depth = 0;
+            for (int i = open; i < text.Length; i++)
+            {
+                if (text[i] == '{') depth++;
+                else if (text[i] == '}')
+                {
+                    depth--;
+                    if (depth == 0) return text.Substring(start, i - start + 1);
+                }
+            }
+
+            return string.Empty;
         }
 
         /// <summary>从输出目录往上找仓库根，再拼相对路径（定位不到返回 null）</summary>

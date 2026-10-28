@@ -43,6 +43,18 @@ namespace VisionMaster
                     c.Resolve<IWorkspaceManager>()));
             registry.RegisterSingleton<RecipeVariableCatalog>(c =>
                 new RecipeVariableCatalog(c.Resolve<RecipeVariableSource>()));
+
+            // 流程运行统计：订阅引擎每轮事件，投影成 System.Flow.<流程名>.*。
+            // 来源在宿主层（要读引擎/工作区/变量注册表），目录在 Core（要调 UpdateMirrorValue）。
+            registry.RegisterSingleton<FlowRuntimeVariableSource>(c =>
+                new FlowRuntimeVariableSource(
+                    c.Resolve<FlowEngineService>(),
+                    c.Resolve<IWorkspaceManager>(),
+                    c.Resolve<ILogService>()));
+            registry.RegisterSingleton<FlowRuntimeVariableCatalog>(c =>
+                new FlowRuntimeVariableCatalog(
+                    c.Resolve<FlowRuntimeVariableSource>(),
+                    c.Resolve<IWorkspaceManager>().VariableRegistry));
         }
 
         public void Initialize(IContainerProvider container, AppLifetimeService lifetime)
@@ -51,18 +63,22 @@ namespace VisionMaster
             var recipe = container.Resolve<RecipeVariableCatalog>();
             var comm = container.Resolve<CommSystemVariableCatalog>();
             var camera = container.Resolve<CameraSystemVariableCatalog>();
+            var flow = container.Resolve<FlowRuntimeVariableCatalog>();
+            var flowSource = container.Resolve<FlowRuntimeVariableSource>();
 
-            // 注册顺序 = 合并顺序：运动（已在 MotionModule 注册）→ 配方 → 通讯 → 相机。
+            // 注册顺序 = 合并顺序：运动（已在 MotionModule 注册）→ 配方 → 通讯 → 相机 → 流程。
             // 名字/Id 冲突时先注册者优先，这条顺序保证"设备变量"不会遮住运动轴与配方。
             host.Register(recipe);
             host.Register(comm);
             host.Register(camera);
+            host.Register(flow);
 
             // 先同步刷新一拍：不刷的话，启动后 0~500ms 内「变量管理」里看不到通讯/相机变量，
             // 用户第一眼会以为"设备加了但变量没出来"（这类"慢半拍"最容易被当成功能缺失）。
             recipe.Publish();
             comm.Refresh();
             camera.Refresh();
+            flow.Publish();
 
             comm.Start();
             camera.Start();
@@ -78,13 +94,15 @@ namespace VisionMaster
 
             // 启动插桩落 ILogService（R78：弹泡 3 秒就消，日志才留得住）。
             // 计数 = 父变量 + 字段（一台设备 1 + N 条），排查"变量怎么没出来"时先看这一行。
-            log.Info($"[系统变量] 配方 {recipe.Snapshot().Count} 条 / 通讯 {comm.Snapshot().Count} 条 / 相机 {camera.Snapshot().Count} 条已接入统一宿主");
+            log.Info($"[系统变量] 配方 {recipe.Snapshot().Count} 条 / 通讯 {comm.Snapshot().Count} 条 / 相机 {camera.Snapshot().Count} 条 / 流程 {flow.Snapshot().Count} 条已接入统一宿主");
 
             lifetime.RegisterExitTask(ExitTask.Of("停止系统变量刷新（通讯/相机）", () =>
             {
                 comm.Dispose();
                 camera.Dispose();
             }));
+
+            lifetime.RegisterExitTask(ExitTask.Of("停止流程运行统计", () => flowSource.Dispose()));
         }
     }
 }

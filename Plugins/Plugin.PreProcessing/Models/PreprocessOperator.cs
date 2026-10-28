@@ -217,6 +217,10 @@ namespace Plugin.PreProcessing.Models
         protected static double Clamp(double value, double min, double max) =>
             value < min ? min : value > max ? max : value;
 
+        /// <summary>整型参数专用：避免 double 结果再隐式赋回 int 报 CS0266</summary>
+        protected static int Clamp(int value, int min, int max) =>
+            value < min ? min : value > max ? max : value;
+
         /// <summary>参数赋值：除了通知本属性，还顺手刷新摘要文本，列表里的显示才会跟着变</summary>
         protected bool SetParam<T>(ref T storage, T value,
             [System.Runtime.CompilerServices.CallerMemberName] string propertyName = null!)

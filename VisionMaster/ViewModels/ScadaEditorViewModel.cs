@@ -110,6 +110,7 @@ namespace VisionMaster.ViewModels
 
             AddPageCommand = new DelegateCommand(OnAddPage, () => Document != _fallback);
             AddBasePageCommand = new DelegateCommand(OnAddBasePage, () => Document != _fallback);
+            InsertBaseBackdropCommand = new DelegateCommand(OnInsertBaseBackdrop, CanInsertBaseBackdrop);
             AddPopupPageCommand = new DelegateCommand(OnAddPopupPage, () => Document != _fallback);
             ClearBasePagesCommand = new DelegateCommand(OnClearBasePages, () => CanSelectBasePage);
             RemovePageCommand = new DelegateCommand(OnRemovePage, CanRemovePage);
@@ -342,6 +343,10 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(BasePageSummary));
             RaisePropertyChanged(nameof(CanSelectBasePage));
             ClearBasePagesCommand.RaiseCanExecuteChanged();
+
+            // 基座注册/摘除不一定伴随换页（摘掉基座后用户还停在同一页），
+            // 「插入公共底板矩形」的可用性跟着这一处一起刷。
+            InsertBaseBackdropCommand.RaiseCanExecuteChanged();
         }
 
         private void OnBasePagesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -383,6 +388,10 @@ namespace VisionMaster.ViewModels
                 // 新建/删除画面都会走到这个 setter，所以这里是画面数量变化的必经漏斗。
                 RemovePageCommand.RaiseCanExecuteChanged();
                 RunPageCommand.RaiseCanExecuteChanged();
+
+                // 「插入公共底板矩形」只在基座页上可用：基座注册/摘除不一定换页
+                //（摘除后仍停在同一页），所以这一条也在 RebuildBasePageOptions 里补一次。
+                InsertBaseBackdropCommand.RaiseCanExecuteChanged();
 
                 // 粘贴的可用性同时看"剪贴板有没有货"和"有没有当前画面"：前一半由复制那一处刷，
                 // 后一半只能在这里刷。少了这一行，"在 A 画面复制、切到 B 画面"之后粘贴项会是灰的，
@@ -833,6 +842,16 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public DelegateCommand AddBasePageCommand { get; }
 
+        /// <summary>
+        /// 在<b>基座页</b>上插一块铺满画面的矩形（公共底色 / 公共边框）。入口在顶栏「新建 ▾」。
+        ///
+        /// 为什么给这条命令：基座只合成<b>图元</b>——底色、尺寸、网格取引用页自己的
+        /// （见 <c>ScadaCanvas</c> 的合成口径与 2026-10-18 设计记录 §五）。想要"所有页面共用的底色"
+        /// 就得在基座上放一个铺满的矩形图元；手画一次不难，难的是"知道要这么干"。
+        /// 给一条命令，这条口径就自解释了（2026-10-27 现场反馈："建了基座、主界面也引用了，怎么没反应"）。
+        /// </summary>
+        public DelegateCommand InsertBaseBackdropCommand { get; }
+
         /// <summary>新建弹窗页（特殊画面）：建页后立即勾上 <see cref="ScadaPage.IsPopup"/> 并切过去。</summary>
         public DelegateCommand AddPopupPageCommand { get; }
 
@@ -1145,6 +1164,63 @@ namespace VisionMaster.ViewModels
             }
 
             SelectedPage = page;
+        }
+
+        /// <summary>「插入公共底板矩形」的可用性：当前页必须是一只已注册的基座（普通页上无从"公共"起）</summary>
+        private bool CanInsertBaseBackdrop()
+            => _selectedPage is { } page && Document.IsBasePage(page);
+
+        /// <summary>
+        /// 在基座页上插一块铺满的矩形：公共底色 / 公共边框的唯一正解。
+        ///
+        /// <b>尺寸取"引用它的第一页"</b>：公共层最终是叠在引用页上的，按引用页尺寸铺满才叫"覆盖整页"；
+        /// 一只引用页都没有时退回基座页自己的尺寸（用户还没建引用页，就先按它自己那一页算）。
+        /// 位置 (0,0)、ZIndex 取全页最小再减一（压在基座自己的其它图元<b>下面</b>，不挡住公共内容）。
+        ///
+        /// 走 <see cref="ScadaPage.BeginEdit"/> 的同一套写入口：一次插入 = 一条撤销记录，
+        /// 名称重名由 <see cref="ScadaPage.MakeUniqueElementName"/> 续号（连点两次得到「公共底板_2」）。
+        /// </summary>
+        private void OnInsertBaseBackdrop()
+        {
+            if (_selectedPage is not { } page || !Document.IsBasePage(page))
+                return;
+
+            var descriptor = ElementRegistry.Find("Hmi.Rectangle");
+
+            if (descriptor == null)
+            {
+                // 正常安装不可能走到（内置图元），但静默什么都不发生比报一句更糟
+                EasyDialog.ShowSync("无法插入公共底板", "矩形图元未注册（Hmi.Rectangle）");
+                return;
+            }
+
+            // 引用页取"第一只引用它的普通页"：基座自己不会出现在这个集合里（一层限制），
+            // 但弹窗页可能引用基座，它同样有尺寸，照用即可。
+            var host = Document.Pages.FirstOrDefault(p => p.BasePageIds.Contains(page.PageId));
+
+            double width = host?.Width ?? page.Width;
+            double height = host?.Height ?? page.Height;
+
+            var element = descriptor.CreateElement(0, 0);
+
+            using (page.BeginEdit("插入公共底板矩形"))
+            {
+                element.Name = page.MakeUniqueElementName("公共底板");
+
+                // 与工具箱放置同一条归层口径：新内容默认归首个图层（未分层会让图层面板装不下它）
+                element.LayerId = page.DefaultLayer?.LayerId ?? Guid.Empty;
+
+                element.X = 0;
+                element.Y = 0;
+                element.Width = width;
+                element.Height = height;
+                element.ZIndex = page.Elements.Count > 0 ? page.Elements.Min(e => e.ZIndex) - 1 : 0;
+
+                page.Elements.Add(element);
+            }
+
+            // 放完就选中：属性面板紧接着要改的就是它的填充色（与工具箱放置同一收尾）
+            SelectedElement = element;
         }
 
         private void OnAddPopupPage()
@@ -2907,11 +2983,26 @@ namespace VisionMaster.ViewModels
             Page = page ?? throw new ArgumentNullException(nameof(page));
             _isSelected = isSelected;
             Page.PropertyChanged += OnPagePropertyChanged;
+
+            // 空态标注要跟着"基座上有没有图元"走：在基座页上画完一笔再回来，菜单里的
+            // 「无图元」必须自己消失（不重建菜单 —— 菜单是弹出时才装的，但候选项是长期对象，
+            // 不订阅就只能等下一次整份重建）。
+            Page.Elements.CollectionChanged += OnPageElementsChanged;
         }
 
         public ScadaPage Page { get; }
 
         public string Name => Page.Name;
+
+        /// <summary>
+        /// 这只基座页上<b>一个图元都没有</b>（勾了它也不会让引用页发生任何变化）。
+        ///
+        /// 基座只合成<b>图元</b>：底色、尺寸、网格永远取引用页自己的（见 <c>ScadaCanvas</c> 的合成口径
+        /// 与 2026-10-18 设计记录 §五）。所以"建了基座、主界面也引用了却没反应"最常见的成因就是
+        /// 基座上只有底色没有内容——菜单里标一句「无图元」，误解在勾选之前就被挡住
+        /// （2026-10-27 现场反馈）。
+        /// </summary>
+        public bool IsEmpty => Page.Elements.Count == 0;
 
         public bool IsSelected
         {
@@ -2923,8 +3014,15 @@ namespace VisionMaster.ViewModels
             }
         }
 
-        /// <summary>摘掉对基座页的改名订阅（菜单重建时调用）。</summary>
-        public void Detach() => Page.PropertyChanged -= OnPagePropertyChanged;
+        /// <summary>摘掉对基座页的改名与图元集合订阅（菜单重建时调用）。</summary>
+        public void Detach()
+        {
+            Page.PropertyChanged -= OnPagePropertyChanged;
+            Page.Elements.CollectionChanged -= OnPageElementsChanged;
+        }
+
+        private void OnPageElementsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => RaisePropertyChanged(nameof(IsEmpty));
 
         private void OnPagePropertyChanged(object? sender, PropertyChangedEventArgs e)
         {

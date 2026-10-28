@@ -47,7 +47,28 @@ namespace Plugin.CodeReader
             out string error
         )
         {
+            bool ok = TryDecode(image, halconSymbologyName, polarity, timeoutMs,
+                out codes, out HObject? symbols, out error);
+            symbols?.Dispose();
+            return ok;
+        }
+
+        /// <summary>
+        /// 识别并返回码轮廓（XLD，供调用方画框/发布标注图）。
+        /// 返回的 <paramref name="symbolContours"/> 所有权归调用方，调用方负责 Dispose。
+        /// </summary>
+        public bool TryDecode(
+            HObject? image,
+            string halconSymbologyName,
+            string polarity,
+            int timeoutMs,
+            out List<string> codes,
+            out HObject? symbolContours,
+            out string error
+        )
+        {
             codes = new List<string>();
+            symbolContours = null;
             error = string.Empty;
 
             if (image == null)
@@ -69,14 +90,14 @@ namespace Plugin.CodeReader
                 return false;
             }
 
-            HObject? symbols = null;
+            HObject? symbolsRaw = null;
             try
             {
                 ApplyParams(handle, polarity, timeoutMs);
 
                 HOperatorSet.FindDataCode2d(
                     image,
-                    out symbols,
+                    out symbolsRaw,
                     handle,
                     new HTuple(),
                     new HTuple(),
@@ -106,6 +127,8 @@ namespace Plugin.CodeReader
                         ? string.Empty
                         : $"二维候选 {stringCount} 个（句柄 {handleCount} 个），其中成功解出 {codes.Count} 个";
 
+                symbolContours = symbolsRaw;
+                symbolsRaw = null; // 所有权交给调用方
                 return true;
             }
             catch (Exception ex)
@@ -115,7 +138,7 @@ namespace Plugin.CodeReader
             }
             finally
             {
-                symbols?.Dispose();
+                symbolsRaw?.Dispose();
             }
         }
 

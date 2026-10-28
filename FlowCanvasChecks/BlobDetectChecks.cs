@@ -44,6 +44,151 @@ namespace FlowCanvasChecks
             RunMultiChannelAndNumbering();
             RunViewAndThemeContract();
             RunLifecycleGuards();
+            RunHalconSampleFlow();
+        }
+
+        // ==================================================================
+        //  ⑥b HALCON 样例流程：视觉样例对拍.vms / Blob缺陷检测_标签字符
+        // ==================================================================
+
+        /// <summary>
+        /// 用 HALCON 自带例程 Segmentation/Threshold/var_threshold.hdev 的图片与参数，
+        /// 走"生产加载器 → 编译 → 真插件 Execute"这条完整链路，再与本进程内的 HALCON
+        /// 参考实现逐项比对（面积/中心/高度）。
+        ///
+        /// 为什么参考实现要在断言里现算而不是写死 21：例程的参数一旦调整，写死的期望值
+        /// 会变成"跟着插件一起错"的假绿；现算的参考实现与插件走的是两条代码路径。
+        /// 例程的 select_shape 还筛 height（20~100），插件没有 height 过滤参数，
+        /// 所以对插件输出按行快照的 Height 做同条件后筛——这是**能力差异**，不是算法差异。
+        /// </summary>
+        private static void RunHalconSampleFlow()
+        {
+            Section("[Blob] HALCON 样例流程：视觉样例对拍.vms / Blob缺陷检测_标签字符");
+
+            string repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            string vmsPath = Path.Combine(repoRoot, "解决方案", "视觉样例对拍", "视觉样例对拍.vms");
+            Check("样例方案存在（解决方案\\视觉样例对拍\\视觉样例对拍.vms）", File.Exists(vmsPath), vmsPath);
+            if (!File.Exists(vmsPath)) return;
+
+            var loaded = new SolutionService().LoadAsync(vmsPath).GetAwaiter().GetResult();
+            Check("样例方案可被生产加载器打开", loaded.Success && loaded.Data != null, loaded.Message);
+            if (!loaded.Success || loaded.Data == null) return;
+
+            var flow = loaded.Data.Flows.FirstOrDefault(f => f.FlowName == "Blob缺陷检测_标签字符");
+            Check("流程名 = Blob缺陷检测_标签字符", flow != null,
+                $"流程={string.Join(",", loaded.Data.Flows.Select(f => f.FlowName))}");
+            if (flow == null) return;
+
+            CheckBatchFlow(flow, 10);
+
+            var sampleSteps = FlattenActionSteps(flow.Steps).ToList();
+            var acq = sampleSteps.FirstOrDefault(s => s.StepName == "读取标签图像");
+            var blob = sampleSteps.FirstOrDefault(s => s.StepName == "Blob缺陷检测");
+            Check("采集/算法两个步骤存在（读取标签图像 / Blob缺陷检测）", acq != null && blob != null,
+                $"步骤={string.Join(" → ", sampleSteps.Select(s => s.StepName))}");
+            if (acq == null || blob == null) return;
+
+            var display = sampleSteps.FirstOrDefault(s => s.PluginName == "结果显示");
+            bool displayOk = display != null
+                && display.InputValues.TryGetValue("DisplayViewIndex", out var dv)
+                && Convert.ToInt32(dv) >= 1
+                && display.LinkedSources.TryGetValue("SrcImage", out var displayLink)
+                && displayLink.TargetPortName == "Image"
+                && display.LinkedSources.TryGetValue("OverlayContours", out var overlayLink)
+                && overlayLink.TargetPortName == "Defects";
+            Check("结果显示接原始图 + 缺陷区域（Defects），标注图不再由算法烧", displayOk,
+                display == null
+                    ? "缺少「结果显示」步骤"
+                    : $"View={display.InputValues.GetValueOrDefault("DisplayViewIndex")} "
+                      + $"SrcImage→{display.LinkedSources.GetValueOrDefault("SrcImage")?.TargetPortName} "
+                      + $"OverlayContours→{display.LinkedSources.GetValueOrDefault("OverlayContours")?.TargetPortName}");
+            Check("算法步骤只输出结果（DisplayViewIndex=0 且 KeepAnnotatedImage=false）",
+                Convert.ToInt32(blob.InputValues.GetValueOrDefault("DisplayViewIndex") ?? 1) == 0
+                && !Convert.ToBoolean(blob.InputValues.GetValueOrDefault("KeepAnnotatedImage") ?? true),
+                $"View={blob.InputValues.GetValueOrDefault("DisplayViewIndex")} "
+                + $"Keep={blob.InputValues.GetValueOrDefault("KeepAnnotatedImage")}");
+
+            string imagePath = acq.InputValues.TryGetValue("FilePath", out var p) ? p as string : null;
+            // 文件夹化方案：ImageAcquisition 的 FilePath 是方案内相对路径，按 .vms 所在目录解析
+            if (imagePath != null && !Path.IsPathRooted(imagePath))
+                imagePath = Path.Combine(Path.GetDirectoryName(vmsPath)!, imagePath);
+            Check("图像路径指向方案内样例图且存在", imagePath != null && File.Exists(imagePath), imagePath ?? "(null)");
+            if (imagePath == null || !File.Exists(imagePath)) return;
+
+            var workspace = new WorkspaceContext();
+            workspace.SwitchSolution(loaded.Data);
+            var compiled = new FlowCompiler(workspace).Compile(flow.Steps.ToArray(), flow.FlowName);
+            Check("样例流程编译通过（端口名/连线类型）", compiled.Success,
+                compiled.Success ? "" : string.Join(" | ", compiled.Errors.Select(e => e.Message)));
+            if (!compiled.Success) return;
+
+            HOperatorSet.ReadImage(out HObject raw, imagePath);
+            using var image = new HImage(raw);
+            raw.Dispose();
+
+            var plugin = new BlobDetectPlugin { InstanceName = "样例_Blob" };
+            try
+            {
+                plugin.Initialize(blob);
+                plugin.SrcImage.LinkedSource = null;   // 直接喂图，不让它去解析上游步骤
+                plugin.SrcImage.Value = image;
+                plugin.Execute(new ExecutionContext(
+                    new StubLog(), new FlowSession { FlowName = flow.FlowName },
+                    workspace, CancellationToken.None));
+
+                // 参考实现：与 HALCON 例程同参（var_threshold 15,15,1.01,40,'dark'）
+                HOperatorSet.VarThreshold(image, out HObject region, 15, 15, 1.01, 40, "dark");
+                HOperatorSet.Connection(region, out HObject connected);
+                HOperatorSet.SelectShape(connected, out HObject selected, "area", "and", 100, 400);
+                HOperatorSet.AreaCenter(selected, out HTuple refAreas, out HTuple refRows, out HTuple refCols);
+                HOperatorSet.RegionFeatures(selected, "height", out HTuple refHeights);
+
+                var reference = new List<(double Area, double Row, double Col)>();
+                for (int i = 0; i < refAreas.Length; i++)
+                {
+                    double hh = refHeights[i].D;
+                    if (hh < 20 || hh > 100) continue;
+                    reference.Add((refAreas[i].D, refRows[i].D, refCols[i].D));
+                }
+
+                var vm = new List<(double Area, double Row, double Col)>();
+                HTuple vmAreas = (HTuple)plugin.DefectAreas.Value;
+                HTuple vmRows = (HTuple)plugin.CenterRows.Value;
+                HTuple vmCols = (HTuple)plugin.CenterCols.Value;
+                HTuple vmHeights = (HTuple)plugin.DefectHeights.Value;
+                for (int i = 0; i < vmAreas.Length; i++)
+                {
+                    double hh = vmHeights[i].D;
+                    if (hh < 20 || hh > 100) continue;
+                    vm.Add((vmAreas[i].D, vmRows[i].D, vmCols[i].D));
+                }
+
+                var refSorted = reference.OrderByDescending(r => r.Area).ThenBy(r => r.Row).ThenBy(r => r.Col).ToList();
+                var vmSorted = vm.OrderByDescending(r => r.Area).ThenBy(r => r.Row).ThenBy(r => r.Col).ToList();
+
+                bool countOk = refSorted.Count == vmSorted.Count && refSorted.Count == 21;
+                double maxArea = 0, maxRow = 0, maxCol = 0;
+                for (int i = 0; i < Math.Min(refSorted.Count, vmSorted.Count); i++)
+                {
+                    maxArea = Math.Max(maxArea, Math.Abs(refSorted[i].Area - vmSorted[i].Area));
+                    maxRow = Math.Max(maxRow, Math.Abs(refSorted[i].Row - vmSorted[i].Row));
+                    maxCol = Math.Max(maxCol, Math.Abs(refSorted[i].Col - vmSorted[i].Col));
+                }
+
+                Check("标签暗区 21 个且与 HALCON 参考实现逐项一致（面积/中心）",
+                    countOk && maxArea <= 1e-9 && maxRow <= 1e-9 && maxCol <= 1e-9,
+                    $"ref={refSorted.Count} vm={vmSorted.Count} "
+                    + $"maxDiff(area={maxArea:G6}, row={maxRow:G6}, col={maxCol:G6}) "
+                    + $"Err='{plugin.ErrorMessage.Value}'");
+
+                selected.Dispose();
+                connected.Dispose();
+                region.Dispose();
+            }
+            finally
+            {
+                plugin.Dispose();
+            }
         }
 
         // ==================================================================

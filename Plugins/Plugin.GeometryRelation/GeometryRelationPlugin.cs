@@ -171,8 +171,8 @@ namespace Plugin.GeometryRelation
                 // 残差是"拟合质量的旁证"，不是主判定；但**不可算时必须红着嘴说清楚**，不许静默 0。
                 if (!TryComputeResidual(a, out var residualError))
                 {
-                    Fail(residualError);
-                    return;
+                    // 残差是可选诊断输入：读不出来只 Warn，不能把已经算好的主结果判失败
+                    context.Logger.Warn($"几何计算：残差不可算，主结果仍输出：{residualError}");
                 }
 
                 Publish(a, b, op);
@@ -238,7 +238,7 @@ namespace Plugin.GeometryRelation
             if (a.Kind == GeometryKind.Line && b.Kind == GeometryKind.Line)
             {
                 ok = GeometryMath.TryIntersectLines(a, b, out row, out col);
-                if (!ok) { Fail("几何计算：两线近平行，交点数值不可信（请检查上游几何）"); return; }
+                if (!ok) { Fail("几何计算：两线平行（方向共线），没有唯一交点"); return; }
             }
             else if (a.Kind == GeometryKind.Line && b.Kind == GeometryKind.Circle)
             {
@@ -449,7 +449,22 @@ namespace Plugin.GeometryRelation
             var owned = false;
             try
             {
-                if (source is HXLD)
+                // 不能写 source is HXLD：上游很多端口是 HObject（C# 脚本/BeD 轮廓/区域），
+                // 算子返回的 XLD 也是 HObject，类型判断会恒 false → 被误当区域 → #4052。
+                bool isXld = false;
+                try
+                {
+                    HTuple classes = source.GetObjClass();
+                    isXld = classes.Length > 0
+                            && (classes[0].S ?? string.Empty)
+                                .StartsWith("xld", StringComparison.OrdinalIgnoreCase);
+                }
+                catch
+                {
+                    // 取不到类名按区域处理；GenContourRegionXld 会对非区域明确失败
+                }
+
+                if (isXld)
                 {
                     contours = source;
                 }
@@ -465,19 +480,31 @@ namespace Plugin.GeometryRelation
                 if (n.Length == 0 || n[0].I <= 0)
                     return true;   // 空：count 保持 0，由调用方判失败
 
-                HOperatorSet.GetContourXld(contours, out var rows, out var cols);
-                var total = Math.Min(rows.Length, cols.Length);
-                if (total <= 0)
-                    return true;
-
-                points = new double[total * 2];
-                for (var i = 0; i < total; i++)
+                // 多对象 XLD / 多连通域：逐条取点后拼接。GetContourXld 对对象元组会报 #1501，
+                // 不能直接一次调用。
+                var all = new List<double>();
+                for (int i = 1; i <= n[0].I; i++)
                 {
-                    points[2 * i] = rows[i].D;
-                    points[2 * i + 1] = cols[i].D;
+                    HObject? one = null;
+                    try
+                    {
+                        HOperatorSet.SelectObj(contours, out one, i);
+                        HOperatorSet.GetContourXld(one, out var rows, out var cols);
+                        int total = Math.Min(rows.Length, cols.Length);
+                        for (int j = 0; j < total; j++)
+                        {
+                            all.Add(rows[j].D);
+                            all.Add(cols[j].D);
+                        }
+                    }
+                    finally
+                    {
+                        one?.Dispose();
+                    }
                 }
 
-                count = total;
+                points = all.ToArray();
+                count = all.Count / 2;
                 return true;
             }
             catch (Exception)

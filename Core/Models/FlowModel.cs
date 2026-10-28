@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -44,11 +45,27 @@ namespace VisionMaster.Models
 
         /// <summary>HTTP 外部调用：允许经 /flow/{流程名} 接口触发（位值 64；唯一带门禁的位）</summary>
         Http = 64,
+
+        /// <summary>
+        /// 随整线启动（位值 128）：工具栏「启动整线」把它和其它同样勾了本位的流程
+        /// <b>各起各的会话</b>一起启动。
+        ///
+        /// 【为什么不叫"主流程"】工位是<b>平级</b>的：某条流程失败 / 卡死只收尾它自己，
+        /// 其余照常循环（用户裁决 2026-10-28）。把工位做成主流程的子调用（串行或并行都一样）
+        /// 都会让父流程必须"管"子流程，一有故障整线就停——那正是要避免的形态。
+        /// </summary>
+        LineStart = 128,
     }
 
     /// <summary>
-    /// 流程在方案里的<b>固定角色</b>：Home / Main / End 三条流程是每个方案的强制骨架
-    /// （用户决策：所有程序都要有这三个流程）。
+    /// 流程在方案里的<b>固定角色</b>：Home / End 两条流程是每个方案的强制骨架
+    /// （用户决策：所有程序都要有回零与收尾）。
+    ///
+    /// 【为什么没有"主流程"】2026-10-28 用户裁决：生产主任务不再是"角色"，而是
+    /// <see cref="FlowInvokeType.LineStart"/> 这一个调用位——任何流程（可多条）都能随
+    /// 「启动整线」各起各的会话，工位与主任务平级。原 <c>Main = 2</c> 已退役，
+    /// 数值 2 永久保留不复用；老方案加载时由 <see cref="MandatoryFlows.MigrateRetiredRoles"/>
+    /// 迁移成"无角色 + 勾整线"。
     ///
     /// 【为什么是角色而不是"按名字管"】名字是给现场看的，可以被改名（"Home"改叫"回原点"），
     /// 而"这条流程是不是骨架"必须有个不随改名漂移的判据——落盘的 Role 字段就是它。
@@ -62,12 +79,19 @@ namespace VisionMaster.Models
         None = 0,
 
         /// <summary>回原 / 回零：开机与换产时的安全位姿流程</summary>
+        [Display(Name = "回零（Home）", ShortName = "回零")]
         Home = 1,
 
-        /// <summary>主任务：生产主流程（连续或按触发运行）</summary>
-        Main = 2,
+        /// <summary>
+        /// 保留位：原「主任务（Main）」。**已退役，不许复用**——
+        /// 老 .vms 里 <c>Role: 2</c> 靠这个数值被识别并迁移，回收它就等于把老文件读成另一条流程。
+        /// 运行期不会出现该值：加载时已迁移成 <see cref="None"/> + <see cref="FlowInvokeType.LineStart"/>。
+        /// </summary>
+        [Obsolete("主流程角色已退役（2026-10-28）：请改用 FlowInvokeType.LineStart")]
+        RetiredMain = 2,
 
         /// <summary>收尾：停机 / 换产前把机构与状态收干净</summary>
+        [Display(Name = "收尾（End）", ShortName = "收尾")]
         End = 3,
     }
 
@@ -110,6 +134,7 @@ namespace VisionMaster.Models
             if ((type & FlowInvokeType.Variable) != 0) parts.Add("变量");
             if ((type & FlowInvokeType.Subroutine) != 0) parts.Add("子程序");
             if ((type & FlowInvokeType.Http) != 0) parts.Add("HTTP外部调用");
+            if ((type & FlowInvokeType.LineStart) != 0) parts.Add("整线");
 
             return parts.Count > 0 ? string.Join(" / ", parts) : $"未知({(int)type})";
         }
@@ -128,9 +153,25 @@ namespace VisionMaster.Models
             //  · Timer       → FlowTimerScheduler 按 TimerIntervalMs 周期触发（下限 100ms）；
             //  · Variable    → FlowVariableTriggerService 在 TriggerVariable 上升沿触发；
             //  · Subroutine  → FlowInvoker + 「调用流程」插件（Plugin.RunFlow），宿主侧查这一位放行。
+            //  · LineStart   → FlowBatchSelector（工具栏「启动整线」按这一位选流程，2026-10-28）。
             // 将来再加位、而运行侧没跟上时：在这里给它一句话，接上了把这句删掉（界面自动跟着变）。
             _ => null,
         };
+    }
+
+    /// <summary>
+    /// 流程结果源：决定宿主从哪读本流程的 OK/NG（L2 `FlowVerdictResolver`）。
+    ///
+    /// Auto 的优先级：结果输出步骤 &gt; 配置的结果变量 &gt; 配置的步骤端口 &gt; 约定变量
+    /// <c>&lt;流程名&gt;_Result</c> &gt; 未判定。显式模式只认该来源，读不到就记未判定。
+    /// </summary>
+    public enum FlowResultSourceKind
+    {
+        Auto = 0,
+        ResultStep = 1,
+        Variable = 2,
+        StepPort = 3,
+        None = 4,
     }
 
     /// <summary>
@@ -194,7 +235,7 @@ namespace VisionMaster.Models
         } = true;
 
         /// <summary>
-        /// 流程角色：Home / Main / End 三条骨架流程在方案里各占一角（见 <see cref="FlowRole"/>）。
+        /// 流程角色：Home / End 两条骨架流程在方案里各占一角（见 <see cref="FlowRole"/>）。
         /// 普通流程为 None。加载老方案时由 MandatoryFlows.Ensure 按名字补齐缺的角色；
         /// 带角色的流程不允许删除（FlowListViewModel 拦截），改名不受限（判据是角色不是名字）。
         /// </summary>
@@ -221,12 +262,55 @@ namespace VisionMaster.Models
             }
         }
 
+        /// <summary>结果源模式（见 <see cref="FlowResultSourceKind"/>）；默认自动。</summary>
+        public FlowResultSourceKind ResultSource
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = FlowResultSourceKind.Auto;
+
+        /// <summary>Variable 模式的结果变量 Id（优先于名字；改名不丢）</summary>
+        public Guid ResultVariableId
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = Guid.Empty;
+
+        /// <summary>Variable 模式的结果变量名（Id 为空时按名解析）</summary>
+        public string ResultVariableName
+        {
+            get => field;
+            set => SetProperty(ref field, value ?? string.Empty);
+        } = string.Empty;
+
+        /// <summary>StepPort 模式的判定步骤 Id</summary>
+        public Guid ResultStepId
+        {
+            get => field;
+            set => SetProperty(ref field, value);
+        } = Guid.Empty;
+
+        /// <summary>StepPort 模式的 bool 输出端口名（如 IsOk）</summary>
+        public string ResultPortName
+        {
+            get => field;
+            set => SetProperty(ref field, value ?? string.Empty);
+        } = string.Empty;
+
         /// <summary>
-        /// 是否可由工具栏「循环运行主流程」直接启动。
-        /// 只表达**运行策略**，不改 Role/InvokeType 的既有语义；当前口径与 Role=Main 对齐。
+        /// 是否可由工具栏「启动整线 / 整线循环」直接启动。
+        /// 判据只有一条：勾了「随整线启动」（<see cref="FlowInvokeType.LineStart"/>）。
+        /// 2026-10-28 起不再有"主流程角色也算"这条——任何流程（可多条）平级启动。
         /// </summary>
         [JsonIgnore]
-        public bool IsDirectlyLoopable => Role == FlowRole.Main;
+        public bool IsDirectlyLoopable => IsLineStartMember;
+
+        /// <summary>
+        /// 是否勾了「随整线启动」：工具栏那一个按钮会把它和其它同样勾选的流程各起各的会话。
+        /// 与 <see cref="HasExternalTrigger"/> 分开：整线启动是本机按钮，不是外部触发。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsLineStartMember => (InvokeType & FlowInvokeType.LineStart) != 0;
 
         /// <summary>是否有除「子程序」以外的直接触发方式（定时 / 变量 / HTTP）。</summary>
         [JsonIgnore]
@@ -234,14 +318,15 @@ namespace VisionMaster.Models
             => (InvokeType & (FlowInvokeType.Timer | FlowInvokeType.Variable | FlowInvokeType.Http)) != 0;
 
         /// <summary>
-        /// 是否只能作为子程序被其它流程调用：不是主流程、勾了子程序、且没有外部触发。
-        /// 这类流程在流程列表里必须和“可直接触发”的流程区分开。
+        /// 是否只能作为子程序被其它流程调用：勾了子程序、且没有外部触发、
+        /// 也不是整线成员。最后一条必须有：工位流程通常同时勾「子程序」（供「调用流程」复用）
+        /// 与「随整线启动」，漏判会让它在列表里被标成"只能被调用"，用户就不敢按整线启动了。
         /// </summary>
         [JsonIgnore]
         public bool IsSubroutineOnly
-            => Role != FlowRole.Main
-               && (InvokeType & FlowInvokeType.Subroutine) != 0
-               && !HasExternalTrigger;
+            => (InvokeType & FlowInvokeType.Subroutine) != 0
+               && !HasExternalTrigger
+               && !IsLineStartMember;
 
         /// <summary>流程列表用的短徽标：循环 / 外部 / 子；空串表示仅手动。</summary>
         [JsonIgnore]
@@ -263,7 +348,7 @@ namespace VisionMaster.Models
             get
             {
                 if (IsDirectlyLoopable)
-                    return "主流程：工具栏「循环运行主流程」可直接启动";
+                    return "整线成员：工具栏「启动整线」会把它和其它勾选本位的流程一起启动（各起各的会话）";
                 if (HasExternalTrigger)
                     return "可直接触发：" + InvokeType.DisplayText();
                 if (IsSubroutineOnly)
@@ -278,9 +363,9 @@ namespace VisionMaster.Models
         {
             get
             {
-                if (IsDirectlyLoopable) return "主流程 · 可循环";
+                if (IsDirectlyLoopable) return "整线成员 · 随整线启动";
                 if (HasExternalTrigger) return "外部触发";
-                if (IsSubroutineOnly) return "子程序 · 由主流程调用";
+                if (IsSubroutineOnly) return "子程序 · 由其它流程调用";
                 return "手动";
             }
         }
@@ -288,6 +373,7 @@ namespace VisionMaster.Models
         private void RaiseCallVisualChanged()
         {
             RaisePropertyChanged(nameof(IsDirectlyLoopable));
+            RaisePropertyChanged(nameof(IsLineStartMember));
             RaisePropertyChanged(nameof(HasExternalTrigger));
             RaisePropertyChanged(nameof(IsSubroutineOnly));
             RaisePropertyChanged(nameof(CallBadgeText));

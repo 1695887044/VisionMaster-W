@@ -382,6 +382,29 @@
 
 ---
 
+## 43. 变量链接只走绑定弹窗（R188）
+
+| # | 判据 |
+|---|---|
+| R188 | **端口取值只有一条通道：变量绑定弹窗**（`DataBindView` / `VariableBindingViewModel`）。**画布连线已弃用为取值入口**——它只表达流程顺序与模块级数据依赖（一根线 = 两个步骤有数据依赖），不得新增"画布连线即绑值"或"按端口拆开的画布锚点"。两种弹窗模式分工：① 完整模式（带 `TargetStep`）绑"这一步有哪些端口"；② **单绑定模式**（`LinkPathEvent.InputPortName`）给插件自定义视图做逐行绑定入口——**动态输入端口只能走这条**，因为完整模式的左侧端口表读 `ToolItemModel.InputDefinitions`（`PluginService` 用空配置实例拍的扫描期快照，用户新加的端口一条都不在里面，表现为"当前步骤没有可绑定的输入端口"）。三条判据：① 插件视图里出现"去画布上连线"的引导文案 = 违反（必须给行内绑定入口，实现一律用 `LinkableValueEditor`，见 R189）；② 画布节点渲染 `Inputs[0]`/`Outputs[0]` 之外的端口锚点 = 违反（`FlowCanvasView.xaml` 里这两个下标只许 0）；③ 插件新增动态输入端口却没有绑定入口 = 违反（该端口永远绑不上）。核对命令：`findstr /s /c:"画布上连线" Plugins\*.xaml` 命中必须为 0。守门：**人工评审**（无自动闸；`audit_rules` 只核规则归属与字节上限）。 |
+
+---
+
+## 44. 绑定控件必须用 LinkableValueEditor（R189）
+
+| # | 判据 |
+|---|---|
+| R189 | **端口取值/连线一律用公共控件 `Core.Controls.LinkableValueEditor`，禁止在插件里自己 `GlobalEventBus.Publish(new LinkPathEvent{...})` 手搓绑定按钮。** 它已经把整条链路做完了：🔗 → 单绑定弹窗 → `StepData.SetLink`；✕ → `RemoveLink`；`LinkAddress` 回显（重开配置自动从 `GetLinkedAddress` 恢复）；按 `Port.DataType` 决定"输入框 / 下拉 / 不可编辑占位"；封闭集合端口（枚举、`IsFunctionalEnum`）自动隐藏 🔗（R33）；空候选态给原因（§26）。自己再写一遍必然漏其中几项，典型是**漏回显**和**漏封闭集合禁绑**。两条用法判据：① 最小用法 = 只给 `Port` + `StepData` 两个依赖属性（`Label` 可空；`AllowGlobals=false` 只给纯数据流插件如 C# 脚本）；② **动态端口两种合法接法，按行对象形态选一种**：(a) 端口对象直接挂在行/单元格对象上 → `Port={Binding Port}`，行对象随重建整体替换（`Plugin.Database` 的 `ParameterRows`、`Plugin.Utility.VariableAssignment` 的 `ValueCellTemplate`）；(b) 端口按名字现取 → `MultiBinding` + 各插件自己的 `InputPortConverter`（端口名 + 宿主插件 + `PortsVersion` 三路），每次重建端口后推一格 `PortsVersion`——端口对象每次重建都是新实例，少了这一路编辑器会一直指着已丢弃的旧端口（`Plugin.DataRecord` / `CSharpScript` / `ImageScript` / `JudgeTable` / `ResultDisplay` / `ResultUpload`）；`Port` 可能为 null 的行要用 `ContentControl` + `DataTemplate` 按需实例化，**不许常驻 + `Visibility`**（会留下 `Port=null` 的空编辑器）。范式：`Plugin.DataRecord`（`ColumnPortEditorTemplate`）、`Plugin.CSharpScript`、`Plugin.ResultUpload`（`FieldPortEditorTemplate`）、`Plugin.JudgeTable`（`RulePortEditorTemplate`，**已于 2026-10-28 从自建「绑定…」按钮迁移到本控件**）。**例外**：整行不是"端口编辑器"语义、控件塞不进去时才允许手写 `LinkPathEvent`（当前**无此类例外**），且必须同时实现回显 + 解绑 + 封闭集合端口禁绑，并在 `docs/code-changes/` 写明理由。守门：**人工评审**（无自动闸）。 |
+
+---
+
+## 45. 端口取值只许两种形态，手输只留给运行时变量（R190）
+
+| # | 判据 |
+|---|---|
+| R190 | **端口取值入口只许两种形态，不许第三种**：① 值型端口 → `LinkableValueEditor`（固定值输入框 + 🔗 + ✕，见 R189）；② **只有"运行时变量"来源**允许一个纯文本 / 可编辑下拉框手打**变量名**——它按名在运行期解析（本轮局部变量 → 全局/通讯/系统变量），编译期没有可连的端口对象，弹窗也表达不了。除这两者之外**不许任何手输**：不许手打端口名、步骤名、上游输出名来"代替绑定"，也不许自造可编辑框去填卡地址/轴名/枚举（那些是封闭集合，`LinkableValueEditor.IsOptionPort` 已渲染成下拉，空候选给原因——R33/§26）。三条判据：① 插件视图里出现绑定到 `InputPortName` / `PortName` / `SourcePort` / `LinkedAddress` 的 `TextBox` = 违反；② 手输"变量名"的框只许出现在 `Source==Variable` 分支，ToolTip 必须写清"按名解析、不是连线"；③ 封闭集合端口不许自造可编辑框。范式：`Plugin.DataRecord`（变量名列是可编辑 ComboBox，注释写明"C# 脚本 `SetVar` 的名字不在宿主候选快照里"）、`Plugin.Utility.VariableAssignment`（视图头三条契约："值行用 `LinkableValueEditor` / 全局名字只能选 / 运行时名字可编辑"）、`Plugin.ResultUpload`（`VariableName` 是唯一手输列，其余走控件）。**字段名/列名/变量名这类"名字定义"不算取值**（它们是端口名或 JSON 键的来源，按 R33 手填 + 候选）。守门：**人工评审**；核对命令 `findstr /s /n /c:"Binding InputPortName" Plugins\*.xaml`、`findstr /s /n /c:"Binding LinkedAddress" Plugins\*.xaml` 命中项的宿主属性若是 `Text`/`SelectedItem`（可写）即违反；`ToolTip`/`CommandParameter`/`Content` 的只读用途不算。 |---
+
 ## 附录：常见症状 → 章节
 
-列头消失/类型全名 → §6；流程栏类型全名/分支点不开 → §7；找不到资源名 → §9；图标字被切 → §22；面板不见/切标签闪退 → §18；下拉英文 → §12/§26；属性面板不刷新/两套参数同现 → §29+skill `vm-property-grid`；改了插件仍旧逻辑 → §5/§13/红线③；启动第一次退出 → §15；拖拽胶囊残留 → §37；界面改了没生效 → §30.2+skill `wpf-ui-debug`；输入框文字上下被切 → §40；操作电脑 / 跑 exe 测试踩坑 → §41。
+列头消失/类型全名 → §6；流程栏类型全名/分支点不开 → §7；找不到资源名 → §9；图标字被切 → §22；面板不见/切标签闪退 → §18；下拉英文 → §12/§26；属性面板不刷新/两套参数同现 → §29+skill `vm-property-grid`；改了插件仍旧逻辑 → §5/§13/红线③；启动第一次退出 → §15；拖拽胶囊残留 → §37；界面改了没生效 → §30.2+skill `wpf-ui-debug`；输入框文字上下被切 → §40；操作电脑 / 跑 exe 测试踩坑 → §41；想给端口连值却去画布找端口 → §43；端口取值自己画了输入框/按钮 → §44/§45。
+

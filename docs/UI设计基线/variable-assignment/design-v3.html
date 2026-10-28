@@ -1,0 +1,1941 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>变量赋值 · 多赋值配置窗口 · 设计基线 v3</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  body.is-capture { background: #FFFFFF; }
+
+  #va-design-root{
+    --va-surface:#FFFFFF;
+    --va-surface-2:#F8FAFC;
+    --va-surface-3:#F1F5F9;
+    --va-border:#E2E8F0;
+    --va-border-soft:#EEF2F7;
+    --va-border-strong:#CBD5E1;
+    --va-text:#0F172A;
+    --va-text-2:#475569;
+    --va-text-3:#94A3B8;
+    --va-text-4:#64748B;
+    --va-primary:#0EA5E9;
+    --va-primary-strong:#0284C7;
+    --va-primary-text:#0369A1;
+    --va-primary-soft:#F0F9FF;
+    --va-primary-light:#E0F2FE;
+    --va-primary-border:#BAE6FD;
+    --va-success:#22C55E;
+    --va-success-text:#15803D;
+    --va-success-soft:#F0FDF4;
+    --va-success-border:#BBF7D0;
+    --va-danger:#EF4444;
+    --va-danger-text:#B91C1C;
+    --va-danger-soft:#FEF2F2;
+    --va-danger-border:#FECACA;
+    --va-warning:#F59E0B;
+    --va-warning-text:#B45309;
+    --va-warning-soft:#FFF4E5;
+    --va-warning-border:#FDE68A;
+    --va-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --va-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --va-radius-sm:6px;
+    --va-radius-md:8px;
+    --va-radius-lg:10px;
+    --va-radius-xl:12px;
+    --va-radius-window:16px;
+    --va-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--va-font);
+    -webkit-font-smoothing:antialiased;
+    color-scheme:light;
+  }
+  #va-design-root *{box-sizing:border-box;}
+  #va-design-root button,
+  #va-design-root input,
+  #va-design-root select{font-family:inherit;}
+  #va-design-root button{color:inherit;}
+  #va-design-root [hidden]{display:none !important;}
+  #va-design-root :focus-visible{outline:2px solid var(--va-primary);outline-offset:2px;}
+  #va-design-root .ico{width:14px;height:14px;flex:none;display:block;}
+
+  /* ============ 页面与演示工具条 ============ */
+  #va-design-root .va-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+  #va-design-root .va-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #va-design-root .va-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--va-text);}
+  #va-design-root .va-ver{
+    display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;
+    background:var(--va-primary-light);color:var(--va-primary-text);
+    font-size:11px;font-weight:700;letter-spacing:.02em;
+  }
+  #va-design-root .va-archive-link{
+    margin-left:2px;font-size:11.5px;color:var(--va-text-4);text-decoration:none;
+    border-bottom:1px dashed var(--va-border-strong);
+  }
+  #va-design-root .va-archive-link:hover{color:var(--va-primary-text);border-bottom-color:var(--va-primary-border);}
+  #va-design-root .va-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.65;color:var(--va-text-2);}
+  #va-design-root .va-page-sub b{color:var(--va-text);font-weight:600;}
+  #va-design-root .va-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  #va-design-root .va-demo-group{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  #va-design-root .va-demo-label{font-size:11.5px;color:var(--va-text-4);white-space:nowrap;}
+  #va-design-root .va-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--va-radius-md);background:var(--va-surface-3);}
+  #va-design-root .va-seg button{
+    height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;
+    color:var(--va-text-2);font-size:11.5px;line-height:1;cursor:pointer;white-space:nowrap;
+    transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;
+  }
+  #va-design-root .va-seg button:hover{color:var(--va-text);}
+  #va-design-root .va-seg button.is-on{background:var(--va-surface);color:var(--va-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #va-design-root .va-scope-note{
+    display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--va-text-2);
+  }
+  #va-design-root .va-scope-note .ico{width:13px;height:13px;flex:none;margin-top:2px;color:var(--va-primary-text);}
+  #va-design-root .va-scope-note b{color:var(--va-text);font-weight:600;}
+  #va-design-root .va-hints{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 0;font-size:11px;color:var(--va-text-4);}
+  #va-design-root .va-kbd{
+    display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;
+    border:1px solid var(--va-border);background:var(--va-surface);color:var(--va-text-2);
+    font-family:var(--va-mono);font-size:10px;white-space:nowrap;
+  }
+
+  /* ============ 产品窗口 ============ */
+  #va-design-root .va-window{
+    position:relative;width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--va-surface);border-radius:var(--va-radius-window);box-shadow:var(--va-shadow-window);
+    transition:width 200ms ease;
+  }
+  #va-design-root .va-window.is-narrow{width:640px;}
+  #va-design-root .va-titlebar{
+    height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--va-surface);
+    border-bottom:1px solid var(--va-border-soft);
+  }
+  #va-design-root .va-app-icon{
+    width:40px;height:40px;flex:none;border-radius:12px;display:flex;align-items:center;justify-content:center;
+    background:var(--va-primary-light);color:var(--va-primary-text);
+  }
+  #va-design-root .va-app-icon .ico{width:19px;height:19px;}
+  #va-design-root .va-title-text{margin-left:12px;min-width:0;flex:1;}
+  #va-design-root .va-title{font-size:16px;font-weight:600;line-height:1.3;color:var(--va-text);}
+  #va-design-root .va-subtitle{margin-top:2px;font-size:12px;line-height:1.4;color:var(--va-text-2);}
+  #va-design-root .va-icon-btn{
+    width:30px;height:30px;flex:none;padding:0;border:0;border-radius:var(--va-radius-md);
+    display:inline-flex;align-items:center;justify-content:center;background:transparent;
+    color:var(--va-text-4);cursor:pointer;transition:background 150ms ease,color 150ms ease;
+  }
+  #va-design-root .va-icon-btn:hover{background:var(--va-surface-3);color:var(--va-text);}
+  #va-design-root .va-icon-btn:active{background:var(--va-border);}
+
+  #va-design-root .va-content{
+    flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 300px;
+    gap:16px;padding:16px 20px 20px;background:var(--va-surface);
+  }
+  #va-design-root .va-window.is-narrow .va-content{grid-template-columns:minmax(0,1fr) 220px;gap:12px;padding:14px 16px 16px;}
+
+  /* ============ 左：赋值行列表 ============ */
+  #va-design-root .va-list-card{
+    min-width:0;min-height:0;display:flex;flex-direction:column;
+    padding:16px;border:1px solid var(--va-border-soft);border-radius:var(--va-radius-xl);background:var(--va-surface-2);
+  }
+  #va-design-root .va-list-head{display:flex;align-items:center;gap:8px;min-width:0;}
+  #va-design-root .va-list-head b{font-size:12.5px;font-weight:600;color:var(--va-text-2);}
+  #va-design-root .va-count{
+    display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:999px;
+    background:var(--va-surface);border:1px solid var(--va-border);color:var(--va-text-3);
+    font-size:10.5px;font-variant-numeric:tabular-nums;white-space:nowrap;
+  }
+  #va-design-root .va-add-btn{
+    margin-left:auto;display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;
+    border:1px solid var(--va-primary-border);border-radius:var(--va-radius-md);background:var(--va-primary-soft);
+    color:var(--va-primary-text);font-size:11.5px;font-weight:600;line-height:1;cursor:pointer;white-space:nowrap;
+    transition:background 150ms ease,border-color 150ms ease,opacity 150ms ease;
+  }
+  #va-design-root .va-add-btn .ico{width:12px;height:12px;}
+  #va-design-root .va-add-btn:hover{background:var(--va-primary-light);border-color:var(--va-primary);}
+  #va-design-root .va-add-btn:disabled{opacity:.45;cursor:not-allowed;}
+  #va-design-root .va-list-sub{margin:4px 0 0;font-size:11.5px;line-height:1.5;color:var(--va-text-4);}
+  #va-design-root .va-banners{display:flex;flex-direction:column;gap:8px;margin-top:10px;}
+  #va-design-root .va-banner{
+    display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border-radius:var(--va-radius-lg);
+    border:1px solid var(--va-border);background:var(--va-surface);font-size:11.5px;line-height:1.5;color:var(--va-text-2);
+  }
+  #va-design-root .va-banner .ico{width:13px;height:13px;flex:none;margin-top:2px;}
+  #va-design-root .va-banner.is-info{background:var(--va-primary-soft);border-color:var(--va-primary-border);}
+  #va-design-root .va-banner.is-info .ico{color:var(--va-primary-text);}
+  #va-design-root .va-banner.is-warn{background:var(--va-warning-soft);border-color:var(--va-warning-border);}
+  #va-design-root .va-banner.is-warn .ico{color:var(--va-warning-text);}
+  #va-design-root .va-banner.is-danger{background:var(--va-danger-soft);border-color:var(--va-danger-border);}
+  #va-design-root .va-banner.is-danger .ico{color:var(--va-danger-text);}
+  #va-design-root .va-banner-body{min-width:0;flex:1;}
+  #va-design-root .va-banner-body b{display:block;font-size:11.5px;font-weight:600;color:var(--va-text);}
+  #va-design-root .va-banner-body span{display:block;margin-top:2px;color:var(--va-text-2);}
+  #va-design-root .va-banner-actions{display:flex;align-items:center;gap:6px;flex:none;margin-left:auto;}
+  #va-design-root .va-mini-btn{
+    height:24px;padding:0 9px;border:1px solid var(--va-border);border-radius:6px;background:var(--va-surface);
+    color:var(--va-text-2);font-size:11px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+  }
+  #va-design-root .va-mini-btn:hover{background:var(--va-surface-2);border-color:var(--va-border-strong);}
+  #va-design-root .va-mini-btn.is-danger{background:var(--va-danger);border-color:var(--va-danger);color:#fff;font-weight:600;}
+  #va-design-root .va-mini-btn.is-danger:hover{background:var(--va-danger-text);border-color:var(--va-danger-text);}
+
+  #va-design-root .va-table-head{
+    display:grid;grid-template-columns:92px minmax(110px,1.15fr) minmax(130px,1.35fr) 58px 92px;
+    gap:8px;align-items:center;height:30px;margin-top:8px;padding:0 8px;
+    border-bottom:1px solid var(--va-border-soft);
+    font-size:10.5px;color:var(--va-text-3);letter-spacing:.02em;
+  }
+  #va-design-root .va-table-head span:nth-child(4){text-align:center;}
+  #va-design-root .va-list-body{flex:1;min-height:0;display:flex;margin-top:2px;}
+  #va-design-root .va-rows{
+    flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:2px 2px 2px 0;
+    scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;
+  }
+  #va-design-root .va-rows::-webkit-scrollbar{width:8px;}
+  #va-design-root .va-rows::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+  #va-design-root .va-rows::-webkit-scrollbar-track{background:transparent;}
+
+  #va-design-root .va-row{
+    display:grid;grid-template-columns:92px minmax(110px,1.15fr) minmax(130px,1.35fr) 58px 92px;
+    grid-template-areas:"scope name value create actions";
+    gap:8px;align-items:center;min-height:48px;padding:0 8px;
+    border-bottom:1px solid var(--va-border-soft);background:transparent;
+    transition:background 150ms ease,box-shadow 150ms ease;
+  }
+  #va-design-root .va-row:hover{background:var(--va-surface);}
+  #va-design-root .va-row.is-selected{background:var(--va-surface);box-shadow:inset 3px 0 0 var(--va-primary);}
+  #va-design-root .va-row.is-error{background:var(--va-danger-soft);box-shadow:inset 3px 0 0 var(--va-danger);}
+  #va-design-root .va-row.is-warn{box-shadow:inset 3px 0 0 var(--va-warning);}
+  #va-design-root .va-row.is-selected.is-warn{box-shadow:inset 3px 0 0 var(--va-warning);}
+  #va-design-root .va-row.is-selected.is-error{box-shadow:inset 3px 0 0 var(--va-danger);}
+  #va-design-root .va-cell{min-width:0;}
+  #va-design-root .va-cell-scope{grid-area:scope;}
+  #va-design-root .va-cell-name{grid-area:name;display:flex;align-items:center;gap:6px;}
+  #va-design-root .va-cell-value{grid-area:value;min-width:0;}
+  #va-design-root .va-cell-create{grid-area:create;display:flex;align-items:center;justify-content:center;}
+  #va-design-root .va-cell-actions{grid-area:actions;display:flex;align-items:center;justify-content:flex-end;gap:1px;}
+
+  #va-design-root .va-scope-pill{
+    display:inline-flex;align-items:center;gap:5px;height:30px;max-width:100%;padding:0 7px;
+    border:1px solid var(--va-border);border-radius:7px;background:var(--va-surface);
+    color:var(--va-text-2);font-size:11.5px;line-height:1;cursor:pointer;white-space:nowrap;
+    transition:background 150ms ease,border-color 150ms ease,color 150ms ease;
+  }
+  #va-design-root .va-scope-pill:hover{border-color:var(--va-border-strong);background:#FBFDFF;}
+  #va-design-root .va-scope-pill.is-global{background:var(--va-primary-light);border-color:var(--va-primary-border);color:var(--va-primary-text);}
+  #va-design-root .va-scope-pill .ico{width:13px;height:13px;color:var(--va-text-3);}
+  #va-design-root .va-scope-pill.is-global .ico{color:var(--va-primary-text);}
+  #va-design-root .va-scope-caret .ico{width:10px;height:10px;color:var(--va-text-3);}
+  #va-design-root .va-scope-short{display:none;}
+
+  #va-design-root .va-name-wrap{position:relative;flex:1;min-width:0;display:flex;align-items:center;}
+  #va-design-root .va-cell-input{
+    width:100%;height:30px;padding:0 8px;border:1px solid var(--va-border);border-radius:7px;
+    background:var(--va-surface);color:var(--va-text);font-size:12px;line-height:1;outline:none;
+    transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+  }
+  #va-design-root .va-cell-input::placeholder{color:var(--va-text-3);}
+  #va-design-root .va-cell-input:hover{border-color:var(--va-border-strong);}
+  #va-design-root .va-cell-input:focus{border-color:var(--va-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+  #va-design-root .va-name-wrap .va-cell-input{padding-right:26px;}
+  #va-design-root .va-cell-arrow{
+    position:absolute;right:1px;top:1px;width:24px;height:28px;border:0;border-radius:0 6px 6px 0;
+    background:transparent;color:var(--va-text-3);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  #va-design-root .va-cell-arrow:hover{background:var(--va-surface-3);color:var(--va-text-2);}
+  #va-design-root .va-cell-arrow .ico{width:11px;height:11px;}
+  #va-design-root .va-name-select-wrap{position:relative;flex:1;min-width:0;display:flex;align-items:center;}
+  #va-design-root .va-name-select{
+    display:flex;align-items:center;gap:5px;width:100%;height:30px;padding:0 6px;
+    border:1px solid var(--va-border);border-radius:7px;background:var(--va-surface);
+    color:var(--va-text);font-size:11.5px;line-height:1;text-align:left;cursor:pointer;
+    transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;
+  }
+  #va-design-root .va-name-select:hover{border-color:var(--va-border-strong);background:#FBFDFF;}
+  #va-design-root .va-name-select:focus-visible{border-color:var(--va-primary);box-shadow:0 0 0 3px rgba(14,165,233,.12);}
+  #va-design-root .va-name-select.is-invalid{border-color:var(--va-danger-border);background:var(--va-danger-soft);color:var(--va-danger-text);}
+  #va-design-root .va-name-select-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #va-design-root .va-name-select-text.is-placeholder{color:var(--va-text-3);}
+  #va-design-root .va-name-select-type{
+    flex:none;font-size:9.5px;font-weight:600;color:var(--va-text-3);background:var(--va-surface-3);
+    border-radius:5px;padding:1px 4px;white-space:nowrap;
+  }
+  #va-design-root .va-name-select.is-invalid .va-name-select-type{background:var(--va-danger-soft);color:var(--va-danger-text);}
+  #va-design-root .va-name-select-caret .ico{width:10px;height:10px;color:var(--va-text-3);}
+  #va-design-root .va-badge{
+    flex:none;display:inline-flex;align-items:center;height:18px;padding:0 5px;border-radius:5px;
+    font-size:10px;font-weight:600;white-space:nowrap;
+  }
+  #va-design-root .va-badge.is-invalid{background:var(--va-danger-soft);border:1px solid var(--va-danger-border);color:var(--va-danger-text);}
+  #va-design-root .va-badge.is-manual{background:var(--va-surface-3);border:1px solid var(--va-border);color:var(--va-text-3);}
+  #va-design-root .va-warn-icon{flex:none;display:flex;align-items:center;justify-content:center;cursor:help;}
+  #va-design-root .va-warn-icon .ico{width:13px;height:13px;color:var(--va-warning-text);}
+  #va-design-root .va-row.is-error .va-warn-icon .ico{color:var(--va-danger-text);}
+  #va-design-root .va-legacy-badge{
+    flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:5px;
+    background:var(--va-primary-light);color:var(--va-primary-text);font-size:10px;font-weight:700;
+  }
+
+  #va-design-root .va-value-wrap{position:relative;display:flex;align-items:center;gap:6px;}
+  #va-design-root .va-value-wrap .va-cell-input{padding-right:28px;}
+  #va-design-root .va-link-btn{
+    position:absolute;right:2px;top:2px;width:26px;height:26px;border:0;border-radius:6px;background:transparent;
+    color:var(--va-text-3);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  #va-design-root .va-link-btn:hover{background:var(--va-primary-soft);color:var(--va-primary-text);}
+  #va-design-root .va-link-btn .ico{width:13px;height:13px;}
+  #va-design-root .va-link-chip{
+    display:flex;align-items:center;gap:5px;height:30px;padding:0 4px 0 7px;min-width:0;
+    border:1px solid var(--va-primary-border);border-radius:7px;background:var(--va-primary-soft);color:var(--va-primary-text);
+    font-size:10.5px;
+  }
+  #va-design-root .va-link-chip .ico{width:12px;height:12px;flex:none;}
+  #va-design-root .va-link-chip b{min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #va-design-root .va-link-chip button{
+    width:20px;height:20px;margin-left:auto;flex:none;padding:0;border:0;border-radius:5px;background:transparent;
+    color:var(--va-primary-text);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  #va-design-root .va-link-chip button:hover{background:var(--va-primary-light);}
+  #va-design-root .va-link-chip button .ico{width:10px;height:10px;}
+
+  #va-design-root .va-check{
+    width:18px;height:18px;flex:none;padding:0;border:1px solid var(--va-border-strong);border-radius:4px;
+    background:var(--va-surface);display:flex;align-items:center;justify-content:center;color:#fff;cursor:pointer;
+    transition:background 150ms ease,border-color 150ms ease;
+  }
+  #va-design-root .va-check .ico{width:10px;height:10px;display:none;}
+  #va-design-root .va-check.is-on{background:var(--va-primary);border-color:var(--va-primary);}
+  #va-design-root .va-check.is-on .ico{display:block;}
+  #va-design-root .va-check:hover{border-color:var(--va-primary);}
+  #va-design-root .va-lock{display:flex;align-items:center;justify-content:center;color:var(--va-text-3);cursor:help;}
+  #va-design-root .va-lock .ico{width:13px;height:13px;}
+
+  #va-design-root .va-row-btn{
+    width:22px;height:22px;flex:none;padding:0;border:0;border-radius:6px;background:transparent;
+    color:var(--va-text-3);display:flex;align-items:center;justify-content:center;cursor:pointer;
+    transition:background 150ms ease,color 150ms ease,opacity 150ms ease;
+  }
+  #va-design-root .va-row-btn .ico{width:13px;height:13px;}
+  #va-design-root .va-row-btn:hover{background:var(--va-surface-3);color:var(--va-text);}
+  #va-design-root .va-row-btn.is-danger:hover{background:var(--va-danger-soft);color:var(--va-danger-text);}
+  #va-design-root .va-row-btn:disabled{opacity:.25;cursor:not-allowed;background:transparent;}
+  #va-design-root .va-row-msg{
+    grid-column:2 / -1;display:flex;align-items:flex-start;gap:5px;margin:-2px 0 7px;padding:0 2px;
+    font-size:10.5px;line-height:1.45;
+  }
+  #va-design-root .va-row-msg .ico{width:11px;height:11px;flex:none;margin-top:1px;}
+  #va-design-root .va-row-msg.is-error{color:var(--va-danger-text);}
+  #va-design-root .va-row-msg.is-warn{color:var(--va-warning-text);}
+
+  #va-design-root .va-empty{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    padding:24px;text-align:center;
+  }
+  #va-design-root .va-empty-icon{
+    width:48px;height:48px;border-radius:14px;background:var(--va-surface-3);color:var(--va-text-3);
+    display:flex;align-items:center;justify-content:center;margin-bottom:2px;
+  }
+  #va-design-root .va-empty-icon .ico{width:22px;height:22px;}
+  #va-design-root .va-empty b{font-size:13px;font-weight:600;color:var(--va-text);}
+  #va-design-root .va-empty span{max-width:300px;font-size:11.5px;line-height:1.6;color:var(--va-text-4);}
+  #va-design-root .va-empty .va-add-btn{margin-left:0;margin-top:4px;height:30px;padding:0 12px;}
+  #va-design-root .va-list-foot{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;padding-top:8px;
+    border-top:1px solid var(--va-border-soft);font-size:10.5px;color:var(--va-text-3);
+  }
+  #va-design-root .va-list-foot .va-kbd{height:18px;font-size:9.5px;}
+
+  /* ============ 右：当前行 + 规则 ============ */
+  #va-design-root .va-side{min-width:0;min-height:0;display:flex;flex-direction:column;gap:12px;}
+  #va-design-root .va-side-card{padding:14px;border:1px solid var(--va-border);border-radius:var(--va-radius-xl);background:var(--va-surface);}
+  #va-design-root .va-side-card.is-fill{flex:1;min-height:0;overflow-y:auto;}
+  #va-design-root .va-side-head{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;}
+  #va-design-root .va-side-icon{display:flex;align-items:center;justify-content:center;color:var(--va-text-3);}
+  #va-design-root .va-side-icon .ico{width:14px;height:14px;}
+  #va-design-root .va-side-head b{font-size:12px;font-weight:600;color:var(--va-text-2);}
+  #va-design-root .va-chip{
+    display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;
+    background:var(--va-surface-3);border:1px solid var(--va-border);font-size:10.5px;font-weight:600;color:var(--va-text-2);
+    white-space:nowrap;
+  }
+  #va-design-root .va-chip.is-muted{font-weight:400;color:var(--va-text-4);font-variant-numeric:tabular-nums;}
+  #va-design-root .va-chip.is-global{background:var(--va-primary-light);border-color:var(--va-primary-border);color:var(--va-primary-text);}
+  #va-design-root .va-chip.is-legacy{background:var(--va-surface-3);border-style:dashed;color:var(--va-text-3);}
+  #va-design-root .va-chip.is-invalid{background:var(--va-danger-soft);border-color:var(--va-danger-border);color:var(--va-danger-text);}
+  #va-design-root .va-chip.is-manual{background:var(--va-surface-3);border-style:dashed;color:var(--va-text-3);}
+  #va-design-root .va-chip .va-dot{width:6px;height:6px;border-radius:50%;background:var(--va-text-3);}
+  #va-design-root .va-chip.is-global .va-dot{background:var(--va-primary);}
+  #va-design-root .va-target-name{
+    margin:12px 0 0;font-size:20px;font-weight:600;line-height:1.25;color:var(--va-text);word-break:break-all;
+  }
+  #va-design-root .va-target-name.is-empty{color:var(--va-text-3);font-weight:500;}
+  #va-design-root .va-target-meta{margin:5px 0 0;font-size:11.5px;line-height:1.5;color:var(--va-text-4);font-variant-numeric:tabular-nums;}
+  #va-design-root .va-side-hint{
+    display:flex;align-items:flex-start;gap:6px;margin-top:10px;padding:8px 9px;border-radius:var(--va-radius-lg);
+    border:1px solid var(--va-primary-border);background:var(--va-primary-soft);
+    font-size:11px;line-height:1.55;color:var(--va-text-2);
+  }
+  #va-design-root .va-side-hint .ico{width:12px;height:12px;flex:none;margin-top:2px;color:var(--va-primary-text);}
+  #va-design-root .va-side-hint.is-warn{background:var(--va-warning-soft);border-color:var(--va-warning-border);}
+  #va-design-root .va-side-hint.is-warn .ico{color:var(--va-warning-text);}
+  #va-design-root .va-side-hint.is-error{background:var(--va-danger-soft);border-color:var(--va-danger-border);}
+  #va-design-root .va-side-hint.is-error .ico{color:var(--va-danger-text);}
+  #va-design-root .va-side-rule{
+    margin-top:10px;padding-top:9px;border-top:1px solid var(--va-border-soft);
+    font-size:11px;line-height:1.55;color:var(--va-text-2);
+  }
+  #va-design-root .va-rule-row{display:flex;align-items:flex-start;gap:9px;margin-top:8px;padding:4px;border-radius:8px;transition:background 150ms ease;}
+  #va-design-root .va-rule-row.is-active{background:var(--va-primary-soft);}
+  #va-design-root .va-rule-icon{
+    width:28px;height:28px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    background:var(--va-surface-3);color:var(--va-text-4);
+  }
+  #va-design-root .va-rule-icon .ico{width:14px;height:14px;}
+  #va-design-root .va-rule-row.is-active .va-rule-icon{background:var(--va-primary-light);color:var(--va-primary-text);}
+  #va-design-root .va-rule-body{min-width:0;}
+  #va-design-root .va-rule-body b{display:block;font-size:12px;font-weight:600;color:var(--va-text);}
+  #va-design-root .va-rule-body span{display:block;margin-top:2px;font-size:10.5px;line-height:1.5;color:var(--va-text-4);}
+  #va-design-root .va-rule-sep{height:1px;margin:10px 0 0;background:var(--va-border-soft);}
+  #va-design-root .va-tip{margin-top:6px;font-size:10.5px;line-height:1.55;color:var(--va-text-2);}
+  #va-design-root .va-tip b{color:var(--va-text);font-weight:600;}
+
+  /* ============ 底部宿主栏 ============ */
+  #va-design-root .va-footer{
+    height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;
+    border-top:1px solid var(--va-border-soft);background:var(--va-surface-2);
+  }
+  #va-design-root .va-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  #va-design-root .va-status-chip{
+    display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;
+    background:var(--va-surface);border:1px solid var(--va-border);font-size:11.5px;color:var(--va-text-2);white-space:nowrap;
+  }
+  #va-design-root .va-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--va-text-3);}
+  #va-design-root .va-footer-dot.is-error{background:var(--va-danger);}
+  #va-design-root .va-footer-dot.is-warn{background:var(--va-warning);}
+  #va-design-root .va-elapsed{font-family:var(--va-mono);font-size:11px;color:var(--va-text-3);font-variant-numeric:tabular-nums;white-space:nowrap;}
+  #va-design-root .va-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none;}
+  #va-design-root .va-btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 16px;
+    border:1px solid var(--va-border);border-radius:var(--va-radius-md);background:var(--va-surface);
+    color:var(--va-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;
+    transition:background 150ms ease,border-color 150ms ease,opacity 150ms ease;
+  }
+  #va-design-root .va-btn:hover{background:var(--va-surface-2);border-color:var(--va-border-strong);}
+  #va-design-root .va-btn:active{background:var(--va-surface-3);}
+  #va-design-root .va-btn-ghost{border-color:transparent;background:transparent;color:var(--va-text-2);}
+  #va-design-root .va-btn-ghost:hover{background:var(--va-surface-3);color:var(--va-text);}
+  #va-design-root .va-btn-primary{background:var(--va-primary);border-color:var(--va-primary);color:#fff;font-weight:600;padding:0 18px;}
+  #va-design-root .va-btn-primary:hover{background:var(--va-primary-strong);border-color:var(--va-primary-strong);}
+  #va-design-root .va-btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  /* ============ 浮层 / Toast ============ */
+  #va-design-root .va-popover{
+    position:fixed;z-index:60;width:300px;max-width:calc(100vw - 24px);padding:6px;
+    background:var(--va-surface);border:1px solid var(--va-border);border-radius:var(--va-radius-lg);
+    box-shadow:0 16px 40px rgba(15,23,42,.18);font-family:var(--va-font);color:var(--va-text);
+  }
+  #va-design-root .va-popover.is-scope{width:252px;}
+  #va-design-root .va-pop-head{
+    display:flex;align-items:center;gap:6px;padding:6px 8px 5px;font-size:10.5px;color:var(--va-text-4);
+  }
+  #va-design-root .va-pop-head b{font-size:11px;font-weight:600;color:var(--va-text-2);}
+  #va-design-root .va-pop-head .ico{width:12px;height:12px;color:var(--va-text-3);}
+  #va-design-root .va-pop-search{
+    display:flex;align-items:center;gap:6px;margin:2px 4px 6px;padding:0 8px;height:30px;
+    border:1px solid var(--va-border);border-radius:7px;background:var(--va-surface);
+  }
+  #va-design-root .va-pop-search .ico{width:12px;height:12px;color:var(--va-text-3);}
+  #va-design-root .va-pop-search input{flex:1;min-width:0;border:0;outline:none;background:transparent;font-size:12px;color:var(--va-text);}
+  #va-design-root .va-pop-search input::placeholder{color:var(--va-text-3);}
+  #va-design-root .va-pop-invalid{
+    display:flex;align-items:center;gap:6px;margin:2px 4px 6px;padding:7px 8px;border-radius:7px;
+    background:var(--va-danger-soft);border:1px solid var(--va-danger-border);font-size:10.5px;color:var(--va-danger-text);
+  }
+  #va-design-root .va-pop-invalid b{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #va-design-root .va-pop-invalid span{flex:none;font-weight:600;}
+  #va-design-root .va-pop-list{max-height:250px;overflow-y:auto;}
+  #va-design-root .va-pop-item{
+    display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;width:100%;padding:7px 8px;
+    border:0;border-radius:7px;background:transparent;text-align:left;cursor:pointer;
+    transition:background 150ms ease;
+  }
+  #va-design-root .va-pop-item:hover{background:var(--va-surface-3);}
+  #va-design-root .va-pop-item.is-on{background:var(--va-primary-soft);}
+  #va-design-root .va-pop-name{min-width:0;font-size:12px;font-weight:600;color:var(--va-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #va-design-root .va-pop-type{
+    align-self:center;font-size:10px;font-weight:600;color:var(--va-text-3);
+    background:var(--va-surface-3);border-radius:5px;padding:2px 5px;white-space:nowrap;
+  }
+  #va-design-root .va-pop-item.is-on .va-pop-type{background:var(--va-primary-light);color:var(--va-primary-text);}
+  #va-design-root .va-pop-note{grid-column:1 / -1;font-size:10.5px;line-height:1.4;color:var(--va-text-4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #va-design-root .va-pop-empty{padding:12px 8px;font-size:11.5px;line-height:1.5;color:var(--va-text-4);text-align:center;}
+  #va-design-root .va-pop-foot{margin-top:4px;padding:7px 8px 3px;border-top:1px solid var(--va-border-soft);font-size:10.5px;line-height:1.5;color:var(--va-text-3);}
+  #va-design-root .va-pop-option{
+    display:flex;align-items:center;gap:9px;width:100%;padding:8px;border:0;border-radius:8px;
+    background:transparent;text-align:left;cursor:pointer;
+  }
+  #va-design-root .va-pop-option:hover{background:var(--va-surface-3);}
+  #va-design-root .va-pop-option.is-on{background:var(--va-primary-soft);}
+  #va-design-root .va-pop-option .va-opt-icon{
+    width:28px;height:28px;flex:none;border-radius:8px;background:var(--va-surface-3);color:var(--va-text-4);
+    display:flex;align-items:center;justify-content:center;
+  }
+  #va-design-root .va-pop-option.is-on .va-opt-icon{background:var(--va-primary-light);color:var(--va-primary-text);}
+  #va-design-root .va-pop-option .va-opt-text{min-width:0;flex:1;}
+  #va-design-root .va-pop-option .va-opt-text b{display:block;font-size:12px;font-weight:600;color:var(--va-text);}
+  #va-design-root .va-pop-option .va-opt-text span{display:block;margin-top:2px;font-size:10.5px;color:var(--va-text-4);}
+  #va-design-root .va-pop-option .va-opt-check{color:var(--va-primary-text);}
+  #va-design-root .va-pop-option .va-opt-check .ico{width:13px;height:13px;}
+
+  #va-design-root .va-toast{
+    position:absolute;left:50%;bottom:70px;transform:translateX(-50%);z-index:70;
+    display:flex;align-items:center;gap:10px;max-width:calc(100% - 40px);
+    padding:9px 10px 9px 12px;border-radius:10px;background:var(--va-text);color:var(--va-surface-2);
+    box-shadow:0 12px 28px rgba(15,23,42,.28);font-size:11.5px;line-height:1.4;
+  }
+  #va-design-root .va-toast-text{min-width:0;}
+  #va-design-root .va-toast-action{
+    flex:none;height:24px;padding:0 9px;border:1px solid rgba(248,250,252,.28);border-radius:6px;
+    background:transparent;color:#F8FAFC;font-size:11px;font-weight:600;cursor:pointer;
+  }
+  #va-design-root .va-toast-action:hover{background:rgba(248,250,252,.12);}
+
+  /* ============ 说明 ============ */
+  #va-design-root .va-notes{
+    max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    column-gap:28px;row-gap:0;
+  }
+  #va-design-root .va-notes-head{grid-column:1/-1;margin:0 0 6px;font-size:12px;font-weight:600;letter-spacing:.02em;color:var(--va-text-2);}
+  #va-design-root .va-note{display:grid;grid-template-columns:24px 1fr;gap:10px;padding:11px 0;border-top:1px solid var(--va-border);}
+  #va-design-root .va-note-num{
+    width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    background:var(--va-primary-light);color:var(--va-primary-text);font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;
+  }
+  #va-design-root .va-note b{display:block;font-size:12.5px;font-weight:600;line-height:1.4;color:var(--va-text);}
+  #va-design-root .va-note span{display:block;margin-top:3px;font-size:11.5px;line-height:1.55;color:var(--va-text-2);}
+  #va-design-root .va-note code{
+    font-family:var(--va-mono);font-size:10.5px;color:var(--va-primary-text);background:var(--va-primary-soft);
+    padding:1px 4px;border-radius:4px;
+  }
+
+  /* ============ 窄档 640 ============ */
+  #va-design-root .va-window.is-narrow .va-list-card{padding:12px;}
+  #va-design-root .va-window.is-narrow .va-list-sub{font-size:11px;}
+  #va-design-root .va-window.is-narrow .va-table-head{display:none;}
+  #va-design-root .va-window.is-narrow .va-list-body{margin-top:8px;}
+  #va-design-root .va-window.is-narrow .va-row{
+    grid-template-columns:68px minmax(0,1fr) 66px;
+    grid-template-areas:"scope name actions" "value value create";
+    gap:6px;padding:6px 6px 7px;min-height:76px;align-items:center;
+  }
+  #va-design-root .va-window.is-narrow .va-cell-value{align-self:center;}
+  #va-design-root .va-window.is-narrow .va-cell-create{justify-content:flex-end;padding-right:4px;}
+  #va-design-root .va-window.is-narrow .va-row-msg{grid-column:1 / -1;margin-top:0;}
+  #va-design-root .va-window.is-narrow .va-scope-full{display:none;}
+  #va-design-root .va-window.is-narrow .va-scope-short{display:inline;}
+  #va-design-root .va-window.is-narrow .va-scope-pill{gap:4px;padding:0 5px;}
+  #va-design-root .va-window.is-narrow .va-scope-caret{display:none;}
+  #va-design-root .va-window.is-narrow .va-row-btn[data-act="up"],
+  #va-design-root .va-window.is-narrow .va-row-btn[data-act="down"]{display:none;}
+  #va-design-root .va-window.is-narrow .va-row-btn{width:24px;height:24px;}
+  #va-design-root .va-window.is-narrow .va-target-name{font-size:17px;}
+  #va-design-root .va-window.is-narrow .va-side-card{padding:12px;}
+  #va-design-root .va-window.is-narrow .va-tip,
+  #va-design-root .va-window.is-narrow .va-rule-sep{display:none;}
+  #va-design-root .va-window.is-narrow .va-side-hint{font-size:10.5px;}
+  #va-design-root .va-window.is-narrow .va-elapsed{display:none;}
+  #va-design-root .va-window.is-narrow .va-footer{padding:0 12px;}
+  #va-design-root .va-window.is-narrow .va-btn{padding:0 12px;}
+  #va-design-root .va-window.is-narrow .va-btn-primary{padding:0 14px;}
+  #va-design-root .va-window.is-narrow .va-list-foot > span:last-child{display:none;}
+
+  /* ============ 截图模式 / 降低动效 ============ */
+  body.is-capture #va-design-root .va-page{max-width:none;padding:0;}
+  body.is-capture #va-design-root header,
+  body.is-capture #va-design-root .va-notes{display:none;}
+  body.is-capture #va-design-root .va-window{box-shadow:none;border-radius:0;}
+
+  @media (prefers-reduced-motion: reduce){
+    #va-design-root *{animation:none !important;transition:none !important;}
+  }
+  @media (max-width:600px){
+    #va-design-root .va-page{padding:18px 14px 32px;}
+    #va-design-root .va-window{height:auto;min-height:640px;}
+    #va-design-root .va-content{grid-template-columns:1fr;}
+    #va-design-root .va-side{min-height:320px;}
+  }
+
+  /* 截图模式固定两栏，不受上面的页面媒体查询影响 */
+  body.is-capture #va-design-root .va-window{height:680px;min-height:0;}
+  body.is-capture #va-design-root .va-content{grid-template-columns:minmax(0,1fr) 300px;}
+  body.is-capture #va-design-root .va-window.is-narrow .va-content{grid-template-columns:minmax(0,1fr) 220px;}
+  body.is-capture #va-design-root .va-side{min-height:0;}
+</style>
+</head>
+<body>
+<div id="va-design-root">
+  <div class="va-page">
+    <header>
+      <div class="va-page-title-row">
+        <h1>变量赋值 · 多赋值配置窗口</h1>
+        <span class="va-ver">v3</span>
+        <a class="va-archive-link" href="design-v2.html">v2 存档</a>
+        <a class="va-archive-link" href="design.html">v1 存档</a>
+      </div>
+      <p class="va-page-sub">
+        Web 设计基线 v3 · <b>名字行按作用域分策略</b>：全局变量只能从变量管理里选（失效项保留、不自动改目标）；
+        运行时变量可选可填，未命中给四档提示；<b>值行常量可填，变量引用只能连</b>。
+        窗口 <b>960 × 680</b>，宿主内容区 <b>920 × 520</b>；<b>640 × 560</b> 为窄档（行模板改为两行式）。
+      </p>
+      <div class="va-demo-bar">
+        <div class="va-demo-group" role="group" aria-label="窗口宽度">
+          <span class="va-demo-label">窗口宽度</span>
+          <div class="va-seg" id="va-width-seg">
+            <button type="button" data-width="960" class="is-on" aria-pressed="true">960</button>
+            <button type="button" data-width="640" aria-pressed="false">640</button>
+          </div>
+        </div>
+        <div class="va-demo-group" role="group" aria-label="状态">
+          <span class="va-demo-label">状态</span>
+          <div class="va-seg" id="va-state-seg">
+            <button type="button" data-state="default" class="is-on" aria-pressed="true">默认 3 行</button>
+            <button type="button" data-state="empty" aria-pressed="false">空</button>
+            <button type="button" data-state="single" aria-pressed="false">单行</button>
+            <button type="button" data-state="policy" aria-pressed="false">策略演示</button>
+            <button type="button" data-state="error" aria-pressed="false">行内错误</button>
+            <button type="button" data-state="legacy" aria-pressed="false">旧配置迁移</button>
+            <button type="button" data-state="limit" aria-pressed="false">32 行上限</button>
+          </div>
+        </div>
+      </div>
+      <div class="va-hints">
+        <span class="va-kbd">点行</span><span>选中并在右侧查看目标</span>
+        <span class="va-kbd">全局名字</span><span>只能从变量管理里选（失效项保留）</span>
+        <span class="va-kbd">运行时名字</span><span>可选可填，未命中看提示</span>
+        <span class="va-kbd">值</span><span>常量可填；变量引用只能连</span>
+        <span class="va-kbd">Delete</span><span>删除选中行（链接行二次确认）</span>
+      </div>
+      <div class="va-scope-note">
+        <span data-icon="info"></span>
+        <span><b>v3 只改名字行策略与提示：</b>全局名字只能选、失效项保留；运行时名字可选可填、四档提示；值行变量引用只能连。
+        <b>不改：</b>行列表、值行控件、旧配置迁移、640 窄档、批量操作。活变量服务 / 编译期全局名校验见下方延后清单。</span>
+      </div>
+    </header>
+
+    <div class="va-window" id="va-window">
+      <div class="va-titlebar">
+        <div class="va-app-icon" data-icon="pencil"></div>
+        <div class="va-title-text">
+          <div class="va-title">变量赋值</div>
+          <div class="va-subtitle">为已定义的变量赋值 · 一个节点可写多个目标</div>
+        </div>
+        <button type="button" class="va-icon-btn" aria-label="关闭" title="关闭" data-icon="x"></button>
+      </div>
+
+      <div class="va-content">
+        <section class="va-list-card" aria-label="赋值设置">
+          <div class="va-list-head">
+            <b>赋值设置</b>
+            <span class="va-count" id="va-count">0 行</span>
+            <button type="button" class="va-add-btn" id="va-add-btn">
+              <span data-icon="plus"></span>
+              <span>添加一行</span>
+            </button>
+          </div>
+          <p class="va-list-sub">每行写一个变量；点行选中，在右侧查看目标、声明类型与提示。</p>
+
+          <div class="va-banners" id="va-banners" hidden></div>
+
+          <div class="va-table-head" id="va-table-head">
+            <span>作用域</span>
+            <span>变量名</span>
+            <span>值（常量 / 上游）</span>
+            <span>自动创建</span>
+            <span></span>
+          </div>
+
+          <div class="va-list-body">
+            <div class="va-rows" id="va-rows" role="list"></div>
+            <div class="va-empty" id="va-empty" hidden>
+              <span class="va-empty-icon" data-icon="rows"></span>
+              <b>还没有赋值行</b>
+              <span>添加一行，选择作用域与变量名；「值」可以填常量，也可以引用上游结果。</span>
+              <button type="button" class="va-add-btn" data-act="add">
+                <span data-icon="plus"></span>
+                <span>添加第一行</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="va-list-foot">
+            <span id="va-limit-hint">上限 32 行 · 当前 0 行 · 行顺序即执行顺序</span>
+            <span><span class="va-kbd">Enter</span> 下一行 · <span class="va-kbd">↑↓</span> 选中行</span>
+          </div>
+        </section>
+
+        <aside class="va-side" aria-label="当前行与作用域规则">
+          <section class="va-side-card" id="va-side-current"></section>
+          <section class="va-side-card is-fill" id="va-side-rules">
+            <div class="va-side-head">
+              <span class="va-side-icon" data-icon="info"></span>
+              <b>作用域规则</b>
+            </div>
+            <div class="va-rule-row" data-rule-scope="Runtime">
+              <span class="va-rule-icon" data-icon="variable"></span>
+              <span class="va-rule-body"><b>运行时变量</b><span>由上游「变量定义」节点创建，只在本轮执行内有效，跑完即弃。</span></span>
+            </div>
+            <div class="va-rule-row" data-rule-scope="Global">
+              <span class="va-rule-icon" data-icon="globe"></span>
+              <span class="va-rule-body"><b>全局变量</b><span>变量管理里维护，跨流程、随方案存盘；运行期找不到会明确报错，不会静默新建。</span></span>
+            </div>
+            <div class="va-rule-sep"></div>
+            <div class="va-tip"><b>一句话：</b>同名变量在两个作用域各有一份；名字打错不会静默落到别的变量，运行期会明确报错。</div>
+          </section>
+        </aside>
+      </div>
+
+      <div class="va-footer">
+        <div class="va-footer-left">
+          <span class="va-status-chip"><span class="va-footer-dot" id="va-status-dot"></span><span id="va-status-text">0 行 · 未配置</span></span>
+          <span class="va-elapsed">耗时: 0 ms</span>
+        </div>
+        <div class="va-footer-right">
+          <button type="button" class="va-btn" id="va-run-btn">▶ 执行</button>
+          <button type="button" class="va-btn va-btn-ghost" id="va-cancel-btn">取消</button>
+          <button type="button" class="va-btn va-btn-primary" id="va-confirm-btn">确认</button>
+        </div>
+      </div>
+
+      <div class="va-toast" id="va-toast" hidden></div>
+    </div>
+
+    <div class="va-notes">
+      <div class="va-notes-head">v3 关键改动（相对 v2）</div>
+      <div class="va-note"><div class="va-note-num">01</div><div><b>全局名字：只能选</b><span>名字来自变量管理；点名字单元格打开搜索候选，不再提供手输。模态配置窗口内快照稳定，不需要刷新。</span></div></div>
+      <div class="va-note"><div class="va-note-num">02</div><div><b>失效项保留，不自动改目标</b><span>旧配置里的全局名如果已被删除，显示为「失效：X」只读项 + 红色提示；不清空、不自动选第一个，运行期错误会点名。</span></div></div>
+      <div class="va-note"><div class="va-note-num">03</div><div><b>运行时名字：可选可填</b><span>候选来自上游「变量定义」；脚本 SetVar / 动态创建的名字不在快照里，所以保留手填。手填给「手填」徽标。</span></div></div>
+      <div class="va-note"><div class="va-note-num">04</div><div><b>四档提示</b><span>命中=蓝；未命中未勾自动创建=琥珀（运行期报不存在）；未命中已勾=蓝（运行期新建，名字由人负责）；跨作用域=琥珀。</span></div></div>
+      <div class="va-note"><div class="va-note-num">05</div><div><b>值行：常量可填，变量引用只能连</b><span>值行不提供手输变量名；上游端口 / 全局变量 / 运行时变量一律走链接。手输只会变成字面量。</span></div></div>
+      <div class="va-note"><div class="va-note-num">06</div><div><b>全局失效 = 红色硬提示</b><span>全局找不到（含同名只在运行时）按错误处理：行左侧红条 + 红色行内提示 + 顶部「有 N 行配置有问题」；不阻断确认，运行期明确失败。</span></div></div>
+
+      <div class="va-notes-head" style="margin-top:20px;">契约保留（WPF 复刻时不能改）</div>
+      <div class="va-note"><div class="va-note-num">C1</div><div><b>DataContext = 插件实例</b><span>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；行列表不引入独立 VM。</span></div></div>
+      <div class="va-note"><div class="va-note-num">C2</div><div><b>每行一个 <code>InputPort&lt;object&gt;</code></b><span>端口名用稳定 <code>RowId</code>（<code>Value_&lt;RowId&gt;</code>），改名不断线；<code>IsRequired=false</code>。</span></div></div>
+      <div class="va-note"><div class="va-note-num">C3</div><div><b>变量名是「名字」不是「值」</b><span>名字行不接通用绑定弹窗；候选来自宿主快照，选中落成常量。只有「值」行可以连线。</span></div></div>
+      <div class="va-note"><div class="va-note-num">C4</div><div><b>用户编辑只认真实输入事件</b><span>键入 / 删除 / 剪切 / 粘贴 / 选择 / 拖放才解除旧名字连线；程序灌值不算用户编辑。</span></div></div>
+      <div class="va-note"><div class="va-note-num">C5</div><div><b>确认时一次回写</b><span><code>Rows</code> JSON 快照 + 各 <code>Value_&lt;RowId&gt;</code> 常量一起写入；未连线行才写常量，链接行以链接为准。</span></div></div>
+      <div class="va-note"><div class="va-note-num">C6</div><div><b>全局名字只能选</b><span>名字来自 <code>PluginConfigContext.Variables</code> 的 Global 项；不接受自由文本；失效项只读保留，不自动替换。</span></div></div>
+      <div class="va-note"><div class="va-note-num">C7</div><div><b>值行不手输变量名</b><span>常量用文本框；变量引用必须用 <code>LinkableValueEditor</code> 的链接，避免把名字当字面量。</span></div></div>
+
+      <div class="va-notes-head" style="margin-top:20px;">设计决策</div>
+      <div class="va-note"><div class="va-note-num">D1</div><div><b>为什么用 ItemsControl 而不是 DataGrid</b><span>DataGrid 单元格要先进编辑态，内嵌 <code>LinkableValueEditor</code> 得双击才能输入；<code>GridView</code> 列宽是固定像素、无星号列，640 档无法自适应。</span></div></div>
+      <div class="va-note"><div class="va-note-num">D2</div><div><b>为什么删除链接行要二次确认</b><span>删行会一并 <code>RemoveLink</code>；不提示就点确定，用户会以为只是删了一行文字。非链接行删除给「撤销」。</span></div></div>
+      <div class="va-note"><div class="va-note-num">D3</div><div><b>为什么 640 改两行式</b><span>窄档左栏约 364：作用域 68 + 名字 + 操作 66 已贴边；第二行放「值 + 自动创建」，避免把输入框压到不可用。</span></div></div>
+      <div class="va-note"><div class="va-note-num">D4</div><div><b>为什么保留 32 行上限</b><span>每行一个动态端口，32 行约 100+ 控件；软上限防止误建，到顶禁用「添加」并给出说明。</span></div></div>
+      <div class="va-note"><div class="va-note-num">D5</div><div><b>为什么错误不阻断「确认」</b><span>保持现有语义：空名 / 全局失效在运行期明确失败；界面用红色行内提示 + 底部状态提醒，不静默吞掉，也不阻止用户先保存草稿。</span></div></div>
+      <div class="va-note"><div class="va-note-num">D6</div><div><b>为什么不做活变量服务</b><span>配置窗口是模态、变量管理不会同时打开，快照在窗口生命周期内稳定；活服务（查询 / 刷新 / 订阅）是另一个宿主契约，见延后清单。</span></div></div>
+
+      <div class="va-notes-head" style="margin-top:20px;">明确延后（需新增功能或契约）</div>
+      <div class="va-note"><div class="va-note-num">L1</div><div><b>拖拽排序</b><span>本轮用上移/下移；拖拽涉及 gong-wpf-dragdrop 与 R171，单独立项。</span></div></div>
+      <div class="va-note"><div class="va-note-num">L2</div><div><b>配置态类型预览 / 转换器</b><span>当前写入侧在运行期按声明类型解析；配置态没有目标变量类型元数据可绑定。</span></div></div>
+      <div class="va-note"><div class="va-note-num">L3</div><div><b>变量管理入口 / 变量浏览器</b><span>需要新的宿主导航契约；本稿只保留候选下拉与提示。</span></div></div>
+      <div class="va-note"><div class="va-note-num">L4</div><div><b>每行独立 Success/ErrorMessage 输出端口</b><span>本轮只保留节点级输出；行级结果在配置界面与日志里呈现，避免画布端口爆炸。</span></div></div>
+      <div class="va-note"><div class="va-note-num">L5</div><div><b>编译期全局名校验</b><span>当前常量全局名只在运行期由 <code>GlobalVariableWriter</code> 校验；若要让错误提前到编译期，需在 <code>FlowCompiler</code> 增一条检查。本 UI 稿不依赖它。</span></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var root = document.getElementById('va-design-root');
+  if (!root) return;
+
+  var S = function (inner) {
+    return '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  };
+  var ICON = {
+    pencil: S('<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>'),
+    x: S('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+    plus: S('<path d="M5 12h14"/><path d="M12 5v14"/>'),
+    chevron: S('<path d="m6 9 6 6 6-6"/>'),
+    check: S('<path d="M20 6 9 17l-5-5"/>'),
+    link: S('<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/>'),
+    up: S('<path d="m18 15-6-6-6 6"/>'),
+    down: S('<path d="m6 9 6 6 6-6"/>'),
+    copy: S('<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>'),
+    trash: S('<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>'),
+    warning: S('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+    error: S('<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'),
+    info: S('<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>'),
+    lock: S('<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>'),
+    variable: S('<path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 3h1a2 2 0 0 1 2 2v5c0 1.1.9 2 2 2a2 2 0 0 1-2 2v5a2 2 0 0 1-2 2h-1"/>'),
+    globe: S('<circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10Z"/>'),
+    search: S('<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>'),
+    rows: S('<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>')
+  };
+
+  var win = root.querySelector('#va-window');
+  var rowsEl = root.querySelector('#va-rows');
+  var emptyEl = root.querySelector('#va-empty');
+  var tableHead = root.querySelector('#va-table-head');
+  var bannersEl = root.querySelector('#va-banners');
+  var countEl = root.querySelector('#va-count');
+  var limitHint = root.querySelector('#va-limit-hint');
+  var addBtn = root.querySelector('#va-add-btn');
+  var sideCurrent = root.querySelector('#va-side-current');
+  var sideRules = root.querySelector('#va-side-rules');
+  var statusDot = root.querySelector('#va-status-dot');
+  var statusText = root.querySelector('#va-status-text');
+  var confirmBtn = root.querySelector('#va-confirm-btn');
+  var runBtn = root.querySelector('#va-run-btn');
+  var cancelBtn = root.querySelector('#va-cancel-btn');
+  var toastEl = root.querySelector('#va-toast');
+  var stateSeg = root.querySelector('#va-state-seg');
+  var widthSeg = root.querySelector('#va-width-seg');
+  var stateButtons = Array.prototype.slice.call(stateSeg.querySelectorAll('[data-state]'));
+  var widthButtons = Array.prototype.slice.call(widthSeg.querySelectorAll('[data-width]'));
+
+  var MAX_ROWS = 32;
+
+  var VARIABLES = {
+    Runtime: [
+      { name: 'OKCount', type: 'Int32', note: '本轮累计良品数' },
+      { name: 'TotalCount', type: 'Int32', note: '本轮总数' },
+      { name: 'CurrentPart', type: 'String', note: '当前零件号' },
+      { name: 'Result', type: 'Boolean', note: '本轮判定结果' }
+    ],
+    Global: [
+      { name: 'OKCount', type: 'Int32', note: '跨流程累计' },
+      { name: 'LineName', type: 'String', note: '产线名称' },
+      { name: 'CycleTime', type: 'Double', note: '节拍（ms）' }
+    ]
+  };
+
+  var UPSTREAMS = [
+    { step: 'Matching_1', port: '角度', type: 'Double', address: 'Matching_1.角度' },
+    { step: 'Blob_1', port: '面积', type: 'Int32', address: 'Blob_1.面积' },
+    { step: '变量定义', port: 'OKCount', type: 'Int32', address: '变量定义.OKCount' },
+    { step: 'CodeReader_1', port: '文本', type: 'String', address: 'CodeReader_1.文本' }
+  ];
+
+  var rows = [];
+  var selectedId = null;
+  var nextId = 1;
+  var pendingDelete = null;
+  var migrationBanner = false;
+  var stateKey = 'default';
+  var pendingFocus = null;
+  var scrollSelected = false;
+  var popover = null;
+  var toastTimer = null;
+
+  function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function makeRow(partial) {
+    return Object.assign({
+      id: 'r' + (nextId++),
+      scope: 'Runtime',
+      name: '',
+      valueKind: 'const',
+      value: '',
+      link: null,
+      create: false,
+      legacy: false
+    }, partial || {});
+  }
+
+  function getRow(id) {
+    for (var i = 0; i < rows.length; i++) if (rows[i].id === id) return rows[i];
+    return null;
+  }
+
+  function selectedRow() {
+    return selectedId ? getRow(selectedId) : null;
+  }
+
+  function findVar(name, scope) {
+    var needle = String(name || '').trim().toLowerCase();
+    if (!needle) return null;
+    var list = VARIABLES[scope] || [];
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].name.toLowerCase() === needle) return list[i];
+    }
+    return null;
+  }
+
+  function evaluate(row) {
+    var name = String(row.name || '').trim();
+    if (!name) return { level: 'error', message: '变量名不能为空' };
+
+    if (findVar(name, row.scope)) return { level: null, message: '' };
+
+    var otherScope = row.scope === 'Global' ? 'Runtime' : 'Global';
+    var other = findVar(name, otherScope);
+    if (other) {
+      return {
+        level: row.scope === 'Global' ? 'error' : 'warn',
+        message: row.scope === 'Global'
+          ? '「' + name + '」是运行时变量（' + other.type + '），不在变量管理里 —— 全局作用域写不了它；请改选全局变量，或把作用域改成「运行时变量」。'
+          : '「' + name + '」是全局变量（' + other.type + '），不是上游声明的运行时变量 —— 要写它请把作用域改成「全局变量」。'
+      };
+    }
+
+    if (row.scope === 'Global') {
+      return { level: 'error', message: '变量管理里没有「' + name + '」：运行期会明确报「找不到全局变量」，不会静默新建。' };
+    }
+    if (row.create) return { level: null, message: '' };
+    return { level: 'warn', message: '「' + name + '」不在上游的变量定义里：运行期会报「本地变量 ' + name + ' 不存在」；请在上游「变量定义」声明，或勾选「自动创建」。' };
+  }
+
+  function hintFor(row) {
+    var name = String(row.name || '').trim();
+    var isGlobal = row.scope === 'Global';
+    var legacyPrefix = row.legacy
+      ? '该行原由上游提供（' + (row.link ? row.link.address : '变量定义.OKCount') + '）—— 在本行选/输一个变量名，即可改为手填。'
+      : '';
+
+    if (!name) {
+      return legacyPrefix + (isGlobal
+        ? '还没填名字。作用域=全局变量时，名字要来自变量管理（点右侧箭头选）。'
+        : '还没填名字。作用域=运行时变量时，名字通常来自上游「变量定义」节点。');
+    }
+
+    var current = findVar(name, row.scope);
+    if (current) {
+      return legacyPrefix + (isGlobal
+        ? '写入全局变量「' + current.name + '」（' + current.type + '）——「值」按它的类型解析（如 Int32 填 21）。'
+        : '写入运行时变量「' + current.name + '」（' + current.type + '）· ' + current.note + '。');
+    }
+
+    var other = findVar(name, isGlobal ? 'Runtime' : 'Global');
+    if (other) {
+      return legacyPrefix + (isGlobal
+        ? '「' + name + '」是运行时变量（' + other.type + '），不在变量管理里 —— 全局作用域写不了它；请改选全局变量，或把作用域改成「运行时变量」。'
+        : '「' + name + '」是全局变量（' + other.type + '），不是上游声明的运行时变量 —— 要写它请把作用域改成「全局变量」。');
+    }
+
+    if (!isGlobal && row.create) {
+      return legacyPrefix + '「' + name + '」不在上游的变量定义里：已勾选「自动创建」，运行期会新建它（类型由值决定）；名字由你负责，拼错会新建另一个变量。';
+    }
+
+    return legacyPrefix + (isGlobal
+      ? '变量管理里没有「' + name + '」：运行期会明确报「找不到全局变量」，不会静默新建。'
+      : '「' + name + '」不在上游的变量定义里：运行期会报「本地变量 ' + name + ' 不存在」；请在上游「变量定义」声明，或勾选「自动创建」。');
+  }
+
+  function presetRows(key) {
+    switch (key) {
+      case 'empty':
+        return [];
+      case 'single':
+        return [makeRow({ scope: 'Runtime', name: 'OKCount', value: '21' })];
+      case 'policy':
+        return [
+          makeRow({ scope: 'Global', name: 'OKCountX', value: '5' }),
+          makeRow({ scope: 'Runtime', name: 'temp', value: '3.14', create: false }),
+          makeRow({ scope: 'Runtime', name: 'scriptVar', value: 'abc', create: true }),
+          makeRow({ scope: 'Global', name: 'OKCount', valueKind: 'link', link: UPSTREAMS[2] })
+        ];
+      case 'error':
+        return [
+          makeRow({ scope: 'Runtime', name: 'OKCount', value: '21' }),
+          makeRow({ scope: 'Global', name: 'OKCountX', value: '5' }),
+          makeRow({ scope: 'Runtime', name: '', value: '' })
+        ];
+      case 'legacy':
+        return [makeRow({ scope: 'Runtime', name: 'OKCount', valueKind: 'link', link: UPSTREAMS[2], legacy: true })];
+      case 'limit':
+        return Array.from({ length: MAX_ROWS }, function (_, i) {
+          return makeRow({ scope: 'Runtime', name: 'Var' + String(i + 1).padStart(2, '0'), value: String(i + 1), create: true });
+        });
+      case 'default':
+      default:
+        return [
+          makeRow({ scope: 'Runtime', name: 'OKCount', value: '21' }),
+          makeRow({ scope: 'Global', name: 'LineName', valueKind: 'link', link: UPSTREAMS[3] }),
+          makeRow({ scope: 'Runtime', name: 'CurrentPart', value: 'A-1024', create: true })
+        ];
+    }
+  }
+
+  function hydrateIcons(container) {
+    (container || root).querySelectorAll('[data-icon]').forEach(function (el) {
+      if (el.dataset.hydrated === '1') return;
+      el.innerHTML = ICON[el.dataset.icon] || '';
+      el.dataset.hydrated = '1';
+    });
+  }
+
+  function renderRow(row, index) {
+    var ev = evaluate(row);
+    var classes = ['va-row'];
+    if (row.id === selectedId) classes.push('is-selected');
+    if (ev.level === 'error') classes.push('is-error');
+    if (ev.level === 'warn') classes.push('is-warn');
+
+    var scopeIcon = row.scope === 'Global' ? ICON.globe : ICON.variable;
+    var scopeLong = row.scope === 'Global' ? '全局' : '运行时';
+    var scopeShort = row.scope === 'Global' ? '全局' : '运行';
+
+    var current = findVar(row.name, row.scope);
+    var isGlobal = row.scope === 'Global';
+    var hasName = !!String(row.name || '').trim();
+    var isInvalidGlobal = isGlobal && hasName && !current;
+    var isManualRuntime = !isGlobal && hasName && !current;
+
+    var nameControl;
+    if (isGlobal) {
+      nameControl =
+        '<div class="va-name-select-wrap">' +
+          '<button type="button" class="va-name-select ' + (isInvalidGlobal ? 'is-invalid' : '') + '" ' +
+            'data-act="name-menu" data-id="' + row.id + '" aria-haspopup="listbox" ' +
+            'aria-label="第 ' + (index + 1) + ' 行变量名：' + esc(row.name || '未选择') + (isInvalidGlobal ? '（已失效）' : '') + '" title="全局变量只能从变量管理里选">' +
+            '<span class="va-name-select-text ' + (hasName ? '' : 'is-placeholder') + '">' + esc(row.name || '选择全局变量') + '</span>' +
+            (current ? '<span class="va-name-select-type">' + esc(current.type) + '</span>' : '') +
+            '<span class="va-name-select-caret">' + ICON.chevron + '</span>' +
+          '</button>' +
+        '</div>';
+    } else {
+      nameControl =
+        '<div class="va-name-wrap">' +
+          '<input class="va-cell-input va-name-input" data-field="name" data-id="' + row.id + '" value="' + esc(row.name) + '" ' +
+            'placeholder="选择或输入变量名" aria-label="第 ' + (index + 1) + ' 行变量名" spellcheck="false" autocomplete="off">' +
+          '<button type="button" class="va-cell-arrow" data-act="name-menu" data-id="' + row.id + '" ' +
+            'aria-label="展开变量名候选" title="展开变量名候选">' + ICON.chevron + '</button>' +
+        '</div>';
+    }
+
+    var showWarnIcon = !!ev.level && !isInvalidGlobal;
+
+    var nameCell =
+      '<div class="va-cell va-cell-name">' +
+        (row.legacy ? '<span class="va-legacy-badge" title="由旧版单条配置迁移">原</span>' : '') +
+        nameControl +
+        (isInvalidGlobal ? '<span class="va-badge is-invalid" title="变量管理里没有这个名字">失效</span>' : '') +
+        (isManualRuntime ? '<span class="va-badge is-manual" title="手填名字：运行期由你负责">手填</span>' : '') +
+        '<span class="va-warn-icon" ' + (showWarnIcon ? '' : 'hidden') + ' title="' + esc(ev.message) + '">' +
+          (ev.level === 'error' ? ICON.error : ICON.warning) +
+        '</span>' +
+      '</div>';
+
+    var valueCell;
+    if (row.valueKind === 'link' && row.link) {
+      valueCell =
+        '<div class="va-cell va-cell-value">' +
+          '<div class="va-link-chip" title="' + esc(row.link.address) + '">' +
+            ICON.link +
+            '<b>' + esc(row.link.address) + '</b>' +
+            '<button type="button" data-act="unlink" data-id="' + row.id + '" aria-label="解除链接" title="解除链接">' + ICON.x + '</button>' +
+          '</div>' +
+        '</div>';
+    } else {
+      valueCell =
+        '<div class="va-cell va-cell-value">' +
+          '<div class="va-value-wrap">' +
+            '<input class="va-cell-input va-value-input" data-field="value" data-id="' + row.id + '" value="' + esc(row.value) + '" ' +
+              'placeholder="常量，或点右侧链接" aria-label="第 ' + (index + 1) + ' 行值" spellcheck="false" autocomplete="off">' +
+            '<button type="button" class="va-link-btn" data-act="value-link" data-id="' + row.id + '" ' +
+              'aria-label="引用上游结果" title="引用上游步骤的结果">' + ICON.link + '</button>' +
+          '</div>' +
+        '</div>';
+    }
+
+    var createCell = row.scope === 'Global'
+      ? '<div class="va-cell va-cell-create"><span class="va-lock" title="全局变量必须先在变量管理里存在；不能自动创建">' + ICON.lock + '</span></div>'
+      : '<div class="va-cell va-cell-create"><button type="button" class="va-check ' + (row.create ? 'is-on' : '') + '" ' +
+          'data-act="create" data-id="' + row.id + '" role="checkbox" aria-checked="' + String(row.create) + '" ' +
+          'aria-label="第 ' + (index + 1) + ' 行：不存在时自动创建" title="变量不存在时自动创建（仅运行时变量）">' + ICON.check + '</button></div>';
+
+    return '<div class="' + classes.join(' ') + '" data-id="' + row.id + '" role="listitem" aria-selected="' + String(row.id === selectedId) + '">' +
+      '<div class="va-cell va-cell-scope">' +
+        '<button type="button" class="va-scope-pill ' + (row.scope === 'Global' ? 'is-global' : '') + '" data-act="scope" data-id="' + row.id + '" ' +
+          'aria-haspopup="menu" aria-label="第 ' + (index + 1) + ' 行作用域：' + (row.scope === 'Global' ? '全局变量' : '运行时变量') + '" title="切换作用域">' +
+          '<span class="va-scope-ico">' + scopeIcon + '</span>' +
+          '<span class="va-scope-full">' + scopeLong + '</span>' +
+          '<span class="va-scope-short">' + scopeShort + '</span>' +
+          '<span class="va-scope-caret">' + ICON.chevron + '</span>' +
+        '</button>' +
+      '</div>' +
+      nameCell +
+      valueCell +
+      createCell +
+      '<div class="va-cell va-cell-actions">' +
+        '<button type="button" class="va-row-btn" data-act="up" data-id="' + row.id + '" ' + (index === 0 ? 'disabled' : '') + ' aria-label="上移" title="上移">' + ICON.up + '</button>' +
+        '<button type="button" class="va-row-btn" data-act="down" data-id="' + row.id + '" ' + (index === rows.length - 1 ? 'disabled' : '') + ' aria-label="下移" title="下移">' + ICON.down + '</button>' +
+        '<button type="button" class="va-row-btn" data-act="duplicate" data-id="' + row.id + '" aria-label="复制行" title="复制行">' + ICON.copy + '</button>' +
+        '<button type="button" class="va-row-btn is-danger" data-act="delete" data-id="' + row.id + '" aria-label="删除行" title="删除行">' + ICON.trash + '</button>' +
+      '</div>' +
+      '<div class="va-row-msg ' + (ev.level || '') + '" ' + (ev.level ? '' : 'hidden') + '>' +
+        (ev.level === 'error' ? ICON.error : ICON.warning) +
+        '<span>' + esc(ev.message) + '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderList() {
+    var hasRows = rows.length > 0;
+    tableHead.hidden = !hasRows;
+    emptyEl.hidden = hasRows;
+    rowsEl.hidden = !hasRows;
+    rowsEl.innerHTML = hasRows ? rows.map(renderRow).join('') : '';
+
+    if (pendingFocus) {
+      var target = null;
+      if (pendingFocus.field === 'name-select') {
+        target = rowsEl.querySelector('.va-name-select[data-id="' + pendingFocus.id + '"]');
+      } else {
+        target = rowsEl.querySelector('.va-cell-input[data-field="' + pendingFocus.field + '"][data-id="' + pendingFocus.id + '"]');
+      }
+      if (target) {
+        target.focus();
+        if (target.select) target.select();
+      }
+      pendingFocus = null;
+    }
+
+    if (scrollSelected && selectedId) {
+      var rowEl = rowsEl.querySelector('.va-row[data-id="' + selectedId + '"]');
+      if (rowEl) rowEl.scrollIntoView({ block: 'nearest' });
+      scrollSelected = false;
+    }
+  }
+
+  function renderSide() {
+    var row = selectedRow();
+    var ruleRows = sideRules.querySelectorAll('[data-rule-scope]');
+    if (!row) {
+      ruleRows.forEach(function (el) { el.classList.remove('is-active'); });
+      sideCurrent.innerHTML =
+        '<div class="va-side-head">' +
+          '<span class="va-side-icon" data-icon="target"></span>' +
+          '<b>当前行</b>' +
+          '<span class="va-chip is-muted">未选择</span>' +
+        '</div>' +
+        '<div class="va-target-name is-empty">未选择行</div>' +
+        '<div class="va-target-meta">点左侧任意一行，查看目标变量、声明类型与提示。</div>';
+      hydrateIcons(sideCurrent);
+      return;
+    }
+
+    var index = rows.indexOf(row) + 1;
+    var ev = evaluate(row);
+    var current = findVar(row.name, row.scope);
+    var isGlobal = row.scope === 'Global';
+    var hasName = !!row.name.trim();
+    var isInvalidGlobal = isGlobal && hasName && !current;
+    var isManualRuntime = !isGlobal && hasName && !current;
+    var hintClass = ev.level === 'error' ? 'is-error' : (ev.level === 'warn' ? 'is-warn' : '');
+    var hintText = ev.level === 'error' ? ev.message : hintFor(row);
+    var hintIcon = ev.level === 'error' ? ICON.error : (ev.level === 'warn' ? ICON.warning : ICON.info);
+
+    var typeText = current ? current.type : (isInvalidGlobal ? '已失效' : (isManualRuntime ? '手填' : '类型未知'));
+    var meta = [
+      typeText,
+      '候选 ' + (VARIABLES[row.scope] || []).length + ' 个',
+      row.valueKind === 'link' && row.link ? '值=上游 · ' + row.link.address : '值=常量'
+    ].join(' · ');
+
+    sideCurrent.innerHTML =
+      '<div class="va-side-head">' +
+        '<span class="va-side-icon" data-icon="target"></span>' +
+        '<b>当前行</b>' +
+        '<span class="va-chip is-muted">第 ' + index + ' 行 / 共 ' + rows.length + ' 行</span>' +
+        '<span class="va-chip ' + (isGlobal ? 'is-global' : '') + '"><span class="va-dot"></span>' + (isGlobal ? '全局变量' : '运行时变量') + '</span>' +
+        (isInvalidGlobal ? '<span class="va-chip is-invalid">失效</span>' : '') +
+        (isManualRuntime ? '<span class="va-chip is-manual">手填</span>' : '') +
+        (row.legacy ? '<span class="va-chip is-legacy">原配置</span>' : '') +
+      '</div>' +
+      '<div class="va-target-name ' + (hasName ? '' : 'is-empty') + '">' + esc(row.name.trim() || '未命名变量') + '</div>' +
+      '<div class="va-target-meta">' + esc(meta) + '</div>' +
+      '<div class="va-side-hint ' + hintClass + '">' + hintIcon + '<span>' + esc(hintText) + '</span></div>' +
+      '<div class="va-side-rule">变量名只是<b>名字</b>：从候选里选择会落成常量，不会建立连线；「值」才负责引用上游结果。<b>值行不提供手输变量名</b>，变量引用请用链接。</div>';
+
+    hydrateIcons(sideCurrent);
+
+    ruleRows.forEach(function (el) {
+      el.classList.toggle('is-active', el.dataset.ruleScope === row.scope);
+    });
+  }
+
+  function renderFooter() {
+    var errors = 0;
+    var warns = 0;
+    rows.forEach(function (row) {
+      var ev = evaluate(row);
+      if (ev.level === 'error') errors++;
+      else if (ev.level === 'warn') warns++;
+    });
+
+    var text;
+    var dot = '';
+    if (!rows.length) {
+      text = '0 行 · 未配置';
+    } else if (errors) {
+      text = rows.length + ' 行 · ' + errors + ' 行有问题';
+      dot = 'is-error';
+    } else if (warns) {
+      text = rows.length + ' 行 · ' + warns + ' 行需确认';
+      dot = 'is-warn';
+    } else {
+      text = rows.length + ' 行 · 待确认';
+    }
+    statusText.textContent = text;
+    statusDot.className = 'va-footer-dot' + (dot ? ' ' + dot : '');
+
+    countEl.textContent = rows.length + ' 行';
+    confirmBtn.disabled = rows.length === 0;
+    confirmBtn.title = rows.length === 0 ? '至少添加一行' : '';
+    addBtn.disabled = rows.length >= MAX_ROWS;
+    addBtn.title = addBtn.disabled ? '已达 32 行上限' : '';
+    limitHint.textContent = rows.length >= MAX_ROWS
+      ? '已满 32 行'
+      : '上限 32 行 · 当前 ' + rows.length + ' 行 · 行顺序即执行顺序';
+  }
+
+  function renderBanners() {
+    var html = '';
+    var pendingRow = pendingDelete ? getRow(pendingDelete) : null;
+
+    if (pendingRow) {
+      var pendingIndex = rows.indexOf(pendingRow) + 1;
+      html +=
+        '<div class="va-banner is-danger">' + ICON.warning +
+          '<div class="va-banner-body"><b>删除第 ' + pendingIndex + ' 行？</b>' +
+            '<span>' + (pendingRow.valueKind === 'link' && pendingRow.link
+              ? '该行的「值」来自上游（' + esc(pendingRow.link.address) + '），删除会一并解除链接。'
+              : '该行来自旧版单条配置，删除后不可恢复（可撤销一次）。') + '</span>' +
+          '</div>' +
+          '<div class="va-banner-actions">' +
+            '<button type="button" class="va-mini-btn is-danger" data-act="confirm-delete">删除</button>' +
+            '<button type="button" class="va-mini-btn" data-act="cancel-delete">取消</button>' +
+          '</div>' +
+        '</div>';
+    } else {
+      if (migrationBanner) {
+        html +=
+          '<div class="va-banner is-info">' + ICON.info +
+            '<div class="va-banner-body"><b>已迁移旧配置</b>' +
+              '<span>原来的单条赋值已转成第 1 行；原「值」的连线已保留，原「名字」的连线已解除。</span>' +
+            '</div>' +
+            '<div class="va-banner-actions"><button type="button" class="va-mini-btn" data-act="dismiss-migration">知道了</button></div>' +
+          '</div>';
+      }
+
+      var errors = rows.filter(function (row) { return evaluate(row).level === 'error'; }).length;
+      if (errors) {
+        html +=
+          '<div class="va-banner is-danger">' + ICON.error +
+            '<div class="va-banner-body"><b>有 ' + errors + ' 行配置有问题</b>' +
+              '<span>修正后运行更稳妥；现在确认，运行期会明确失败。</span>' +
+            '</div>' +
+            '<div class="va-banner-actions"><button type="button" class="va-mini-btn" data-act="goto-error">定位</button></div>' +
+          '</div>';
+      }
+    }
+
+    bannersEl.innerHTML = html;
+    bannersEl.hidden = !html;
+    hydrateIcons(bannersEl);
+  }
+
+  function renderAll(options) {
+    if (options && options.scrollSelected) scrollSelected = true;
+    renderBanners();
+    renderList();
+    renderSide();
+    renderFooter();
+  }
+
+  function updateStateButtons() {
+    stateButtons.forEach(function (button) {
+      var on = button.dataset.state === stateKey;
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function markDirty() {
+    stateKey = '';
+    updateStateButtons();
+  }
+
+  function applyWidth(width) {
+    win.classList.toggle('is-narrow', width === '640');
+    widthButtons.forEach(function (button) {
+      var on = button.dataset.width === width;
+      button.classList.toggle('is-on', on);
+      button.setAttribute('aria-pressed', String(on));
+    });
+  }
+
+  function applyState(key) {
+    var allowed = ['default', 'empty', 'single', 'policy', 'error', 'legacy', 'limit'];
+    if (allowed.indexOf(key) < 0) key = 'default';
+
+    closePopover();
+    hideToast();
+    pendingDelete = null;
+    nextId = 1;
+    rows = presetRows(key);
+    selectedId = rows.length ? (key === 'error' ? (rows[2] || rows[0]).id : rows[0].id) : null;
+    migrationBanner = key === 'legacy';
+    stateKey = key;
+    updateStateButtons();
+    renderAll({ scrollSelected: true });
+  }
+
+  function selectRow(id) {
+    if (!id || selectedId === id) return;
+    selectedId = id;
+    rowsEl.querySelectorAll('.va-row').forEach(function (el) {
+      var on = el.dataset.id === id;
+      el.classList.toggle('is-selected', on);
+      el.setAttribute('aria-selected', String(on));
+    });
+    renderSide();
+    renderFooter();
+  }
+
+  function updateRowDerived(row) {
+    var el = rowsEl.querySelector('.va-row[data-id="' + row.id + '"]');
+    if (!el) return;
+    var ev = evaluate(row);
+    el.classList.toggle('is-error', ev.level === 'error');
+    el.classList.toggle('is-warn', ev.level === 'warn');
+
+    var msg = el.querySelector('.va-row-msg');
+    if (msg) {
+      msg.hidden = !ev.level;
+      msg.className = 'va-row-msg ' + (ev.level || '');
+      var text = msg.querySelector('span');
+      if (text) text.textContent = ev.message || '';
+      var first = msg.firstElementChild;
+      if (first && first.tagName && first.tagName.toLowerCase() === 'svg') {
+        first.outerHTML = ev.level === 'error' ? ICON.error : ICON.warning;
+      }
+    }
+
+    var warn = el.querySelector('.va-warn-icon');
+    if (warn) {
+      warn.hidden = !ev.level;
+      warn.title = ev.message || '';
+      warn.innerHTML = ev.level === 'error' ? ICON.error : ICON.warning;
+    }
+  }
+
+  function addRow() {
+    if (rows.length >= MAX_ROWS) {
+      showToast('已达 32 行上限');
+      return;
+    }
+    var row = makeRow({ scope: 'Runtime' });
+    rows.push(row);
+    selectedId = row.id;
+    migrationBanner = false;
+    markDirty();
+    pendingFocus = { id: row.id, field: 'name' };
+    renderAll({ scrollSelected: true });
+  }
+
+  function duplicateRow(row) {
+    if (rows.length >= MAX_ROWS) {
+      showToast('已达 32 行上限');
+      return;
+    }
+    var index = rows.indexOf(row);
+    var copy = makeRow({
+      scope: row.scope,
+      name: '',
+      valueKind: row.valueKind,
+      value: row.value,
+      link: row.link ? Object.assign({}, row.link) : null,
+      create: row.create
+    });
+    rows.splice(index + 1, 0, copy);
+    selectedId = copy.id;
+    markDirty();
+    pendingFocus = { id: copy.id, field: 'name' };
+    renderAll({ scrollSelected: true });
+    showToast('已复制一行，请选择目标变量');
+  }
+
+  function moveRow(row, delta) {
+    var index = rows.indexOf(row);
+    var target = index + delta;
+    if (index < 0 || target < 0 || target >= rows.length) return;
+    rows.splice(index, 1);
+    rows.splice(target, 0, row);
+    selectedId = row.id;
+    markDirty();
+    renderAll({ scrollSelected: true });
+  }
+
+  function removeRow(id) {
+    var index = rows.findIndex(function (row) { return row.id === id; });
+    if (index < 0) return;
+    rows.splice(index, 1);
+    if (selectedId === id) {
+      selectedId = rows.length ? rows[Math.min(index, rows.length - 1)].id : null;
+    }
+  }
+
+  function snapshot() {
+    return {
+      rows: JSON.parse(JSON.stringify(rows)),
+      selectedId: selectedId,
+      nextId: nextId
+    };
+  }
+
+  function restore(state) {
+    rows = state.rows;
+    selectedId = state.selectedId;
+    nextId = state.nextId;
+    pendingDelete = null;
+    renderAll({ scrollSelected: true });
+  }
+
+  function requestDelete(row) {
+    if (row.valueKind === 'link') {
+      pendingDelete = row.id;
+      renderAll();
+      return;
+    }
+    var index = rows.indexOf(row) + 1;
+    var undo = snapshot();
+    removeRow(row.id);
+    markDirty();
+    renderAll({ scrollSelected: true });
+    showToast('已删除第 ' + index + ' 行', '撤销', function () { restore(undo); });
+  }
+
+  function confirmDelete() {
+    var row = getRow(pendingDelete);
+    if (!row) {
+      pendingDelete = null;
+      renderAll();
+      return;
+    }
+    var index = rows.indexOf(row) + 1;
+    var undo = snapshot();
+    removeRow(row.id);
+    pendingDelete = null;
+    markDirty();
+    renderAll({ scrollSelected: true });
+    showToast('已删除第 ' + index + ' 行', '撤销', function () { restore(undo); });
+  }
+
+  function showToast(text, actionLabel, action) {
+    toastEl.innerHTML = '<span class="va-toast-text">' + esc(text) + '</span>' +
+      (actionLabel ? '<button type="button" class="va-toast-action">' + esc(actionLabel) + '</button>' : '');
+    toastEl.hidden = false;
+    if (actionLabel && action) {
+      var button = toastEl.querySelector('.va-toast-action');
+      if (button) {
+        button.addEventListener('click', function () {
+          hideToast();
+          action();
+        });
+      }
+    }
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 5000);
+  }
+
+  function hideToast() {
+    toastEl.hidden = true;
+    toastEl.innerHTML = '';
+    clearTimeout(toastTimer);
+  }
+
+  function closePopover() {
+    if (popover && popover.el && popover.el.parentNode) {
+      popover.el.parentNode.removeChild(popover.el);
+    }
+    popover = null;
+  }
+
+  function positionPopover(el, anchor) {
+    var rect = anchor.getBoundingClientRect();
+    el.style.left = '0px';
+    el.style.top = '0px';
+    var width = el.offsetWidth;
+    var height = el.offsetHeight;
+    var left = Math.max(12, Math.min(rect.left, window.innerWidth - width - 12));
+    var top = rect.bottom + 6;
+    if (top + height > window.innerHeight - 12) {
+      top = Math.max(12, rect.top - height - 6);
+    }
+    el.style.left = left + 'px';
+    el.style.top = top + 'px';
+  }
+
+  function createPopover(anchor, className) {
+    closePopover();
+    var el = document.createElement('div');
+    el.className = 'va-popover' + (className ? ' ' + className : '');
+    root.appendChild(el);
+    popover = { el: el, anchor: anchor };
+    return el;
+  }
+
+  function renderNameMenu() {
+    if (!popover || popover.type !== 'name') return;
+    var row = getRow(popover.rowId);
+    if (!row) {
+      closePopover();
+      return;
+    }
+    var isGlobal = row.scope === 'Global';
+    var query = String(popover.query != null ? popover.query : '').trim().toLowerCase();
+    var all = VARIABLES[row.scope] || [];
+    var items = all.filter(function (item) {
+      if (!query) return true;
+      return item.name.toLowerCase().indexOf(query) >= 0 || String(item.note || '').toLowerCase().indexOf(query) >= 0;
+    });
+
+    var listHtml = items.map(function (item) {
+      var on = item.name.toLowerCase() === String(row.name || '').trim().toLowerCase();
+      return '<button type="button" class="va-pop-item ' + (on ? 'is-on' : '') + '" data-name="' + esc(item.name) + '">' +
+        '<span class="va-pop-name">' + esc(item.name) + '</span>' +
+        '<span class="va-pop-type">' + esc(item.type) + '</span>' +
+        '<span class="va-pop-note">' + esc(item.note) + '</span>' +
+      '</button>';
+    }).join('');
+
+    if (!items.length) {
+      listHtml = '<div class="va-pop-empty">没有匹配项' +
+        (isGlobal ? '<br>全局变量只能从变量管理里选；请换个关键词。' : '<br>仍可手填；运行期会明确报错或按「自动创建」新建。') +
+        '</div>';
+    }
+
+    var current = findVar(row.name, row.scope);
+    var invalidHtml = '';
+    if (isGlobal && String(row.name || '').trim() && !current) {
+      invalidHtml = '<div class="va-pop-invalid"><b>当前：' + esc(row.name) + '</b><span>已失效</span></div>';
+    }
+
+    var searchHtml = isGlobal
+      ? '<div class="va-pop-search">' + ICON.search +
+          '<input data-role="name-search" type="text" placeholder="搜索变量名或说明" value="' + esc(popover.query || '') + '" spellcheck="false" autocomplete="off" aria-label="搜索全局变量">' +
+        '</div>'
+      : '';
+
+    popover.el.innerHTML =
+      '<div class="va-pop-head">' + ICON.search + '<b>候选 · ' + (isGlobal ? '全局变量（只能选）' : '运行时变量') + '</b>' +
+        '<span style="margin-left:auto">' + items.length + ' / ' + all.length + '</span>' +
+      '</div>' +
+      searchHtml +
+      invalidHtml +
+      '<div class="va-pop-list">' + listHtml + '</div>' +
+      '<div class="va-pop-foot">' + (isGlobal
+        ? '全局变量只能从变量管理里选；失效项不会自动替换，也不会静默清空。'
+        : '名字通常来自上游「变量定义」；找不到可手填，运行期会明确报错或按「自动创建」新建。') + '</div>';
+
+    var search = popover.el.querySelector('[data-role="name-search"]');
+    if (search) {
+      search.addEventListener('input', function () {
+        popover.auto = false;
+        popover.query = search.value;
+        renderNameMenu();
+      });
+      if (!popover.auto) {
+        search.focus();
+        search.setSelectionRange(search.value.length, search.value.length);
+      }
+    }
+
+    popover.el.querySelectorAll('[data-name]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var item = null;
+        for (var i = 0; i < all.length; i++) {
+          if (all[i].name === button.dataset.name) { item = all[i]; break; }
+        }
+        if (!item) return;
+        row.name = item.name;
+        closePopover();
+        markDirty();
+        pendingFocus = { id: row.id, field: isGlobal ? 'name-select' : 'name' };
+        renderAll({ scrollSelected: true });
+      });
+    });
+
+    positionPopover(popover.el, popover.anchor);
+  }
+
+  function openNameMenu(anchor, row, query, auto) {
+    if (!anchor) return;
+    var el = createPopover(anchor);
+    popover.type = 'name';
+    popover.rowId = row.id;
+    popover.query = query == null ? '' : query;
+    popover.auto = !!auto;
+    renderNameMenu();
+  }
+
+  function openScopeMenu(button, row) {
+    var el = createPopover(button, 'is-scope');
+    popover.type = 'scope';
+    popover.rowId = row.id;
+
+    var options = [
+      { scope: 'Runtime', icon: ICON.variable, title: '运行时变量', note: '本轮执行内有效' },
+      { scope: 'Global', icon: ICON.globe, title: '全局变量', note: '跨流程 · 随方案存盘' }
+    ];
+
+    el.innerHTML =
+      '<div class="va-pop-head">' + ICON.info + '<b>写到哪里</b></div>' +
+      options.map(function (option) {
+        var on = row.scope === option.scope;
+        return '<button type="button" class="va-pop-option ' + (on ? 'is-on' : '') + '" data-scope-opt="' + option.scope + '">' +
+          '<span class="va-opt-icon">' + option.icon + '</span>' +
+          '<span class="va-opt-text"><b>' + option.title + '</b><span>' + option.note + '</span></span>' +
+          '<span class="va-opt-check">' + (on ? ICON.check : '') + '</span>' +
+        '</button>';
+      }).join('');
+
+    el.querySelectorAll('[data-scope-opt]').forEach(function (optionButton) {
+      optionButton.addEventListener('click', function () {
+        var nextScope = optionButton.dataset.scopeOpt;
+        var hadCreate = row.create;
+        row.scope = nextScope;
+        if (nextScope === 'Global') row.create = false;
+        closePopover();
+        markDirty();
+        renderAll({ scrollSelected: true });
+        if (nextScope === 'Global' && hadCreate) {
+          showToast('全局变量必须先在变量管理里存在，已取消「自动创建」');
+        }
+      });
+    });
+
+    positionPopover(el, button);
+  }
+
+  function openLinkMenu(button, row) {
+    var el = createPopover(button);
+    popover.type = 'link';
+    popover.rowId = row.id;
+
+    el.innerHTML =
+      '<div class="va-pop-head">' + ICON.link + '<b>引用上游结果</b></div>' +
+      '<div class="va-pop-list">' +
+        UPSTREAMS.map(function (item, index) {
+          var on = !!(row.link && row.link.address === item.address);
+          return '<button type="button" class="va-pop-item ' + (on ? 'is-on' : '') + '" data-up-index="' + index + '">' +
+            '<span class="va-pop-name">' + esc(item.step) + ' · ' + esc(item.port) + '</span>' +
+            '<span class="va-pop-type">' + esc(item.type) + '</span>' +
+            '<span class="va-pop-note">' + esc(item.address) + '</span>' +
+          '</button>';
+        }).join('') +
+      '</div>' +
+      '<div class="va-pop-foot">链接后，本行的「值」由上游提供；点链接图标或 ✕ 可改回常量。</div>';
+
+    el.querySelectorAll('[data-up-index]').forEach(function (itemButton) {
+      itemButton.addEventListener('click', function () {
+        var item = UPSTREAMS[Number(itemButton.dataset.upIndex)];
+        if (!item) return;
+        row.valueKind = 'link';
+        row.link = Object.assign({}, item);
+        row.value = '';
+        closePopover();
+        markDirty();
+        renderAll({ scrollSelected: true });
+      });
+    });
+
+    positionPopover(el, button);
+  }
+
+  function handleRowAct(button, event) {
+    var row = getRow(button.dataset.id);
+    if (!row) return;
+    selectRow(row.id);
+    var act = button.dataset.act;
+
+    if (act === 'scope') {
+      if (popover && popover.type === 'scope' && popover.rowId === row.id) closePopover();
+      else openScopeMenu(button, row);
+      return;
+    }
+    if (act === 'name-menu') {
+      var wrap = button.closest('.va-name-wrap');
+      var input = wrap ? wrap.querySelector('.va-name-input') : null;
+      var anchor = input || button;
+      if (popover && popover.type === 'name' && popover.rowId === row.id) closePopover();
+      else openNameMenu(anchor, row, '');
+      return;
+    }
+    if (act === 'value-link') {
+      if (popover && popover.type === 'link' && popover.rowId === row.id) closePopover();
+      else openLinkMenu(button, row);
+      return;
+    }
+    if (act === 'unlink') {
+      row.valueKind = 'const';
+      row.link = null;
+      row.value = '';
+      markDirty();
+      renderAll({ scrollSelected: true });
+      showToast('已解除链接，可改填常量');
+      return;
+    }
+    if (act === 'create') {
+      row.create = !row.create;
+      markDirty();
+      renderAll({ scrollSelected: true });
+      return;
+    }
+    if (act === 'up') { moveRow(row, -1); return; }
+    if (act === 'down') { moveRow(row, 1); return; }
+    if (act === 'duplicate') { duplicateRow(row); return; }
+    if (act === 'delete') { requestDelete(row); return; }
+  }
+
+  function onListClick(event) {
+    var actButton = event.target.closest('[data-act]');
+    if (actButton && rowsEl.contains(actButton)) {
+      handleRowAct(actButton, event);
+      return;
+    }
+    var rowEl = event.target.closest('.va-row');
+    if (rowEl) selectRow(rowEl.dataset.id);
+  }
+
+  function onListInput(event) {
+    var input = event.target.closest('.va-cell-input');
+    if (!input) return;
+    var row = getRow(input.dataset.id);
+    if (!row) return;
+    selectRow(row.id);
+
+    if (input.dataset.field === 'name') {
+      row.name = input.value;
+      markDirty();
+      updateRowDerived(row);
+      renderSide();
+      renderFooter();
+      if (popover && popover.type === 'name' && popover.rowId === row.id) {
+        popover.query = input.value;
+        renderNameMenu();
+      } else {
+        if (popover) closePopover();
+        openNameMenu(input, row, input.value);
+      }
+    } else if (input.dataset.field === 'value') {
+      row.value = input.value;
+      markDirty();
+      renderSide();
+    }
+  }
+
+  function onListFocus(event) {
+    var input = event.target.closest('.va-cell-input');
+    if (input) selectRow(input.dataset.id);
+  }
+
+  function onBannerClick(event) {
+    var button = event.target.closest('[data-act]');
+    if (!button) return;
+    var act = button.dataset.act;
+    if (act === 'confirm-delete') { confirmDelete(); return; }
+    if (act === 'cancel-delete') { pendingDelete = null; renderAll(); return; }
+    if (act === 'dismiss-migration') { migrationBanner = false; renderAll(); return; }
+    if (act === 'goto-error') {
+      var first = null;
+      for (var i = 0; i < rows.length; i++) {
+        if (evaluate(rows[i]).level === 'error') { first = rows[i]; break; }
+      }
+      if (first) {
+        selectRow(first.id);
+        var el = rowsEl.querySelector('.va-row[data-id="' + first.id + '"]');
+        if (el) el.scrollIntoView({ block: 'center' });
+        var input = rowsEl.querySelector('.va-name-input[data-id="' + first.id + '"]');
+        var select = rowsEl.querySelector('.va-name-select[data-id="' + first.id + '"]');
+        if (input) input.focus();
+        else if (select) select.focus();
+      }
+    }
+  }
+
+  function moveSelection(delta) {
+    if (!rows.length) return;
+    var index = rows.findIndex(function (row) { return row.id === selectedId; });
+    if (index < 0) index = 0;
+    else index = Math.max(0, Math.min(rows.length - 1, index + delta));
+    selectRow(rows[index].id);
+    var el = rowsEl.querySelector('.va-row[data-id="' + rows[index].id + '"]');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function focusNextValue(id) {
+    var index = rows.findIndex(function (row) { return row.id === id; });
+    if (index < 0) return;
+    var next = rows[index + 1];
+    if (!next) {
+      addRow();
+      return;
+    }
+    var valueInput = rowsEl.querySelector('.va-value-input[data-id="' + next.id + '"]');
+    if (valueInput) {
+      valueInput.focus();
+      selectRow(next.id);
+    } else {
+      var nameInput = rowsEl.querySelector('.va-name-input[data-id="' + next.id + '"]');
+      var nameSelect = rowsEl.querySelector('.va-name-select[data-id="' + next.id + '"]');
+      if (nameInput) nameInput.focus();
+      else if (nameSelect) nameSelect.focus();
+    }
+  }
+
+  addBtn.addEventListener('click', addRow);
+  emptyEl.addEventListener('click', function (event) {
+    if (event.target.closest('[data-act="add"]')) addRow();
+  });
+  rowsEl.addEventListener('click', onListClick);
+  rowsEl.addEventListener('input', onListInput);
+  rowsEl.addEventListener('focusin', onListFocus);
+  bannersEl.addEventListener('click', onBannerClick);
+
+  stateButtons.forEach(function (button) {
+    button.addEventListener('click', function () { applyState(button.dataset.state); });
+  });
+  widthButtons.forEach(function (button) {
+    button.addEventListener('click', function () { applyWidth(button.dataset.width); });
+  });
+
+  confirmBtn.addEventListener('click', function () {
+    if (!rows.length) return;
+    showToast('已确认 ' + rows.length + ' 行（设计稿演示，不会落盘）');
+  });
+  runBtn.addEventListener('click', function () {
+    showToast('试运行：' + rows.length + ' 行（设计稿演示）');
+  });
+  cancelBtn.addEventListener('click', function () {
+    showToast('已取消（设计稿演示）');
+  });
+
+  document.addEventListener('click', function (event) {
+    if (!popover) return;
+    if (popover.el && popover.el.contains(event.target)) return;
+    if (popover.anchor && popover.anchor.contains(event.target)) return;
+    if (event.target.closest('[data-act="scope"],[data-act="name-menu"],[data-act="value-link"]')) return;
+    closePopover();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') {
+      closePopover();
+      if (pendingDelete) {
+        pendingDelete = null;
+        renderAll();
+      }
+      return;
+    }
+
+    var target = event.target;
+    var inField = !!(target && (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable
+    ));
+    var onButton = !!(target && target.tagName === 'BUTTON');
+
+    if (inField) {
+      if (event.key === 'Enter' && target.classList.contains('va-value-input')) {
+        event.preventDefault();
+        focusNextValue(target.dataset.id);
+        return;
+      }
+      if (event.key === 'Enter' && target.classList.contains('va-name-input')) {
+        event.preventDefault();
+        if (popover && popover.type === 'name') {
+          var first = popover.el.querySelector('[data-name]');
+          var current = popover.el.querySelector('[data-name].is-on');
+          if (first && !current) {
+            first.click();
+            var picked = getRow(target.dataset.id);
+            if (picked) {
+              var pickedValue = rowsEl.querySelector('.va-value-input[data-id="' + picked.id + '"]');
+              var pickedLink = rowsEl.querySelector('.va-link-btn[data-id="' + picked.id + '"]');
+              if (pickedValue) pickedValue.focus();
+              else if (pickedLink) pickedLink.focus();
+            }
+            return;
+          }
+          closePopover();
+        }
+        var row = getRow(target.dataset.id);
+        if (row) {
+          var valueInput = rowsEl.querySelector('.va-value-input[data-id="' + row.id + '"]');
+          if (valueInput) valueInput.focus();
+        }
+        return;
+      }
+      return;
+    }
+
+    if (onButton) return;
+    if (!rows.length) return;
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveSelection(event.key === 'ArrowDown' ? 1 : -1);
+      return;
+    }
+    if (event.key === 'Delete') {
+      var selected = selectedRow();
+      if (selected) {
+        event.preventDefault();
+        requestDelete(selected);
+      }
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'd') {
+      var rowToCopy = selectedRow();
+      if (rowToCopy) {
+        event.preventDefault();
+        duplicateRow(rowToCopy);
+      }
+    }
+  });
+
+  window.addEventListener('resize', closePopover);
+  window.addEventListener('scroll', function (event) {
+    if (window.__vaAutoOpen) return;
+    if (popover && popover.el && popover.el.contains(event.target)) return;
+    closePopover();
+  }, true);
+
+  var params = new URLSearchParams(window.location.search);
+  var initialWidth = params.get('w') === '640' ? '640' : '960';
+  var initialState = params.get('state') || 'default';
+  var capture = params.get('chrome') === 'window';
+
+  hydrateIcons();
+  applyWidth(initialWidth);
+  applyState(initialState);
+  if (capture) document.body.classList.add('is-capture');
+
+  var pop = params.get('pop');
+  if (pop) {
+    var rowNo = Math.max(1, parseInt(params.get('row') || '1', 10) || 1);
+    var popRow = rows[Math.min(rows.length - 1, rowNo - 1)];
+    if (popRow) {
+      window.__vaAutoOpen = true;
+      selectedId = popRow.id;
+      renderAll();
+      var popAnchor = rowsEl.querySelector('.va-row[data-id="' + popRow.id + '"] [data-act="name-menu"]');
+      if (popAnchor) openNameMenu(popAnchor, popRow, '', true);
+      setTimeout(function () { window.__vaAutoOpen = false; }, 60000);
+    }
+  }
+})();
+</script>
+</body>
+</html>

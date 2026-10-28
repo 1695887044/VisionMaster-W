@@ -245,7 +245,7 @@
     -->
     <ScrollViewer
         MaxHeight="600"
-        Padding="0"
+        Padding="0,0,12,0"
         HorizontalScrollBarVisibility="Disabled"
         VerticalScrollBarVisibility="Auto">
         <StackPanel>
@@ -338,7 +338,11 @@
                         FontSize="11"
                         Foreground="{StaticResource DialogTextMutedBrush}"
                         Text="&#xf05a;" />
-                    <TextBlock Style="{StaticResource SectionHintTextStyle}" Text="常量直接填 · 需要上游供值点链接" />
+                    <TextBlock
+                        Style="{StaticResource SectionHintTextStyle}"
+                        Text="常量直接填 · 需要上游供值点链接"
+                        TextTrimming="CharacterEllipsis"
+                        ToolTip="常量直接填 · 需要上游供值点链接" />
                 </StackPanel>
             </Grid>
 

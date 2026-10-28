@@ -549,7 +549,7 @@ namespace RecipeUiProbe
             var solution = new SolutionModel { SolutionName = "SampleLine.vms" };
             solution.Flows.Clear();
 
-            var flow = new FlowModel { FlowName = "Main", Role = FlowRole.Main };
+            var flow = new FlowModel { FlowName = "Main", InvokeType = FlowInvokeType.LineStart };
 
             var camera = new ActionStep("S1", "相机1", "Probe.FakeCamera", "采集");
             camera.SetInputValue("ExposureTime", 10.0);

@@ -104,6 +104,8 @@ namespace VisionMaster.Services
                                && t.ResidualRmsPx == 0
                                && (asset.Description ?? string.Empty).Contains("预置", StringComparison.Ordinal);
 
+                var isHandEye = t.Kind == CalibrationKind.HandEye;
+
                 var item = new ProjectAssetItem
                 {
                     Name = asset.Name,
@@ -117,6 +119,9 @@ namespace VisionMaster.Services
                         CalibrationKind.NinePoint => "九点标定",
                         CalibrationKind.Perspective => "透视标定",
                         CalibrationKind.Mesh => "网格标定",
+                        // 手眼是 3D 刚体变换，前四类的"mm/px + 源图尺寸"口径对它不成立，
+                        // 落到兜底「标定」会让资产页把 0×0 当成有效信息展示。
+                        CalibrationKind.HandEye => "手眼标定",
                         _ => "标定",
                     },
                     Scope = scope,
@@ -129,17 +134,29 @@ namespace VisionMaster.Services
                     UpdatedSub = "方案标定资产",
                     IconGlyph = IconForKind("calibration"),
                     PreviewTitle = "标定变换 · " + t.Kind,
-                    PreviewSub = $"{t.MmPerPixel:0.0000} mm/px · {t.SourceImageWidth}×{t.SourceImageHeight}",
+                    PreviewSub = isHandEye
+                        ? $"旋转 {t.HandEyeRotationRmsRad * 180.0 / Math.PI:0.###}° · 平移 {t.HandEyeTranslationRmsMm:0.###} mm · {t.HandEyeSampleCount} 组"
+                        : $"{t.MmPerPixel:0.0000} mm/px · {t.SourceImageWidth}×{t.SourceImageHeight}",
                     IsCalibration = true,
                     SourcePath = "SolutionModel.Calibrations[" + asset.CalibrationId + "]",
                 };
 
                 item.Overview.Add(new AssetFact("资产类型", "标定资产"));
                 item.Overview.Add(new AssetFact("标定方式", t.Kind.ToString()));
-                item.Overview.Add(new AssetFact("像素当量", $"{t.MmPerPixel:0.0000} mm/px"));
-                item.Overview.Add(new AssetFact("源图尺寸", $"{t.SourceImageWidth} × {t.SourceImageHeight}"));
+                if (isHandEye)
+                {
+                    item.Overview.Add(new AssetFact("装法", t.HandEyePose.ToString()));
+                    item.Overview.Add(new AssetFact("旋转残差 RMS", $"{t.HandEyeRotationRmsRad * 180.0 / Math.PI:0.####} °"));
+                    item.Overview.Add(new AssetFact("平移残差 RMS", $"{t.HandEyeTranslationRmsMm:0.####} mm"));
+                    item.Overview.Add(new AssetFact("参与组数", t.HandEyeSampleCount.ToString(CultureInfo.InvariantCulture)));
+                }
+                else
+                {
+                    item.Overview.Add(new AssetFact("像素当量", $"{t.MmPerPixel:0.0000} mm/px"));
+                    item.Overview.Add(new AssetFact("源图尺寸", $"{t.SourceImageWidth} × {t.SourceImageHeight}"));
+                    item.Overview.Add(new AssetFact("残差 RMS", $"{t.ResidualRmsPx:0.0000} px"));
+                }
                 item.Overview.Add(new AssetFact("相机", item.Camera));
-                item.Overview.Add(new AssetFact("残差 RMS", $"{t.ResidualRmsPx:0.0000} px"));
                 item.Overview.Add(new AssetFact("数据来源", "SolutionModel.Calibrations"));
                 if (baseline)
                     item.Overview.Add(new AssetFact("注意", "预置基线，运行 Calib 流程后才更新"));

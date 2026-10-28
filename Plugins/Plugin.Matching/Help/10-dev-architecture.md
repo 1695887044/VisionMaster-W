@@ -84,12 +84,17 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
 
 ```
 1  Success=true、ErrorMessage 清空由基类 Execute 预置；本方法自己清非 IDisposable 输出端口：
-     Score/Row/Column/Angle=0.0、MatchCount=0、MatchedTemplate=""、Rows/Columns/Angles/Scores/Scales = new HTuple()
+     Score/Row/Column/Angle=0.0、MatchCount=0、MatchedTemplate=""、
+     Rows/Columns/Angles/Scores/Scales/ScalesRow/ScalesCol = new HTuple()
 2  Image.ActualValue 为 null 或 !IsInitialized() → Fail("输入图像为空或未初始化") + Logger.Error，return
 3  ResolveEntry(out error)：三级配方选路（RecipeName 有值精确匹配 → DefaultTemplateName → 首条）
      失败文案把库里现有名字列出来；成功后立刻 MatchedTemplate.Value = entry.Name
 4  entry.Model 为空 → Fail($"模板「{entry.Name}」尚未学习：请打开配置界面完成学习")，return
 5  EnsureModelLoaded(entry) 为 false → Fail($"模板「{entry.Name}」加载失败（载荷损坏？请重新学习）")，return
+5b 模型类型守卫：LearnedAnisoScaleEnabled != (形状算法 && AnisoScaleEnabled) → Logger.Warn
+     "学习时各向异性=X，当前=Y：模型与当前参数不一致，结果可能不准，请在配置界面重新学习"
+     ← HALCON 对"模型类型与查找算子不匹配"不报错（各向异性查等比 = 行/列恒相等；等比查各向异性 = 0 命中），
+       所以只能在这里吼一声，且**不判失败**（模型本身没坏）
 6  取灰度：TryToGrayImage(src, out gray, out err)
      1 通道 copy_image、3 通道 rgb1_to_gray、4 通道 access_channel×3 + rgb3_to_gray，
      其它通道数 → "不支持的图像通道数：N（仅支持 1 通道灰度、3 通道彩色或 4 通道 RGBA/BGRA）"
@@ -99,7 +104,7 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
 8b 搜索域（P1-B A1）：UseSearchRegion 且 SearchRegion 端口已初始化
      → ReduceDomain(gray, region, out reduced)，后续查找全部用 reduced
      开关开但区域没连 → 回落全图，日志写"搜索域开关已开但未连区域 → 回落全图"
-9  查找按 entry.Algorithm 三分支：
+9  查找按 entry.Algorithm / 缩放档四分支（各向异性与等比互斥，各向异性优先）：
      Ncc            → FindNccModel(reduced, id, minAngleRad, angleExtent, minScore, numMatches,
                                     maxOverlap, "true", numLevels, out rows, out cols, out angles, out scores)
                       scales = Enumerable.Repeat(1.0, rows.Length)
@@ -107,14 +112,21 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
                       用 VectorAngleToRigid(0,0,0, row,col,angle) + AffineTransPoint2d 把
                       "重心 → ROI 中心"的偏移按匹配角旋转后补回（形状匹配侧已用 set_shape_model_origin 锚到 ROI 中心）
       级联回退        → 见 §5.1：learned 级联没有时 HALCON 会自动减层，不需要插件处理
+     AnisoScaleEnabled → FindAnisoShapeModel(reduced, id, minAngleRad, angleExtent,
+                                             rowLo, rowHi, colLo, colHi, minScore, numMatches, maxOverlap,
+                                             "least_squares", [numLevels, TrackingLevel], greediness,
+                                             out rows, out cols, out angles, out rowScales, out colScales, out scores)
+                      scales = rowScales（Scales 装行缩放，列缩放另走 ScalesCol）
      ScaleEnabled   → FindScaledShapeModel(..., "least_squares", numLevels, greediness, …)
      其它            → FindShapeModel(..., "least_squares", numLevels, greediness, …)
-     未启用缩放时 scales = Enumerable.Repeat(1.0, rows.Length)（只为保住五个数组一一对应）
+     未启用缩放时 scales = Enumerable.Repeat(1.0, rows.Length)（只为保住数组一一对应）
+     分支之后：rowScales ??= scales; colScales ??= scales（等比/未缩放档两路与 Scales 逐位相同）
 10 n == 0 → Fail($"未找到目标：模板「{entry.Name}」没有满足分数 ≥ {minScore:0.00} 的匹配（光照/遮挡变化？可降低分数下限重试）")
      + Logger.Warn（族里唯一 Warn）+ RenderResultAnnotation(src, entry, null, null, null) + PublishIfConfigured()
      + return   ← 失败轮也出标注图，这是刻意的
 11 标量端口 = 第 0 个实例：Score/Row/Column 直取，Angles 送端口前 × 180/π（弧度→度）
-12 数组端口：Rows/Columns/Angles(度)/Scores/Scales 各包一个 HTuple；Logger.Info 一行汇总
+12 数组端口：Rows/Columns/Angles(度)/Scores/Scales/ScalesRow/ScalesCol 各包一个 HTuple；
+     Logger.Info 一行汇总（各向异性档追加"各向异性 行×r/列×c"）
 13 OutputAlignedImage 为真时：entry.Rect?.Length != 5 → Fail("模板「X」的区域参数损坏（应为 5 个值，实际 N 个）…")
      VectorAngleToRigid(rows[0], cols[0], angles[0], entry.Rect[0], entry.Rect[1], 0, out hom)
      AffineTransImage(src, out aligned, hom, "constant", "false")   ← 参数顺序坑，见 #3147
@@ -137,16 +149,24 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
 3  BuildSmearExclusion =（绘制 − 擦除）∩ 区域，再 Difference + ReduceDomain
    ← 掩膜只在**学习时**参与求交；条目里存的是**原始涂抹**（原因见本节末与第十节）
 4  转灰度、参数夹取：角度步长非 0 时夹 [0.1,30] 否则送 "auto"；梯度阈值非 0 时夹 [1,255] 否则 "auto"；
-   metric = use_polarity / ignore_polarity；缩放窗口退化（hi-lo < 1e-6）时撑开 ±0.005（限 [0.5,2]）
-5  按 Algorithm 分叉：
+   metric 由 MetricName() 统一映射：use_polarity / ignore_global_polarity
+   （⚠ 早期手写的 "ignore_polarity" 不是合法值，HALCON 23.05 报 #1306/#1309/#1312）；
+   等比缩放窗口退化（hi-lo < 1e-6）时撑开 ±0.005（限 [0.5,2]）；
+   各向异性行/列范围由 ResolveAnisoRanges() 夹取（限 [0.1,10]，退化同样撑开 ±0.005）
+5  按 Algorithm / 缩放档分叉（各向异性与等比互斥，各向异性优先）：
      Ncc            → CreateNccModel(gray, numLevels, minAngleRad, angleExtent, angleStep, metric)
-                      只有 6 个入参：**没有对比度、没有极性、没有缩放**（HALCON 无 create_scaled_ncc_model）
+                      只有 6 个入参：**没有对比度、没有极性、没有缩放**（HALCON 无 create_scaled_ncc_model / create_aniso_ncc_model）
+     AnisoScaleEnabled → CreateAnisoShapeModel(gray, numLevels, minAngleRad, angleExtent, angleStep,
+                                               rowLo, rowHi, "auto", colLo, colHi, "auto",
+                                               "auto", metric, contrast, "auto")
+                      走到这里就不再看 ScaleEnabled/ScaleMin/ScaleMax
      ScaleEnabled   → CreateScaledShapeModel(gray, numLevels, minAngleRad, angleExtent, angleStep,
                                              scaleLo, scaleHi, "auto", "auto", metric, contrast, "auto")
      其它            → CreateShapeModel(gray, numLevels, minAngleRad, angleExtent, angleStep,
                                         "auto", metric, contrast, "auto")
-6  原点锚定（**仅形状模型**）：用新模型在参考图上自匹配一次（minScore 0.8、numMatches 1、maxOverlap 0.5、
-    greediness 0.9），再 SetShapeModelOrigin(modelId, sr[0] - CanvasRect[0], sc[0] - CanvasRect[1])
+6  原点锚定（**仅形状模型**）：用新模型在参考图上自匹配一次（minScore 等比 0.8 / **各向异性 0.5**、
+    numMatches 1、maxOverlap 0.5、greediness 0.9），再 SetShapeModelOrigin(modelId, sr[0] - CanvasRect[0], sc[0] - CanvasRect[1])
+    ← 各向异性用 0.5：行/列范围整段偏离 1.0 时参考图在最近尺度上只有 ~0.84 分，卡 0.8 会拿不到结果、锚定静默失效
     ← 依据：found_after = found_default − offset；实测圆形区域默认原点偏 +1.5,+1.5；**自匹配失败就静默不锚**
     ← NCC 没有 set_ncc_model_origin，这一步整体跳过；改为在学习时 AreaCenter(domainSource)
       记下 entry.NccOffsetRow/Col = ROI 中心 − 模板域重心，匹配时按角度旋转补回。
@@ -155,7 +175,8 @@ public partial class MatchingPlugin : VisionPluginBase,        // 宿主契约�
     WriteShapeModel / WriteNccModel → 读字节 → base64 → entry.Model；掩膜按原始涂抹编码 entry.Mask
 8  GetShapeModelParams（9 个 out）/ GetNccModelParams（**5 个 out：levels/minAngle/angleExtent/angleStep/metric**）
     取**实际**层数（不是请求值），拼成功文案；清理临时文件与句柄
-9  entry.LearnedSignature = EntrySignature(entry)（**算法|**形状|区域|层数|梯度|角度|步长|极性|缩放|Mask.Length）
+9  entry.LearnedSignature = EntrySignature(entry)（**算法|**形状|区域|层数|梯度|角度|步长|极性|缩放|Mask.Length|各向异性开关+四个范围）
+   + entry.LearnedAnisoScaleEnabled = 形状算法 && AnisoScaleEnabled（运行期判断"改了开关没重学"的快照）
     ← 算法放第一位：换算法等于换了模型类型，指纹必变，徽标立刻转橙"需重新学习"
 10 失败 → "创建模板失败：{ex.Message}（区域里特征太少？换一块纹理更丰富的区域试试）"
 ```

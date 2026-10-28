@@ -1,0 +1,568 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.FlowResultSourceDialogView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:prism="http://prismlibrary.com/"
+    xmlns:ui="http://schemas.UI.com/ui"
+    Width="600"
+    Height="520"
+    Background="{StaticResource DialogBackgroundBrush}"
+    prism:ViewModelLocator.AutoWireViewModel="True"
+    mc:Ignorable="d">
+
+    <!--
+        ============================================================================
+        运行统计 · 结果源（设计基线：docs/UI设计基线/flow-result-source/ v1.1）
+        ============================================================================
+
+        一条流程显式声明"本轮 OK/NG 从哪来"：自动 / 结果输出步骤 / 结果变量 /
+        步骤端口 / 不参与。保存只写 FlowModel 的结果源字段，不改流程图；
+        解析器在轮末读取，下一轮生效。
+
+        颜色只引 Colors.xaml 的 Dialog* 令牌（R140）：本页不出现 #RRGGBB。
+        可复用形制（模式卡 / 下拉 / 输入 / 页脚）直接用 Dialog 分册既有键（R141），
+        本页只写这一屏的布局与语义色。
+        ============================================================================
+    -->
+
+    <prism:Dialog.WindowStyle>
+        <Style TargetType="Window">
+            <Setter Property="WindowStyle" Value="None" />
+            <Setter Property="ResizeMode" Value="NoResize" />
+            <Setter Property="SizeToContent" Value="WidthAndHeight" />
+        </Style>
+    </prism:Dialog.WindowStyle>
+
+    <UserControl.InputBindings>
+        <KeyBinding Key="Escape" Command="{Binding CancelCommand}" />
+    </UserControl.InputBindings>
+
+    <UserControl.Resources>
+        <!--  主按钮：accent 实底 / 白字 / 32 高  -->
+        <Style x:Key="ResultSourcePrimaryButton" TargetType="Button">
+            <Setter Property="Height" Value="32" />
+            <Setter Property="MinWidth" Value="84" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="Background" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="Bd"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource DialogAccentDarkBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource DialogAccentDarkBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--  面板标题：12.5 半粗  -->
+        <Style x:Key="ResultSourcePanelTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+        </Style>
+
+        <!--  说明文字：11 / 次要色 / 自动换行  -->
+        <Style x:Key="ResultSourceHint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="17" />
+        </Style>
+
+        <!--  卡片：白底 + 1px 边框 + 8 圆角  -->
+        <Style x:Key="ResultSourceCard" TargetType="Border">
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+
+        <!--  字段标签：11.5 次要色  -->
+        <Style x:Key="ResultSourceFieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11.5" />
+            <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="52" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--  ==================== 标题栏 ====================  -->
+        <Border
+            Grid.Row="0"
+            ui:WindowDragBehavior.IsWindowDraggable="True"
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="0,0,0,1">
+            <Grid Margin="16,0">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextPrimaryBrush}"
+                        Text="运行统计 · 结果源" />
+                    <TextBlock
+                        Margin="0,1,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="{Binding FlowTitle}"
+                        TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Command="{Binding CancelCommand}"
+                    Content="✕"
+                    FontSize="12"
+                    Style="{StaticResource DialogQuietButton}"
+                    ToolTip="取消（Esc）" />
+            </Grid>
+        </Border>
+
+        <!--  ==================== 主体 ====================  -->
+        <Grid Grid.Row="1" Margin="16,12,16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="196" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--  左：判定来源（五选一）  -->
+            <Border
+                Grid.Column="0"
+                Padding="0,6"
+                Background="{StaticResource DialogRowAlternateBrush}"
+                BorderBrush="{StaticResource DialogBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <DockPanel>
+                    <TextBlock
+                        DockPanel.Dock="Top"
+                        Margin="12,2,12,6"
+                        FontSize="11"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="判定来源" />
+                    <ListBox
+                        Background="Transparent"
+                        BorderThickness="0"
+                        IsEnabled="{Binding IsEditable}"
+                        ItemContainerStyle="{StaticResource DialogOptionItem}"
+                        ItemsSource="{Binding Modes}"
+                        SelectedItem="{Binding SelectedMode}"
+                        ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock
+                                            FontSize="12"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding Title}" />
+                                        <Border
+                                            Margin="6,0,0,0"
+                                            Padding="4,0"
+                                            VerticalAlignment="Center"
+                                            Background="{StaticResource DialogAccentSoftBrush}"
+                                            BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="3"
+                                            Visibility="{Binding IsRecommended, Converter={ui:BooleanToVisibilityConverter}}">
+                                            <TextBlock
+                                                FontSize="9.5"
+                                                Foreground="{StaticResource DialogAccentTextBrush}"
+                                                Text="{Binding Badge}" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock
+                                        Margin="0,2,0,0"
+                                        FontSize="10"
+                                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                        Text="{Binding Description}"
+                                        TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <!--  右：当前模式的配置  -->
+            <Grid Grid.Column="1" Margin="12,0,0,0">
+
+                <!--  [自动]  -->
+                <StackPanel Visibility="{Binding IsAutoMode, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource ResultSourcePanelTitle}" Text="自动（推荐）" />
+                    <TextBlock
+                        Margin="0,4,0,10"
+                        Style="{StaticResource ResultSourceHint}"
+                        Text="{Binding HintText}" />
+
+                    <Border Style="{StaticResource ResultSourceCard}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="当前生效" />
+                                <Border
+                                    Margin="8,0,0,0"
+                                    Padding="6,1"
+                                    Background="{StaticResource DialogAccentSoftBrush}"
+                                    BorderBrush="{StaticResource DialogAccentBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="3">
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogAccentTextBrush}"
+                                        Text="结果输出步骤" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="{Binding ResultStepName, StringFormat=步骤：{0}}"
+                                Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogWarningTextBrush}"
+                                Text="未找到结果输出步骤：按回退顺序继续解析"
+                                Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Margin="0,8,0,0" Style="{StaticResource ResultSourceCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="回退顺序" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                LineHeight="18">
+                                <Run Text="1. 结果输出步骤（State=Success，取最后执行）" /><LineBreak />
+                                <Run Text="2. 配置的结果变量（bool / string / int / double）" /><LineBreak />
+                                <Run Text="3. 配置的步骤端口（bool）" /><LineBreak />
+                                <Run Text="4. 约定变量 &lt;流程名&gt;_Result" /><LineBreak />
+                                <Run Text="5. 以上都没有 → 未判定" />
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Text="{Binding WarningText}"
+                        TextWrapping="Wrap"
+                        Visibility="{Binding HasWarning, Converter={ui:BooleanToVisibilityConverter}}" />
+                </StackPanel>
+
+                <!--  [结果输出步骤]  -->
+                <StackPanel Visibility="{Binding IsResultStepMode, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource ResultSourcePanelTitle}" Text="结果输出步骤" />
+                    <TextBlock
+                        Margin="0,4,0,10"
+                        Style="{StaticResource ResultSourceHint}"
+                        Text="{Binding HintText}" />
+
+                    <Border Style="{StaticResource ResultSourceCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="检测到的结果输出步骤" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                Text="{Binding ResultStepName, StringFormat=步骤：{0}}"
+                                Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding ResultStepLocation, StringFormat=位置：{0}}"
+                                Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11.5"
+                                Foreground="{StaticResource DialogWarningTextBrush}"
+                                Text="流程里没有结果输出步骤；保存后该流程 OK/NG 将显示未判定"
+                                Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Text="{Binding WarningText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!--  [结果变量]  -->
+                <StackPanel Visibility="{Binding IsVariableMode, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource ResultSourcePanelTitle}" Text="结果变量" />
+                    <TextBlock
+                        Margin="0,4,0,10"
+                        Style="{StaticResource ResultSourceHint}"
+                        Text="{Binding HintText}" />
+
+                    <Border Style="{StaticResource ResultSourceCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="结果变量（bool / string / int / double）" />
+                            <ComboBox
+                                Margin="0,6,0,0"
+                                DisplayMemberPath="Display"
+                                IsEnabled="{Binding IsEditable}"
+                                ItemsSource="{Binding Variables}"
+                                SelectedItem="{Binding SelectedVariable}"
+                                Style="{StaticResource DialogCombo}" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding VariableValueText}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                Text="请选择结果变量；否则无法保存"
+                                Visibility="{Binding HasVariableError, Converter={ui:BooleanToVisibilityConverter}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Text="{Binding WarningText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!--  [步骤端口]  -->
+                <StackPanel Visibility="{Binding IsStepPortMode, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource ResultSourcePanelTitle}" Text="步骤端口" />
+                    <TextBlock
+                        Margin="0,4,0,10"
+                        Style="{StaticResource ResultSourceHint}"
+                        Text="{Binding HintText}" />
+
+                    <Border Style="{StaticResource ResultSourceCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="判定步骤" />
+                            <ComboBox
+                                Margin="0,6,0,0"
+                                DisplayMemberPath="Display"
+                                IsEnabled="{Binding IsEditable}"
+                                ItemsSource="{Binding Steps}"
+                                SelectedItem="{Binding SelectedStep}"
+                                Style="{StaticResource DialogCombo}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="{Binding StepLocationText}" />
+
+                            <TextBlock
+                                Margin="0,9,0,0"
+                                Style="{StaticResource ResultSourceFieldLabel}"
+                                Text="输出端口（只列 bool）" />
+                            <ComboBox
+                                Margin="0,6,0,0"
+                                DisplayMemberPath="Display"
+                                IsEnabled="{Binding IsEditable}"
+                                ItemsSource="{Binding Ports}"
+                                SelectedItem="{Binding SelectedPort}"
+                                Style="{StaticResource DialogCombo}" />
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding PortValueText}" />
+
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                Text="请选择判定步骤与 bool 输出端口"
+                                Visibility="{Binding HasPortError, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                Text="请选择判定步骤"
+                                Visibility="{Binding HasStepError, Converter={ui:BooleanToVisibilityConverter}}" />
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Text="{Binding WarningText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
+                <!--  [不参与]  -->
+                <StackPanel Visibility="{Binding IsNoneMode, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource ResultSourcePanelTitle}" Text="不参与统计" />
+                    <TextBlock
+                        Margin="0,4,0,10"
+                        Style="{StaticResource ResultSourceHint}"
+                        Text="{Binding HintText}" />
+
+                    <Border Style="{StaticResource ResultSourceCard}">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="适用流程" />
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="96" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="22" />
+                                    <RowDefinition Height="22" />
+                                    <RowDefinition Height="22" />
+                                </Grid.RowDefinitions>
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                    Text="Home / End" />
+                                <TextBlock
+                                    Grid.Row="0"
+                                    Grid.Column="1"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="骨架流程，不产生产品" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.Column="0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                    Text="子程序" />
+                                <TextBlock
+                                    Grid.Row="1"
+                                    Grid.Column="1"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="被调用流程，不独立计数" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.Column="0"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                    Text="辅助流程" />
+                                <TextBlock
+                                    Grid.Row="2"
+                                    Grid.Column="1"
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                    Text="标定 / 调试 / 回原点" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogWarningTextBrush}"
+                        Text="{Binding WarningText}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!--  ==================== 页脚 ====================  -->
+        <Border
+            Grid.Row="2"
+            Margin="0,12,0,0"
+            Padding="16,10"
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="0,1,0,0"
+            CornerRadius="0,0,8,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Margin="0,0,0,6"
+                    FontSize="11"
+                    Foreground="{StaticResource DialogWarningTextBrush}"
+                    Text="{Binding ReadOnlyText}"
+                    Visibility="{Binding IsReadOnly, Converter={ui:BooleanToVisibilityConverter}}" />
+                <TextBlock
+                    Grid.Row="0"
+                    Margin="0,0,0,6"
+                    FontSize="11"
+                    Foreground="{StaticResource DialogDangerTextBrush}"
+                    Text="{Binding ValidationText}"
+                    Visibility="{Binding HasValidationError, Converter={ui:BooleanToVisibilityConverter}}" />
+
+                <!--  线级汇总来源（2026-10-28：取代"主流程角色"；同一时刻只可能有一条）  -->
+                <CheckBox
+                    Grid.Row="1"
+                    Margin="0,0,0,6"
+                    Content="作为线级汇总来源：底栏「全部」的 OK / NG 取本流程（不勾时取第一条勾「整线」的流程）"
+                    FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                    IsChecked="{Binding IsLineVerdictSource}"
+                    IsEnabled="{Binding IsEditable}" />
+
+                <Grid Grid.Row="2">
+                    <TextBlock
+                        Margin="0,0,190,0"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="{Binding CurrentSummary, StringFormat=当前生效：{0}}"
+                        TextTrimming="CharacterEllipsis" />
+                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                        <Button
+                            Margin="0,0,10,0"
+                            Command="{Binding CancelCommand}"
+                            Content="取消"
+                            Style="{StaticResource DialogQuietButton}" />
+                        <Button
+                            Command="{Binding SaveCommand}"
+                            Content="保存"
+                            Style="{StaticResource ResultSourcePrimaryButton}"
+                            ToolTip="保存后下一轮生效（不重启、不重编译）" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -69,15 +69,15 @@ namespace Plugin.PreProcessing.Models
         Angle270 = 270,
     }
 
-    /// <summary>中值滤波模板形状（median_image 的 MaskType，取值只能是 square / circle / diamond）</summary>
+    /// <summary>中值滤波模板形状（median_image 的 MaskType，HALCON 23.05 只接受 square / circle）</summary>
     public enum MedianMaskType
     {
         [Description("方形")]
         Square = 0,
         [Description("圆形")]
         Circle = 1,
-        [Description("菱形")]
-        Diamond = 2,
+        // 2 是历史版本 "菱形" 的存盘值；HALCON 23.05 的 median_image 不接受 diamond，
+        // 反序列化到 2 时由 MedianOperator.Normalize 收敛到 Circle（保持旧方案能打开）。
     }
 
     /// <summary>中值滤波边缘扩充方式（median_image 的 Margin —— 原参考实现把它当成了高度参数）</summary>
@@ -118,8 +118,16 @@ namespace Plugin.PreProcessing.Models
     {
         [Description("绝对值和（|Gx|+|Gy|，抗抵消）")]
         SumAbs = 0,
-        [Description("代数和（Gx+Gy，可能抵消）")]
-        Sum = 1,
+        [Description("平方和开根（√(Gx²+Gy²)，HALCON sum_sqrt）")]
+        SumSqrt = 1,
+        [Description("细线绝对值和（thin_sum_abs）")]
+        ThinSumAbs = 2,
+        [Description("细线最大绝对值（thin_max_abs）")]
+        ThinMaxAbs = 3,
+        [Description("仅 X 方向（x）")]
+        X = 4,
+        [Description("仅 Y 方向（y）")]
+        Y = 5,
     }
 
     /// <summary>Laplace 邻域模板（laplace 的 FilterMask）</summary>
@@ -129,5 +137,40 @@ namespace Plugin.PreProcessing.Models
         N4 = 0,
         [Description("8 邻域（n_8，更各向同性也更敏感）")]
         N8 = 1,
+    }
+
+    /// <summary>
+    /// FFT 频域滤波类型。
+    /// HALCON 23.05 没有现成的低通/高通/带通/带阻/陷波掩膜生成算子
+    /// （gen_filter_mask 只生成 Laws 纹理掩膜，gen_lowpass/gen_highpass/gen_bandpass 只有理想型），
+    /// 掩膜由 PreprocessHService.FftFilter 按"到直流的距离"逐像素解析生成。
+    /// </summary>
+    public enum FftFilterType
+    {
+        [Description("低通")]
+        Lowpass = 0,
+        [Description("高通")]
+        Highpass = 1,
+        [Description("带通")]
+        Bandpass = 2,
+        [Description("带阻")]
+        Bandreject = 3,
+        [Description("陷波")]
+        Notch = 4,
+    }
+
+    /// <summary>
+    /// FFT 掩膜的过渡形状。
+    /// 理想 = 硬截止（边界振铃明显）；高斯 = 平滑过渡（无振铃，截止处 -6 dB）；
+    /// 巴特沃斯 = 二阶，过渡比高斯陡、振铃比理想小。
+    /// </summary>
+    public enum FftFilterShape
+    {
+        [Description("理想")]
+        Ideal = 0,
+        [Description("高斯")]
+        Gaussian = 1,
+        [Description("巴特沃斯")]
+        Butterworth = 2,
     }
 }

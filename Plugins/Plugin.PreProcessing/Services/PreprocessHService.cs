@@ -2,6 +2,7 @@ using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using System;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace Plugin.PreProcessing.Services
 {
@@ -52,13 +53,38 @@ namespace Plugin.PreProcessing.Services
             finally { copied.Dispose(); }
         }
 
-        /// <summary>三通道彩色图 → 单通道灰度图（rgb1_to_gray）</summary>
+        /// <summary>彩色图 → 单通道灰度图（3 通道 rgb1_to_gray；4 通道取前 3 通道再 rgb3_to_gray）</summary>
         public static HImage ToGray(HImage image)
         {
-            HObject gray;
-            HOperatorSet.Rgb1ToGray(image, out gray);
-            try { return new HImage(gray); }
-            finally { gray.Dispose(); }
+            HOperatorSet.CountChannels(image, out HTuple channels);
+            int n = channels.Length > 0 ? channels[0].I : 0;
+            if (n == 3)
+            {
+                HOperatorSet.Rgb1ToGray(image, out HObject gray);
+                try { return new HImage(gray); }
+                finally { gray.Dispose(); }
+            }
+            if (n == 4)
+            {
+                HObject? c1 = null, c2 = null, c3 = null, gray = null;
+                try
+                {
+                    HOperatorSet.AccessChannel(image, out c1, 1);
+                    HOperatorSet.AccessChannel(image, out c2, 2);
+                    HOperatorSet.AccessChannel(image, out c3, 3);
+                    HOperatorSet.Rgb3ToGray(c1, c2, c3, out gray);
+                    return new HImage(gray);
+                }
+                finally
+                {
+                    c1?.Dispose();
+                    c2?.Dispose();
+                    c3?.Dispose();
+                    gray?.Dispose();
+                }
+            }
+            throw new InvalidOperationException(
+                $"图像通道数为 {n}（只支持 1/3/4 通道），无法转灰度。");
         }
 
         /// <summary>
@@ -289,7 +315,6 @@ namespace Plugin.PreProcessing.Services
             switch (maskType)
             {
                 case MedianMaskType.Circle: mask = "circle"; break;
-                case MedianMaskType.Diamond: mask = "diamond"; break;
                 default: mask = "square"; break;
             }
             HObject result;
@@ -308,6 +333,274 @@ namespace Plugin.PreProcessing.Services
             HOperatorSet.GaussImage(image, out result, size);
             try { return new HImage(result); }
             finally { result.Dispose(); }
+        }
+
+        #endregion
+
+        #region FFT 频域滤波
+
+        /// <summary>ln2：高斯/巴特沃斯的"半衰减点"换算用（截止处增益 0.5）</summary>
+        private const double Ln2 = 0.6931471805599453;
+
+        /// <summary>
+        /// FFT 频域滤波：正向变换 → 自建同尺寸实值掩膜 → convol_fft → 反向变换 → 归一化成 byte。
+        /// 输出与输入同宽高、单通道 byte（彩色输入先 ToGray，与其它单通道算子一致）。
+        ///
+        /// 【为什么不用 fft_image / fft_image_inv】
+        /// 实测 HALCON 23.05 的 fft_image_inv **只会输出 byte**：给一张 -100~100 的 real 图做
+        /// fft_image + fft_image_inv，回来的是 0~100 —— 负值被截成 0（半波整流）。
+        /// 高通/带通/陷波的结果本来就有一半是负值，用它等于把结果砍掉一半，
+        /// 而且砍出来的谐波会伪装成"保留下来的频率"，断言里几乎看不出来。
+        /// 所以正向用 fft_generic('to_freq', -1, 'sqrt', 'dc_center', 'complex')（与 fft_image
+        /// 逐像素相同，已实测 real/imag 差均为 0），反向用 fft_generic('from_freq', 1, 'sqrt',
+        /// 'dc_center', 'real') 显式要 real。两者 Norm 都取 'sqrt'，往返恒等（已实测）。
+        ///
+        /// 【为什么不用 gen_filter_mask / gen_lowpass 一族】
+        /// gen_filter_mask 在 23.05 只生成 Laws 纹理掩膜（FilterMask 只认 'laws_ee' 之类）；
+        /// gen_lowpass/gen_highpass/gen_bandpass 只有理想型，而且 CutoffFrequency 以 Nyquist=1.0 计
+        /// （实测 0.5 → 半径 min(W,H)/4），与本算子 0..0.5（0.5 = Nyquist）的口径差一倍；
+        /// 高斯/巴特沃斯更没有现成算子（gen_gauss_filter 的 Sigma 是空域标准差，不是截止频率）。
+        /// 所以掩膜按"到直流的距离"逐像素解析生成，三种形状共用一套口径；
+        /// 理想档与 gen_lowpass、高斯档与 gen_gauss_filter（σ = 0.18739/截止）已实测逐像素相同。
+        /// </summary>
+        public static HImage FftFilter(
+            HImage image,
+            FftFilterType filterType,
+            double cutoffLow,
+            double cutoffHigh,
+            double notchRow,
+            double notchCol,
+            double notchRadius,
+            bool keepDc,
+            FftFilterShape filterShape)
+        {
+            HImage mono = EnsureMono(image);
+            HImage? real = null;
+            HObject? spectrum = null, mask = null, filtered = null, inverse = null;
+            try
+            {
+                ImageSize(mono, out int width, out int height);
+
+                // 统一升成 real：FFT 族在 real 上语义最直白，uint2/int4 图也不会在 8 位路径上溢出
+                real = ToReal(mono);
+
+                HOperatorSet.FftGeneric(real, out spectrum,
+                    "to_freq", -1, "sqrt", "dc_center", "complex");
+
+                mask = BuildFftMask(width, height, filterType, cutoffLow, cutoffHigh,
+                    notchRow, notchCol, notchRadius, keepDc, filterShape);
+
+                HOperatorSet.ConvolFft(spectrum, mask, out filtered);
+
+                HOperatorSet.FftGeneric(filtered, out inverse,
+                    "from_freq", 1, "sqrt", "dc_center", "real");
+
+                using var restored = new HImage(inverse);
+                return RealToByteNormalized(restored);
+            }
+            finally
+            {
+                inverse?.Dispose();
+                filtered?.Dispose();
+                mask?.Dispose();
+                spectrum?.Dispose();
+                real?.Dispose();
+                if (!ReferenceEquals(mono, image)) mono.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// 生成与频谱同尺寸的实值掩膜（float 缓冲 → gen_image1 'real'）。
+        ///
+        /// 【直流位置】实测 fft_image / fft_generic('dc_center') 的直流在 (ceil(H/2), ceil(W/2))：
+        /// 64→(32,32)、63→(32,32)、65→(33,33)、5→(3,3)。掩膜以该点为原点。
+        ///
+        /// 【偏移环绕】频谱是环形的，偏移按 (-size/2, size/2] 折算，±f 两个共轭 bin 到直流的
+        /// 距离才相等 —— 掩膜因此天然满足厄米对称，反变换的虚部不会被放大成实部畸变。
+        ///
+        /// 【归一化频率】0..0.5 cycles/pixel，0.5 = Nyquist；半径（像素）= 频率 × min(W,H)，
+        /// 所以 0.5 正好是短边的一半，覆盖整个有效频谱半径。
+        /// </summary>
+        private static HObject BuildFftMask(
+            int width,
+            int height,
+            FftFilterType filterType,
+            double cutoffLow,
+            double cutoffHigh,
+            double notchRow,
+            double notchCol,
+            double notchRadius,
+            bool keepDc,
+            FftFilterShape shape)
+        {
+            int centerRow = (height + 1) / 2;
+            int centerCol = (width + 1) / 2;
+            double scale = Math.Min(width, height);
+
+            double radiusLow = cutoffLow * scale;
+            double radiusHigh = cutoffHigh * scale;
+            double radiusNotch = notchRadius * scale;
+            // 带通/带阻的过渡尺度取环带半宽：环带内恒通过，环带外 1 个半宽处衰减到 0.5
+            double bandScale = (radiusHigh - radiusLow) / 2.0;
+
+            // 陷波中心：归一化频率 → 相对直流的 bin 偏移（列按宽度、行按高度）
+            double notchOffsetRow = notchRow * height;
+            double notchOffsetCol = Math.Abs(notchCol) * width;
+
+            var buffer = new float[width * height];
+            for (int row = 0; row < height; row++)
+            {
+                int deltaRow = WrapOffset(row - centerRow, height);
+                for (int col = 0; col < width; col++)
+                {
+                    int deltaCol = WrapOffset(col - centerCol, width);
+                    double distance = Math.Sqrt((double)deltaRow * deltaRow + (double)deltaCol * deltaCol);
+
+                    double gain;
+                    switch (filterType)
+                    {
+                        case FftFilterType.Lowpass:
+                            gain = LowpassResponse(distance, radiusHigh, shape);
+                            break;
+
+                        case FftFilterType.Highpass:
+                            gain = 1.0 - LowpassResponse(distance, radiusLow, shape);
+                            break;
+
+                        case FftFilterType.Bandpass:
+                            gain = BandResponse(ExcessDistance(distance, radiusLow, radiusHigh), bandScale, shape);
+                            break;
+
+                        case FftFilterType.Bandreject:
+                            gain = 1.0 - BandResponse(ExcessDistance(distance, radiusLow, radiusHigh), bandScale, shape);
+                            break;
+
+                        default: // Notch
+                            gain = NotchGain(deltaRow, deltaCol, notchOffsetRow, notchOffsetCol,
+                                radiusNotch, shape, height, width);
+                            if (keepDc && row == centerRow && col == centerCol) gain = 1.0;
+                            break;
+                    }
+
+                    buffer[row * width + col] = (float)gain;
+                }
+            }
+
+            GCHandle handle = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+            try
+            {
+                // gen_image1 会把缓冲里的像素拷进 HALCON 图像，句柄在返回前就可以释放
+                HOperatorSet.GenImage1(out HObject maskImage, "real", width, height, handle.AddrOfPinnedObject());
+                return maskImage;
+            }
+            finally
+            {
+                handle.Free();
+            }
+        }
+
+        /// <summary>把索引差折到 (-size/2, size/2]：频谱是环形的，±f 是同一个频率</summary>
+        private static int WrapOffset(int offset, int size)
+        {
+            int half = size / 2;
+            if (offset > half) return offset - size;
+            if (offset < -half) return offset + size;
+            return offset;
+        }
+
+        /// <summary>浮点版的环绕折算（陷波中心是连续的归一化频率，不能先取整再折算）</summary>
+        private static double WrapOffset(double offset, int size)
+        {
+            double half = size / 2.0;
+            while (offset > half) offset -= size;
+            while (offset < -half) offset += size;
+            return offset;
+        }
+
+        /// <summary>
+        /// 低通响应：距离 0 时 1，距离 = radius 时 0.5（-6 dB），再往外继续衰减。
+        /// 高斯档与 HALCON gen_gauss_filter（Norm='none'、Mode='dc_center'、σ = 0.18739/截止频率）
+        /// 逐像素相同（实测）；巴特沃斯取二阶 1/(1+x⁴)，同样在 x=1 处半衰减。
+        /// </summary>
+        private static double LowpassResponse(double distance, double radius, FftFilterShape shape)
+        {
+            if (radius <= 0) return distance <= 0 ? 1.0 : 0.0;
+
+            double x = distance / radius;
+            switch (shape)
+            {
+                case FftFilterShape.Ideal:
+                    return x <= 1.0 ? 1.0 : 0.0;
+                case FftFilterShape.Gaussian:
+                    return Math.Exp(-Ln2 * x * x);
+                default:
+                    double x2 = x * x;
+                    return 1.0 / (1.0 + x2 * x2);
+            }
+        }
+
+        /// <summary>到环带的距离：环带内为 0，环带外为超出的像素数</summary>
+        private static double ExcessDistance(double distance, double inner, double outer)
+        {
+            if (distance < inner) return inner - distance;
+            if (distance > outer) return distance - outer;
+            return 0.0;
+        }
+
+        /// <summary>
+        /// 环带/圆盘的"通过度"：excess = 0（环带内）为 1，excess = scale 处衰减到 0.5。
+        /// 理想档在环带边缘直接切成 0 —— excess 已被夹到 ≥0，台阶正好落在边缘上。
+        /// </summary>
+        private static double BandResponse(double excess, double scale, FftFilterShape shape)
+        {
+            if (excess <= 0) return 1.0;
+            if (scale <= 0) return 0.0;
+
+            double x = excess / scale;
+            switch (shape)
+            {
+                case FftFilterShape.Ideal:
+                    return 0.0;
+                case FftFilterShape.Gaussian:
+                    return Math.Exp(-Ln2 * x * x);
+                default:
+                    double x2 = x * x;
+                    return 1.0 / (1.0 + x2 * x2);
+            }
+        }
+
+        /// <summary>
+        /// 陷波：圆盘内增益 0（陷掉），圆盘外按形状回升。
+        /// 实图像的频谱共轭对称，(row, col) 与 (-row, -col) 是同一个频率的两个 bin，
+        /// 两个中心都要陷，否则只陷一半等于把这一对频率变成复数信号，反变换的实部会畸变。
+        /// </summary>
+        private static double NotchGain(
+            int deltaRow,
+            int deltaCol,
+            double notchRow,
+            double notchCol,
+            double radius,
+            FftFilterShape shape,
+            int height,
+            int width)
+        {
+            if (radius <= 0) return 1.0;
+
+            double distance1 = TorusDistance(deltaRow - notchRow, deltaCol - notchCol, height, width);
+            double distance2 = TorusDistance(deltaRow + notchRow, deltaCol + notchCol, height, width);
+
+            double reject = Math.Max(
+                BandResponse(distance1 - radius, radius, shape),
+                BandResponse(distance2 - radius, radius, shape));
+            return 1.0 - reject;
+        }
+
+        /// <summary>频谱环面上的距离（行列各自环绕折算）</summary>
+        private static double TorusDistance(double deltaRow, double deltaCol, int height, int width)
+        {
+            double row = WrapOffset(deltaRow, height);
+            double col = WrapOffset(deltaCol, width);
+            return Math.Sqrt(row * row + col * col);
         }
 
         #endregion
@@ -389,12 +682,21 @@ namespace Plugin.PreProcessing.Services
         #region 边缘检测
 
         /// <summary>
-        /// Sobel 梯度幅值边缘图。filterType 只认 "sum_abs" / "sum"；
+        /// Sobel 梯度幅值边缘图。filterType 取 HALCON 23.05 真实支持的
+        /// sum_abs / sum_sqrt / thin_sum_abs / thin_max_abs / x / y；
         /// maskSize 合法值是 3/5/7/9/11（算子层已收敛为正奇数）。
         /// </summary>
         public static HImage SobelAmp(HImage image, SobelFilterType filterType, int maskSize)
         {
-            string type = filterType == SobelFilterType.Sum ? "sum" : "sum_abs";
+            string type = filterType switch
+            {
+                SobelFilterType.SumSqrt => "sum_sqrt",
+                SobelFilterType.ThinSumAbs => "thin_sum_abs",
+                SobelFilterType.ThinMaxAbs => "thin_max_abs",
+                SobelFilterType.X => "x",
+                SobelFilterType.Y => "y",
+                _ => "sum_abs",
+            };
             HObject result;
             HOperatorSet.SobelAmp(image, out result, type, maskSize);
             try { return new HImage(result); }
@@ -718,19 +1020,29 @@ namespace Plugin.PreProcessing.Services
             double lo = min.D;
             double hi = max.D;
 
-            HObject scaled;
             if (System.Math.Abs(hi - lo) < 1e-9)
             {
-                // 全图一个值：没有任何对比信息，直接给一张全 0 的图（比塞 random 噪声更可判读）
-                HOperatorSet.GenImageConst(out scaled, "byte", 1, 1);
-                try { return new HImage(scaled); }
-                finally { scaled.Dispose(); }
+                // 全图一个值：没有任何对比信息，直接给一张与输入同尺寸的全 0 byte 图
+                HOperatorSet.GetImageSize(image, out HTuple w, out HTuple h);
+                HOperatorSet.GenImageConst(out HObject flat, "byte", w, h);
+                try { return new HImage(flat); }
+                finally { flat.Dispose(); }
             }
 
-            HObject result;
-            HOperatorSet.ScaleImage(image, out result, 255.0 / (hi - lo), -lo * 255.0 / (hi - lo));
-            try { return new HImage(result); }
-            finally { result.Dispose(); }
+            HObject scaled = null!;
+            HObject result = null!;
+            try
+            {
+                HOperatorSet.ScaleImage(image, out scaled, 255.0 / (hi - lo), -lo * 255.0 / (hi - lo));
+                // scale_image 保持输入类型（real），注释承诺的是 byte；这里显式转一次
+                HOperatorSet.ConvertImageType(scaled, out result, "byte");
+                return new HImage(result);
+            }
+            finally
+            {
+                scaled?.Dispose();
+                result?.Dispose();
+            }
         }
 
         /// <summary>

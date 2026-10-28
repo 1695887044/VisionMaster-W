@@ -1,0 +1,5 @@
+[
+  { "tool": "vm_status" },
+  { "tool": "vm_ui_tree", "args": { "maxRows": 40, "includePatterns": true } },
+  { "tool": "vm_shot", "args": { "mode": "window" } }
+]

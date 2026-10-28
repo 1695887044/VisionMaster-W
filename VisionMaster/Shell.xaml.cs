@@ -89,6 +89,39 @@ namespace VisionMaster
             e.Handled = true;
         }
 
+        private void FlowRunningChip_Click(object sender, RoutedEventArgs e)
+        {
+            FlowStatsPopup.IsOpen = !FlowStatsPopup.IsOpen;
+            if (FlowStatsPopup.IsOpen)
+                FlowRoundPopup.IsOpen = false;
+        }
+
+        private void FlowRunningChip_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!FlowStatsPopup.IsOpen)
+                return;
+
+            FlowStatsPopup.IsOpen = false;
+            e.Handled = true;
+        }
+
+        private void FlowStatsPopupClose_Click(object sender, RoutedEventArgs e) => FlowStatsPopup.IsOpen = false;
+
+        private void FlowRoundPopupClose_Click(object sender, RoutedEventArgs e) => FlowRoundPopup.IsOpen = false;
+
+        private void FlowRoundDetail_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not ShellViewModel vm)
+                return;
+
+            vm.OpenLatestRound();
+            if (vm.RoundDetail == null)
+                return;
+
+            FlowStatsPopup.IsOpen = false;
+            FlowRoundPopup.IsOpen = true;
+        }
+
         /// <summary>
         /// F10（单步）的窗口级截获（DWV 第 1 期）。
         ///

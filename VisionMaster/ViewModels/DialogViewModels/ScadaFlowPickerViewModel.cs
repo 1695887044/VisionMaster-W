@@ -163,13 +163,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public string Description => Model.Description ?? string.Empty;
 
-        /// <summary>角色名（Home / Main / End 三条骨架 + 普通流程），与流程管理列表同一套叫法</summary>
+        /// <summary>角色名（Home / End 两条骨架 + 普通流程），与流程管理列表同一套叫法</summary>
         public string RoleText => Model.Role switch
         {
             FlowRole.Home => "回原",
-            FlowRole.Main => "主任务",
             FlowRole.End => "收尾",
-            _ => "普通",
+            _ => Model.IsLineStartMember ? "整线" : "普通",
         };
 
         /// <summary>停用徽标文案（启用中则为空串，模板据空串收掉徽标）</summary>

@@ -32,7 +32,7 @@ namespace FlowCanvasChecks
     ///   · 全局变量/常量绑定从「降级线」改为「节点角标」；
     ///   · 新增折叠/展开、容器框几何、解绑撤销、隐藏绑定计数等断言面。
     /// </summary>
-    internal class Program
+    internal partial class Program
     {
         private static int _pass, _fail;
 
@@ -52,7 +52,88 @@ namespace FlowCanvasChecks
             {
                 Console.OutputEncoding = System.Text.Encoding.UTF8;
                 PerfChecks.Run();
-                Finish();
+                FinishAndExit();
+            }
+
+            // 可形变匹配专项：--deformable 只跑 Plugin.DeformableMatching 的断言（快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--deformable")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                DeformableMatchingChecks.Run();
+                FinishAndExit();
+            }
+
+            // 预览帧捕获 / 多流程并发专项：--preview 只跑这组（排查"图不进画布 / 多流程互相清屏"时快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--preview")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                PreviewCaptureChecks.Run();
+                FinishAndExit();
+            }
+
+            // 引擎纪律专项：--engine 只跑"运行锁 / 会话准备 / 界面层源码纪律"（快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--engine")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                FlowEngineFix2Checks.Run();
+                FinishAndExit();
+            }
+
+            // 帮助手册专项：--help-check 只跑静态扫描（新增插件帮助时快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--help-check")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                HelpManualCheck.Run();
+                FinishAndExit();
+            }
+
+            // 图像质量专项：--quality 只跑 Plugin.ImageQuality 的断言（快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--quality")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                ImageQualityChecks.Run();
+                FinishAndExit();
+            }
+
+            // 图像对齐专项：--align 只跑 Plugin.ImageAlign 的断言（快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--align")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                ImageAlignChecks.Run();
+                FinishAndExit();
+            }
+
+            // 图像对齐 5MP 耗时实测：--align-perf（正式数字用 Release；不进常规 gate）。
+            if (args.Length >= 1 && args[0] == "--align-perf")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                ImageAlignPerf.Run();
+                FinishAndExit();
+            }
+
+            // 判定表专项：--judge 只跑 Plugin.JudgeTable 的断言（快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--judge")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                JudgeTableChecks.Run();
+                FinishAndExit();
+            }
+
+            // 批量设置显示窗口专项：--batch-window 只跑本组断言（快速迭代用）。
+            if (args.Length >= 1 && args[0] == "--batch-window")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                BatchDisplayWindowChecks.Run();
+                FinishAndExit();
+            }
+
+            // 视觉样例对拍复跑：--sample-flows 用生产加载器 + 真插件把 5 条批量流程各整跑一遍
+            // （For 循环 + 文件夹采集 + 结果显示）。真机 UI 复跑之外的"每圈数据对不对"证据。
+            if (args.Length >= 1 && args[0] == "--sample-flows")
+            {
+                Console.OutputEncoding = System.Text.Encoding.UTF8;
+                SampleFlowsReplayChecks.Run();
+                FinishAndExit();
                 return Environment.ExitCode;
             }
 
@@ -116,8 +197,7 @@ namespace FlowCanvasChecks
                 Console.OutputEncoding = System.Text.Encoding.UTF8;
                 int bruteN = args.Length >= 2 && int.TryParse(args[1], out var parsed) ? parsed : 2000;
                 LogicBruteforceChecks.Run(bruteCount: bruteN, randomOnly: true);
-                Finish();
-                return Environment.ExitCode;
+                FinishAndExit();
             }
 
             // 码读取 flaky 调查：--qrprobe [N] 混合图 QR 解码连跑 N 次（默认 10）统计失败率，
@@ -183,6 +263,10 @@ namespace FlowCanvasChecks
             CollapseExpandAllChecks();
             CompileErrorEventChecks();
             RunStatsChecks();
+            ResultOutputChecks.Run();
+            RunFlowPortChecks.Run();
+            FlowResultSourceChecks.Run();
+            FlowResultSourceDialogChecks.Run();
 
             // 2026-10-12 评审清单第三批：
             // [G7] 画布复制/粘贴（FlowClipboard：单节点深拷贝 + 五条重映射纪律 + 撤销/运行锁）
@@ -248,6 +332,9 @@ namespace FlowCanvasChecks
             // 调用方式（位集 + 迁移 + HTTP 门禁判定）与强制骨架流程（Home / Main / End）
             FlowInvokeChecks.Run();
 
+            // 流程管理弹窗 v1.1：状态四态 / 运行中守卫(Q1) / 未配齐提示 / 派生小字 / 角色徽标 / 调用参数草稿
+            FlowManagerChecks.Run();
+
             // 调用方式运行侧三位：定时调度 / 变量触发 / 子程序调用（含「调用流程」插件端到端）
             FlowAutomationChecks.Run();
 
@@ -289,6 +376,12 @@ namespace FlowCanvasChecks
 
             // 图像差分（2026-10-23 新建插件）：real 域防截断 / 极性取舍 / 尺寸守卫 / 判定上限 / 掩膜 / 端口契约
             ImageDiffCheck.Run();
+
+            // 图像质量前置检查（2026-10-27 新建插件）：对焦/曝光/对比度/饱和度合成真值 + HALCON 对拍 + 阈值语义
+            ImageQualityChecks.Run();
+
+            // 图像对齐（2026-10-27 新建插件）：2/3/4 点拟合 + 正逆矩阵 + 有效区 + 下游 ImageDiff 收益
+            ImageAlignChecks.Run();
             PortBindChecks.Run();
             GlobalVariableChecks.Run();
             DeviceVariableIoChecks.Run();
@@ -296,7 +389,9 @@ namespace FlowCanvasChecks
             MotionZMotionChecks.Run();
             HardwareManagerChecks.Run();
             MatchingChecks.Run();
+            DeformableMatchingChecks.Run();
             CreateRoiChecks.Run();
+            JudgeTableChecks.Run();   // 判定表：动态端口 / 运行时变量 / 七种判定 / 不污染全局 / 持久化
 
             // 胶路检测插件：路径生成 / bead 模型 / 7 图真值表（P4）/ 树直径合并 / 下限保护 / 贴合度
             //（真样图 Image\bead\adhesive_bead_01..07.png，断言 1~9、13、14、15）
@@ -313,6 +408,12 @@ namespace FlowCanvasChecks
 
             // 变量赋值：运行时 / 全局两种作用域
             VariableAssignmentCheck.Run();
+
+            // 端口默认值随创建落盘（[PortDefaultOnCreate]）：拖入即生效 vs 运动类必须人工确认
+            StepDefaultOnCreateChecks.Run();
+
+            // 单流程批量设置显示窗口：递归覆盖 / 两种声明形态 / 链接端口跳过 / 幂等 / 越界拒绝
+            BatchDisplayWindowChecks.Run();
 
             // 图像变量所有权：写入即拷贝 / 延迟一代释放 / 移出集合即释放（三条写路径共用的收口）
             ImageVariableOwnershipChecks.Run();
@@ -424,7 +525,7 @@ namespace FlowCanvasChecks
             // 插件层覆盖 CSV 12 列每种坏法的文案、组数门、残差门、失败清场。纯托管，不碰 HALCON/真机。
             HandEyeChecks.Run();
 
-            Finish();
+            FinishAndExit();
             return Environment.ExitCode;
         }
 
@@ -3458,6 +3559,56 @@ namespace FlowCanvasChecks
             Console.WriteLine($"  [{(ok ? "√通过" : "×失败")}] {name}{(string.IsNullOrEmpty(detail) ? "" : "  →  " + detail)}");
         }
 
+        /// <summary>把容器（For/If/While…）里的步骤摊平，样例流程现在都包在 For 里。</summary>
+        internal static IEnumerable<ActionStep> FlattenActionSteps(IEnumerable<StepModel> steps)
+        {
+            foreach (var step in steps)
+            {
+                if (step is ActionStep action) yield return action;
+                if (step is IContainerStep container)
+                {
+                    foreach (var branch in container.Children)
+                        foreach (var child in FlattenActionSteps(branch.Steps))
+                            yield return child;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 批量样例流程的现场口径：For 遍历整个样例目录，采集步骤是文件夹模式，
+        /// FileIndex 接 For.Index（每圈换一张图）。
+        /// </summary>
+        internal static void CheckBatchFlow(FlowModel flow, int expectedCount)
+        {
+            var forStep = flow.Steps.OfType<ForStep>().FirstOrDefault();
+            Check($"{flow.FlowName} 用 For 遍历整个样例目录（{expectedCount} 张）",
+                forStep != null && forStep.DefaultLoopCount == expectedCount,
+                forStep == null ? "没有 For 容器" : $"LoopCount={forStep.DefaultLoopCount}");
+
+            var acq = FlattenActionSteps(flow.Steps).FirstOrDefault(s =>
+                (s.PluginTypeName ?? "").Contains("ImageAcquisitionPlugin", StringComparison.Ordinal));
+
+            bool folderMode = acq != null
+                              && acq.InputValues.TryGetValue("Mode", out var mode)
+                              && Convert.ToInt32(mode) == 1
+                              && acq.InputValues.TryGetValue("FolderPath", out var folder)
+                              && folder is string folderPath
+                              && Directory.Exists(folderPath);
+            Check($"{flow.FlowName} 采集为文件夹模式且目录存在", folderMode,
+                acq == null ? "缺少图像采集步骤"
+                : $"Mode={acq.InputValues.GetValueOrDefault("Mode")} "
+                  + $"FolderPath={acq.InputValues.GetValueOrDefault("FolderPath")}");
+
+            bool indexLinked = acq != null && forStep != null
+                               && acq.LinkedSources.TryGetValue("FileIndex", out var link)
+                               && link.TargetStepId == forStep.StepID
+                               && link.TargetPortName == "Index";
+            Check($"{flow.FlowName} FileIndex ← For.Index（每圈换一张图）", indexLinked,
+                acq == null || forStep == null
+                    ? "缺少采集/For 步骤"
+                    : $"FileIndex→{acq.LinkedSources.GetValueOrDefault("FileIndex")?.DisplayAddress}");
+        }
+
         // ------------------------------------------------------------------
         //  几何断言辅助：画布节点盒 / 包含 / 相交
         //  （1px 容差 = 泳道与框体都有 1~1.5px 边框线；贴边不算压）
@@ -3565,6 +3716,20 @@ namespace FlowCanvasChecks
             Console.WriteLine($"通过: {_pass}  失败: {_fail}");
             Console.WriteLine(_fail == 0 ? ">>> 全部断言通过 <<<" : $">>> 存在 {_fail} 项失败 <<<");
             Environment.ExitCode = _fail == 0 ? 0 : 1;
+        }
+
+        /// <summary>
+        /// 打印汇总后**显式退出**。
+        ///
+        /// 为什么不能只 `return Environment.ExitCode`：断言里会跑真插件/整条流程，
+        /// 结果显示、图集、HALCON 等会留下非后台线程；Main 返回后 CLR 仍在等这些线程，
+        /// 进程不退出会锁住自己的 exe（下次构建 MSB3027），gate 也会等到超时。
+        /// 汇总已经落盘，这里直接退进程，别让"跑完了"和"还活着"混在一起（C-27）。
+        /// </summary>
+        private static void FinishAndExit()
+        {
+            Finish();
+            Environment.Exit(Environment.ExitCode);
         }
 
         /// <summary>

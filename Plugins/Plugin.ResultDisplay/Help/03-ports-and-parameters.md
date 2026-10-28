@@ -9,6 +9,8 @@
 | 端口 | 类型 | 必填 | 接不上会怎样 |
 | --- | --- | --- | --- |
 | `SrcImage` | `HImage` | **必接** | 底图：结果画在哪张图上。运行期拿不到或句柄未初始化 → 本轮**不发布显示**、`IsDisplayed=false`，只写一条告警（本步骤仍算成功） |
+| `OverlayContours` | `HObject`（`HXLD` 或 `HRegion`） | 否 | 覆盖层几何：算法插件只输出几何（匹配的 `MatchContours`、Blob 的 `Defects`、读码的 `SymbolContours`、形变的 `DeformedContours`），显示层统一画。**区域（`HRegion`）会按边界转轮廓再画**，所以缺陷集可以直接接进来。`BakeOverlay=true`（默认）时几何**同时烧进 `AnnotatedImage`**，画布与存档一致；`false` 时只上屏。不接 = 没有几何层 |
+| `OverlayLabels` | `object`（`string[]` / 逗号分隔 string / `HTuple`） | 否 | 覆盖层逐条标签，与 `OverlayContours` **顺序对应**；第 i 条轮廓用第 i 个标签，标签数少于轮廓数时多出的轮廓不标字。读码流程接 `Codes` 就是逐码内容 |
 | `r1` `r2` … | `object`（动态口，`IsRequired=false`） | 否 | 结果项动态端口：**配置表里每加一行启用项就多一个口**。类型不限，连什么显示什么；没连线时可以手填常量。也接受 A 类插件（颜色检查 / 颜色区域 / 几何查找 / 几何计算 / C# 脚本）的 `Annotations`（`List<MeasureAnnotation>`），按与主界面覆盖层相同的位置口径烧进图 |
 
 动态口的**端口名 = 稳定 Id**（`r1`/`r2`…），界面上的"名字"是另一个字段（`Label`）。
@@ -22,7 +24,7 @@
 
 | 端口 | 类型 | 说明 |
 | --- | --- | --- |
-| `AnnotatedImage` | `HImage` | 烧录后的**全新标注图**（原底图不被改动）。接「数据记录」的图片端口就能存出带标注的图；接「图像赋值」→ 全局 HImage 变量 → SCADA「图像显示」图元，就是 SCADA 上看到的那张最终图 |
+| `AnnotatedImage` | `HImage` | 烧录后的**全新标注图**（原底图不被改动）。含结果项文字/数值，以及 `BakeOverlay=true` 时的覆盖层几何（`BakeOverlay=false` 时不含）。接「数据记录」的图片端口就能存出带标注的图；接「图像赋值」→ 全局 HImage 变量 → SCADA「图像显示」图元，就是 SCADA 上看到的那张最终图 |
 | `DisplayedCount` | `int` | 本轮**真的画进图里**的结果项数（超上限被截掉的、画不出来的都不算） |
 | `IsDisplayed` | `bool` | 本轮是否发布了显示。显示窗口 = 0 / 无底图 / 发布失败 → `false` |
 | `Success` / `ErrorMessage` | 基类自带 | 本步骤是否跑通、失败原因（本算子设计上几乎不该失败，见口径页的"宁缺显示不停线"） |
@@ -35,6 +37,8 @@
 | `Label` | 名字 | 图上那行字的冒号左边、信息栏的标签。**改名字不会断连线** |
 | `Format` | 格式 | .NET 格式串（`F2` / `0.000` / `P1`；时间用 `HH:mm:ss.fff`）。留空 = 数值最多 4 位小数、不留末尾 0 |
 | `Unit` | 单位 | 后缀（`mm` / `px` / `°` / `ms`）。**只贴标签不换算**——换算请在产出该数值的算子里做 |
+| `Color` | 颜色（几何） | 该项几何的颜色（HALCON 颜色名，如 `red`）。空 = 默认青色。**只影响几何**（区域/轮廓/图形），不影响数值文字——文字颜色仍由判定项统一决定 |
+| `LineWidth` | 线宽 | 该项几何的线宽（`0` = 默认 2；`1~10`）。只影响几何，不影响文字 |
 | `Id` | 不显示 | 稳定端口名（`r1`/`r2`…），由「添加结果项」生成、创建后永不改 |
 
 ## 配置项
@@ -45,6 +49,12 @@
 | `BakeWhenNotDisplayed` | `true` | 勾/不勾 | `DisplayViewIndex=0` 时是否仍然烘焙 `AnnotatedImage`。默认 true（兼容存图/上报）；不需要下游图时取消勾选可省掉每轮一次全幅 dump。`DisplayViewIndex>0` 时本开关不生效（显示必须烘焙） |
 | `Items` | 空表（出厂带 `r1`） | 结果项行集合 | 随 `[StepConfig]` 以 JSON 往返持久化进行；setter 会重建动态端口并刷新判定项候选（顺序承重，见开发页） |
 | `ShowTextOnImage` | `true` | 勾/不勾 | 图上叠字。取消 = **只烧图形不烧字**（几何照样画）；文字仍进缩略图信息栏（关掉字也还能悬停追溯） |
+| `OverlayColor` | `green` | HALCON 颜色名（`green`/`red`/`yellow`…） | `OverlayContours` 的默认颜色；`OverlayPalette` 为空时全部用它 |
+| `OverlayPalette` | 空 | 逗号/分号分隔的颜色名（如 `green,red,yellow`） | 覆盖层多色调色板，按轮廓顺序循环；空 = 全部用 `OverlayColor` |
+| `OverlayLineWidth` | `0` | `0~10`（0 = 沿用窗口当前线宽） | 覆盖层线宽；只影响线条，不影响文字/烧录内容 |
+| `OverlayNumbering` | 关 | 勾/不勾 | 覆盖层逐对象编号：没有显式 `OverlayLabels` 时，用 1 基序号标在每个对象重心上。**编号顺序 = 上游对象集顺序**（与端口数组逐项对应）。缺陷这类"报表说 3 号超标、图上要能找到 3 号"的结果要开 |
+| `OverlayMaxObjects` | `300` | `0~5000`（0 = 不限） | 覆盖层最多画多少个对象（防噪声图几千个 blob 逐个取轮廓+画字拖垮节拍）。端口数据永远全量，只是不画完，并记一条告警 |
+| `BakeOverlay` | `true` | 勾/不勾 | 覆盖层几何是否**同时烧进 `AnnotatedImage`**。`true` = 画布与存档（缩略图/导出/CSV/SCADA）一致，此时不再发布覆盖层（避免画两遍）；`false` = 只上屏、不进像素（省一次全幅 dump，但存档图没有几何）。**结果层几何不允许只存在于覆盖层** |
 | `JudgeItemLabel` | 空 | 结果项的名字（可编辑下拉，可手填） | 按哪一项决定整幅文字颜色。留空 = **不判定**，文字一律绿。按 `Label` 匹配，找不到再按 `Id` 找一次 |
 | `NgValue` | `NG` | 文本（空会被回填成 `NG`） | 判定项的值等于它 = NG → 判定项与**所有文本项**转红 |
 | `MaxDrawElements` | `300` | `10~2000`（越界夹取） | 一轮最多画多少个元素（防噪声图几千个元素逐个绘制拖垮节拍）。**端口数据永远全量，只是不画完**，并在图上写明截断说明 |

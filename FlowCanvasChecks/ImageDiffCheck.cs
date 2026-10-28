@@ -46,6 +46,7 @@ namespace FlowCanvasChecks
 
             RunCoreDifference();
             RunPolarity();
+            RunSignedSemantics();
             RunSizeGuardAndPolicies();
             RunJudgementLimits();
             RunMaskAndAggregation();
@@ -158,6 +159,71 @@ namespace FlowCanvasChecks
             catch (Exception ex)
             {
                 Check("[Diff] A4 极性执行不抛异常", false, $"{ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        // ==================================================================
+        //  [A5] 有符号差：零点偏置 + 极性取舍（不是 2×）
+        // ==================================================================
+
+        /// <summary>
+        /// Signed 的判据：输出 = (test − ref) + SignedDisplay，极性只决定保留哪个方向。
+        /// 旧实现先算 pos/neg 两张差再 SubImage(pos, neg)，正差被算成 2×、负差被抵消；
+        /// 这组用 ±10 的对称样本把它钉死：Both 下 110 → 138、90 → 118。
+        /// </summary>
+        private static void RunSignedSemantics()
+        {
+            Section("[Diff] A5 有符号差（零点偏置 / 极性 / 非 2×）");
+
+            using HImage reference = MakeUniform(100);
+            using HImage brighter = MakeUniform(110);
+            using HImage darker = MakeUniform(90);
+            try
+            {
+                double bothUp = RunSigned(reference, brighter, DiffPolarity.Both);
+                double bothDown = RunSigned(reference, darker, DiffPolarity.Both);
+                Check("[Diff][A5a] Signed+Both：+10 → 128+10 = 138（2× 会给 148）",
+                    Math.Abs(bothUp - 138) <= 0.51, $"像素={bothUp:0.##}");
+                Check("[Diff][A5b] Signed+Both：−10 → 128−10 = 118（旧实现负差消失给 128）",
+                    Math.Abs(bothDown - 118) <= 0.51, $"像素={bothDown:0.##}");
+
+                double brightUp = RunSigned(reference, brighter, DiffPolarity.Brighter);
+                double brightDown = RunSigned(reference, darker, DiffPolarity.Brighter);
+                Check("[Diff][A5c] Signed+Brighter：变亮保留（138），变暗归零（128）",
+                    Math.Abs(brightUp - 138) <= 0.51 && Math.Abs(brightDown - 128) <= 0.51,
+                    $"亮={brightUp:0.##} 暗={brightDown:0.##}");
+
+                double darkUp = RunSigned(reference, brighter, DiffPolarity.Darker);
+                double darkDown = RunSigned(reference, darker, DiffPolarity.Darker);
+                Check("[Diff][A5d] Signed+Darker：变暗保留（118），变亮归零（128）",
+                    Math.Abs(darkUp - 128) <= 0.51 && Math.Abs(darkDown - 118) <= 0.51,
+                    $"亮={darkUp:0.##} 暗={darkDown:0.##}");
+            }
+            catch (Exception ex)
+            {
+                Check("[Diff] A5 有符号差执行不抛异常", false, $"{ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        /// <summary>跑一遍 Signed，返回 DiffImage 左上角像素（纯色图，任一点等价）</summary>
+        private static double RunSigned(HImage reference, HImage test, DiffPolarity polarity)
+        {
+            var plugin = NewPlugin();
+            try
+            {
+                plugin.Reference.Value = reference;
+                plugin.Test.Value = test;
+                plugin.Algorithm = DiffAlgorithm.Signed;
+                plugin.Polarity = polarity;
+                plugin.Threshold = 30;
+                plugin.MinArea = 20;
+                plugin.DisplayViewIndex = 0;
+                plugin.Execute(NewContext());
+                return plugin.DiffImage.Value is HImage diff ? PixelProbe.At(diff, 0, 0) : double.NaN;
+            }
+            finally
+            {
+                plugin.Dispose();
             }
         }
 

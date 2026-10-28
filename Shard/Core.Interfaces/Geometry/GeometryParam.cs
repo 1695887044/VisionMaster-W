@@ -79,9 +79,13 @@ namespace Core.Interfaces
         /// </summary>
         public static double NormalizePhi(double deg)
         {
+            if (!double.IsFinite(deg)) return deg;
             var d = deg % 180.0;
             if (d < 0) d += 180.0;
-            return d;
+            // 浮点下 -1e-15 + 180 会等于 180；必须再折一次，否则越出 [0,180)
+            if (d >= 180.0) d -= 180.0;
+            // 消掉 -0.0，保证契约里的 0 是正零
+            return d == 0.0 ? 0.0 : d;
         }
 
         public override string ToString() => Kind switch

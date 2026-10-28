@@ -330,6 +330,21 @@
                           Foreground="{StaticResource DialogTextSecondaryBrush}"
                           IsChecked="{Binding RequireRecommendedPairs, Mode=TwoWay}"
                           ToolTip="关掉后 3 组也能解，但三组解出的旋转几乎不可复核，抓取会偏" />
+
+                <CheckBox Content="写入标定资产"
+                          Margin="12,0,6,0"
+                          VerticalAlignment="Center"
+                          FontSize="11.5"
+                          Foreground="{StaticResource DialogTextSecondaryBrush}"
+                          IsChecked="{Binding SaveToCatalog, Mode=TwoWay}"
+                          ToolTip="运行成功后把 4×4 写进方案标定资产目录：资产页可版本回滚，下游也能按 Id 引用" />
+
+                <TextBox Width="150"
+                         VerticalAlignment="Center"
+                         Style="{StaticResource DialogInput}"
+                         IsEnabled="{Binding SaveToCatalog}"
+                         Text="{Binding CatalogAssetName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="资产名（留空 = 步骤名 + 手眼标定）" />
             </WrapPanel>
         </DockPanel>
 

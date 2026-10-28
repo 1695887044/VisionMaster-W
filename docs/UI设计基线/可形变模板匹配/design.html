@@ -1,0 +1,1024 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>可形变模板匹配 · 配置窗口 · 设计基线 v0.1</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+</style>
+</head>
+<body>
+<div id="dm-design-root">
+<style>
+  #dm-design-root{
+    color-scheme: light;
+    --dm-surface:#FFFFFF;
+    --dm-surface-2:#F8FAFC;
+    --dm-surface-3:#F1F5F9;
+    --dm-border:#E2E8F0;
+    --dm-border-soft:#EEF2F7;
+    --dm-border-strong:#CBD5E1;
+    --dm-text:#0F172A;
+    --dm-text-2:#475569;
+    --dm-text-3:#94A3B8;
+    --dm-text-4:#64748B;
+    --dm-primary:#0EA5E9;
+    --dm-primary-strong:#0284C7;
+    --dm-primary-text:#0369A1;
+    --dm-primary-soft:#F0F9FF;
+    --dm-primary-light:#E0F2FE;
+    --dm-primary-border:#BAE6FD;
+    --dm-success:#22C55E;
+    --dm-success-text:#15803D;
+    --dm-success-soft:#F0FDF4;
+    --dm-success-border:#BBF7D0;
+    --dm-danger:#EF4444;
+    --dm-danger-text:#B91C1C;
+    --dm-danger-soft:#FEF2F2;
+    --dm-danger-border:#FECACA;
+    --dm-warning:#F59E0B;
+    --dm-warning-text:#B45309;
+    --dm-warning-soft:#FFF4E5;
+    --dm-warning-border:#FDE68A;
+    --dm-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --dm-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+    --dm-radius-sm:6px;
+    --dm-radius-md:8px;
+    --dm-radius-lg:10px;
+    --dm-radius-xl:12px;
+    --dm-radius-window:16px;
+    --dm-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+    font-family:var(--dm-font);
+    -webkit-font-smoothing:antialiased;
+  }
+  #dm-design-root *{box-sizing:border-box;}
+  #dm-design-root button,
+  #dm-design-root input,
+  #dm-design-root select{font-family:inherit;}
+  #dm-design-root button{color:inherit;}
+  #dm-design-root [hidden]{display:none !important;}
+  #dm-design-root :focus-visible{outline:2px solid var(--dm-primary);outline-offset:2px;}
+
+  #dm-design-root .dm-page{max-width:1360px;margin:0 auto;padding:24px 24px 44px;background:transparent;}
+  #dm-design-root .dm-page-head{max-width:1360px;margin:0 auto 16px;}
+  #dm-design-root .dm-page-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  #dm-design-root .dm-page-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--dm-text);}
+  #dm-design-root .dm-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--dm-primary-light);color:var(--dm-primary-text);font-size:11px;font-weight:700;letter-spacing:.02em;}
+  #dm-design-root .dm-page-sub{margin:7px 0 14px;font-size:12.5px;line-height:1.6;color:var(--dm-text-2);}
+  #dm-design-root .dm-page-sub b{color:var(--dm-text);font-weight:600;}
+  #dm-design-root .dm-demo-bar{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  #dm-design-root .dm-demo-group{display:flex;align-items:center;gap:8px;}
+  #dm-design-root .dm-demo-label{font-size:11.5px;color:var(--dm-text-4);}
+  #dm-design-root .dm-scope{display:flex;align-items:flex-start;gap:6px;margin:10px 0 0;font-size:11.5px;line-height:1.55;color:var(--dm-text-2);}
+  #dm-design-root .dm-scope svg{width:13px;height:13px;flex:none;margin-top:2px;color:var(--dm-warning-text);}
+  #dm-design-root .dm-scope b{color:var(--dm-text);font-weight:600;}
+
+  #dm-design-root .dm-seg{display:inline-flex;gap:2px;padding:2px;border-radius:var(--dm-radius-md);background:var(--dm-surface-3);}
+  #dm-design-root .dm-seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--dm-text-2);font-size:11.5px;line-height:1;cursor:pointer;transition:background 150ms ease,color 150ms ease,box-shadow 150ms ease;}
+  #dm-design-root .dm-seg button:hover{color:var(--dm-text);}
+  #dm-design-root .dm-seg button.is-on{background:#FFFFFF;color:var(--dm-text);font-weight:600;box-shadow:0 1px 2px rgba(15,23,42,.10);}
+  #dm-design-root .dm-seg-sm button{height:24px;padding:0 8px;font-size:11px;}
+
+  #dm-design-root .dm-window{width:960px;max-width:100%;height:680px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--dm-surface);border-radius:var(--dm-radius-window);box-shadow:var(--dm-shadow-window);transition:width 200ms ease;}
+  #dm-design-root .dm-window.is-narrow{width:640px;}
+  #dm-design-root .dm-titlebar{height:72px;flex:none;display:flex;align-items:center;padding:0 20px;background:var(--dm-surface);border-bottom:1px solid var(--dm-border-soft);}
+  #dm-design-root .dm-app-icon{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:var(--dm-radius-lg);background:var(--dm-primary-soft);color:var(--dm-primary-text);border:1px solid var(--dm-primary-border);}
+  #dm-design-root .dm-app-icon svg{width:22px;height:22px;}
+  #dm-design-root .dm-title-text{min-width:0;margin-left:12px;}
+  #dm-design-root .dm-title-line{display:flex;align-items:center;gap:8px;}
+  #dm-design-root .dm-title{font-size:15px;font-weight:600;color:var(--dm-text);line-height:1.25;}
+  #dm-design-root .dm-subtitle{margin-top:3px;font-size:11.5px;color:var(--dm-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #dm-design-root .dm-title-actions{margin-left:auto;display:flex;gap:4px;}
+  #dm-design-root .dm-icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;padding:0;border:1px solid transparent;border-radius:var(--dm-radius-md);background:transparent;color:var(--dm-text-2);cursor:pointer;transition:background 150ms ease,border-color 150ms ease,color 150ms ease;}
+  #dm-design-root .dm-icon-btn:hover{background:var(--dm-surface-3);border-color:var(--dm-border);color:var(--dm-text);}
+  #dm-design-root .dm-icon-btn svg{width:16px;height:16px;}
+
+  #dm-design-root .dm-content{flex:1;min-height:0;display:grid;grid-template-columns:368px minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:16px;padding:16px 20px 20px;background:var(--dm-surface);}
+  #dm-design-root .dm-window.is-narrow .dm-content{grid-template-columns:300px minmax(0,1fr);gap:12px;padding:14px 16px 16px;}
+  #dm-design-root .dm-rail{min-height:0;overflow:hidden;display:flex;flex-direction:column;border:1px solid var(--dm-border-soft);border-radius:var(--dm-radius-xl);background:var(--dm-surface-2);}
+  #dm-design-root .dm-rail-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;padding:14px;scrollbar-width:thin;scrollbar-color:#CBD5E1 transparent;}
+  #dm-design-root .dm-rail-scroll::-webkit-scrollbar{width:8px;}
+  #dm-design-root .dm-rail-scroll::-webkit-scrollbar-thumb{background:#CBD5E1;border-radius:8px;border:2px solid transparent;background-clip:padding-box;}
+  #dm-design-root .dm-rail-scroll::-webkit-scrollbar-track{background:transparent;}
+  #dm-design-root .dm-section{padding-top:14px;margin-top:14px;border-top:1px solid var(--dm-border);}
+  #dm-design-root .dm-section:first-child{padding-top:0;margin-top:0;border-top:0;}
+  #dm-design-root .dm-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:9px;font-size:12.5px;font-weight:600;color:var(--dm-text);}
+  #dm-design-root .dm-section-hint{font-size:10.5px;font-weight:400;color:var(--dm-text-3);white-space:nowrap;}
+
+  #dm-design-root .dm-field{margin-bottom:10px;}
+  #dm-design-root .dm-label{display:block;margin-bottom:5px;font-size:12px;font-weight:500;color:var(--dm-text-2);}
+  #dm-design-root .dm-help{margin-top:4px;font-size:11.5px;line-height:1.5;color:var(--dm-text-3);}
+  #dm-design-root .dm-help-block{margin-top:6px;}
+  #dm-design-root .dm-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  #dm-design-root .dm-row3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+  #dm-design-root .dm-path-row{display:flex;gap:8px;}
+  #dm-design-root .dm-path-row .dm-input{flex:1;min-width:0;}
+  #dm-design-root .dm-inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  #dm-design-root .dm-input,
+  #dm-design-root .dm-select{width:100%;height:36px;padding:0 10px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-md);background:var(--dm-surface);font-size:12.5px;color:var(--dm-text);transition:border-color 150ms ease,box-shadow 150ms ease,background 150ms ease;}
+  #dm-design-root .dm-input:hover,
+  #dm-design-root .dm-select:hover{border-color:var(--dm-border-strong);}
+  #dm-design-root .dm-input:focus,
+  #dm-design-root .dm-select:focus{outline:none;border-color:var(--dm-primary);box-shadow:0 0 0 3px var(--dm-primary-light);}
+  #dm-design-root .dm-input.is-error{border-color:var(--dm-danger);box-shadow:0 0 0 3px var(--dm-danger-soft);}
+  #dm-design-root .dm-input:disabled,
+  #dm-design-root .dm-select:disabled{background:var(--dm-surface-3);color:var(--dm-text-3);cursor:not-allowed;}
+  #dm-design-root .dm-mono{font-family:var(--dm-mono);font-variant-numeric:tabular-nums;}
+  #dm-design-root .dm-check{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--dm-text-2);cursor:pointer;}
+  #dm-design-root .dm-check input{width:14px;height:14px;accent-color:var(--dm-primary);}
+
+  #dm-design-root .dm-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:36px;padding:0 13px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-md);background:var(--dm-surface);color:var(--dm-text);font-size:12.5px;font-weight:500;line-height:1;cursor:pointer;white-space:nowrap;transition:background 150ms ease,border-color 150ms ease,color 150ms ease,opacity 150ms ease,transform 120ms ease;}
+  #dm-design-root .dm-btn:hover{background:var(--dm-surface-3);border-color:var(--dm-border-strong);}
+  #dm-design-root .dm-btn:active{transform:translateY(1px);}
+  #dm-design-root .dm-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+  #dm-design-root .dm-btn svg{width:15px;height:15px;}
+  #dm-design-root .dm-btn-primary{background:var(--dm-primary);border-color:var(--dm-primary);color:#FFFFFF;}
+  #dm-design-root .dm-btn-primary:hover{background:var(--dm-primary-strong);border-color:var(--dm-primary-strong);}
+  #dm-design-root .dm-btn-ghost{background:transparent;}
+  #dm-design-root .dm-btn-sm{height:30px;padding:0 10px;font-size:11.5px;border-radius:var(--dm-radius-sm);}
+  #dm-design-root .dm-btn-sm svg{width:13px;height:13px;}
+  #dm-design-root .dm-rail-actions{flex:none;display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--dm-border);background:var(--dm-surface-2);}
+  #dm-design-root .dm-rail-actions .dm-btn{flex:1;}
+
+  #dm-design-root .dm-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;background:var(--dm-surface-3);color:var(--dm-text-2);font-size:10.5px;font-weight:600;white-space:nowrap;}
+  #dm-design-root .dm-pill.is-ok{background:var(--dm-success-soft);color:var(--dm-success-text);}
+  #dm-design-root .dm-pill.is-warn{background:var(--dm-warning-soft);color:var(--dm-warning-text);}
+  #dm-design-root .dm-pill.is-err{background:var(--dm-danger-soft);color:var(--dm-danger-text);}
+  #dm-design-root .dm-dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none;}
+
+  #dm-design-root .dm-algo-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  #dm-design-root .dm-algo-card{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:8px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-lg);background:var(--dm-surface);text-align:left;cursor:pointer;transition:background 150ms ease,border-color 150ms ease,box-shadow 150ms ease;}
+  #dm-design-root .dm-algo-card:hover{border-color:var(--dm-border-strong);background:var(--dm-surface-2);}
+  #dm-design-root .dm-algo-card.is-on{border-color:var(--dm-primary);background:var(--dm-primary-soft);box-shadow:0 0 0 2px var(--dm-primary-light);}
+  #dm-design-root .dm-algo-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;color:var(--dm-primary-text);}
+  #dm-design-root .dm-algo-icon svg{width:22px;height:22px;}
+  #dm-design-root .dm-algo-title{font-size:12px;font-weight:600;color:var(--dm-text);}
+  #dm-design-root .dm-algo-desc{font-size:10.5px;line-height:1.4;color:var(--dm-text-3);}
+  #dm-design-root .dm-algo-card.is-on .dm-algo-desc{color:var(--dm-primary-text);}
+
+  #dm-design-root .dm-port-list{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+  #dm-design-root .dm-port{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-sm);background:var(--dm-surface);font-family:var(--dm-mono);font-size:10px;color:var(--dm-text-2);}
+  #dm-design-root .dm-port small{font-family:var(--dm-font);font-size:9px;color:var(--dm-text-3);}
+  #dm-design-root .dm-steps{margin:0;padding-left:18px;font-size:11.5px;line-height:1.7;color:var(--dm-text-2);}
+  #dm-design-root .dm-steps li{margin:0;}
+
+  #dm-design-root .dm-workspace{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--dm-border);border-radius:var(--dm-radius-xl);background:var(--dm-surface);}
+  #dm-design-root .dm-workspace-head{height:46px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;border-bottom:1px solid var(--dm-border-soft);background:var(--dm-surface);}
+  #dm-design-root .dm-file-chip{width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:var(--dm-radius-sm);background:var(--dm-primary-soft);color:var(--dm-primary-text);}
+  #dm-design-root .dm-file-chip svg{width:14px;height:14px;}
+  #dm-design-root .dm-workspace-title{font-size:12.5px;font-weight:600;line-height:1.3;color:var(--dm-text);white-space:nowrap;}
+  #dm-design-root .dm-workspace-hint{font-size:10.5px;line-height:1.3;color:var(--dm-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #dm-design-root .dm-tools{margin-left:auto;display:flex;align-items:center;gap:4px;}
+  #dm-design-root .dm-tool-text{height:30px;padding:0 8px;border:1px solid transparent;border-radius:var(--dm-radius-md);background:transparent;color:var(--dm-text-2);font-size:11px;cursor:pointer;transition:background 150ms ease,border-color 150ms ease;}
+  #dm-design-root .dm-tool-text:hover{background:var(--dm-surface-3);border-color:var(--dm-border);}
+  #dm-design-root .dm-window.is-narrow .dm-workspace-hint{display:none;}
+  #dm-design-root .dm-window.is-narrow .dm-workspace .dm-pill{display:none;}
+
+  #dm-design-root .dm-canvas{position:relative;flex:1;min-height:220px;overflow:hidden;background:#0B1220;}
+  #dm-design-root .dm-canvas-view{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;}
+  #dm-design-root .dm-canvas-view[data-view="image"]{display:block;padding:0;}
+  #dm-design-root .dm-scene{width:100%;height:100%;display:block;}
+  #dm-design-root .dm-overlay{position:absolute;left:10px;top:10px;display:flex;align-items:center;gap:6px;pointer-events:none;}
+  #dm-design-root .dm-chip{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:999px;background:rgba(15,23,42,.72);border:1px solid rgba(148,163,184,.28);color:#E2E8F0;font-size:10.5px;backdrop-filter:blur(4px);}
+  #dm-design-root .dm-chip svg{width:12px;height:12px;}
+  #dm-design-root .dm-chip.is-local{color:#86EFAC;}
+  #dm-design-root .dm-chip.is-planar{color:#7DD3FC;}
+  #dm-design-root .dm-canvas-empty{background:radial-gradient(circle at 50% 38%,#162033 0%,#0B1220 62%);}
+  #dm-design-root .dm-empty-card{max-width:330px;padding:18px;border:1px dashed rgba(148,163,184,.34);border-radius:var(--dm-radius-lg);background:rgba(15,23,42,.42);}
+  #dm-design-root .dm-state-icon{width:42px;height:42px;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:rgba(56,189,248,.12);color:#7DD3FC;}
+  #dm-design-root .dm-state-icon svg{width:20px;height:20px;}
+  #dm-design-root .dm-state-title{font-size:13px;font-weight:600;color:#E2E8F0;}
+  #dm-design-root .dm-state-sub{margin:6px 0 12px;font-size:11.5px;line-height:1.55;color:#94A3B8;}
+  #dm-design-root .dm-state-actions{display:flex;justify-content:center;}
+  #dm-design-root .dm-state-actions .dm-btn{background:rgba(255,255,255,.06);border-color:rgba(148,163,184,.28);color:#E2E8F0;}
+  #dm-design-root .dm-state-actions .dm-btn:hover{background:rgba(255,255,255,.12);}
+  #dm-design-root .dm-canvas-error .dm-state-icon{background:rgba(239,68,68,.14);color:#FCA5A5;}
+  #dm-design-root .dm-canvas-error .dm-state-title{color:#FCA5A5;}
+
+  #dm-design-root .dm-result{flex:none;height:188px;display:flex;flex-direction:column;border-top:1px solid var(--dm-border-soft);background:var(--dm-surface);}
+  #dm-design-root .dm-window.is-narrow .dm-result{height:200px;}
+  #dm-design-root .dm-result-head{height:36px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--dm-border-soft);}
+  #dm-design-root .dm-result-title{font-size:12px;font-weight:600;color:var(--dm-text);}
+  #dm-design-root .dm-result-meta{margin-left:auto;font-family:var(--dm-mono);font-size:10.5px;color:var(--dm-text-3);white-space:nowrap;}
+  #dm-design-root .dm-result-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);overflow:hidden;}
+  #dm-design-root .dm-window.is-narrow .dm-result-body{display:block;overflow-y:auto;}
+  #dm-design-root .dm-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+  #dm-design-root .dm-table th{height:28px;padding:0 8px;border-bottom:1px solid var(--dm-border-soft);background:var(--dm-surface-2);color:var(--dm-text-3);font-size:10px;font-weight:600;text-align:left;white-space:nowrap;}
+  #dm-design-root .dm-table td{height:28px;padding:0 8px;border-bottom:1px solid var(--dm-border-soft);color:var(--dm-text-2);white-space:nowrap;}
+  #dm-design-root .dm-table td.dm-num{font-family:var(--dm-mono);font-variant-numeric:tabular-nums;}
+  #dm-design-root .dm-table tr.is-best td{background:var(--dm-primary-soft);color:var(--dm-text);}
+  #dm-design-root .dm-table tr.is-best td:first-child{font-weight:700;color:var(--dm-primary-text);}
+  #dm-design-root .dm-result-detail{padding:8px 12px;border-left:1px solid var(--dm-border-soft);font-size:11px;line-height:1.6;color:var(--dm-text-2);overflow:auto;}
+  #dm-design-root .dm-result-detail b{color:var(--dm-text);font-weight:600;}
+  #dm-design-root .dm-result-detail .dm-mono{font-size:10.5px;}
+  #dm-design-root .dm-window.is-narrow .dm-result-detail{border-left:0;border-top:1px solid var(--dm-border-soft);}
+  #dm-design-root .dm-result-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:12px;text-align:center;font-size:11.5px;line-height:1.55;color:var(--dm-text-3);}
+  #dm-design-root .dm-result-empty b{color:var(--dm-text-2);font-weight:600;}
+  #dm-design-root .dm-stale-banner{display:flex;align-items:center;gap:6px;margin:0 12px 8px;padding:7px 9px;border:1px solid var(--dm-warning-border);border-radius:var(--dm-radius-md);background:var(--dm-warning-soft);color:var(--dm-warning-text);font-size:11px;}
+  #dm-design-root .dm-stale-banner svg{width:13px;height:13px;flex:none;}
+
+  #dm-design-root .dm-statusbar{height:38px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-top:1px solid var(--dm-border-soft);background:var(--dm-surface);font-size:11.5px;min-width:0;}
+  #dm-design-root .dm-status-dot{width:7px;height:7px;border-radius:50%;flex:none;background:var(--dm-text-3);}
+  #dm-design-root .dm-status-dot.is-ok{background:var(--dm-success);}
+  #dm-design-root .dm-status-dot.is-warn{background:var(--dm-warning);}
+  #dm-design-root .dm-status-dot.is-err{background:var(--dm-danger);}
+  #dm-design-root .dm-status-msg{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dm-text-2);}
+  #dm-design-root .dm-status-msg.is-ok{color:var(--dm-success-text);}
+  #dm-design-root .dm-status-msg.is-warn{color:var(--dm-warning-text);}
+  #dm-design-root .dm-status-msg.is-err{color:var(--dm-danger-text);}
+  #dm-design-root .dm-status-entry{margin-left:auto;flex:none;font-family:var(--dm-mono);font-size:10.5px;color:var(--dm-text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42%;}
+  #dm-design-root .dm-window.is-narrow .dm-status-entry{display:none;}
+
+  #dm-design-root .dm-footer{height:56px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--dm-border-soft);background:var(--dm-surface-2);}
+  #dm-design-root .dm-footer-left{display:flex;align-items:center;gap:10px;min-width:0;}
+  #dm-design-root .dm-footer-right{margin-left:auto;display:flex;align-items:center;gap:8px;}
+  #dm-design-root .dm-footer .dm-btn{height:32px;padding:0 16px;font-size:12.5px;}
+  #dm-design-root .dm-status-chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;background:var(--dm-surface);border:1px solid var(--dm-border);font-size:11.5px;color:var(--dm-text-2);white-space:nowrap;}
+  #dm-design-root .dm-footer-dot{width:6px;height:6px;border-radius:50%;background:var(--dm-success);}
+  #dm-design-root .dm-elapsed{font-family:var(--dm-mono);font-size:11px;color:var(--dm-text-3);white-space:nowrap;}
+
+  #dm-design-root .dm-notes{max-width:1360px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));column-gap:28px;row-gap:18px;}
+  #dm-design-root .dm-notes-head{grid-column:1/-1;font-size:14px;font-weight:600;color:var(--dm-text);}
+  #dm-design-root .dm-note{display:flex;gap:10px;padding:12px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-lg);background:var(--dm-surface);}
+  #dm-design-root .dm-note-num{width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--dm-primary-light);color:var(--dm-primary-text);font-family:var(--dm-mono);font-size:10px;font-weight:700;}
+  #dm-design-root .dm-note b{display:block;margin-bottom:3px;font-size:12px;color:var(--dm-text);}
+  #dm-design-root .dm-note span{font-size:11.5px;line-height:1.55;color:var(--dm-text-2);}
+  #dm-design-root .dm-note code{font-family:var(--dm-mono);font-size:10.5px;color:var(--dm-primary-text);}
+  #dm-design-root .dm-block{grid-column:1/-1;padding:14px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-lg);background:var(--dm-surface);}
+  #dm-design-root .dm-block h3{margin:0 0 8px;font-size:12.5px;font-weight:600;color:var(--dm-text);}
+  #dm-design-root .dm-block p{margin:0;font-size:11.5px;line-height:1.6;color:var(--dm-text-2);}
+  #dm-design-root .dm-state-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:8px;}
+  #dm-design-root .dm-state-card{padding:9px;border:1px solid var(--dm-border);border-radius:var(--dm-radius-md);background:var(--dm-surface-2);}
+  #dm-design-root .dm-state-card h4{margin:0 0 7px;font-size:10.5px;font-weight:600;color:var(--dm-text-2);}
+  #dm-design-root .dm-state-card .dm-input{height:30px;font-size:11px;}
+  #dm-design-root .dm-state-card .dm-btn{height:28px;padding:0 9px;font-size:11px;}
+  #dm-design-root .dm-state-card .dm-pill{height:20px;font-size:10px;}
+  #dm-design-root .dm-state-card.is-hover .dm-btn{background:var(--dm-surface-3);border-color:var(--dm-border-strong);}
+  #dm-design-root .dm-state-card.is-focus .dm-input{border-color:var(--dm-primary);box-shadow:0 0 0 3px var(--dm-primary-light);}
+  #dm-design-root .dm-state-card.is-error .dm-input{border-color:var(--dm-danger);box-shadow:0 0 0 3px var(--dm-danger-soft);}
+  #dm-design-root .dm-state-card .dm-state-note{margin-top:6px;font-size:10px;color:var(--dm-text-3);}
+  #dm-design-root .dm-token-table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;}
+  #dm-design-root .dm-token-table th,#dm-design-root .dm-token-table td{padding:5px 7px;border-bottom:1px solid var(--dm-border-soft);text-align:left;vertical-align:top;}
+  #dm-design-root .dm-token-table th{color:var(--dm-text-3);font-size:10px;font-weight:600;background:var(--dm-surface-2);}
+  #dm-design-root .dm-token-table td{color:var(--dm-text-2);}
+  #dm-design-root .dm-token-table code{font-family:var(--dm-mono);font-size:10px;color:var(--dm-primary-text);}
+  #dm-design-root .dm-list{margin:0;padding-left:18px;font-size:11.5px;line-height:1.7;color:var(--dm-text-2);}
+  #dm-design-root .dm-list li{margin:0;}
+  #dm-design-root .dm-contracts{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px;}
+  #dm-design-root .dm-contracts th,#dm-design-root .dm-contracts td{padding:5px 7px;border-bottom:1px solid var(--dm-border-soft);text-align:left;vertical-align:top;}
+  #dm-design-root .dm-contracts th{color:var(--dm-text-3);font-size:10px;font-weight:600;background:var(--dm-surface-2);}
+  #dm-design-root .dm-contracts td{color:var(--dm-text-2);}
+  #dm-design-root .dm-contracts code{font-family:var(--dm-mono);font-size:10px;color:var(--dm-primary-text);}
+
+  @media (max-width:1100px){
+    #dm-design-root .dm-state-grid{grid-template-columns:repeat(3,minmax(0,1fr));}
+  }
+  @media (max-width:760px){
+    #dm-design-root .dm-page{padding:14px 10px 30px;}
+    #dm-design-root .dm-window{height:auto;min-height:640px;}
+    #dm-design-root .dm-rail{overflow:visible;}
+    #dm-design-root .dm-workspace{min-height:520px;}
+    #dm-design-root .dm-state-grid{grid-template-columns:1fr 1fr;}
+  }
+</style>
+
+<header class="dm-page-head">
+  <div class="dm-page-title-row">
+    <h1>可形变模板匹配 · 配置窗口</h1>
+    <span class="dm-ver">v0.1 草案</span>
+  </div>
+  <p class="dm-page-sub">
+    局部非刚性 / 平面透视两种算法的配置界面。左栏按「算法 → 模板 → 查找参数 → 输出」分层；
+    右栏是参考图只读预览 + 匹配结果。演示开关只用于设计稿，WPF 中不存在这些状态切换按钮。
+  </p>
+  <div class="dm-demo-bar">
+    <div class="dm-demo-group">
+      <span class="dm-demo-label">算法</span>
+      <div class="dm-seg" data-algo-seg>
+        <button type="button" data-algo="local" class="is-on">局部非刚性</button>
+        <button type="button" data-algo="planar">平面透视</button>
+      </div>
+    </div>
+    <div class="dm-demo-group">
+      <span class="dm-demo-label">状态</span>
+      <div class="dm-seg" data-state-seg>
+        <button type="button" data-state="draft" class="is-on">未学习</button>
+        <button type="button" data-state="learned">已学习</button>
+        <button type="button" data-state="stale">参数已改</button>
+        <button type="button" data-state="nomatch">无命中</button>
+        <button type="button" data-state="error">错误</button>
+      </div>
+    </div>
+    <div class="dm-demo-group">
+      <span class="dm-demo-label">ROI 形状</span>
+      <div class="dm-seg" data-shape-seg>
+        <button type="button" data-shape="rect" class="is-on">矩形</button>
+        <button type="button" data-shape="circle">圆</button>
+        <button type="button" data-shape="ellipse">椭圆</button>
+      </div>
+    </div>
+    <div class="dm-demo-group">
+      <span class="dm-demo-label">窗口</span>
+      <div class="dm-seg" data-width-seg>
+        <button type="button" data-width="960" class="is-on">960</button>
+        <button type="button" data-width="640">640</button>
+      </div>
+    </div>
+  </div>
+  <div class="dm-scope">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+    <span><b>范围：</b>插件内容区 <code>DeformableMatchingView.xaml</code>；宿主外壳 <code>PluginConfigShellView</code> 不在本稿范围。v1 数值 ROI；画布 ROI 为 M3 增量。Web 只是设计媒介，不进入构建（R126）。</span>
+  </div>
+</header>
+
+<div class="dm-window" id="dm-window" data-algo="local" data-state="learned" data-shape="rect">
+  <div class="dm-titlebar">
+    <div class="dm-app-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><path d="M7 12c2.5-3 5-3 7.5 0s5 3 7.5 0"></path></svg>
+    </div>
+    <div class="dm-title-text">
+      <div class="dm-title-line"><div class="dm-title">可形变模板匹配</div></div>
+      <div class="dm-subtitle">局部非刚性 / 平面透视形变下的模板定位：学习一次，输出命中位姿、形变轮廓与单应矩阵</div>
+    </div>
+    <div class="dm-title-actions">
+      <button type="button" class="dm-icon-btn" data-tooltip="关闭" aria-label="关闭">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="dm-content">
+    <aside class="dm-rail" aria-label="可形变模板匹配配置">
+      <div class="dm-rail-scroll">
+      <section class="dm-section">
+        <div class="dm-section-head">
+          <span>算法</span>
+          <span class="dm-section-hint">二选一 · 换算法要重学</span>
+        </div>
+        <div class="dm-algo-grid">
+          <button type="button" class="dm-algo-card is-on" data-algo-card="local">
+            <span class="dm-algo-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12c3-7 6 7 9 0s6 7 9 0"></path><path d="M3 17c3-5 6 5 9 0s6 5 9 0"></path></svg>
+            </span>
+            <span class="dm-algo-title">局部非刚性</span>
+            <span class="dm-algo-desc">柔性/形变物体 · 输出校正图</span>
+          </button>
+          <button type="button" class="dm-algo-card" data-algo-card="planar">
+            <span class="dm-algo-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17 8 6l12 1-3 12z"></path><path d="M8 6l1 13"></path><path d="M4 17l17 2"></path></svg>
+            </span>
+            <span class="dm-algo-title">平面透视</span>
+            <span class="dm-algo-desc">倾斜平面 · 输出 HomMat2D</span>
+          </button>
+        </div>
+        <div class="dm-help dm-help-block">
+          局部不返回角度/缩放；平面用 HomMat2D 反推 Row/Column。
+        </div>
+      </section>
+
+      <section class="dm-section">
+        <div class="dm-section-head">
+          <span>模板</span>
+          <span class="dm-pill is-ok" data-status-pill><span class="dm-dot"></span><span data-status-text>已学习</span></span>
+        </div>
+
+        <div class="dm-field">
+          <label class="dm-label" for="dm-ref-path">参考图</label>
+          <div class="dm-path-row">
+            <input class="dm-input dm-mono" id="dm-ref-path" value="D:\C#\VM\Image\images\pen\pen-01.png" spellcheck="false">
+            <button type="button" class="dm-btn dm-btn-sm" data-action="load">载入</button>
+          </div>
+          <div class="dm-help">绝对路径；只用于学习/重学，运行期读模型。</div>
+        </div>
+
+        <div class="dm-field">
+          <span class="dm-label">ROI 形状</span>
+          <div class="dm-seg dm-seg-sm" data-shape-seg>
+            <button type="button" data-shape="rect" class="is-on">矩形</button>
+            <button type="button" data-shape="circle">圆</button>
+            <button type="button" data-shape="ellipse">椭圆</button>
+          </div>
+        </div>
+
+        <div class="dm-row3">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-roi-row">中心行</label>
+            <input class="dm-input dm-mono" id="dm-roi-row" value="200.0">
+          </div>
+          <div class="dm-field">
+            <label class="dm-label" for="dm-roi-col">中心列</label>
+            <input class="dm-input dm-mono" id="dm-roi-col" value="200.0">
+          </div>
+          <div class="dm-field" data-field-angle>
+            <label class="dm-label" for="dm-roi-angle" data-label-angle>角度</label>
+            <input class="dm-input dm-mono" id="dm-roi-angle" value="0.0">
+          </div>
+        </div>
+        <div class="dm-row2">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-roi-h1" data-label-h1>半长</label>
+            <input class="dm-input dm-mono" id="dm-roi-h1" value="60.0">
+          </div>
+          <div class="dm-field" data-field-h2>
+            <label class="dm-label" for="dm-roi-h2" data-label-h2>半宽</label>
+            <input class="dm-input dm-mono" id="dm-roi-h2" value="45.0">
+          </div>
+        </div>
+
+        <div class="dm-field">
+          <span class="dm-label">掩膜</span>
+          <div class="dm-inline">
+            <button type="button" class="dm-btn dm-btn-sm" data-action="mask">涂抹掩膜</button>
+            <button type="button" class="dm-btn dm-btn-sm dm-btn-ghost" data-action="mask-clear">清除</button>
+            <span class="dm-help" data-mask-state>未设置</span>
+          </div>
+          <div class="dm-help">涂抹区域不参与建模；非对称掩膜会改变重心。</div>
+        </div>
+
+        <div class="dm-help dm-help-block">
+          创建期参数：ROI / 掩膜 / 算法 / 层数 / 极性；改了要重学。
+        </div>
+      </section>
+
+      <section class="dm-section">
+        <div class="dm-section-head">
+          <span>查找参数</span>
+          <span class="dm-section-hint">运行期 · 立即生效</span>
+        </div>
+        <div class="dm-row2">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-angle-start">角度起点（度）</label>
+            <input class="dm-input dm-mono" id="dm-angle-start" value="-30">
+          </div>
+          <div class="dm-field">
+            <label class="dm-label" for="dm-angle-extent">角度范围（度）</label>
+            <input class="dm-input dm-mono" id="dm-angle-extent" value="60">
+          </div>
+        </div>
+        <div class="dm-row2">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-scale-rmin">Row 缩放下限</label>
+            <input class="dm-input dm-mono" id="dm-scale-rmin" value="1.0">
+          </div>
+          <div class="dm-field">
+            <label class="dm-label" for="dm-scale-rmax">Row 缩放上限</label>
+            <input class="dm-input dm-mono" id="dm-scale-rmax" value="1.0">
+          </div>
+        </div>
+        <div class="dm-row2">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-scale-cmin">Col 缩放下限</label>
+            <input class="dm-input dm-mono" id="dm-scale-cmin" value="1.0">
+          </div>
+          <div class="dm-field">
+            <label class="dm-label" for="dm-scale-cmax">Col 缩放上限</label>
+            <input class="dm-input dm-mono" id="dm-scale-cmax" value="1.0">
+          </div>
+        </div>
+        <div class="dm-field only-local">
+          <label class="dm-label" for="dm-smoothness">平滑度</label>
+          <input class="dm-input dm-mono" id="dm-smoothness" value="11">
+          <div class="dm-help">HALCON 典型 11，最小 3；越大越刚，越小越能贴合强形变。</div>
+        </div>
+        <div class="dm-row2">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-min-score">分数下限</label>
+            <input class="dm-input dm-mono" id="dm-min-score" value="0.5">
+          </div>
+          <div class="dm-field">
+            <label class="dm-label" for="dm-max-matches">最大命中数</label>
+            <input class="dm-input dm-mono" id="dm-max-matches" value="1">
+          </div>
+        </div>
+        <div class="dm-row2">
+          <div class="dm-field">
+            <label class="dm-label" for="dm-max-overlap">最大重叠</label>
+            <input class="dm-input dm-mono" id="dm-max-overlap" value="0.5">
+          </div>
+          <div class="dm-field">
+            <label class="dm-label" for="dm-greediness">搜索激进度</label>
+            <input class="dm-input dm-mono" id="dm-greediness" value="0.9">
+          </div>
+        </div>
+        <div class="dm-field">
+          <label class="dm-check"><input type="checkbox" checked> 使用极性（use_polarity）</label>
+          <div class="dm-help">创建期参数：改极性要重新学习。</div>
+        </div>
+      </section>
+
+      <section class="dm-section">
+        <div class="dm-section-head">
+          <span>输出</span>
+          <span class="dm-section-hint">运行结果</span>
+        </div>
+        <div class="dm-field">
+          <label class="dm-label" for="dm-view-index">运行显示窗口</label>
+          <select class="dm-select" id="dm-view-index">
+            <option>0 · 不显示</option>
+            <option selected>1 · 主界面视图 1</option>
+            <option>2 · 主界面视图 2</option>
+            <option>3 · 主界面视图 3</option>
+          </select>
+        </div>
+        <div class="dm-port-list">
+          <span class="dm-port">MatchCount</span>
+          <span class="dm-port">Score</span>
+          <span class="dm-port">Row</span>
+          <span class="dm-port">Column</span>
+          <span class="dm-port">Scores</span>
+          <span class="dm-port">Rows</span>
+          <span class="dm-port">Columns</span>
+          <span class="dm-port only-local">DeformedContours <small>局部</small></span>
+          <span class="dm-port only-local">RectifiedImages <small>局部</small></span>
+          <span class="dm-port only-planar">HomMat2D <small>平面</small></span>
+          <span class="dm-port">MeasureImage</span>
+        </div>
+        <div class="dm-help dm-help-block">
+          平面 HomMat2D = 9×N；局部 RectifiedImages 每命中一张；DeformedContours 是扁平 XLD 数组（每命中多段）。
+        </div>
+      </section>
+
+      <section class="dm-section">
+        <div class="dm-section-head"><span>怎么用</span></div>
+        <ol class="dm-steps">
+          <li>先选算法（局部非刚性 / 平面透视）。</li>
+          <li>选参考图并「载入」。</li>
+          <li>选 ROI 形状，填中心/半长/半宽（v1 数值）。</li>
+          <li>点「学习模板」，状态变「已学习」。</li>
+          <li>连上游 Image，运行看结果。</li>
+          <li>改创建期参数会变「参数已改·需重新学习」。</li>
+        </ol>
+      </section>
+      </div>
+
+      <div class="dm-rail-actions">
+        <button type="button" class="dm-btn dm-btn-primary" data-learn-btn>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18"></path><path d="M3 12h18"></path></svg>
+          重新学习
+        </button>
+        <button type="button" class="dm-btn dm-btn-ghost">清除模板</button>
+      </div>
+    </aside>
+
+    <section class="dm-workspace" aria-label="参考图像与匹配结果">
+      <div class="dm-workspace-head">
+        <div class="dm-file-chip">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect><circle cx="9" cy="9" r="2"></circle><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path></svg>
+        </div>
+        <span class="dm-workspace-title">参考图像</span>
+        <span class="dm-workspace-hint">v1 数值 ROI · 画布只读预览</span>
+        <span class="dm-pill is-ok" data-status-pill><span class="dm-dot"></span><span data-status-text>已学习</span></span>
+        <div class="dm-tools">
+          <button type="button" class="dm-icon-btn" data-tooltip="适应窗口" aria-label="适应窗口">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+          </button>
+          <button type="button" class="dm-tool-text" data-tooltip="实际像素 1:1" aria-label="实际像素">1:1</button>
+        </div>
+      </div>
+
+      <div class="dm-canvas">
+        <div class="dm-canvas-view" data-view="image">
+          <svg class="dm-scene" viewBox="0 0 800 520" preserveAspectRatio="xMidYMid slice" role="img" aria-labelledby="dm-scene-title dm-scene-desc">
+            <title id="dm-scene-title">笔形零件参考图</title>
+            <desc id="dm-scene-desc">深色背景上的笔形零件，笔身贴有棋盘格标签；绿色虚线框是模板 ROI。</desc>
+            <defs>
+              <linearGradient id="dm-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#0B1220"></stop><stop offset="100%" stop-color="#151F31"></stop></linearGradient>
+              <linearGradient id="dm-metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#E8EDF3"></stop><stop offset="45%" stop-color="#AEB9C6"></stop><stop offset="100%" stop-color="#66707E"></stop></linearGradient>
+              <pattern id="dm-grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E293B" stroke-width="1"></path></pattern>
+              <pattern id="dm-checker" width="20" height="20" patternUnits="userSpaceOnUse"><rect width="20" height="20" fill="#0F172A"></rect><rect width="10" height="10" fill="#E2E8F0"></rect><rect x="10" y="10" width="10" height="10" fill="#E2E8F0"></rect></pattern>
+              <filter id="dm-soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="10"></feGaussianBlur></filter>
+            </defs>
+            <rect width="800" height="520" fill="url(#dm-bg)"></rect>
+            <rect width="800" height="520" fill="url(#dm-grid)" opacity=".55"></rect>
+            <ellipse cx="430" cy="300" rx="270" ry="120" fill="#000000" opacity=".40" filter="url(#dm-soft)"></ellipse>
+
+            <g transform="rotate(-16 400 260)">
+              <rect x="120" y="205" width="560" height="110" rx="54" fill="url(#dm-metal)" stroke="#D7DEE8" stroke-width="2"></rect>
+              <rect x="150" y="224" width="500" height="72" rx="36" fill="#8C97A5" stroke="#D7DEE8" stroke-width="1.2"></rect>
+              <rect x="470" y="236" width="150" height="48" rx="6" fill="url(#dm-checker)" stroke="#CBD5E1" stroke-width="1.4"></rect>
+              <circle cx="190" cy="260" r="18" fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2"></circle>
+              <circle cx="190" cy="260" r="7" fill="#AEB9C6"></circle>
+              <path d="M560 245 L640 260 L560 275 Z" fill="#1F2937" stroke="#C7D0DB" stroke-width="1.2"></path>
+            </g>
+
+            <g data-roi-shape="rect">
+              <rect x="455" y="208" width="180" height="104" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-dasharray="7 5"></rect>
+              <g fill="#22C55E" stroke="#0B1220" stroke-width="1.2">
+                <rect x="450" y="203" width="10" height="10"></rect><rect x="630" y="203" width="10" height="10"></rect>
+                <rect x="450" y="307" width="10" height="10"></rect><rect x="630" y="307" width="10" height="10"></rect>
+              </g>
+              <text x="458" y="199" fill="#86EFAC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="12">模板 ROI · 矩形</text>
+            </g>
+            <g data-roi-shape="circle" hidden>
+              <circle cx="545" cy="260" r="88" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-dasharray="7 5"></circle>
+              <g fill="#22C55E" stroke="#0B1220" stroke-width="1.2">
+                <rect x="540" y="167" width="10" height="10"></rect><rect x="540" y="343" width="10" height="10"></rect>
+                <rect x="452" y="255" width="10" height="10"></rect><rect x="628" y="255" width="10" height="10"></rect>
+              </g>
+              <text x="466" y="156" fill="#86EFAC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="12">模板 ROI · 圆</text>
+            </g>
+            <g data-roi-shape="ellipse" hidden>
+              <ellipse cx="545" cy="260" rx="96" ry="64" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-dasharray="7 5"></ellipse>
+              <g fill="#22C55E" stroke="#0B1220" stroke-width="1.2">
+                <rect x="540" y="191" width="10" height="10"></rect><rect x="540" y="319" width="10" height="10"></rect>
+                <rect x="444" y="255" width="10" height="10"></rect><rect x="636" y="255" width="10" height="10"></rect>
+              </g>
+              <text x="466" y="180" fill="#86EFAC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="12">模板 ROI · 椭圆</text>
+            </g>
+
+            <g data-algo-view="local">
+              <path d="M462 224 C500 206 560 210 596 228 C624 242 624 286 594 302 C556 322 500 320 466 300 C438 284 438 242 462 224 Z" fill="none" stroke="#22C55E" stroke-width="2.2" stroke-dasharray="5 4"></path>
+              <path d="M478 238 C512 224 556 226 586 242" fill="none" stroke="#86EFAC" stroke-width="1.4"></path>
+              <path d="M478 286 C512 300 556 298 586 282" fill="none" stroke="#86EFAC" stroke-width="1.4"></path>
+              <g transform="translate(596 352)">
+                <rect width="150" height="76" rx="6" fill="#0F172A" stroke="#22C55E" stroke-opacity=".65" stroke-width="1.2"></rect>
+                <rect x="10" y="10" width="130" height="44" fill="url(#dm-checker)" opacity=".92"></rect>
+                <text x="10" y="68" fill="#86EFAC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="10">RectifiedImages · 2 张</text>
+              </g>
+              <text x="462" y="206" fill="#86EFAC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="11">局部形变轮廓 · 每命中 486 段</text>
+            </g>
+
+            <g data-algo-view="planar" hidden>
+              <path d="M466 222 L612 206 L636 296 L474 316 Z" fill="none" stroke="#38BDF8" stroke-width="2.2"></path>
+              <g fill="#38BDF8" stroke="#0B1220" stroke-width="1.2">
+                <circle cx="466" cy="222" r="5"></circle><circle cx="612" cy="206" r="5"></circle>
+                <circle cx="636" cy="296" r="5"></circle><circle cx="474" cy="316" r="5"></circle>
+              </g>
+              <g transform="translate(596 352)">
+                <rect width="150" height="76" rx="6" fill="#0F172A" stroke="#38BDF8" stroke-opacity=".65" stroke-width="1.2"></rect>
+                <g fill="#7DD3FC" font-family="Cascadia Mono, Consolas, monospace" font-size="9">
+                  <text x="10" y="20">0.9998  0.0004  249.5</text>
+                  <text x="10" y="36">0.0003  0.9998  229.5</text>
+                  <text x="10" y="52">0.0000  0.0000  1.0000</text>
+                  <text x="10" y="68" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="9">HomMat2D · 9×2</text>
+                </g>
+              </g>
+              <text x="466" y="198" fill="#7DD3FC" font-family="Segoe UI, Microsoft YaHei UI, sans-serif" font-size="11">平面透视单应 · project(0,0) = 参考点</text>
+            </g>
+
+            <g stroke="#38BDF8" stroke-opacity=".55" stroke-width="2" fill="none">
+              <path d="M30 30 H70 M30 30 V70"></path><path d="M770 30 H730 M770 30 V70"></path>
+              <path d="M30 490 H70 M30 490 V450"></path><path d="M770 490 H730 M770 490 V450"></path>
+            </g>
+          </svg>
+          <div class="dm-overlay">
+            <span class="dm-chip">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path></svg>
+              只读预览 · 参考图
+            </span>
+            <span class="dm-chip is-local" data-algo-chip="local">局部非刚性</span>
+            <span class="dm-chip is-planar" data-algo-chip="planar" hidden>平面透视</span>
+          </div>
+        </div>
+
+        <div class="dm-canvas-view dm-canvas-empty" data-view="empty" hidden>
+          <div class="dm-empty-card">
+            <div class="dm-state-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"></path><path d="M14 2v5a1 1 0 0 0 1 1h5"></path><circle cx="10" cy="12" r="2"></circle><path d="m20 17-1.296-1.296a2.41 2.41 0 0 0-3.408 0L9 22"></path></svg>
+            </div>
+            <div class="dm-state-title">载入参考图开始</div>
+            <p class="dm-state-sub">填左侧「参考图」路径后点「载入」，或在流程里连好上游 Image 后点宿主「执行」把图带进来。支持 BMP / JPG / PNG / TIF。</p>
+            <div class="dm-state-actions"><button type="button" class="dm-btn" data-action="load">载入参考图</button></div>
+          </div>
+        </div>
+
+        <div class="dm-canvas-view dm-canvas-error" data-view="error" hidden role="alert">
+          <div class="dm-empty-card">
+            <div class="dm-state-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+            </div>
+            <div class="dm-state-title">参考图载入失败</div>
+            <p class="dm-state-sub">参考图不存在：D:\C#\VM\Image\images\pen\pen-01.png。请检查路径，或先在流程里连好上游 Image 再点宿主「执行」。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="dm-result">
+        <div class="dm-result-head">
+          <span class="dm-result-title">匹配结果</span>
+          <span class="dm-pill is-ok" data-status-pill><span class="dm-dot"></span><span data-status-text>已学习</span></span>
+          <span class="dm-result-meta" data-result-meta>命中 2 · 最高分 0.96</span>
+        </div>
+        <div class="dm-stale-banner" data-stale-banner hidden>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+          <span>创建期参数已修改：旧结果保留显示，点「重新学习」后生效。</span>
+        </div>
+        <div class="dm-result-body" data-result-body>
+          <table class="dm-table" aria-label="匹配结果表">
+            <thead>
+              <tr><th>#</th><th>Score</th><th>Row</th><th>Column</th></tr>
+            </thead>
+            <tbody>
+              <tr class="is-best"><td>1</td><td class="dm-num">0.96</td><td class="dm-num">248.6</td><td class="dm-num">402.1</td></tr>
+              <tr><td>2</td><td class="dm-num">0.91</td><td class="dm-num">150.2</td><td class="dm-num">168.4</td></tr>
+            </tbody>
+          </table>
+          <div class="dm-result-detail" data-result-detail>
+            <b>DeformedContours</b> 972 段（2 命中 × 486 段）· <b>RectifiedImages</b> 2 张<br>
+            <span>轮廓段数 ≠ 命中数；下游不要用 CountObj 当 MatchCount。</span>
+          </div>
+        </div>
+        <div class="dm-result-empty" data-result-empty hidden>
+          <b>学习模板后显示匹配结果</b>
+          <span>端口：MatchCount / Score / Row / Column / Scores / Rows / Columns。</span>
+        </div>
+      </div>
+
+      <div class="dm-statusbar" aria-live="polite">
+        <span class="dm-status-dot is-ok" data-status-dot></span>
+        <span class="dm-status-msg is-ok" data-status-msg>已载入参考图 pen-01.png：2 个命中，最高分 0.96</span>
+        <span class="dm-status-entry" data-status-entry>模型：已学习 · 局部非刚性</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="dm-footer">
+    <div class="dm-footer-left">
+      <span class="dm-status-chip"><span class="dm-footer-dot"></span><span>状态: 待执行</span></span>
+      <span class="dm-elapsed">耗时: 0 ms</span>
+    </div>
+    <div class="dm-footer-right">
+      <button type="button" class="dm-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"></path></svg>
+        执行
+      </button>
+      <button type="button" class="dm-btn dm-btn-ghost">取消</button>
+      <button type="button" class="dm-btn dm-btn-primary">确认</button>
+    </div>
+  </div>
+</div>
+
+<section class="dm-notes" aria-label="设计说明">
+  <div class="dm-notes-head">设计说明（R111 六项）</div>
+
+  <div class="dm-note">
+    <div class="dm-note-num">01</div>
+    <div><b>布局与间距</b><span>960×680；左栏 368px 配置轨 + 右栏工作区；内容区 padding 16/20，栏间距 16；控件 36px，字段间距 10px。640 窄档左栏 300px，结果区单列 + 滚动。</span></div>
+  </div>
+  <div class="dm-note">
+    <div class="dm-note-num">02</div>
+    <div><b>配色令牌</b><span>全部走 <code>Dialog*</code> / <code>PluginPreview*</code> 既有语义令牌；WPF 视图零十六进制。见下方「令牌映射」。</span></div>
+  </div>
+  <div class="dm-note">
+    <div class="dm-note-num">03</div>
+    <div><b>字号与字重</b><span>标题 15/600；分区标题 12.5/600；标签 12/500；正文 11.5；帮助 11.5；表格 11.5；数字等宽用 Cascadia Mono / Consolas。</span></div>
+  </div>
+  <div class="dm-note">
+    <div class="dm-note-num">04</div>
+    <div><b>五态</b><span>默认 / 悬停 / 焦点 / 禁用 / 错误；按钮、输入框、状态胶囊、算法卡片都定义。见下方「五态对照」。</span></div>
+  </div>
+  <div class="dm-note">
+    <div class="dm-note-num">05</div>
+    <div><b>交互细节</b><span>算法卡片点击切换参数组；ROI 形状切换更新数值标签与画布；学习按钮在「未学习/参数已改」时高亮；结果表按分数降序显示；过渡 150ms。</span></div>
+  </div>
+  <div class="dm-note">
+    <div class="dm-note-num">06</div>
+    <div><b>局部 / 平面差异</b><span>局部显示「平滑度」，输出 DeformedContours / RectifiedImages；平面隐藏平滑度，输出 HomMat2D。两种模式的 Row/Column 都由参考点推导。</span></div>
+  </div>
+
+  <div class="dm-block">
+    <h3>五态对照（R115）</h3>
+    <div class="dm-state-grid">
+      <div class="dm-state-card">
+        <h4>默认</h4>
+        <input class="dm-input" value="200.0" readonly>
+        <div style="height:6px"></div>
+        <button type="button" class="dm-btn dm-btn-primary">学习模板</button>
+        <div class="dm-state-note">白底 / 1px 边框 / 主色实心</div>
+      </div>
+      <div class="dm-state-card is-hover">
+        <h4>悬停</h4>
+        <input class="dm-input" value="200.0" readonly>
+        <div style="height:6px"></div>
+        <button type="button" class="dm-btn">重新学习</button>
+        <div class="dm-state-note">边框加深 + 浅底</div>
+      </div>
+      <div class="dm-state-card is-focus">
+        <h4>焦点</h4>
+        <input class="dm-input" value="200.0" readonly>
+        <div style="height:6px"></div>
+        <button type="button" class="dm-btn">重新学习</button>
+        <div class="dm-state-note">主色边框 + 3px 焦点环</div>
+      </div>
+      <div class="dm-state-card">
+        <h4>禁用</h4>
+        <input class="dm-input" value="200.0" disabled>
+        <div style="height:6px"></div>
+        <button type="button" class="dm-btn" disabled>学习模板</button>
+        <div class="dm-state-note">灰底 / 55% 不透明 / 不可点</div>
+      </div>
+      <div class="dm-state-card is-error">
+        <h4>错误</h4>
+        <input class="dm-input is-error" value="abc" readonly>
+        <div style="height:6px"></div>
+        <button type="button" class="dm-btn">重新学习</button>
+        <div class="dm-state-note">红边 + 红焦点环 + 原因文案</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dm-block">
+    <h3>契约保留（一个都不能改）</h3>
+    <table class="dm-contracts">
+      <thead><tr><th>#</th><th>契约</th><th>为什么不能动</th></tr></thead>
+      <tbody>
+        <tr><td>C1</td><td><code>DataContext = 插件实例</code> + <code>IPluginConfigView</code></td><td>宿主靠 <code>viewObj.DataContext as IPluginConfigView</code> 取 <code>OnConfirm</code>；换独立 VM = 确认不保存。</td></tr>
+        <tr><td>C2</td><td><code>NumericBox</code> + <code>NumberValidationRule</code></td><td>ROI/角度/缩放/分数等数值的解析、范围校验、提交时机都在控件里；只改外观，不换控件。</td></tr>
+        <tr><td>C3</td><td><code>ImageEdit</code> / <code>ImageReadOnly</code>（若使用）</td><td>HALCON 显示/缩放/右键菜单/ROI 交互依赖控件 DP；必须常驻可视树，不折叠。</td></tr>
+        <tr><td>C4</td><td><code>TemplateJson</code> / <code>OnConfirm</code></td><td>模型载荷、<code>LearnedAlgorithm</code>、<code>LearnedSignature</code> 随方案落盘；视图不能另存一份。</td></tr>
+        <tr><td>C5</td><td><code>StatusMessage</code> / <code>StatusLevel</code></td><td>只有 Info / Warning / Error 三档；状态胶囊与底部状态栏共用同一来源。</td></tr>
+        <tr><td>C6</td><td>端口契约：<code>MatchCount/Score/Row/Column/Scores/Rows/Columns/DeformedContours/HomMat2D/RectifiedImages/MeasureImage</code></td><td>端口名与类型是下游 API；本稿不新增/改名/改类型。</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="dm-block">
+    <h3>本稿未纳入（需新增功能或契约）</h3>
+    <ul class="dm-list">
+      <li>多模板 / 配方库（v2 升级路径：<code>List&lt;DeformableTemplateEntry&gt;</code> + <code>TemplateLibraryJson</code>）。</li>
+      <li><code>PlanarCalibDeformableModel</code>（需要相机内参/位姿）。</li>
+      <li><code>VectorField</code> 输出、平面模式 <code>RectifiedImages</code>、批量学习/批量重建。</li>
+      <li>画布 ROI 拖拽（M3 增量；v1 只做数值 ROI + 只读预览）。</li>
+      <li>实时性调参表、假 timeout、自动参数推荐。</li>
+    </ul>
+  </div>
+
+  <div class="dm-block">
+    <h3>令牌映射（无新增公共键）</h3>
+    <table class="dm-token-table">
+      <thead><tr><th>设计变量</th><th>值</th><th>WPF 资源键</th></tr></thead>
+      <tbody>
+        <tr><td><code>--dm-surface</code></td><td>#FFFFFF</td><td><code>DialogSurfaceBrush</code></td></tr>
+        <tr><td><code>--dm-surface-2</code></td><td>#F8FAFC</td><td><code>DialogRowAlternateBrush</code></td></tr>
+        <tr><td><code>--dm-surface-3</code></td><td>#F1F5F9</td><td><code>DialogRowHoverBrush</code></td></tr>
+        <tr><td><code>--dm-border</code></td><td>#E2E8F0</td><td><code>DialogBorderBrush</code></td></tr>
+        <tr><td><code>--dm-border-soft</code></td><td>#EEF2F7</td><td><code>DialogBorderLightBrush</code></td></tr>
+        <tr><td><code>--dm-border-strong</code></td><td>#CBD5E1</td><td><code>DialogBorderStrongBrush</code></td></tr>
+        <tr><td><code>--dm-text</code></td><td>#0F172A</td><td><code>DialogTextPrimaryBrush</code></td></tr>
+        <tr><td><code>--dm-text-2</code></td><td>#475569</td><td><code>DialogTextSecondaryBrush</code></td></tr>
+        <tr><td><code>--dm-text-3</code></td><td>#94A3B8</td><td><code>DialogTextMutedBrush</code></td></tr>
+        <tr><td><code>--dm-primary</code></td><td>#0EA5E9</td><td><code>DialogAccentBrush</code></td></tr>
+        <tr><td><code>--dm-primary-strong</code></td><td>#0284C7</td><td><code>DialogAccentDarkBrush</code></td></tr>
+        <tr><td><code>--dm-primary-text</code></td><td>#0369A1</td><td><code>DialogAccentTextBrush</code></td></tr>
+        <tr><td><code>--dm-primary-soft</code></td><td>#F0F9FF</td><td><code>DialogAccentSoftBrush</code></td></tr>
+        <tr><td><code>--dm-primary-light</code></td><td>#E0F2FE</td><td><code>DialogAccentLightBrush</code></td></tr>
+        <tr><td><code>--dm-primary-border</code></td><td>#BAE6FD</td><td><code>DialogAccentBorderBrush</code></td></tr>
+        <tr><td><code>--dm-success</code></td><td>#22C55E</td><td><code>DialogSuccessBrush</code></td></tr>
+        <tr><td><code>--dm-success-text</code></td><td>#15803D</td><td><code>DialogSuccessTextBrush</code></td></tr>
+        <tr><td><code>--dm-success-soft</code></td><td>#F0FDF4</td><td><code>DialogSuccessSubtleBrush</code></td></tr>
+        <tr><td><code>--dm-success-border</code></td><td>#BBF7D0</td><td><code>DialogSuccessBorderBrush</code></td></tr>
+        <tr><td><code>--dm-danger</code></td><td>#EF4444</td><td><code>DialogDangerBrush</code></td></tr>
+        <tr><td><code>--dm-danger-text</code></td><td>#B91C1C</td><td><code>DialogDangerTextBrush</code></td></tr>
+        <tr><td><code>--dm-danger-soft</code></td><td>#FEF2F2</td><td><code>DialogDangerSubtleBrush</code></td></tr>
+        <tr><td><code>--dm-danger-border</code></td><td>#FECACA</td><td><code>DialogDangerBorderBrush</code></td></tr>
+        <tr><td><code>--dm-warning</code></td><td>#F59E0B</td><td><code>DialogWarningBrush</code></td></tr>
+        <tr><td><code>--dm-warning-text</code></td><td>#B45309</td><td><code>DialogWarningTextBrush</code></td></tr>
+        <tr><td><code>--dm-warning-soft</code></td><td>#FFF4E5</td><td><code>DialogWarningSubtleBrush</code></td></tr>
+        <tr><td><code>--dm-warning-border</code></td><td>#FDE68A</td><td><code>DialogWarningBorderBrush</code></td></tr>
+        <tr><td>预览画布 #0B1220</td><td>—</td><td><code>PluginPreviewCanvasBrush</code></td></tr>
+        <tr><td>预览表面 #1E293B</td><td>—</td><td><code>PluginPreviewSurfaceBrush</code></td></tr>
+        <tr><td>预览描边 #334155</td><td>—</td><td><code>PluginPreviewBorderBrush</code></td></tr>
+        <tr><td>预览文字 #E2E8F0</td><td>—</td><td><code>PluginPreviewTextBrush</code></td></tr>
+        <tr><td>预览弱文字 #94A3B8</td><td>—</td><td><code>PluginPreviewMutedTextBrush</code></td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:8px">圆角 6/8/10/12/16、间距 4/8/12/16/20/24 在仓内暂无令牌字典，WPF 用字面量；颜色零硬编码。</p>
+  </div>
+</section>
+
+<script>
+(function () {
+  var root = document.getElementById('dm-design-root');
+  var win = document.getElementById('dm-window');
+  if (!root || !win) return;
+
+  var stateMeta = {
+    draft: { pill: '', text: '未学习', learn: '学习模板', dot: '', msg: '参考图已载入：设置 ROI 后点「学习模板」', meta: '未学习', empty: '学习模板后显示匹配结果' },
+    learned: { pill: 'is-ok', text: '已学习', learn: '重新学习', dot: 'is-ok', msg: '已载入参考图 pen-01.png：2 个命中，最高分 0.96', meta: '命中 2 · 最高分 0.96' },
+    stale: { pill: 'is-warn', text: '参数已改 · 需重新学习', learn: '重新学习', dot: 'is-warn', msg: '创建期参数已修改：旧结果保留显示，重新学习后生效', meta: '旧结果 · 需重新学习' },
+    nomatch: { pill: 'is-warn', text: '已学习', learn: '重新学习', dot: 'is-warn', msg: '未找到目标：MatchCount=0（步骤会 Fail，MeasureImage 仍输出原因）', meta: '命中 0' },
+    error: { pill: 'is-err', text: '参考图不存在', learn: '学习模板', dot: 'is-err', msg: '参考图载入失败：请检查路径', meta: '错误' }
+  };
+
+  function setAlgo(algo) {
+    win.dataset.algo = algo;
+    root.querySelectorAll('button[data-algo]').forEach(function (b) { b.classList.toggle('is-on', b.dataset.algo === algo); });
+    root.querySelectorAll('[data-algo-card]').forEach(function (b) { b.classList.toggle('is-on', b.dataset.algoCard === algo); });
+    root.querySelectorAll('.only-local').forEach(function (el) { el.hidden = algo !== 'local'; });
+    root.querySelectorAll('.only-planar').forEach(function (el) { el.hidden = algo !== 'planar'; });
+    var state = win.dataset.state;
+    root.querySelectorAll('[data-algo-view]').forEach(function (el) {
+      el.hidden = el.dataset.algoView !== algo || state === 'draft' || state === 'nomatch' || state === 'error';
+    });
+    root.querySelectorAll('[data-algo-chip]').forEach(function (el) { el.hidden = el.dataset.algoChip !== algo; });
+    var detail = root.querySelector('[data-result-detail]');
+    if (detail) {
+      detail.innerHTML = algo === 'local'
+        ? '<b>DeformedContours</b> 972 段（2 命中 × 486 段）· <b>RectifiedImages</b> 2 张<br><span>轮廓段数 ≠ 命中数；下游不要用 CountObj 当 MatchCount。</span>'
+        : '<b>HomMat2D</b> 9 × 2 = 18 个 double<br><span>每命中 9 个 double；Row/Column 由 <span class="dm-mono">ProjectiveTransPixel(hom, 0, 0)</span> 得到。</span>';
+    }
+    var entry = root.querySelector('[data-status-entry]');
+    if (entry) entry.textContent = '模型：' + (win.dataset.state === 'draft' ? '未学习' : win.dataset.state === 'stale' ? '需重新学习' : win.dataset.state === 'error' ? '不可用' : '已学习') + ' · ' + (algo === 'local' ? '局部非刚性' : '平面透视');
+  }
+
+  function setState(state) {
+    win.dataset.state = state;
+    root.querySelectorAll('button[data-state]').forEach(function (b) { b.classList.toggle('is-on', b.dataset.state === state); });
+    var meta = stateMeta[state] || stateMeta.learned;
+    root.querySelectorAll('[data-status-pill]').forEach(function (p) {
+      p.className = 'dm-pill' + (meta.pill ? ' ' + meta.pill : '');
+    });
+    root.querySelectorAll('[data-status-text]').forEach(function (t) { t.textContent = meta.text; });
+    var learn = root.querySelector('[data-learn-btn]');
+    if (learn) { learn.disabled = state === 'error'; learn.lastChild.textContent = ' ' + meta.learn; }
+    var stale = root.querySelector('[data-stale-banner]');
+    if (stale) stale.hidden = state !== 'stale';
+    var body = root.querySelector('[data-result-body]');
+    var empty = root.querySelector('[data-result-empty]');
+    var dot = root.querySelector('[data-status-dot]');
+    var msg = root.querySelector('[data-status-msg]');
+    var resultMeta = root.querySelector('[data-result-meta]');
+    var entry = root.querySelector('[data-status-entry]');
+    if (dot) dot.className = 'dm-status-dot' + (meta.dot ? ' ' + meta.dot : '');
+    if (msg) { msg.className = 'dm-status-msg' + (meta.dot ? ' ' + meta.dot : ''); msg.textContent = meta.msg; }
+    if (resultMeta) resultMeta.textContent = meta.meta;
+    if (entry) entry.textContent = '模型：' + (state === 'draft' ? '未学习' : state === 'stale' ? '需重新学习' : state === 'error' ? '不可用' : '已学习') + ' · ' + (win.dataset.algo === 'local' ? '局部非刚性' : '平面透视');
+    var imageView = root.querySelector('[data-view="image"]');
+    var emptyView = root.querySelector('[data-view="empty"]');
+    var errorView = root.querySelector('[data-view="error"]');
+    if (imageView) imageView.hidden = state === 'error';
+    if (errorView) errorView.hidden = state !== 'error';
+    if (emptyView) emptyView.hidden = true;
+    if (body) body.hidden = state === 'draft' || state === 'nomatch' || state === 'error';
+    if (empty) {
+      empty.hidden = !(state === 'draft' || state === 'nomatch' || state === 'error');
+      if (state === 'nomatch') empty.innerHTML = '<b>未找到目标</b><span>分数 ≥ 0.5 的形变匹配为 0。可降低分数下限或扩大角度/缩放范围。</span>';
+      else if (state === 'error') empty.innerHTML = '<b>参考图载入失败</b><span>请检查参考图路径，或先连上游 Image。</span>';
+      else empty.innerHTML = '<b>学习模板后显示匹配结果</b><span>端口：MatchCount / Score / Row / Column / Scores / Rows / Columns。</span>';
+    }
+    root.querySelectorAll('[data-algo-view]').forEach(function (el) {
+      el.hidden = el.dataset.algoView !== win.dataset.algo || state === 'draft' || state === 'nomatch' || state === 'error';
+    });
+  }
+
+  function setShape(shape) {
+    win.dataset.shape = shape;
+    root.querySelectorAll('button[data-shape]').forEach(function (b) { b.classList.toggle('is-on', b.dataset.shape === shape); });
+    root.querySelectorAll('[data-roi-shape]').forEach(function (el) { el.hidden = el.dataset.roiShape !== shape; });
+    var h1 = root.querySelector('[data-label-h1]');
+    var h2 = root.querySelector('[data-label-h2]');
+    var angle = root.querySelector('[data-label-angle]');
+    var fieldAngle = root.querySelector('[data-field-angle]');
+    var fieldH2 = root.querySelector('[data-field-h2]');
+    if (h1) h1.textContent = shape === 'circle' ? '半径' : shape === 'ellipse' ? '长半轴' : '半长';
+    if (h2) h2.textContent = shape === 'circle' ? '半径' : shape === 'ellipse' ? '短半轴' : '半宽';
+    if (angle) angle.textContent = '角度';
+    if (fieldAngle) fieldAngle.hidden = shape === 'circle';
+    if (fieldH2) fieldH2.hidden = shape === 'circle';
+  }
+
+  function setWidth(width) {
+    win.classList.toggle('is-narrow', width === '640');
+    root.querySelectorAll('button[data-width]').forEach(function (b) { b.classList.toggle('is-on', b.dataset.width === width); });
+  }
+
+  root.addEventListener('click', function (e) {
+    var t = e.target;
+    var algo = t.closest('button[data-algo]');
+    if (algo) { setAlgo(algo.dataset.algo); return; }
+    var state = t.closest('button[data-state]');
+    if (state) { setState(state.dataset.state); return; }
+    var shape = t.closest('button[data-shape]');
+    if (shape) { setShape(shape.dataset.shape); return; }
+    var width = t.closest('button[data-width]');
+    if (width) { setWidth(width.dataset.width); return; }
+    var card = t.closest('[data-algo-card]');
+    if (card) { setAlgo(card.dataset.algoCard); return; }
+    var learn = t.closest('[data-learn-btn]');
+    if (learn) { if (!learn.disabled) setState('learned'); return; }
+    var load = t.closest('[data-action="load"]');
+    if (load) { setState('draft'); return; }
+    var mask = t.closest('[data-action="mask"]');
+    if (mask) {
+      var ms = root.querySelector('[data-mask-state]');
+      if (ms) ms.textContent = '已设置（可清除）';
+      return;
+    }
+    var maskClear = t.closest('[data-action="mask-clear"]');
+    if (maskClear) {
+      var ms2 = root.querySelector('[data-mask-state]');
+      if (ms2) ms2.textContent = '未设置';
+      return;
+    }
+  });
+
+  setAlgo(win.dataset.algo || 'local');
+  setState(win.dataset.state || 'learned');
+  setShape(win.dataset.shape || 'rect');
+  setWidth('960');
+})();
+</script>
+</div>
+</body>
+</html>

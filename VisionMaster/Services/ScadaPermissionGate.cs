@@ -142,6 +142,8 @@ namespace VisionMaster.Services
             FlowAction.Edit => ScadaPermissionKeys.EditStructure,
             FlowAction.Manager => ScadaPermissionKeys.EditStructure,
             FlowAction.VariableEvents => ScadaPermissionKeys.EditStructure,
+            FlowAction.BatchDisplayWindow => ScadaPermissionKeys.EditStructure,
+            FlowAction.ResultSource => ScadaPermissionKeys.EditStructure,
             FlowAction.Compile => ScadaPermissionKeys.Compile,
             FlowAction.RunOnce => ScadaPermissionKeys.ControlRun,
             FlowAction.RunContinuous => ScadaPermissionKeys.ControlRun,
@@ -160,7 +162,9 @@ namespace VisionMaster.Services
                 case FlowAction.ToggleEnabled:
                 case FlowAction.Edit:
                 case FlowAction.Manager:
-                case FlowAction.VariableEvents: key = ScadaPermissionKeys.EditStructure; return true;
+                case FlowAction.VariableEvents:
+                case FlowAction.BatchDisplayWindow:
+                case FlowAction.ResultSource: key = ScadaPermissionKeys.EditStructure; return true;
                 case FlowAction.Compile: key = ScadaPermissionKeys.Compile; return true;
                 case FlowAction.RunOnce:
                 case FlowAction.RunContinuous: key = ScadaPermissionKeys.ControlRun; return true;
@@ -240,6 +244,8 @@ namespace VisionMaster.Services
             FlowAction.Edit => "编辑流程",
             FlowAction.Manager => "流程管理",
             FlowAction.VariableEvents => "流程变量事件",
+            FlowAction.BatchDisplayWindow => "批量设置显示窗口",
+            FlowAction.ResultSource => "运行统计结果源",
             FlowAction.Compile => "编译流程",
             FlowAction.RunOnce => "单次运行流程",
             FlowAction.RunContinuous => "连续运行流程",

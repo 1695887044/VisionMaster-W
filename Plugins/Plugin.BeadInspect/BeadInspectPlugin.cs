@@ -142,6 +142,17 @@ namespace Plugin.BeadInspect
         [StepConfig]
         public bool OutputAlignedImage { get; set; } = true;
 
+        /// <summary>
+        /// 是否产出标注图（<see cref="AnnotatedImage"/>）。**默认 true = 存量方案行为不变**。
+        ///
+        /// 关掉（新流程推荐）= 只输出数值与几何（ErrorSegments / BeadContours / ReferenceContour），
+        /// 文字与颜色交给下游「结果显示」。
+        /// **配置态试运行仍会渲染**（<c>_isConfigInstance</c>）：调参时右侧预览必须有图，
+        /// 那是编辑态能力，不是流程产物。
+        /// </summary>
+        [StepConfig]
+        public bool KeepAnnotatedImage { get; set; } = true;
+
         /// <summary>长度输出单位（mm 换算只发生在输出层，见 §5.4）</summary>
         [StepConfig]
         public BeadUnit UnitOutput { get; set; } = BeadUnit.Pixel;
@@ -202,7 +213,7 @@ namespace Plugin.BeadInspect
         public OutputPort<string> NgReason { get; } = new("NgReason", "NG 原因（如「缺胶 2 段、太细 1 段」）；OK 时为空串");
 
         public OutputPort<HImage> AnnotatedImage { get; } =
-            new("AnnotatedImage", "标注图（对齐图 + 参考路径 + 左右轮廓 + 错误段红标 + 判定文字）");
+            new("AnnotatedImage", "标注图（对齐图 + 参考路径 + 左右轮廓 + 错误段红标 + 判定文字；KeepAnnotatedImage=false 时为空）");
 
         public OutputPort<int> ErrorCount { get; } = new("ErrorCount", "错误段总数（已按 MinErrorLength 过滤）");
 
@@ -228,6 +239,13 @@ namespace Plugin.BeadInspect
         public OutputPort<HXLD> ErrorSegments { get; } = new("ErrorSegments", "错误段轮廓集合（可直接给下游/存图）");
 
         public OutputPort<HXLD> BeadContours { get; } = new("BeadContours", "检出的左右胶路轮廓（2 个对象；OK 时也可用于复检）");
+
+        /// <summary>
+        /// 学习到的参考路径轮廓（XLD，**对齐图坐标系**）。标注图里的橙层原先只在渲染里画，
+        /// 下游拿不到；要"算法只输出几何、显示层统一画"就必须有出口。
+        /// 配方未学习时为空。
+        /// </summary>
+        public OutputPort<HXLD> ReferenceContour { get; } = new("ReferenceContour", "学习到的参考路径轮廓（对齐图坐标系）");
 
         public OutputPort<HImage> AlignedImage { get; } =
             new("AlignedImage", "对齐后的图（供下游复用；OutputAlignedImage 关闭时输出空）");
@@ -527,16 +545,25 @@ namespace Plugin.BeadInspect
                 if (beadPair != null)
                     BeadContours.TypedValue = new HXLDCont(beadPair);
 
+                // 参考路径：持久缓存归条目所有，端口给独立副本（下游/显示层不得释放原对象）
+                if (entry.RuntimeContour != null && entry.RuntimeContour.IsInitialized())
+                    ReferenceContour.TypedValue = new HXLDCont(entry.RuntimeContour);
+
                 if (OutputAlignedImage)
                     AlignedImage.TypedValue = new HImage(aligned);
 
                 // ── 11. 标注图（离屏渲染；渲染失败不影响端口数据）──
-                string[] lines = ok
-                    ? new[] { $"胶路 OK（配方「{entry.Name}」，错误段 0）" }
-                    : new[] { $"NG：{ngReason}", $"配方「{entry.Name}」，错误段 {errorCount} 段" };
-                var annotated = _renderer.Render(aligned, entry.RuntimeContour, beadPair, keptSegs, lines, ok);
-                if (annotated != null)
-                    AnnotatedImage.TypedValue = annotated;
+                // KeepAnnotatedImage=false 且不是配置态实例 → 整段跳过：只输出数值与几何。
+                // 配置态（_isConfigInstance）必须照常渲染：试运行预览是编辑态能力，不是流程产物。
+                if (KeepAnnotatedImage || _isConfigInstance)
+                {
+                    string[] lines = ok
+                        ? new[] { $"胶路 OK（配方「{entry.Name}」，错误段 0）" }
+                        : new[] { $"NG：{ngReason}", $"配方「{entry.Name}」，错误段 {errorCount} 段" };
+                    var annotated = _renderer.Render(aligned, entry.RuntimeContour, beadPair, keptSegs, lines, ok);
+                    if (annotated != null)
+                        AnnotatedImage.TypedValue = annotated;
+                }
 
                 // ── 12. 发布预览（0 = 不发布；总线无订阅者时是 no-op）──
                 if (DisplayViewIndex > 0 && AnnotatedImage.Value is HImage publishable)

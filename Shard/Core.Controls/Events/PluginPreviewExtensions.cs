@@ -70,6 +70,9 @@ namespace Core.Events
                 ViewIndex = viewIndex,
                 Image = image,
                 PluginName = plugin?.InstanceName,
+                // 流程身份只能由**发布线程上的作用域**给出：本方法拿不到会话/流程名，
+                // 而宿主侧"最后开轮的那条流程"在多流程并发时是错的（会清错别人的窗口）。
+                FlowName = PreviewScope.CurrentFlowName,
                 Title = title,
                 InfoRows = info?.ToList(),
                 Annotations = annotations?.ToList()

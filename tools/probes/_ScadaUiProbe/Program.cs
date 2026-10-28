@@ -14,6 +14,7 @@ using VisionMaster.Scada;
 using VisionMaster.Scada.Controls;
 using VisionMaster.Services;
 using VisionMaster.ViewModels;
+using VisionMaster.ViewModels.DialogViewModels;
 using VisionMaster.Views;
 using VisionMaster.Views.DialogViews;
 
@@ -28,7 +29,14 @@ namespace ScadaUiProbe
         [STAThread]
         private static int Main(string[] args)
         {
-            var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            string mode = args.Length > 0 ? args[0] : "--all";
+
+            // --runtime-window 要装真窗口 ScadaRuntimeWindow，它引用 App.xaml 里的全局资源
+            // （ScadaRunWindowBrush / StopButton 等），只有真 App 实例的资源字典里才有。
+            // 其余模式只要 UI 库那一套，用裸 Application 就够（也避免 Prism 初始化开销）。
+            Application app = mode == "--runtime-window" ? CreateVisionMasterApp() : new Application();
+
+            app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             MergeAppResources(app);
             ViewModelLocationProvider.SetDefaultViewModelFactory(_ => null);
 
@@ -37,7 +45,6 @@ namespace ScadaUiProbe
 
             try
             {
-                string mode = args.Length > 0 ? args[0] : "--all";
 
                 if (mode is "--all" or "--toolbox")
                     RenderToolbox(dir);
@@ -50,6 +57,9 @@ namespace ScadaUiProbe
 
                 if (mode is "--solution")
                     RenderSolutionPages(dir, args.Length > 1 ? args[1] : null);
+
+                if (mode is "--runtime-window")
+                    RenderRuntimeWindow(dir, args.Length > 1 ? args[1] : null, args.Length > 2 ? args[2] : null);
 
                 if (mode is "--flow-manager")
                     RenderFlowManager(dir);
@@ -82,9 +92,124 @@ namespace ScadaUiProbe
             }
         }
 
-        /// <summary>仓库根下的 docs/UI设计基线/app-shell/evidence。</summary>
-        private static string OutputDirectory()
+        /// <summary>
+        /// 造一个真 <see cref="VisionMaster.App"/> 实例（只为把 App.xaml 的全局资源装进
+        /// <c>Application.Current.Resources</c>）。<c>--runtime-window</c> 模式要装
+        /// <c>ScadaRuntimeWindow</c>，它引用的 <c>ScadaRunWindowBrush</c> / <c>StopButton</c> 等键
+        /// 只在那里有；用裸 <c>Application</c> 会在 InitializeComponent 里抛 XamlParseException。
+        /// 不调 <c>Run()</c>：探针自己推 Dispatcher 帧，不需要 Prism 的启动链。
+        /// </summary>
+        private static Application CreateVisionMasterApp()
         {
+            var app = new VisionMaster.App();
+            app.InitializeComponent();
+            return app;
+        }
+
+        /// <summary>
+        /// 组态运行窗口整窗出图。
+        ///
+        /// 为什么必须整窗拍而不是只拍画布：用户报的"界面外面的黑框"正是**画面区之外**那一圈——
+        /// 它由两处决定（画面区容器的 Margin 属于父容器、画布外层视口底），只拍画布永远看不见。
+        /// </summary>
+        private static void RenderRuntimeWindow(string dir, string path, string? targetPage)
+        {
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                Console.WriteLine($"找不到方案文件: {path}");
+                return;
+            }
+
+            var root = JObject.Parse(File.ReadAllText(path));
+            if (root["Scada"] == null)
+            {
+                Console.WriteLine("方案里没有 Scada 段");
+                return;
+            }
+
+            var settings = new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto };
+            var doc = root["Scada"].ToObject<ScadaDocument>(JsonSerializer.Create(settings));
+            if (doc == null)
+            {
+                Console.WriteLine("Scada 段反序列化失败");
+                return;
+            }
+
+            doc.EnsureIdentity();
+            VisionMaster.Scada.Controls.Charts.ScadaChartElements.Register();
+
+            var session = new ScadaRuntime(doc);
+
+            // 必须先 Start：窗口的 ApplyPageBackgrounds 读的是 CurrentPage，会话没启动时它是 null，
+            // 出图就是"整片窗口深色 + 空画面"——那是探针自己没把会话开起来，不是真机缺陷。
+            if (!session.Start())
+                Console.WriteLine("警告：会话启动失败（找不到启动页），出图只会是空画面");
+
+            var window = new ScadaRuntimeWindow(session)
+            {
+                Width = 1600,
+                Height = 900,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                Left = -10000,
+                Top = 0,
+                ShowInTaskbar = false,
+            };
+            window.Show();
+            Pump(1200);
+
+            // 方案图片解析器：真机由宿主的方案服务注入，探针没有那套服务，
+            // 窗口自己的 ResolveImageAsset 会一律返回 null → 图标/工位图全成"未设置图片"占位。
+            // 这里按"方案目录 + 相对路径"补一个，出图才与真机同貌（不补的话证据图会假报缺陷）。
+            string solutionDir = Path.GetDirectoryName(Path.GetFullPath(path))!;
+            ImageSource? Resolve(string? rel)
+            {
+                if (string.IsNullOrWhiteSpace(rel)) return null;
+                var full = Path.IsPathRooted(rel) ? rel : Path.Combine(solutionDir, rel);
+                if (!File.Exists(full)) return null;
+
+                var bmp = new BitmapImage();
+                bmp.BeginInit();
+                bmp.CacheOption = BitmapCacheOption.OnLoad;
+                bmp.UriSource = new Uri(full, UriKind.Absolute);
+                bmp.EndInit();
+                bmp.Freeze();
+                return bmp;
+            }
+
+            window.CanvasHost.ImageAssetResolver = Resolve;
+            window.PopupCanvasHost.ImageAssetResolver = Resolve;
+            if (session.CurrentPage != null)
+                window.CanvasHost.PageBackgroundImage = Resolve(session.CurrentPage.BackgroundImage);
+
+            Pump(900);
+
+            // 可选第三参 = 目标画面名：切过去再出图（验"列表/报表标题条"这类只在某一页出现的缺陷）。
+            if (!string.IsNullOrWhiteSpace(targetPage))
+            {
+                var page = doc.Pages.FirstOrDefault(p => p.Name == targetPage);
+                if (page == null)
+                    Console.WriteLine($"警告：方案里没有叫「{targetPage}」的画面");
+                else if (!session.Navigate(page))
+                    Console.WriteLine($"警告：导航到「{targetPage}」被拒绝");
+                else
+                    Pump(1200);
+            }
+
+            if (window.Content is FrameworkElement content)
+            {
+                string safeName = string.IsNullOrWhiteSpace(targetPage)
+                    ? string.Empty
+                    : "-" + string.Join("_", targetPage!.Split(Path.GetInvalidFileNameChars()));
+                string file = Path.Combine(dir, $"runtime-window{safeName}.png");
+                Save(Render(content, (int)content.ActualWidth, (int)content.ActualHeight), file);
+                Console.WriteLine($"  {Path.GetFileName(file)}  {content.ActualWidth:0}×{content.ActualHeight:0}");
+            }
+
+            window.Close();
+        }
+
+        /// <summary>仓库根下的 docs/UI设计基线/app-shell/evidence。</summary>
+        private static string OutputDirectory()        {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
             while (dir != null && !File.Exists(Path.Combine(dir.FullName, "VisionMaster.sln")))
                 dir = dir.Parent;
@@ -228,7 +353,7 @@ namespace ScadaUiProbe
             var all = new[]
             {
                 F("Home", FlowRole.Home, FlowInvokeType.Manual),
-                F("Main", FlowRole.Main, FlowInvokeType.Manual),
+                F("Main", FlowRole.None, FlowInvokeType.LineStart),
                 F("ST1_LoadC", FlowRole.None, FlowInvokeType.Http),
                 F("ST2_Position", FlowRole.None, FlowInvokeType.Timer),
                 F("ST3_Measure", FlowRole.None, FlowInvokeType.Http),
@@ -248,7 +373,7 @@ namespace ScadaUiProbe
 
         private static void RenderFlowListShot(string dir, FlowModel[] flows, int width, int height, string file)
         {
-            var selected = flows.FirstOrDefault(f => f.Role == FlowRole.Main);
+            var selected = flows.FirstOrDefault(f => f.IsLineStartMember);
             var view = new FlowListView
             {
                 Width = width,
@@ -292,31 +417,93 @@ namespace ScadaUiProbe
             public FlowModel? SelectFlow { get; set; }
         }
 
-        // ================================================================ 流程管理：调用关系徽标
+        /// <summary>
+        /// 流程管理探针的最小上下文。
+        ///
+        /// 【为什么不用匿名对象】搜索框的 Text 默认 TwoWay 绑定，匿名类型的属性是只读的，
+        /// 一 Show 就抛 InvalidOperationException「无法对只读属性进行 TwoWay 绑定」——
+        /// 所以这里必须有真正可写的 setter（SearchText / SelectedFlow）。
+        /// </summary>
+        private sealed class FlowManagerProbeContext
+        {
+            public string Title { get; set; } = "流程管理";
+            public IEnumerable<FlowItem> Flows { get; set; } = Array.Empty<FlowItem>();
+            public FlowItem? SelectedFlow { get; set; }
+            public string SearchText { get; set; } = string.Empty;
+            public string FlowCountText { get; set; } = string.Empty;
+            public bool HasSearchText { get; set; }
+            public bool IsEmpty { get; set; }
+            public string EmptyStateTitle { get; set; } = string.Empty;
+            public bool IsLegendExpanded { get; set; }
+            public string LegendToggleText { get; set; } = string.Empty;
+        }
+
+        // ================================================================ 流程管理：调用方式胶囊 + 状态 + 操作
 
         /// <summary>
-        /// 用四条假流程渲染流程管理表格，专门看“循环 / 外部 / 子 / 手动”四种调用关系徽标。
-        /// 只做视觉探针：DataContext 是一个最小匿名对象，不依赖 FlowManagerViewModel 的 DI。
+        /// 用五条假流程渲染流程管理表格（docs/UI设计基线/flow-manager v1.1）。
+        ///
+        /// 【2026-10-28 改】旧版用匿名对象 <c>new { Flow = ... }</c> 喂数据，只够看「调用关系」徽标；
+        /// v1.1 删掉了那一列，表格现在绑的是 <see cref="FlowItem"/> 的派生属性
+        /// （RoleBadgeText / StatusKind / InvokeConfigNote / CanToggle …）。匿名对象上没有这些属性，
+        /// 绑定会静默落空、整行只剩名字——所以这里改成真 <see cref="FlowItem"/>。
+        /// 本探针不建 VM（不需要 DI），命令绑定为 null 时按钮自动不可用，正好也看到了禁用态。
         /// </summary>
         private static void RenderFlowManager(string dir)
         {
-            var flows = new object[]
+            var flows = new[]
             {
-                new { Flow = new FlowModel { FlowName = "Main", Role = FlowRole.Main, InvokeType = FlowInvokeType.Manual } },
-                new { Flow = new FlowModel { FlowName = "Station_Load", Role = FlowRole.None, InvokeType = FlowInvokeType.Subroutine } },
-                new { Flow = new FlowModel { FlowName = "Line2_HTTP", Role = FlowRole.None, InvokeType = FlowInvokeType.Http } },
-                new { Flow = new FlowModel { FlowName = "ManualFlow", Role = FlowRole.None, InvokeType = FlowInvokeType.Manual } },
+                // 骨架流程 + 整线成员：绿胶囊 + 紫色/靛蓝角色徽标
+                new FlowItem(new FlowModel { FlowName = "回原点", Description = "开机与换产时的安全位姿", Role = FlowRole.Home, InvokeType = FlowInvokeType.LineStart }),
+                new FlowItem(new FlowModel { FlowName = "主检测", Description = "产线主任务：上料 → 定位 → 检测 → 下料", InvokeType = FlowInvokeType.LineStart | FlowInvokeType.Subroutine }),
+                // 仅子程序：胶囊下方一行派生小字
+                new FlowItem(new FlowModel { FlowName = "模板匹配_NCC散", Description = "散乱件 NCC 模板匹配定位", InvokeType = FlowInvokeType.Subroutine }),
+                // 定时 + 变量都勾了但没配参数：琥珀色「未配齐」提示（Q6 证据行）
+                new FlowItem(new FlowModel { FlowName = "点胶检测_工位", Description = "点胶轨迹检测，按节拍周期采样", InvokeType = FlowInvokeType.Timer | FlowInvokeType.Variable | FlowInvokeType.Subroutine }),
+                // 已锁定：状态列红锁胶囊 + 名称旁锁图标 + 操作列换成开锁键
+                new FlowItem(new FlowModel { FlowName = "Blob缺陷检测_标", Description = "标定后 Blob 缺陷判定与计数", InvokeType = FlowInvokeType.Subroutine | FlowInvokeType.Http, StepsEncrypted = true }),
             };
 
-            var view = new FlowManagerView { DataContext = new { Flows = flows } };
-            var window = Show(view, 1500, 760);
+            var view = new FlowManagerView
+            {
+                DataContext = new FlowManagerProbeContext
+                {
+                    Flows = flows,
+                    FlowCountText = $"{flows.Length} 条",
+                    IsLegendExpanded = true,
+                    LegendToggleText = "收起",
+                },
+            };
+            var window = Show(view, 1180, 620);
             Pump(600);
 
             Save(Render(view, (int)view.ActualWidth, (int)view.ActualHeight),
-                Path.Combine(dir, "flow-manager-call-badges.png"));
-            Console.WriteLine($"  flow-manager-call-badges.png  {view.ActualWidth:0}×{view.ActualHeight:0}");
+                Path.Combine(dir, "flow-manager-v11.png"));
+            Console.WriteLine($"  flow-manager-v11.png  {view.ActualWidth:0}×{view.ActualHeight:0}");
 
             window.Close();
+
+            // 第二帧：搜索无结果（空态）。FilterFlows() 会 Flows.Clear() 后按关键词回填，
+            // 打错一个字就是一张空白表——旧版没有任何反馈，用户会以为列表加载失败。
+            var emptyView = new FlowManagerView
+            {
+                DataContext = new FlowManagerProbeContext
+                {
+                    Flows = Array.Empty<FlowItem>(),
+                    FlowCountText = "0 条",
+                    SearchText = "码垛",
+                    HasSearchText = true,
+                    IsEmpty = true,
+                    EmptyStateTitle = "没有匹配「码垛」的流程",
+                    LegendToggleText = "展开",
+                },
+            };
+            var emptyWindow = Show(emptyView, 1180, 620);
+            Pump(600);
+            Save(Render(emptyView, (int)emptyView.ActualWidth, (int)emptyView.ActualHeight),
+                Path.Combine(dir, "flow-manager-v11-empty.png"));
+            Console.WriteLine($"  flow-manager-v11-empty.png  {emptyView.ActualWidth:0}×{emptyView.ActualHeight:0}");
+            emptyWindow.Close();
         }
 
         // ================================================================ 方案组态出图
@@ -362,6 +549,8 @@ namespace ScadaUiProbe
             int index = 1;
             foreach (var page in doc.Pages)
             {
+                // 页面底色/背景图必须显式传：画布只画 PageBackground(Image)，不传就露出控件默认深色，
+                // 出图与真机（宿主会传这四个属性）不一致。浅色主题下这个差异非常明显。
                 var canvas = new ScadaCanvas
                 {
                     PageWidth = page.Width,
@@ -371,6 +560,9 @@ namespace ScadaUiProbe
                     ItemsSource = page.Elements,
                     Page = page,
                     ShowGrid = false,
+                    PageBackground = ParseBrush(page.Background),
+                    PageBackgroundStretch = ParseStretch(page.BackgroundStretch),
+                    PageBackgroundOpacity = Math.Clamp(page.BackgroundOpacity / 100d, 0, 1),
                 };
                 canvas.Style = (Style)theme[typeof(ScadaCanvas)];
 
@@ -378,6 +570,13 @@ namespace ScadaUiProbe
                 // 这里按"方案目录 + Image\ 相对路径"补一个，好让带图图元在证据图里真的出像素。
                 // 解析不到返回 null → 控件回退占位，与真机"图丢了"的表现一致。
                 string solutionDir = Path.GetDirectoryName(Path.GetFullPath(path))!;
+
+                // 画面解析器（Hmi.SubPage 的 TargetPageId）：真机由宿主注入，探针按 PageId 现查。
+                // 没有它 SubPage 一律显示"未找到画面"占位 → 公共层（顶栏/底栏）在证据图里是空的。
+                var pagesById = new System.Collections.Generic.Dictionary<Guid, ScadaPage>();
+                foreach (var p in doc.Pages) pagesById[p.PageId] = p;
+                canvas.PageResolver = id => pagesById.TryGetValue(id, out var target) ? target : null;
+
                 canvas.ImageAssetResolver = rel =>
                 {
                     if (string.IsNullOrWhiteSpace(rel)) return null;
@@ -392,11 +591,27 @@ namespace ScadaUiProbe
                     return bmp;
                 };
 
+                // 页面背景图：解析器就绪后再设（它走同一个 resolver），否则永远拿不到像素。
+                canvas.PageBackgroundImage = canvas.ImageAssetResolver(page.BackgroundImage);
+
+                // 与真机 ScadaRuntimeWindow.ApplyPageBackgrounds 对齐：画布自身的 Background 也要刷。
+                // ScadaCanvas 的模板是"外层视口底 + 内层页面矩形"，缩放后四周露的是**外层**，
+                // 不刷就是一条深色带（真机上这条已经修掉了，探针不刷就会拍出假缺陷）。
+                canvas.Background = ParseBrush(page.Background);
+
                 // 放屏幕外：HwndHost/渲染目标照常建立，但不会在桌面上闪。
+                //
+                // 无边框 + 恰好页尺寸：窗口带标题栏时客户区会少掉几十像素，且 Windows 会把
+                // 新建窗口夹到虚拟屏幕范围内——本机 1920×1080 屏开 125% 缩放时工作区只有
+                // 1536×824 DIP，1920 DIP 宽的窗口被夹成 1536 → 出图右边整块被裁掉。
+                // Main 里已把进程 DPI 感知设成 unaware（DIP = 物理像素），配合这里就能拿到
+                // 与桌面缩放无关的整页出图。
                 var window = new Window
                 {
-                    Width = Math.Max(200, page.Width + 2),
-                    Height = Math.Max(200, page.Height + 2),
+                    Width = page.Width,
+                    Height = page.Height,
+                    WindowStyle = WindowStyle.None,
+                    ResizeMode = ResizeMode.NoResize,
                     WindowStartupLocation = WindowStartupLocation.Manual,
                     Left = -10000,
                     Top = 0,
@@ -405,6 +620,17 @@ namespace ScadaUiProbe
                 };
                 window.Show();
                 Pump(600);
+
+                // 出图前把画布缩到"整页装进视口"：本机是 1536×960 的远程桌面，1920 宽的窗口
+                // 会被 Windows 夹到屏幕宽度，ScrollViewer 于是把页面右栏整块裁掉（证据图缺内容）。
+                // 缩放到 fit 后与真机 FitToScreen 的取景一致，出图是完整一页。
+                double fit = Math.Min(canvas.ActualWidth / page.Width, canvas.ActualHeight / page.Height);
+                if (fit > 0.05 && fit < 1)
+                {
+                    canvas.Zoom = fit;
+                    canvas.Offset = new Point(0, 0);
+                    Pump(400);
+                }
 
                 string safeName = string.Join("_", page.Name.Split(Path.GetInvalidFileNameChars()));
                 string file = $"{solution}-{index:00}-{safeName}.png";
@@ -860,8 +1086,25 @@ namespace ScadaUiProbe
             return null;
         }
 
-        private static RenderTargetBitmap Render(Visual visual, int width, int height)
+        /// <summary>#AARRGGBB / #RRGGBB → Brush（页面底色）。解析失败返回透明，不抛。</summary>
+        private static System.Windows.Media.Brush ParseBrush(string? text)
         {
+            if (string.IsNullOrWhiteSpace(text)) return System.Windows.Media.Brushes.Transparent;
+            try
+            {
+                return (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(text)!;
+            }
+            catch
+            {
+                return System.Windows.Media.Brushes.Transparent;
+            }
+        }
+
+        /// <summary>背景图缩放方式字符串 → Stretch 枚举（默认 Uniform）。</summary>
+        private static Stretch ParseStretch(string? text)
+            => Enum.TryParse<Stretch>(text, ignoreCase: true, out var s) ? s : Stretch.Uniform;
+
+        private static RenderTargetBitmap Render(Visual visual, int width, int height)        {
             var bitmap = new RenderTargetBitmap(Math.Max(1, width), Math.Max(1, height), 96, 96, PixelFormats.Pbgra32);
             bitmap.Render(visual);
             bitmap.Freeze();

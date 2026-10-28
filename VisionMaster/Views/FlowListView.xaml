@@ -23,6 +23,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+                <!--  右键菜单样式（设计基线 flow-context-menu v1）：就地合并而不是靠应用级，
+                      无 Application 的断言宿主里也能解析（R22 同一手法）。  -->
+                <ResourceDictionary Source="/UI;component/Themes/Controls/StepContextMenu.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <ui:BindingProxy x:Key="MyViewModelProxy" Data="{Binding}" />
@@ -142,66 +145,137 @@
                         <!--  单行：状态点 + 名称 + 角色徽标 + 运行脉冲点 + 步数  -->
                         <Grid x:Name="PillRoot" Background="Transparent" ToolTip="{Binding Description}">
                             <Grid.ContextMenu>
-                                <ContextMenu FontFamily="{StaticResource Icon}">
-                                    <MenuItem Header="流程" Icon="&#xf0e8;">
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Create}"
-                                            Header="添加"
-                                            Icon="&#xf56f;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Delete}"
-                                            Header="删除"
-                                            Icon="&#xf2ed;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Rename}"
-                                            Header="重命名"
-                                            Icon="&#xf044;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.EditComment}"
-                                            Header="编辑注释"
-                                            Icon="&#xf075;" />
-                                        <Separator />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.ToggleEnabled}"
-                                            Header="{Binding Data.FlowToggleHeader, Source={StaticResource MyViewModelProxy}}"
-                                            Icon="ban" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Compile}"
-                                            Header="编译本流程"
-                                            Icon="&#xf0e7;" />
-                                        <Separator />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.RunOnce}"
-                                            Header="运行一次"
-                                            Icon="&#xf04b;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.RunContinuous}"
-                                            Header="循环运行"
-                                            Icon="&#xf021;" />
-                                        <MenuItem
-                                            Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
-                                            CommandParameter="{x:Static enums:FlowAction.Stop}"
-                                            Header="停止本流程"
-                                            Icon="&#xf04d;" />
-                                    </MenuItem>
+                                <!--
+                                    设计基线：docs/UI设计基线/flow-context-menu/ v1（2026-10-27）。
+                                    320 宽 / 32 行 / 20px 图标底片 / 四组平铺（流程 · 配置 · 运行 · 方案）。
+                                    12 项与 FlowAction 一一对应；禁用态与徽标由 FlowListViewModel 的只读属性驱动。
+                                -->
+                                <ContextMenu
+                                    Style="{StaticResource FlowContextMenuStyle}"
+                                    ui:MenuItemEx.Footer="{Binding Data.FlowMenuFooter, Source={StaticResource MyViewModelProxy}}">
+
+                                    <Separator Style="{StaticResource FlowMenuGroupHeaderStyle}" Tag="流程" />
+
                                     <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Create}"
+                                        Header="添加流程"
+                                        Icon="&#xf067;"
+                                        ToolTip="在当前流程之后插入一条新流程"
+                                        ui:MenuItemEx.Tone="Accent" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Rename}"
+                                        Header="重命名"
+                                        Icon="&#xf044;"
+                                        ToolTip="修改流程名（运行标识，必须唯一）"
+                                        ui:MenuItemEx.Tone="Slate" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.EditComment}"
+                                        Header="编辑注释"
+                                        Icon="&#xf075;"
+                                        ToolTip="补充这条流程的用途说明"
+                                        ui:MenuItemEx.Tone="Slate" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Delete}"
+                                        Header="删除"
+                                        Icon="&#xf2ed;"
+                                        IsEnabled="{Binding Data.CanDeleteFlow, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="{Binding Data.DeleteFlowToolTip, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Danger" />
+
+                                    <Separator Style="{StaticResource FlowMenuGroupHeaderStyle}" Tag="配置" />
+
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.ToggleEnabled}"
+                                        Header="{Binding Data.FlowToggleHeader, Source={StaticResource MyViewModelProxy}}"
+                                        Icon="{Binding Data.FlowToggleIcon, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="启用 / 禁用这条流程（禁用后不参与自动触发，手动运行也会被拦截）"
+                                        ui:MenuItemEx.Badge="{Binding Data.FlowStateBadge, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Amber" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Compile}"
+                                        Header="编译本流程"
+                                        Icon="&#xf0e7;"
+                                        IsEnabled="{Binding Data.CanCompileFlow, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="{Binding Data.CompileFlowToolTip, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Slate" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.BatchDisplayWindow}"
+                                        Header="批量设置显示窗口"
+                                        Icon="&#xf2d0;"
+                                        IsEnabled="{Binding Data.CanBatchDisplayWindow, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="{Binding Data.BatchDisplayWindowToolTip, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Indigo" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.ResultSource}"
+                                        Header="运行统计…"
+                                        Icon="&#xf201;"
+                                        ToolTip="配置本轮 OK/NG 的判定来源（结果输出步骤 / 变量 / 步骤端口）；下一轮生效"
+                                        ui:MenuItemEx.Tone="Slate" />
+
+                                    <Separator Style="{StaticResource FlowMenuGroupHeaderStyle}" Tag="运行" />
+
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.RunOnce}"
+                                        Header="运行一次"
+                                        Icon="&#xf04b;"
+                                        IsEnabled="{Binding Data.CanRunFlow, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="{Binding Data.RunFlowToolTip, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Green" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.RunContinuous}"
+                                        Header="循环运行"
+                                        Icon="&#xf021;"
+                                        IsEnabled="{Binding Data.CanRunFlow, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="{Binding Data.RunFlowToolTip, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Green" />
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
+                                        Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
+                                        CommandParameter="{x:Static enums:FlowAction.Stop}"
+                                        Header="停止本流程"
+                                        Icon="&#xf04d;"
+                                        IsEnabled="{Binding Data.CanStopFlow, Source={StaticResource MyViewModelProxy}}"
+                                        ToolTip="{Binding Data.StopFlowToolTip, Source={StaticResource MyViewModelProxy}}"
+                                        ui:MenuItemEx.Tone="Danger" />
+
+                                    <Separator Style="{StaticResource FlowMenuGroupHeaderStyle}" Tag="方案" />
+
+                                    <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
                                         Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
                                         CommandParameter="{x:Static enums:FlowAction.Manager}"
                                         Header="流程管理"
-                                        Icon="&#xf09c;" />
+                                        Icon="&#xf09c;"
+                                        ToolTip="批量查看与管理方案内所有流程"
+                                        ui:MenuItemEx.Tone="Slate" />
                                     <MenuItem
+                                        Style="{StaticResource FlowMenuItemStyle}"
                                         Command="{Binding Data.FlowCommand, Source={StaticResource MyViewModelProxy}}"
                                         CommandParameter="{x:Static enums:FlowAction.VariableEvents}"
                                         Header="变量事件（方案级）"
-                                        Icon="&#xf0f3;" />
+                                        Icon="&#xf0f3;"
+                                        ToolTip="配置方案级变量变化触发的动作"
+                                        ui:MenuItemEx.Tone="Slate" />
                                 </ContextMenu>
                             </Grid.ContextMenu>
                             <Grid.ColumnDefinitions>
@@ -286,7 +360,7 @@
                                 <Setter TargetName="KindBadge" Property="ToolTip" Value="{Binding CallBadgeToolTip}" />
                             </DataTrigger>
 
-                            <!--  角色徽标：Home/Main/End 三条骨架流程各一个字；排在调用徽标之后，命中即覆盖  -->
+                            <!--  角色徽标：Home/End 两条骨架流程各一个字；排在调用徽标之后，命中即覆盖  -->
                             <DataTrigger Binding="{Binding Role}" Value="Home">
                                 <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
                                 <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource LogicCaseSoftBrush}" />
@@ -294,14 +368,6 @@
                                 <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource LogicCaseTextBrush}" />
                                 <Setter TargetName="KindText" Property="Text" Value="零" />
                                 <Setter TargetName="KindBadge" Property="ToolTip" Value="回零（Home）" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding Role}" Value="Main">
-                                <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />
-                                <Setter TargetName="KindBadge" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
-                                <Setter TargetName="KindBadge" Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
-                                <Setter TargetName="KindText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
-                                <Setter TargetName="KindText" Property="Text" Value="主" />
-                                <Setter TargetName="KindBadge" Property="ToolTip" Value="主流程 · 工具栏「循环运行主流程」可直接启动" />
                             </DataTrigger>
                             <DataTrigger Binding="{Binding Role}" Value="End">
                                 <Setter TargetName="KindBadge" Property="Visibility" Value="Visible" />

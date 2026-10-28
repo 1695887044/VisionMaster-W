@@ -1,5 +1,6 @@
 ﻿using HalconDotNet;
 using Plugin.PreProcessing.Models;
+using Plugin.PreProcessing.Services;
 using UI.Attributes;
 
 namespace Plugin.PreProcessing.Operators
@@ -39,11 +40,17 @@ namespace Plugin.PreProcessing.Operators
         /// <summary>参数纠偏：模板尺寸最小 1，避免把 0 或负数喂给 Halcon</summary>
         protected override void Normalize()
         {
-            Width = AtLeast(Width, 1);
-            Height = AtLeast(Height, 1);
+            Width = Clamp(Width, 1, 999);
+            Height = Clamp(Height, 1, 999);
         }
 
-        protected override HImage Process(HImage input) => ProcessMask(input, Width, Height);
+        protected override HImage Process(HImage input)
+        {
+            // 不按图像尺寸悄悄缩小模板：HALCON 的 mean_image/形态学在模板过大时会抛 #3033/#1302，
+            // 由插件的失败契约（FailedOperators / FailOnOperatorError）如实上抛。
+            // 静默夹取会改变用户填的参数却不说，算出来的图与 HALCON 直接跑不一致。
+            return ProcessMask(input, Width, Height);
+        }
 
         /// <summary>派生类实现：宽高已由基类收敛，参数顺序由实现方在方法体内一次写对</summary>
         protected abstract HImage ProcessMask(HImage input, int width, int height);

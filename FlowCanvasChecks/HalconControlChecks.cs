@@ -67,6 +67,9 @@ namespace FlowCanvasChecks
             R("[P0-1] DisplayImageInfo 非空（模板绑定不断链）",
                 a.DisplayImageInfo != null, "");
 
+            // ── 批次 7：图集"死帧不许留在选中/钉住"（纯逻辑，不需要 HALCON 引擎）──
+            RunGalleryLivenessBatch(results);
+
             // 引擎不可用的机器上模板会把 PART_Halcon 换占位提示，交互路径自然休眠——
             // 这组断言只在引擎可用时才有意义，先探再跑，不误报。
             if (!HalconRuntime.IsAvailable)
@@ -152,6 +155,75 @@ namespace FlowCanvasChecks
 
             // ── 批次 4（2026-10-08 第二批）：直方图上提 / 多通道 / LUT / 缩放保持 ──
             RunFourthBatch(results);
+
+            // ── 批次 5（2026-10-27 批 2）：重绘合并 / 同尺寸换图不重铺 ──
+            RunRenderBatch(results);
+
+            // ── 批次 6（2026-10-27 批 3）：滚轮缩放上下限 / 没有活图不画叠加层 ──
+            RunZoomBatch(results);
+        }
+
+        /// <summary>
+        /// 批 2（2026-10-27）：重绘合并与"同尺寸换图不重铺"。
+        ///
+        /// 只钉两件可离线判定的事（像素级验收要真窗口，见 R53）：
+        ///   ① HImage 与 Annotations 两个 DP 各触发一次请求，但同一轮只**刷新一次**；
+        ///   ② 尺寸判定改用"本控件上次画过的尺寸"——同尺寸换图不再被判成"尺寸变了"
+        ///      （旧实现靠"旧图是否还活着"推断：图集清空后旧图已 Dispose → 每帧都重铺）。
+        /// </summary>
+        private static void RunRenderBatch(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            // ── ① 同尺寸换图不重铺；真换尺寸仍重铺 ──
+            var sizeProbe = new ImageDisplay();
+            using (var img1 = MakeGrayImage(64, 48))
+            using (var img2 = MakeGrayImage(64, 48))
+            using (var img3 = MakeGrayImage(32, 24))
+            {
+                sizeProbe.HImage = img1;
+                int after1 = sizeProbe.SizeChangeCountForTest;
+                sizeProbe.HImage = img2;
+                int after2 = sizeProbe.SizeChangeCountForTest;
+                sizeProbe.HImage = img3;
+                int after3 = sizeProbe.SizeChangeCountForTest;
+
+                R("[重绘] 首帧算一次尺寸变化、同尺寸换图不再重铺",
+                    after1 == 1 && after2 == 1, $"首帧={after1} 同尺寸换图后={after2}");
+                R("[重绘] 真换尺寸仍算尺寸变化（不能一刀切不重铺）",
+                    after3 == 2, $"换尺寸后={after3}");
+            }
+
+            // ── ② 一帧内两个 DP 变化 → 只刷新一次 ──
+            var renderProbe = new ImageDisplay();
+            int req0 = renderProbe.RenderRequestCountForTest;
+            int flush0 = renderProbe.RenderFlushCountForTest;
+
+            using (var img = MakeGrayImage(64, 48))
+            {
+                renderProbe.HImage = img;
+                renderProbe.Annotations = new List<MeasureAnnotation>
+                {
+                    new MeasureAnnotation
+                    {
+                        Type = MeasureType.Text,
+                        Points = new[] { 1.0, 1.0 },
+                        Text = "合并断言"
+                    }
+                };
+            }
+
+            int req1 = renderProbe.RenderRequestCountForTest;
+            int flushBeforePump = renderProbe.RenderFlushCountForTest;
+            renderProbe.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            int flushAfterPump = renderProbe.RenderFlushCountForTest;
+
+            R("[重绘] HImage + Annotations 两次 DP 变化合并成一次刷新",
+                req1 - req0 == 2 && flushBeforePump - flush0 == 0 && flushAfterPump - flush0 == 1,
+                $"请求={req1 - req0} 泵前刷新={flushBeforePump - flush0} 泵后刷新={flushAfterPump - flush0}");
         }
 
         /// <summary>批次 4：第二批（直方图上提+多通道 / 伪彩 LUT / 缩放状态保持）的回归</summary>
@@ -558,6 +630,323 @@ namespace FlowCanvasChecks
                 return image;
             }
             finally { handle.Free(); }
+        }
+
+        /// <summary>
+        /// 批 6（2026-10-27）：滚轮缩放的上下限 + "没有活图就不画叠加层"。
+        ///
+        /// 现场：跑完流程后滚轮往外缩，图像连同几何标注一起缩到亚像素，画布只剩一行定长像素的
+        /// 标注文字——看起来就是"图像丢了"。根因是 HSmartWindowControlWPF 的滚轮**没有下界**
+        /// （每格 ×√2，缩 17 格 ≈ 500 倍，771px 的图只剩 1px）。
+        ///
+        /// 这里钉五条，其中 ①③⑤ 是正向、② 是反向（下限不能卡太死）、⑥ 用像素尺子反证：
+        ///   ① 铺满时再外缩 → 事件被 Handled、part 不变（下限）；
+        ///   ② 放大状态下外缩 → 放行（不误拦）；
+        ///   ③ 已缩过头（旧视图缓存 / 外部 SetPart 留下的超大 part）→ 一格外缩弹回铺满；
+        ///   ④ 放大到 part 跨度 ≤ 8 像素后再内缩 → 被 Handled（part 不许退化成一个点）；
+        ///   ⑤ 活图 + 粗标注 → 窗口有内容（证明尺子量得到，否则 ⑥ 是空断言）；
+        ///   ⑥ 图被 Dispose 后强制重画 → 窗口非黑 ≈ 0（不再出现"黑底 + 一行绿字"）。
+        ///
+        /// 必须是**真窗口**（R53）：buffer 窗口没有鼠标路由，PreviewMouseWheel 投递不进去；
+        /// 这里用屏幕外真窗口（Left=-4000），不打扰桌面。
+        /// </summary>
+        private static void RunZoomBatch(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            if (!HalconRuntime.IsAvailable)
+            {
+                // 反证（R38）：不可用原因来自引擎探测（缺 halcon.dll / PATH 未配），与本次改动无关；
+                // 引擎不在时连 HWindow 都建不出来，缩放断言没有被测对象。
+                R("滚轮缩放断言（跳过：本机无 HALCON 引擎）", true, "");
+                return;
+            }
+
+            Window? win = null;
+            ImageDisplay? display = null;
+            HImage? image = null;
+            try
+            {
+                win = new Window
+                {
+                    Width = 820,
+                    Height = 660,
+                    ShowInTaskbar = false,
+                    WindowStartupLocation = WindowStartupLocation.Manual,
+                    Left = -4000,
+                    Top = 0,
+                };
+                win.Resources.MergedDictionaries.Add(new ResourceDictionary
+                {
+                    Source = new Uri("/Core.Halcon;component/Generic.xaml", UriKind.Relative),
+                });
+                display = new ImageDisplay { Width = 800, Height = 600 };
+                win.Content = display;
+                win.Show();
+                Pump(400);
+
+                var hswc = FindChild<HSmartWindowControlWPF>(display);
+                var hw = hswc?.HalconWindow;
+                if (hswc == null || hw == null)
+                {
+                    // 不是"环境不支持"，是模板/窗口没就绪——按失败报，别静默跳过（R38）
+                    R("滚轮缩放断言：画布与 HALCON 窗口就绪", false,
+                        hswc == null ? "视觉树里找不到 HSmartWindowControlWPF（模板未应用）" : "HalconWindow 为 null");
+                    return;
+                }
+
+                image = MakeGrayImage(800, 600);
+                display.HImage = image;
+                Pump(300);
+                hswc.SetFullImagePart();
+                Pump(150);
+
+                double fitSpan = PartSpan(hw);
+                R("滚轮缩放：铺满基线可测（跨度 > 0）", fitSpan > 0, $"span={fitSpan:F0}");
+
+                // ① 铺满时再外缩：必须被拦，且 part 不变
+                bool handledOut = RaiseWheel(hswc, -120);
+                Pump(120);
+                double afterOut = PartSpan(hw);
+                R("① 缩到铺满即止（外缩被拦、part 不变）",
+                    handledOut && Math.Abs(afterOut - fitSpan) < 0.5,
+                    $"Handled={handledOut} span {fitSpan:F0} → {afterOut:F0}");
+
+                // ② 反向：放大状态下外缩仍放行（下限不能卡太死）
+                hswc.HZoomWindowContents(hswc.ActualWidth / 2, hswc.ActualHeight / 2, 120);
+                Pump(120);
+                bool handledOutZoomed = RaiseWheel(hswc, -120);
+                Pump(120);
+                R("② 放大状态下外缩放行（下限不误拦）", !handledOutZoomed,
+                    $"Handled={handledOutZoomed} span={PartSpan(hw):F0}");
+
+                // ③ 已缩过头 → 一格外缩弹回铺满（现场黑屏的救回路径）
+                hw.SetPart(-300000.0, -300000.0, 600000.0, 600000.0);
+                Pump(120);
+                bool handledRecover = RaiseWheel(hswc, -120);
+                Pump(200);
+                double recovered = PartSpan(hw);
+                R("③ 缩过头后一格外缩弹回铺满（现场黑屏的救回路径）",
+                    handledRecover && Math.Abs(recovered - fitSpan) < 0.5,
+                    $"Handled={handledRecover} span 900000 → {recovered:F0}（铺满 {fitSpan:F0}）");
+
+                // ④ 放大极限：真放大到 part 跨度 ≤ 8 像素后，内缩被拦
+                for (int i = 0; i < 40 && PartSpan(hw) > 8; i++)
+                    hswc.HZoomWindowContents(hswc.ActualWidth / 2, hswc.ActualHeight / 2, 120);
+                Pump(150);
+                double atLimit = PartSpan(hw);
+                bool handledIn = RaiseWheel(hswc, 120);
+                Pump(120);
+                R("④ 放大到极限后内缩被拦（part 不退化成一个点）",
+                    handledIn && Math.Abs(PartSpan(hw) - atLimit) < 0.5,
+                    $"极限 span={atLimit:F1} Handled={handledIn} 之后={PartSpan(hw):F1}");
+
+                // ⑤/⑥ 没有活图就不画叠加层
+                hswc.SetFullImagePart();
+                Pump(120);
+                display.Annotations = new List<MeasureAnnotation>
+                {
+                    new MeasureAnnotation
+                    {
+                        Type = MeasureType.Polyline,
+                        Points = new[] { 40.0, 40.0, 560.0, 760.0 },
+                        Color = "green",
+                        LineWidth = 3,
+                    },
+                    new MeasureAnnotation
+                    {
+                        Type = MeasureType.Text,
+                        Points = new[] { 80.0, 60.0 },
+                        Text = "DEAD-IMAGE-OVERLAY",
+                        Color = "green",
+                    },
+                };
+                Pump(250);
+                using (var live = hw.DumpWindowImage())
+                {
+                    double ratio = PixelProbe.NonBlackRatio(live);
+                    R("⑤ 活图 + 标注：窗口有内容（反证像素尺子量得到）",
+                        ratio > 0.5, $"非黑={ratio:P2}");
+                }
+
+                // ⑦ 布局重挂（Unloaded → Loaded）后必须还能画：点工具箱胶囊 / 切画布布局走的正是这条路径
+                //   （2026-10-27 真机：OnControlUnloaded 把 hSmart/hWindow 置空，而 Loaded 里读的是字段
+                //    → NullReferenceException；异常从 BroadcastLoadedEvent 抛出去还会跳过同一广播里
+                //    其它画布的 Loaded → 整页永久不刷新）。这里真的把控件从窗口里摘掉再挂回去。
+                win.Content = null;
+                Pump(250);
+                win.Content = display;
+                Pump(450);
+                var restoredWindow = GetPrivateField<HWindow?>(display, "hWindow");
+                double ratioAfterReattach = 0;
+                if (restoredWindow != null)
+                {
+                    try
+                    {
+                        using var afterReattach = restoredWindow.DumpWindowImage();
+                        ratioAfterReattach = PixelProbe.NonBlackRatio(afterReattach);
+                    }
+                    catch { ratioAfterReattach = -1; }
+                }
+                R("⑦ 布局重挂（Unloaded→Loaded）后窗口句柄恢复且仍能画",
+                    restoredWindow != null && ratioAfterReattach > 0.5,
+                    $"hWindow 字段={(restoredWindow == null ? "null（旧代码在这里抛 NRE）" : "非 null")}"
+                    + $" 非黑={ratioAfterReattach:P2}");
+
+                image.Dispose();     // 图死了，但 DP 仍指着它（复刻宿主换帧窗口期）
+                InvokeProtectedNoArg(display, "RenderAll");
+                Pump(200);
+                // 注意：重挂之后 HSmartWindowControlWPF 会给出**新的** HWindow（旧句柄只是残留缓冲），
+                // 所以这里必须 dump 字段里的那个窗口——用重挂前的 hw 会读到旧画面，断言变成假绿/假红。
+                var dumpWindow = restoredWindow ?? hw;
+                using (var dead = dumpWindow.DumpWindowImage())
+                {
+                    double ratio = PixelProbe.NonBlackRatio(dead);
+                    R("⑥ 死图不画叠加层（不再出现\"黑底 + 标注\"）",
+                        ratio < 0.0005,
+                        $"非黑={ratio:P3}（改前约 0.3%：那条粗绿线 + 一行绿字）");
+                }
+            }
+            catch (Exception ex)
+            {
+                R("滚轮缩放断言执行", false, ex.GetType().Name + ": " + ex.Message);
+            }
+            finally
+            {
+                try { image?.Dispose(); } catch { /* 已释放 */ }
+                try { win?.Close(); } catch { /* 窗口可能已失效 */ }
+                Pump(100);
+            }
+        }
+
+        /// <summary>
+        /// 批 7（2026-10-27）：图集"死帧不许留在选中/钉住"。
+        ///
+        /// 背景：`ImageFrame.Dispose()` 把 Image 置 null 后**不通知绑定**（Image 是普通 CLR 属性），
+        /// 而 `ImageGallery.Recompute` 在"保留历史帧 + 锁定跟随"下漏了一个分支：原选中帧被同槽新帧
+        /// 覆盖后四个分支全不命中，SelectedFrame 继续指着已释放的帧 → 画布永久"黑底 + 标注"、
+        /// 不自愈（真机 2026-10-27）。钉住的对比基准同样没有校验。
+        ///
+        /// 只验 `Recompute` 的选中/钉住口径（纯逻辑，不依赖模板、不依赖 HALCON 引擎）：
+        ///   ① 锁定跟随 + 选中帧被同槽覆盖 → 选中清空（旧实现：仍指向旧帧）；
+        ///   ② 钉住帧只是被流程下拉挡住（仍然活着）→ 不清空（反向：不许误清）；
+        ///   ③ 钉住帧被同槽覆盖 → 清空。
+        /// </summary>
+        private static void RunGalleryLivenessBatch(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            // ① 锁定跟随 + 选中帧被同槽新帧覆盖
+            var frames = new System.Collections.ObjectModel.ObservableCollection<ImageFrame>
+            {
+                new ImageFrame { FlowName = "流程A", StepName = "结果显示", PortName = "图像", Sequence = 1 },
+            };
+            var gallery = new ImageGallery
+            {
+                ItemsSource = frames,
+                ViewIndexFilter = 1,
+                SupportsFrameHistory = true,
+                AutoSelectNewest = true,
+            };
+            gallery.Recompute();
+            var stale = gallery.SelectedFrame;
+            gallery.AutoSelectNewest = false;   // 用户按"锁定跟随"
+            frames[0] = new ImageFrame { FlowName = "流程A", StepName = "结果显示", PortName = "图像", Sequence = 2 };
+            gallery.Recompute();
+            R("图集：锁定跟随时选中帧被同槽覆盖 → 选中清空（不留已释放的帧）",
+                stale != null && gallery.SelectedFrame == null,
+                $"覆盖前选中={(stale == null ? "null（前置失败）" : "序号" + stale.Sequence)}，"
+                + $"覆盖后={(gallery.SelectedFrame == null ? "null" : "序号" + gallery.SelectedFrame.Sequence)}");
+
+            // ②③ 钉住的对比基准
+            var pinFrames = new System.Collections.ObjectModel.ObservableCollection<ImageFrame>
+            {
+                new ImageFrame { FlowName = "流程A", StepName = "结果显示", Sequence = 1 },
+                new ImageFrame { FlowName = "流程B", StepName = "结果显示", Sequence = 2 },
+            };
+            var pinGallery = new ImageGallery
+            {
+                ItemsSource = pinFrames,
+                ViewIndexFilter = 1,
+                SupportsFrameHistory = true,
+            };
+            pinGallery.Recompute();
+            var pinned = pinFrames[0];
+            pinGallery.PinnedFrame = pinned;
+            pinGallery.SelectedFlow = "流程B";    // 基准被流程下拉挡住，但帧仍然活着
+            pinGallery.Recompute();
+            R("图集：钉住的基准只是被流程筛选挡住时不清空（反向：不误清）",
+                ReferenceEquals(pinGallery.PinnedFrame, pinned),
+                $"钉住={(pinGallery.PinnedFrame == null ? "null" : pinGallery.PinnedFrame.FlowName)}");
+
+            pinGallery.SelectedFlow = ImageGallery.AllFlowsLabel;
+            pinFrames[0] = new ImageFrame { FlowName = "流程A", StepName = "结果显示", Sequence = 3 };
+            pinGallery.Recompute();
+            R("图集：钉住的基准被同槽覆盖 → 清空（对比大图不再画黑底 + 标注）",
+                pinGallery.PinnedFrame == null,
+                $"钉住={(pinGallery.PinnedFrame == null ? "null" : pinGallery.PinnedFrame.FlowName)}");
+        }
+
+        /// <summary>当前显示范围（part）的行跨度；取不到返回 -1</summary>
+        private static double PartSpan(HWindow hw)        {
+            try
+            {
+                HOperatorSet.GetPart(hw, out HTuple r1, out HTuple _, out HTuple r2, out HTuple _);
+                return r2.D - r1.D;
+            }
+            catch { return -1; }
+        }
+
+        /// <summary>
+        /// 按 WPF 的隧道阶段投递一次滚轮事件：HalconBase 的上下限挂在 PreviewMouseWheel 上，
+        /// 与真实鼠标同一条路由（Handled 之后控件自己的 MouseWheel 不再执行）。
+        /// </summary>
+        private static bool RaiseWheel(HSmartWindowControlWPF hswc, int delta)
+        {
+            var args = new System.Windows.Input.MouseWheelEventArgs(
+                System.Windows.Input.Mouse.PrimaryDevice, Environment.TickCount, delta)
+            {
+                RoutedEvent = UIElement.PreviewMouseWheelEvent,
+            };
+            hswc.RaiseEvent(args);
+            return args.Handled;
+        }
+
+        /// <summary>按类型找可视树里的第一个后代（模板内部元素用 FindName 不稳定）</summary>
+        private static T? FindChild<T>(DependencyObject root) where T : DependencyObject
+        {
+            int count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+                if (child is T typed) return typed;
+                var found = FindChild<T>(child);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        /// <summary>泵消息指定时长（真窗口的 Loaded/渲染/绑定都靠它推进）</summary>
+        private static void Pump(int milliseconds)
+        {
+            var frame = new System.Windows.Threading.DispatcherFrame();
+            var timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(milliseconds),
+            };
+            timer.Tick += (_, __) =>
+            {
+                timer.Stop();
+                frame.Continue = false;
+            };
+            timer.Start();
+            System.Windows.Threading.Dispatcher.PushFrame(frame);
         }
     }
 }

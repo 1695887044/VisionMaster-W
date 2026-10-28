@@ -1,4 +1,4 @@
-﻿using HalconDotNet;
+using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -24,7 +24,7 @@ namespace Plugin.PreProcessing.Operators
         private MaskMarginMode _margin = MaskMarginMode.Mirrored;
 
         [SuperDisplay(Name = "模板形状", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
-            Description = "Halcon 支持方形 / 圆形 / 菱形")]
+            Description = "HALCON 23.05 支持方形 / 圆形（历史“菱形”会收敛到圆形）")]
         public MedianMaskType MaskType
         {
             get => _maskType;
@@ -48,7 +48,13 @@ namespace Plugin.PreProcessing.Operators
             set => SetParam(ref _margin, value);
         }
 
-        protected override void Normalize() => Radius = AtLeast(Radius, 1);
+        protected override void Normalize()
+        {
+            Radius = Clamp(Radius, 1, 50);
+            // 历史方案里 Diamond=2 在 HALCON 23.05 必抛 #1301；收敛到最接近的圆形
+            if (!System.Enum.IsDefined(typeof(MedianMaskType), MaskType))
+                MaskType = MedianMaskType.Circle;
+        }
 
         protected override HImage Process(HImage input)
             => PreprocessHService.Median(input, MaskType, Radius, Margin);
@@ -64,15 +70,15 @@ namespace Plugin.PreProcessing.Operators
         private int _size = 5;
 
         [SuperDisplay(Name = "模板尺寸", Group = new string[] { "参数" }, Order = 1, ColSpan = 12,
-            Description = "必须是奇数，填偶数会自动 +1")]
-        [RangeValidation(3, 101, "模板尺寸需要在 3~101 之间")]
+            Description = "HALCON gauss_image 只接受 3/5/7/9/11，填其它值会收敛到最近合法值")]
+        [RangeValidation(3, 11, "模板尺寸需要在 3~11 之间（HALCON 只支持 3/5/7/9/11）")]
         public int Size
         {
             get => _size;
             set => SetParam(ref _size, value);
         }
 
-        protected override void Normalize() => Size = OddAtLeast(Size, 3);
+        protected override void Normalize() => Size = Math.Clamp(OddAtLeast(Size, 3), 3, 11);
 
         protected override HImage Process(HImage input) => PreprocessHService.Gauss(input, Size);
 

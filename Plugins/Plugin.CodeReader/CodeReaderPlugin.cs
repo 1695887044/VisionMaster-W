@@ -140,6 +140,10 @@ namespace Plugin.CodeReader
         /// <summary>所有码文本的逗号分隔形式，供按标量工作的既有下游节点使用</summary>
         public OutputPort<string> Text { get; } = new("Text", "所有码文本（逗号分隔，供标量下游使用）");
 
+        /// <summary>识别到的码轮廓（XLD）：供「结果显示」的 OverlayContours 画覆盖层，插件自己不烧图</summary>
+        public OutputPort<HXLD> SymbolContours { get; } =
+            new("SymbolContours", "识别到的码轮廓（XLD），接「结果显示.OverlayContours」");
+
         // ==================================================================
         //  运行期状态
         // ==================================================================
@@ -260,18 +264,26 @@ namespace Plugin.CodeReader
                 return;
             }
 
-            if (!TryRead(DisplayImage, out var codes, out string error, out string countNote))
+            HObject? symbols = null;
+            try
             {
-                ResultSummary = "试算失败：" + error;
-                return;
-            }
+                if (!TryRead(DisplayImage, out var codes, out symbols, out string error, out string countNote))
+                {
+                    ResultSummary = "试算失败：" + error;
+                    return;
+                }
 
-            string content = codes.Count == 0 ? "（未读到码）" : string.Join("\r\n", codes);
-            ResultSummary =
-                $"码制：{Symbology}\r\n"
-                + $"读到 {codes.Count} 个码\r\n"
-                + content
-                + (string.IsNullOrEmpty(countNote) ? "" : "\r\n" + countNote);
+                string content = codes.Count == 0 ? "（未读到码）" : string.Join("\r\n", codes);
+                ResultSummary =
+                    $"码制：{Symbology}\r\n"
+                    + $"读到 {codes.Count} 个码\r\n"
+                    + content
+                    + (string.IsNullOrEmpty(countNote) ? "" : "\r\n" + countNote);
+            }
+            finally
+            {
+                symbols?.Dispose();
+            }
         }
 
         // ==================================================================
@@ -280,6 +292,8 @@ namespace Plugin.CodeReader
 
         public override void RunAlgorithm(IExecutionContext context)
         {
+            SymbolContours.Value = null!;
+
             var image = Image.GetTypedValue();
             if (image == null || !image.IsInitialized())
             {
@@ -287,36 +301,46 @@ namespace Plugin.CodeReader
                 return;
             }
 
-            if (!TryRead(image, out var codes, out string error, out string countNote))
+            HObject? symbols = null;
+            try
             {
-                Fail(error);
-                return;
+                if (!TryRead(image, out var codes, out symbols, out string error, out string countNote))
+                {
+                    Fail(error);
+                    return;
+                }
+
+                Codes.Value = codes.ToArray();
+                Count.Value = codes.Count;
+                Text.Value = string.Join(",", codes);
+                if (symbols != null && symbols.IsInitialized())
+                    SymbolContours.Value = new HXLD(symbols);
+
+                if (codes.Count > 0)
+                {
+                    context.Logger.Info(
+                        $"码读取：读到 {codes.Count} 个码（码制 {Symbology}）：{string.Join(" | ", codes)}"
+                    );
+                }
+                else
+                {
+                    // 【为什么这条 Info 里要带码制和超时】
+                    // "读不到码"最常见的两个原因是"码制选错了"和"上级传来的图没把码包住"。
+                    // 把当前码制写进日志，现场一眼就能自查第一条，不用去翻节点配置。
+                    context.Logger.Info(
+                        $"码读取：本帧未读到码（当前码制 {Symbology}，超时 {TimeoutMs}ms）。"
+                        + "若图上确有码，请先确认：① 码制是否选对；② 上级传来的图是否把码完整包住（别贴边裁）"
+                    );
+                }
+
+                // 候选数与成功数不一致时补一条诊断：它解释了"为什么图上有码却 Count=0"
+                if (!string.IsNullOrEmpty(countNote))
+                    context.Logger.Warn($"码读取：{countNote}");
             }
-
-            Codes.Value = codes.ToArray();
-            Count.Value = codes.Count;
-            Text.Value = string.Join(",", codes);
-
-            if (codes.Count > 0)
+            finally
             {
-                context.Logger.Info(
-                    $"码读取：读到 {codes.Count} 个码（码制 {Symbology}）：{string.Join(" | ", codes)}"
-                );
+                symbols?.Dispose();
             }
-            else
-            {
-                // 【为什么这条 Info 里要带码制和超时】
-                // "读不到码"最常见的两个原因是"码制选错了"和"上级传来的图没把码包住"。
-                // 把当前码制写进日志，现场一眼就能自查第一条，不用去翻节点配置。
-                context.Logger.Info(
-                    $"码读取：本帧未读到码（当前码制 {Symbology}，超时 {TimeoutMs}ms）。"
-                    + "若图上确有码，请先确认：① 码制是否选对；② 上级传来的图是否把码完整包住（别贴边裁）"
-                );
-            }
-
-            // 候选数与成功数不一致时补一条诊断：它解释了"为什么图上有码却 Count=0"
-            if (!string.IsNullOrEmpty(countNote))
-                context.Logger.Warn($"码读取：{countNote}");
         }
 
         /// <summary>
@@ -324,9 +348,15 @@ namespace Plugin.CodeReader
         /// 返回 false 只表示**程序级失败**（码制名不认识、模型建不起来、图类型不对）；
         /// "没读到码"返回 true 且 <paramref name="codes"/> 为空。
         /// </summary>
-        private bool TryRead(HImage image, out List<string> codes, out string error, out string countNote)
+        private bool TryRead(
+            HImage image,
+            out List<string> codes,
+            out HObject? symbols,
+            out string error,
+            out string countNote)
         {
             codes = new List<string>();
+            symbols = null;
             error = string.Empty;
             countNote = string.Empty;
 
@@ -338,13 +368,15 @@ namespace Plugin.CodeReader
 
             if (entry.Family == CodeFamily.DataCode2D)
             {
-                bool ok = _dataCodeEngine.TryDecode(image, entry.HalconName, Polarity, TimeoutMs, out codes, out error);
+                bool ok = _dataCodeEngine.TryDecode(
+                    image, entry.HalconName, Polarity, TimeoutMs, out codes, out symbols, out error);
                 countNote = _dataCodeEngine.LastCountNote;
                 return ok;
             }
 
             // 一维不传极性：实测 set_bar_code_param 不接受 'polarity'（见 BarCodeEngine 的 remarks）
-            return _barCodeEngine.TryDecode(image, entry.HalconName, TimeoutMs, out codes, out error);
+            return _barCodeEngine.TryDecode(
+                image, entry.HalconName, TimeoutMs, out codes, out symbols, out error);
         }
 
         /// <summary>

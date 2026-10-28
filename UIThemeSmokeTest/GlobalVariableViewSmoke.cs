@@ -941,6 +941,51 @@ namespace UIThemeSmokeTest
 
         private static void AddSystemRows(GlobalVariableManagerViewModel vm)
         {
+            // 流程运行统计容器（真实 System.Flow.* 的形态）：TypeName 是 FlowRuntimeSnapshot，
+            // 描述是 "{流程名} · {字段标签}（只读系统变量）"。
+            // 这两样在真机上都超长：类型名撑满 Auto 列、描述撑满两行行高 —— 渲染图就是这两条的验收证据。
+            // 放在列表最前面，保证 1300x700 的渲染宿主里容器 + 子行不被挤出视口。
+            var flowRoot = Root(
+                NewVar(
+                    "System.Flow.形变匹配_局部非刚性",
+                    typeof(object),
+                    null,
+                    null,
+                    "流程「形变匹配_局部非刚性」运行统计（只读）",
+                    VariableType.System,
+                    null,
+                    VariableQuality.Good,
+                    readOnly: true),
+                false, true, null, null);
+            flowRoot.TypeName = "FlowRuntimeSnapshot";
+            flowRoot.IsExpanded = true;
+            vm.FilteredDisplayNodes.Add(flowRoot);
+
+            var flowFields = new (string Name, Type Type, object Value, string Description)[]
+            {
+                ("State", typeof(string), "停止", "形变匹配 局部非刚性 · 运行状态（运行/暂停/停止/故障）（只读系统变量）"),
+                ("AverageCycleTimeMs", typeof(double), 0d, "形变匹配 局部非刚性 · 最近若干轮平均节拍（毫秒）（只读系统变量）"),
+                ("VerdictSource", typeof(string), "", "形变匹配 局部非刚性 · 判定来源（结果输出步骤/结果变量/未配置）（只读系统变量）"),
+            };
+            foreach (var field in flowFields)
+            {
+                var child = new VariableNode
+                {
+                    OriginalModel = flowRoot.OriginalModel,
+                    Name = field.Name,
+                    FullName = flowRoot.Name + "." + field.Name,
+                    DataType = field.Type,
+                    TypeName = field.Type.Name,
+                    Description = field.Description,
+                    ChildValue = field.Value,
+                    Level = 1,
+                    SourceLabel = flowRoot.SourceLabel,
+                    IsConnected = flowRoot.IsConnected,
+                };
+                flowRoot.Children.Add(child);
+                vm.FilteredDisplayNodes.Add(child);
+            }
+
             AddRoot(vm, NewVar("Motion.X.Position", typeof(double), 0d, 123.456, "X 轴当前位置 (mm)", VariableType.System, null, VariableQuality.Good, readOnly: true), false, true, null, null);
             AddRoot(vm, NewVar("Motion.X.Velocity", typeof(double), 0d, 0d, "X 轴当前速度 (mm/s)", VariableType.System, null, VariableQuality.Good, readOnly: true), false, true, null, null);
             AddRoot(vm, NewVar("Motion.Y.Position", typeof(double), 0d, 45.2, "Y 轴当前位置 (mm)", VariableType.System, null, VariableQuality.Good, readOnly: true), false, true, null, null);

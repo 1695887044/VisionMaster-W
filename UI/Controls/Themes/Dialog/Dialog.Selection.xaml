@@ -64,4 +64,90 @@
       </Setter.Value>
     </Setter>
   </Style>
+
+  <!--
+      ============================================================================
+      调用方式胶囊（CheckBox 换模板）
+      基线：docs/UI设计基线/flow-manager v1.1 §1.1
+      ============================================================================
+      为什么是 CheckBox 而不是 ToggleButton：ToggleButton 的 IsChecked 可以是 null，
+      三态会污染 FlowInvokeType 位集运算（null 落到布尔转换就抛）。CheckBox 默认两态，
+      语义与"这一位勾没勾"完全对齐，模板只负责把它画成胶囊。
+
+      为什么焦点环就地画、不挂 DialogFocusVisual：后者在 Dialog.Misc.xaml，而本分册
+      只自合并 Colors.xaml（R30：跨册 StaticResource 在解析期直接抛）。就地用
+      DialogAccentBrush 加粗描边表达键盘焦点，与全仓 2px 环同形。
+
+      为什么两个档位各写一支完整样式、不用 BasedOn：两档的 IsChecked 触发器改的是同一批
+      属性，BasedOn 下靠"派生样式触发器后应用"取胜——本仓有过模板内触发器静默失效的先例，
+      这里宁可多 12 行也不赌求值顺序。整线档（绿色）语义见 FlowInvokeType.LineStart。
+  -->
+  <ControlTemplate x:Key="DialogInvokeChipTemplate" TargetType="CheckBox">
+    <Border
+        x:Name="Chip"
+        Height="22"
+        Padding="9,0"
+        Background="{TemplateBinding Background}"
+        BorderBrush="{TemplateBinding BorderBrush}"
+        BorderThickness="1"
+        CornerRadius="11"
+        Cursor="Hand"
+        SnapsToDevicePixels="True">
+      <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Border>
+    <ControlTemplate.Triggers>
+      <Trigger Property="IsKeyboardFocused" Value="True">
+        <Setter TargetName="Chip" Property="BorderThickness" Value="2" />
+        <Setter TargetName="Chip" Property="BorderBrush" Value="{StaticResource DialogAccentBrush}" />
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter TargetName="Chip" Property="Opacity" Value="0.5" />
+      </Trigger>
+    </ControlTemplate.Triggers>
+  </ControlTemplate>
+
+  <Style x:Key="DialogInvokeChip" TargetType="CheckBox">
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    <Setter Property="Template" Value="{StaticResource DialogInvokeChipTemplate}" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+      </Trigger>
+      <Trigger Property="IsChecked" Value="True">
+        <Setter Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!--  整线档：不是"外部触发"，是"随工具栏启动整线"，用成功色区分（基线 §1.1）  -->
+  <Style x:Key="DialogInvokeChipLine" TargetType="CheckBox">
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource DialogBorderBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource DialogTextTertiaryBrush}" />
+    <Setter Property="Template" Value="{StaticResource DialogInvokeChipTemplate}" />
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+      </Trigger>
+      <Trigger Property="IsChecked" Value="True">
+        <Setter Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Trigger>
+    </Style.Triggers>
+  </Style>
 </ResourceDictionary>

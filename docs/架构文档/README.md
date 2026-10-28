@@ -19,6 +19,7 @@
 | `ProjectDetailedModules.md` | 2026-10-05 早期模块清单。同上，只作历史对照 |
 | `项目知识结构大纲.md` | 新人上手路径与知识点索引（按"要知道什么、去哪里读"组织） |
 | `ProjectOverview-退役说明.md` | 已退役的 `ProjectOverview.md` 说明：为什么删、原文怎么取回 |
+| [`Plugin.DeformableMatching-设计.md`](Plugin.DeformableMatching-设计.md) | 可形变模板匹配插件（Local + Planar）设计定稿：M0 四条探针实测、端口契约、模型持久化、失败语义、v1 范围。2026-10-26 |
 
 ### 子目录
 

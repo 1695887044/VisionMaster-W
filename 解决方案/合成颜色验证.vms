@@ -1,17 +1,22 @@
 {
-  "SolutionName": "解决方案-20261026154704",
+  "SolutionName": "解决方案-20261028235245",
   "Version": 1.0,
   "Config": {
     "ImageViewMode": 0
   },
   "Flows": [
     {
-      "FlowID": "f61ab98cca95437ab4d5768024e4ba24",
+      "FlowID": "2453ade0e854416abc6a56e70cbd5200",
       "FlowName": "合成颜色验证",
       "Version": 4,
       "IsEnabled": true,
       "Role": 0,
       "InvokeType": 0,
+      "ResultSource": 0,
+      "ResultVariableId": "00000000-0000-0000-0000-000000000000",
+      "ResultVariableName": "",
+      "ResultStepId": "00000000-0000-0000-0000-000000000000",
+      "ResultPortName": "",
       "TimerIntervalMs": 0,
       "StepsEncrypted": false,
       "TriggerMode": 1,
@@ -22,7 +27,7 @@
       "Steps": [
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "5ed3490e-7982-4278-8afb-be70c2664e89",
+          "StepID": "11a8e953-cebb-4f06-9137-0afa65bbd9e4",
           "Icon": "",
           "PluginName": "图像采集",
           "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -39,7 +44,7 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "58544b80-af3c-4b7a-9501-cccd4298769d",
+          "StepID": "42abf589-6c41-441d-92a8-7857be2faa4b",
           "Icon": "",
           "PluginName": "颜色序列检查",
           "PluginTypeName": "Plugin.ColorCheck.ColorCheckPlugin, Plugin.ColorCheck, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -65,7 +70,7 @@
           "LinkedSources": {
             "Image": {
               "Kind": 1,
-              "TargetStepId": "5ed3490e-7982-4278-8afb-be70c2664e89",
+              "TargetStepId": "11a8e953-cebb-4f06-9137-0afa65bbd9e4",
               "TargetPortName": "Image",
               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
@@ -75,7 +80,7 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "478b7543-2911-469c-8088-fe202dadd9f4",
+          "StepID": "d05ece2e-48e7-4f5f-bff7-b395b6a34e09",
           "Icon": "",
           "PluginName": "区域颜色检查",
           "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -103,7 +108,7 @@
           "LinkedSources": {
             "Image": {
               "Kind": 1,
-              "TargetStepId": "5ed3490e-7982-4278-8afb-be70c2664e89",
+              "TargetStepId": "11a8e953-cebb-4f06-9137-0afa65bbd9e4",
               "TargetPortName": "Image",
               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
@@ -113,7 +118,7 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "8ebba220-1c2c-4d19-9c13-facb0697b847",
+          "StepID": "f3f3328d-7cfa-49b1-9fbd-f46e0180df84",
           "Icon": "",
           "PluginName": "区域颜色检查",
           "PluginTypeName": "Plugin.ColorRegion.RegionColorPlugin, Plugin.ColorRegion, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
@@ -140,7 +145,7 @@
           "LinkedSources": {
             "Image": {
               "Kind": 1,
-              "TargetStepId": "5ed3490e-7982-4278-8afb-be70c2664e89",
+              "TargetStepId": "11a8e953-cebb-4f06-9137-0afa65bbd9e4",
               "TargetPortName": "Image",
               "TargetVariableId": "00000000-0000-0000-0000-000000000000",
               "DisplayAddress": "图像采集_0.Image"
@@ -151,7 +156,7 @@
       ]
     }
   ],
-  "SolutionId": "63af7733-a148-476d-8a6b-9e35ca2c1317",
+  "SolutionId": "ba2da3a5-58b1-49e1-a1d3-256cc76b72aa",
   "CommunicationConfigs": [],
   "IoBuses": [],
   "IoDevices": [],
@@ -162,6 +167,9 @@
   "TemplateAssets": [],
   "ModelAssets": [],
   "ImageAssets": [],
+  "AssetVersionLog": [],
+  "AssetDefaults": [],
+  "AssetLifecycle": [],
   "VariableSnapshots": [],
   "VariableGroups": [],
   "WatchItems": [],

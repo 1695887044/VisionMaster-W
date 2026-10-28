@@ -295,6 +295,32 @@ namespace VisionMaster.Views
         {
             ApplyPageBackground(Canvas, _session.CurrentPage);
             ApplyPageBackground(PopupCanvas, _session.CurrentPopup);
+
+            // 画面区容器（含 16px 边距与等比缩放的 letterbox）刷成当前页底色。
+            // 为什么不在 XAML 里绑 Background：页面底色是 string，Grid.Background 是 Brush，
+            // 直接绑会在运行期静默失败（WPF 不做隐式类型转换），表现为"留白永远是窗口深灰"。
+            //
+            // 画布自身的 Background 也要刷：ScadaCanvas 的模板是"外层视口底（HmiCanvasBackgroundBrush）
+            // + 内层页面矩形（PageBackground）"，等比缩放后左右/上下的 letterbox 露的是**外层**那个，
+            // 只刷 Grid 不够。
+            var brush = ToBrush(_session.CurrentPage?.Background);
+            if (PageHost != null) PageHost.Background = brush;
+            if (Canvas != null) Canvas.Background = brush;
+            if (PopupCanvas != null) PopupCanvas.Background = brush;
+        }
+
+        /// <summary>#AARRGGBB / #RRGGBB → Brush；空或非法返回透明（不抛，画面照常显示）。</summary>
+        private static System.Windows.Media.Brush ToBrush(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return System.Windows.Media.Brushes.Transparent;
+            try
+            {
+                return (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(text)!;
+            }
+            catch
+            {
+                return System.Windows.Media.Brushes.Transparent;
+            }
         }
 
         private void ApplyPageBackground(ScadaCanvas canvas, ScadaPage? page)

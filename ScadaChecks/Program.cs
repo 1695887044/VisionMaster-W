@@ -118,6 +118,8 @@ namespace ScadaChecks
             HistoryThreadChecks.Run();
             ElementControlChecks();
             AxisPanelChecks();
+            FlowRuntimeVariableChecks();
+            FlowRoundLedgerChecks();
             TankKpiChecks.Run();
             RecipePanelChecks.Run();
             RunHubChecks.Run();
@@ -137,6 +139,7 @@ namespace ScadaChecks
             ProcessSymbolChecks.Run();
             PipeRunChecks.Run();
             ScheduleChecks.Run();
+            ScheduleViewChecks.Run();
             AnnouncerChecks.Run();
             ElementStyleKeyChecks.Run();
             DialogLayoutChecks.Run();
@@ -2719,7 +2722,8 @@ namespace ScadaChecks
                     "AllowExport:允许导出=True;AllowPrint:允许打印=True;ShowToolbar:显示工具条=True;" +
                     "PageOrientation:纸张方向=Portrait;Zebra:斑马纹=True;" +
                     "Fill:填充色=#FF151C23;Stroke:边框色=#FF2A3745;StrokeThickness:边框粗细=1;CornerRadius:圆角=8;" +
-                    "Text:标题=生产报表;Foreground:文字颜色=#FFE6EEF7;FontSize:字号=12",
+                    "Text:标题=生产报表;Foreground:文字颜色=#FFE6EEF7;FontSize:字号=12;" +
+                    "HeaderBackground:表头底色=;HeaderForeground:表头文字色=;ZebraBackground:斑马纹底色=",
                 ["Hmi.Symbol"] =
                     "$Name:名称=;$X:X=;$Y:Y=;$Width:宽=;$Height:高=;$Rotation:旋转=;" +
                     "SymbolKind:符号=Tower;State:状态=None;AccentColor:运行色=#FF34C759;" +
@@ -3387,8 +3391,20 @@ namespace ScadaChecks
             var newMenuButton = FindVisual<Button>(view, b => b.Name == "NewMenuButton");
             var menu = newMenuButton?.ContextMenu;
 
-            Check("「新建」右侧有下拉按钮，菜单里是「新建画面 / 新建弹窗页 / 新建基座」三项",
-                menu != null && menu.Items.Count == 3,
+            // 菜单项是顶栏契约的一部分：漏一项（比如「新建基座」没了）或顺序反了，用户就得去别处找。
+            // 2026-10-27 起多了「插入公共底板矩形」：它是"基座只合成图元、底色不参与"那条口径的出口
+            // （要公共底色就在基座上放一块铺满的矩形）。它只在基座页上可用，见下面两条。
+            var expectedNewMenuItems = new[]
+            {
+                "新建画面",
+                "新建弹窗页（特殊画面）",
+                "新建基座（跨页公共层）",
+                "插入公共底板矩形（铺满基座）",
+            };
+
+            Check("「新建」右侧有下拉按钮，菜单是「新建画面 / 新建弹窗页 / 新建基座 / 插入公共底板矩形」四项且顺序固定",
+                menu != null
+                && menu.Items.OfType<MenuItem>().Select(i => i.Header as string).SequenceEqual(expectedNewMenuItems),
                 menu != null
                     ? string.Join("、", menu.Items.OfType<MenuItem>().Select(i => i.Header))
                     : "找不到 NewMenuButton 或它的菜单");
@@ -3409,6 +3425,16 @@ namespace ScadaChecks
                     ? "没有菜单"
                     : string.Join("、", menu.Items.OfType<MenuItem>().Select(i => $"{i.Header}:{i.Command != null}")));
 
+            // 命令接上了还不够：绑错一条（比如整排都接到 AddPageCommand）上面那条只查非空是查不出来的。
+            // 「插入公共底板矩形」的判据是"当前页是不是基座"，正好可以用一次切页把它正反都钉住。
+            var insertBackdropItem = menu?.Items.OfType<MenuItem>().LastOrDefault();
+
+            Check("「插入公共底板矩形」在普通引用页上置灰（公共只在基座上有意义）",
+                insertBackdropItem?.Command != null && !insertBackdropItem.Command.CanExecute(null),
+                insertBackdropItem == null
+                    ? "菜单里没有这一项"
+                    : $"{insertBackdropItem.Header}:{insertBackdropItem.Command?.CanExecute(null)}");
+
             Check("基座下拉在引用页上可用（置灰只发生在编辑基座自己那一页时）",
                 vm.CanSelectBasePage && vm.SelectedBasePage?.Page == basePage,
                 $"CanSelectBasePage={vm.CanSelectBasePage} / 选中={vm.SelectedBasePage?.Name}");
@@ -3417,6 +3443,12 @@ namespace ScadaChecks
 
             Check("编辑基座自己那一页时基座下拉置灰（一层限制：基座不能再引用基座）",
                 !vm.CanSelectBasePage, $"CanSelectBasePage={vm.CanSelectBasePage}");
+
+            Check("「插入公共底板矩形」切到基座页后变为可点",
+                insertBackdropItem?.Command != null && insertBackdropItem.Command.CanExecute(null),
+                insertBackdropItem == null
+                    ? "菜单里没有这一项"
+                    : $"{insertBackdropItem.Header}:{insertBackdropItem.Command?.CanExecute(null)}");
 
             vm.SelectedPage = page;
 
@@ -5524,12 +5556,10 @@ namespace ScadaChecks
             //
             // 通用关系行有两条：
             // ① S12 的「操作权限」——不是属性袋里的键，描述符也声明不了（RequiredRole 是图元上的
-            //    强类型字段），但每个图元都有它；
-            // ② 「类型」（批次 B，2026-10-20）——只读展示 TypeKey，同样不是描述符声明
-            //    （类型键是"这一行实例"的事实，不是"这一类图元"的声明）。
-            // 所以算"应有行数"时必须恒加这两条；漏掉任何一条，下面几条会集体报假红，
-            // 而红的原因跟被测代码毫无关系。
-            const int UniversalRows = 2;
+            //    强类型字段），但每个图元都有它。
+            // ② v2（2026-10-28）：「类型」行已从面板移除——类型键只在对象头显示，不再进基本组。
+            // 所以算"应有行数"时恒加 1 条；漏掉它会集体报假红。
+            const int UniversalRows = 1;
 
             // 动画行（r4）：外观变化 / 水平移动 / 垂直移动 / 可见性 / 启用对象 / 对角线移动 / 比例移动，
             // 每个图元恒加 7 行。新增动画类型时这里要同步，否则整组行账本会集体假红。
@@ -5563,38 +5593,29 @@ namespace ScadaChecks
                 string.Join("/", panel.Groups.Select(g => g.Name)) == "基本/外观/文本/布局/交互/动画",
                 string.Join("/", panel.Groups.Select(g => g.Name)));
 
-            Check("组内行数按声明落位：基本 2 条（名称 + 只读类型）、外观 4 条、文本 3 条、布局 5 条",
-                panel.Groups.Single(g => g.Name == "基本").Rows.Count == 2
+            Check("组内行数按声明落位：基本 1 条（名称；类型键在对象头）、外观 4 条、文本 3 条、布局 5 条",
+                panel.Groups.Single(g => g.Name == "基本").Rows.Count == 1
                 && panel.Groups.Single(g => g.Name == "外观").Rows.Count == 4
                 && panel.Groups.Single(g => g.Name == "文本").Rows.Count == 3
                 && panel.Groups.Single(g => g.Name == "布局").Rows.Count == 5,
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
 
-            // 「类型」行（批次 B）：只读展示类型键。判据钉三件事——值取的是 TypeKey
-            // （不是 CLR 类名、也不是显示名）、不给 ƒx、直接往行上赋值也写不进模型。
-            var typeRow = Row("ElementType");
-            Check("「类型」行只读展示类型键（不是 CLR 类名、也不是显示名），且不给 ƒx",
-                typeRow.Kind == ElementPropertyKind.ReadOnly
-                && typeRow.DisplayName == "类型"
-                && typeRow.Group == ScadaPropertyGroups.General
-                && typeRow.Value == "Hmi.Rectangle"
-                && !typeRow.IsBindable,
-                $"{typeRow.Kind} / {typeRow.Value} / ƒx={typeRow.IsBindable}");
-
-            typeRow.Value = "Hmi.Button";
-            Check("「类型」行写不进去：直接往行上赋值也不改模型，缓冲按模型回填（第二道闸）",
-                rect.TypeKey == "Hmi.Rectangle" && typeRow.Value == "Hmi.Rectangle",
-                $"模型={rect.TypeKey} / 行={typeRow.Value}");
+            // v2：类型键只在对象头显示，面板基本组不再有「类型」只读行（避免与对象头重复）。
+            Check("类型键只在对象头显示（v2 基本组不再有「类型」只读行）",
+                panel.Groups.SelectMany(g => g.Rows).All(r => r.Key != "ElementType")
+                && panel.HeaderSubtitle == "Hmi.Rectangle",
+                string.Join("/", panel.Groups.SelectMany(g => g.Rows).Select(r => r.Key)));
 
             // ---- 搜索（批次 C）：按属性名 / 键名 / 分组名过滤，且不重建行 ----
             var fillRow = Row("Fill");
 
             panel.SearchText = "宽";
-            Check("搜索按属性名过滤：只剩「布局」组的「宽」一行（其它组整组消失，不是留个空组头）",
+            Check("搜索按属性名过滤：只剩「布局」组（v2 成对网格把宽/高一起带出来，其它组整组消失）",
                 panel.Groups.Count == 1
                 && panel.Groups[0].Name == ScadaPropertyGroups.Layout
-                && panel.Groups[0].Rows.Count == 1
-                && panel.Groups[0].Rows[0].Key == "$Width",
+                && panel.Groups[0].Rows.Count == 2
+                && panel.Groups[0].Rows.Any(r => r.Key == "$Width")
+                && panel.Groups[0].Rows.Any(r => r.Key == "$Height"),
                 string.Join("/", panel.Groups.Select(g => $"{g.Name}:{g.Rows.Count}")));
 
             panel.SearchText = "Fill";
@@ -7214,19 +7235,17 @@ namespace ScadaChecks
                 Check("变量带的底色真的落在画面上（在带内采到 #FFEAF3FF，不是被裁剪或被别的元素盖住）",
                     HasColorIn(shot, chipRect, "#FFEAF3FF"), RectText(chipRect));
 
-                // 变量带是"行高随绑定长出来"的那一段，上下都得留出可见间隙。
-                // 这类事故在离屏图上只有断言抓得住：带子贴着上一行的输入框（甚至压上去），
-                // 屏幕上就是"这一行的值到底归谁"说不清，而面板其余部分看着一切正常。
-                // 阈值取 4 而不是 1：2px 上下边距实测只剩 2.4px 的缝，带子像贴在输入框下沿；
-                // 钉住 4 是为了把"分组感"这个结论固定下来，别哪天又被顺手改回紧贴。
+                // v2：绑定态是 chip 替换编辑器，不再在行下长出一条带子。
+                // 判据：① chip 落在编辑器列；② 该行的原编辑器（Bool 行的勾选框）已收起；
+                // ③ chip 高度不超过行高（绑定不靠增高表达）。
                 var hostEditor = CollectVisual<CheckBox>(view, _ => true)
-                    .Where(c => (c.DataContext as ScadaPropertyRowBase)?.Key == "IsOn")
-                    .Select(c => BoundsIn(c, view))
-                    .FirstOrDefault();
-                double gapAbove = chipRect.Top - hostEditor.Bottom;
-                Check("变量带与上一行的编辑器之间留出可见间隙（不贴着、不压住：行高是长出来的，不是挤出来的）",
-                    hostEditor.Height > 0 && gapAbove >= 4,
-                    $"间隙 {gapAbove:0.#}px（编辑器底 {hostEditor.Bottom:0.#} / 带顶 {chipRect.Top:0.#}）");
+                    .FirstOrDefault(c => (c.DataContext as ScadaPropertyRowBase)?.Key == "IsOn");
+                bool chipInEditorColumn = chipRect.Left > 72 && chipRect.Right <= view.ActualWidth - 26 + 1;
+                Check("绑定态是 chip 替换编辑器：chip 落在编辑器列、原编辑器收起、chip 不高于行高（不再在行下长出一条带子）",
+                    chipInEditorColumn
+                    && hostEditor != null && !IsShown(hostEditor, view)
+                    && chipRect.Height <= 30,
+                    $"chip={RectText(chipRect)} / 编辑器显示={(hostEditor != null && IsShown(hostEditor, view))} / 高 {chipRect.Height:0.#}");
             }
 
             // 绑定按钮：同一颗按钮两种状态。绑过的是实心主色 + 白链、没绑的是白底灰链——
@@ -7302,7 +7321,7 @@ namespace ScadaChecks
                         $"{tb.ActualWidth:0.#}×{((tb.TemplatedParent as Expander)?.ActualWidth ?? 0):0.#}")));
 
             // 下拉框：外壳 ToggleButton 必须铺满整格
-            var fluentCombo = FindVisual<ComboBox>(fluentView, _ => true);
+            var fluentCombo = FindVisual<ComboBox>(fluentView, c => c.ActualWidth > 80);
             var comboChrome = fluentCombo == null
                 ? null
                 : FindVisual<ToggleButton>(fluentCombo, tb => ReferenceEquals(tb.TemplatedParent, fluentCombo));
@@ -7343,6 +7362,58 @@ namespace ScadaChecks
                     Path.Combine(shotDir, "scada-property-page-panel.png"));
 
                 editor.SelectedElement = keepSelection;   // 还原：后面几节还要按图元行取参
+            }
+
+            // ---- v2 事件折叠卡的长相：按钮 + 已配置「按下」事件 ----
+            // 纯证据（不参与判定）：事件卡头的主色柔底、摘要、箭头，以及动作卡在卡体内的排布，
+            // 数据断言看不出来，留一张图给人眼复核。
+            {
+                var keepSelection = editor.SelectedElement;
+
+                var shotButton = Named("Hmi.Button", "启动");
+                editor.SelectedElement = shotButton;
+
+                // 通过面板自己的事件行勾上「按下」：会建钩子并自动带一条「记录日志」动作。
+                Row("Event.2").Value = "True";
+
+                var buttonView = new ScadaPropertyView { DataContext = panel };
+                buttonView.Measure(new Size(260, double.PositiveInfinity));
+                buttonView.Arrange(new Rect(0, 0, 260, Math.Ceiling(Math.Max(1, buttonView.DesiredSize.Height))));
+                buttonView.UpdateLayout();
+
+                buttonView.Measure(new Size(260, double.PositiveInfinity));
+                int buttonShotH = (int)Math.Ceiling(Math.Max(1, buttonView.DesiredSize.Height));
+                buttonView.Arrange(new Rect(0, 0, 260, buttonShotH));
+                buttonView.UpdateLayout();
+
+                SavePng(RenderToBitmap(buttonView, 260, buttonShotH),
+                    Path.Combine(shotDir, "scada-property-button-panel.png"));
+
+                editor.SelectedElement = keepSelection;
+            }
+
+            // ---- v2 曲线卡的长相：多曲线趋势「数据」组（4 条曲线一行一条） ----
+            // 纯证据（不参与判定）：曲线卡把 12 条系列行重组为 4 行「色点+名称+值+ƒx」，
+            // 组头计数显示 7（4 曲线 + 3 设置）；这张图给人眼复核行高、列宽与绑定小字。
+            {
+                var keepSelection = editor.SelectedElement;
+
+                editor.SelectedElement = Named("Hmi.MultiTrend", "趋势");
+
+                var trendView = new ScadaPropertyView { DataContext = panel };
+                trendView.Measure(new Size(260, double.PositiveInfinity));
+                trendView.Arrange(new Rect(0, 0, 260, Math.Ceiling(Math.Max(1, trendView.DesiredSize.Height))));
+                trendView.UpdateLayout();
+
+                trendView.Measure(new Size(260, double.PositiveInfinity));
+                int trendShotH = (int)Math.Ceiling(Math.Max(1, trendView.DesiredSize.Height));
+                trendView.Arrange(new Rect(0, 0, 260, trendShotH));
+                trendView.UpdateLayout();
+
+                SavePng(RenderToBitmap(trendView, 260, trendShotH),
+                    Path.Combine(shotDir, "scada-property-trend-panel.png"));
+
+                editor.SelectedElement = keepSelection;
             }
 
             // ---- ⑪B 右键菜单的"长相"：描述翻成控件之后，图标/勾选/判灰/子菜单都还在 ----
@@ -21429,6 +21500,55 @@ namespace ScadaChecks
                         unlimited, new UI.Models.LogItem(UI.Models.LogLevel.Info, "m" + i), 0);
                 }
                 Check("面板保留条数填 0 = 不限制", unlimited.Count == 5, unlimited.Count.ToString());
+
+                // ---------------- ④b 批量追加（10Hz 合并投递的落库路径） ----------------
+                // 面板现在按批追加（LogViewModel.FlushPending → AppendBatchWithCap），逐条版仍是
+                // 契约的单一事实源：两条路径必须产出**逐字相同**的结果，否则"批量省时间"会顺手改掉语义。
+                var batchCapped = new ObservableCollection<UI.Models.LogItem>();
+                var batchItems = Enumerable.Range(0, 5)
+                    .Select(i => new UI.Models.LogItem(UI.Models.LogLevel.Info, "m" + i))
+                    .ToList();
+                VisionMaster.ViewModels.LogViewModel.AppendBatchWithCap(batchCapped, batchItems, 3);
+                Check("批量追加=3 上限：只留最近 3 条，最旧的先丢（与逐条版逐字相同）",
+                    batchCapped.Count == 3 && batchCapped[0].Message == "m2" && batchCapped[2].Message == "m4",
+                    string.Join(",", batchCapped.Select(l => l.Message)));
+
+                var batchUnlimited = new ObservableCollection<UI.Models.LogItem>();
+                VisionMaster.ViewModels.LogViewModel.AppendBatchWithCap(batchUnlimited, batchItems, 0);
+                Check("批量追加填 0 = 不限制（五条全在）",
+                    batchUnlimited.Count == 5, batchUnlimited.Count.ToString());
+
+                // 一批就超过上限（洪峰下最常见）：只留最后 maxRows 条，不能留前面那几条
+                var batchOverflow = new ObservableCollection<UI.Models.LogItem>();
+                var tenItems = Enumerable.Range(0, 10)
+                    .Select(i => new UI.Models.LogItem(UI.Models.LogLevel.Info, "n" + i))
+                    .ToList();
+                VisionMaster.ViewModels.LogViewModel.AppendBatchWithCap(batchOverflow, tenItems, 3);
+                Check("批量追加一批就超上限：留下的是最后 3 条（n7,n8,n9）",
+                    batchOverflow.Count == 3
+                    && batchOverflow[0].Message == "n7"
+                    && batchOverflow[2].Message == "n9",
+                    string.Join(",", batchOverflow.Select(l => l.Message)));
+
+                // 反证：批量与逐条在同一输入下必须等价（顺序 + 内容 + 条数）
+                var viaBatch = new ObservableCollection<UI.Models.LogItem>();
+                var viaSingle = new ObservableCollection<UI.Models.LogItem>();
+                VisionMaster.ViewModels.LogViewModel.AppendBatchWithCap(viaBatch, tenItems, 4);
+                foreach (var item in tenItems)
+                    VisionMaster.ViewModels.LogViewModel.AppendWithCap(viaSingle, item, 4);
+                Check("批量与逐条等价（同一输入 → 同一序列，条数/顺序/内容全同）",
+                    viaBatch.Count == viaSingle.Count
+                    && viaBatch.Select(l => l.Message).SequenceEqual(viaSingle.Select(l => l.Message)),
+                    $"批量={string.Join(",", viaBatch.Select(l => l.Message))} / 逐条={string.Join(",", viaSingle.Select(l => l.Message))}");
+
+                var batchNullSafe = new ObservableCollection<UI.Models.LogItem>();
+                VisionMaster.ViewModels.LogViewModel.AppendBatchWithCap(
+                    batchNullSafe,
+                    new List<UI.Models.LogItem> { new(UI.Models.LogLevel.Info, "keep"), null },
+                    0);
+                Check("批量追加跳过 null 项（产线不会给 null，但不许因此少一条或抛异常）",
+                    batchNullSafe.Count == 1 && batchNullSafe[0].Message == "keep",
+                    batchNullSafe.Count.ToString());
 
                 // ---------------- ⑤ 报警图集保留期 ----------------
                 var framesRoot = Path.Combine(tempRoot, "frames");

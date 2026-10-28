@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- 本插件带自定义配置视图（JudgeTableView），故需要 WPF（与 Plugin.Utility / Plugin.CreateRoi 同口径）。 -->
+    <TargetFrameworks>net9.0-windows</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      只依赖契约层 + UI 库，**不引 HALCON**：判定表只做数值/文本/集合/正则/布尔/计数/非空判定，
+      不碰图像。少一个原生依赖，插件在没装 HALCON 的机器上也能被宿主扫描到。
+      Core.Controls 提供 RelayCommand（视图按钮绑定）与 LinkableValueEditor 的共享实现。
+    -->
+    <ProjectReference Include="..\..\Shard\Core.Interfaces\Core.Interfaces.csproj" />
+    <ProjectReference Include="..\..\Shard\Core.Controls\Core.Controls.csproj" />
+    <ProjectReference Include="..\..\UI\Controls\UI.csproj" />
+  </ItemGroup>
+
+  <!--
+    内置帮助手册：Help\ 下每个 .md 一页，宿主按 {程序集名}.Help. 前缀扫描（页序 = 文件名典序）。
+    本工程一个程序集里只有一个插件类，故手册扁平放在 Help\ 根上（多插件程序集才要 Help\{类名}\）。
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Help\**\*" />
+  </ItemGroup>
+
+</Project>

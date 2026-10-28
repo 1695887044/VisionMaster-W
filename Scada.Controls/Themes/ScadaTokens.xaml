@@ -75,6 +75,14 @@
     <SolidColorBrush x:Key="HmiWarningBannerBrush" Color="#3B2A12" />
     <SolidColorBrush x:Key="HmiDangerBrush" Color="#EF4444" />
     <SolidColorBrush x:Key="HmiInfoBrush" Color="#3B82F6" />
+    <!--
+        主操作色（"一屏一个实心主按钮"）：表格/报表工具栏的「查询」用它。
+        浅色主题下是 Web 惯用的 #2563EB；深色主题沿用同一支，白字对比足够。
+    -->
+    <SolidColorBrush x:Key="HmiPrimaryBrush" Color="#2563EB" />
+    <SolidColorBrush x:Key="HmiPrimaryHoverBrush" Color="#1D4ED8" />
+    <!--  主操作按钮上的文字：白字（与 HmiPrimaryBrush 配对，视图里不再写 #FFFFFFFF）  -->
+    <SolidColorBrush x:Key="HmiPrimaryTextBrush" Color="#FFFFFFFF" />
     <SolidColorBrush x:Key="HmiOffBrush" Color="#64748B" />
 
     <!--  轨道 / 选中 / 锁定 / 诊断  -->

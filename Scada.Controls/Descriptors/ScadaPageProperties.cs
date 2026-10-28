@@ -132,7 +132,7 @@ namespace VisionMaster.Scada.Controls
             },
             new ScadaPagePropertySpec
             {
-                Key = "BackgroundOpacity", DisplayName = "背景不透明度", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageBackground,
+                Key = "BackgroundOpacity", DisplayName = "不透明度", Kind = ElementPropertyKind.Number, Group = ScadaPropertyGroups.PageBackground,
                 Min = 10, Max = 100,
                 Description = "10~100；做水印底图时用 20~40，保证上面的数值仍然可读",
                 Read = (p, _) => Format(p.BackgroundOpacity),

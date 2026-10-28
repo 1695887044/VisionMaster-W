@@ -50,6 +50,17 @@
     <SolidColorBrush x:Key="ScadaSurfaceBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="ScadaPanelBorderBrush" Color="#D7E0EF" />
     <SolidColorBrush x:Key="ScadaActionCardBorderBrush" Color="#E4E7ED" />
+    <!--  属性面板 v2：卡片化分组 + filled 输入（2026-10-28）。
+         卡片描边比面板描边更中性（去掉蓝调），输入底比卡片深半档——
+         层次靠底色差表达，输入框不再画描边；聚焦时才换白底 + 主色描边。  -->
+    <SolidColorBrush x:Key="ScadaCardBorderBrush" Color="#E2E7EF" />
+    <SolidColorBrush x:Key="ScadaFieldBackgroundBrush" Color="#F2F4F8" />
+    <SolidColorBrush x:Key="ScadaFieldHoverBrush" Color="#EBEEF4" />
+    <!--  工具提示：墨黑底白字（系统默认黄底 ToolTip 会盖住动作卡，见 scada-property-panel 基线）  -->
+    <SolidColorBrush x:Key="ScadaTooltipBackgroundBrush" Color="#1E2530" />
+    <SolidColorBrush x:Key="ScadaTooltipTextBrush" Color="#FFFFFF" />
+    <!--  卡片投影色（DropShadowEffect 的 Color 资源；R140：XAML 里不许写 #RRGGBB）  -->
+    <Color x:Key="ScadaCardShadowColor">#0F172A</Color>
     <!--  分隔线：比描边更浅一档。分组之间、组头与行之间用它，视觉上"分开但不框住"——
          卡片描边（DCE0E6）围一圈会把每组分成立体卡片，260 宽的面板里三层面板感就是这么来的  -->
     <SolidColorBrush x:Key="ScadaHairlineBrush" Color="#E9ECF1" />
@@ -83,6 +94,8 @@
     <!--  交互：悬停底 / 选中蓝 / 选中底 / 主按钮底 / 主按钮上的字  -->
     <SolidColorBrush x:Key="ScadaHoverBrush" Color="#E3EEF9" />
     <SolidColorBrush x:Key="ScadaAccentBrush" Color="#3B82F6" />
+    <!--  收藏星：暖金语义色（与主色蓝的选中态区分）；工具箱 v2 起使用  -->
+    <SolidColorBrush x:Key="ScadaFavoriteBrush" Color="#F59E0B" />
     <SolidColorBrush x:Key="ScadaAccentSoftBrush" Color="#1A3B82F6" />
     <SolidColorBrush x:Key="ScadaPrimaryButtonBrush" Color="#409EFF" />
     <SolidColorBrush x:Key="ScadaOnAccentTextBrush" Color="#FFFFFF" />

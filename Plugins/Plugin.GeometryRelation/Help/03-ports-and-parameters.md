@@ -15,6 +15,7 @@
 | `B` | `GeometryParam` | 否 | 无 | 几何 B。除"构造-过两点构线"外的模式都要它，没接会明确报"××模式需要输入 B" |
 | `C` | `GeometryParam` | 否 | 无 | 几何 C。**只有"构造 + 三点构圆"用**，其余模式完全不看它 |
 | `MmPerPixel` | `double` | 否 | 0 | 像素当量（mm/px），接「标定」的 `MmPerPixel`。**未接且手填 ≤ 0 = 数值直接输出像素**（不假装是 mm） |
+| `ResidualPoints` | `HObject` | 否 | 无 | 残差点集（可选）：接「几何查找」的 Contours（XLD）或区域，算各点到 A 的残差统计。**未接 = 合法跳过**（RMS/Max 为 NaN、Count=0）；接了但读不出点 → 只 Warn，主结果照常输出 |
 | `StandardValue` | `double` | 否 | 0 | 标准值（判定用） |
 | `UpperTolerance` | `double` | 否 | 0 | 上公差（默认 0 = 零容忍） |
 | `LowerTolerance` | `double` | 否 | 0 | 下公差（默认 0 = 零容忍；按**幅度填正数**，判定式是"值 ≥ 标准值 − 下公差"） |
@@ -37,6 +38,12 @@
 | `Geometry` | `GeometryParam` | 基元结果：求交的**交点**、垂足的**垂足点**、构造出的**线或圆**。其余模式为 null。可继续喂给下一个「几何计算」 |
 | `IsOk` | `bool` | 判定结果（true = OK）。**只有距离 / 夹角 / 圆关系 / 平行垂直四种模式会写它**；求交、垂足、构造恒为 false |
 | `Annotations` | `List<MeasureAnnotation>` | 本轮投射用的标注列表（输入 A/B + 结果基元 + 结果文字）。**不烘焙、不开窗**；接「结果显示」的结果项即可烧进最终图，供「图像赋值」写到 SCADA |
+| `ResidualRms` | `double` | 残差均方根（像素）：各点到 A 的距离 RMS。未接 `ResidualPoints` 或点集不可算时为 NaN |
+| `ResidualMax` | `double` | 残差最大值（像素）。口径同上 |
+| `ResidualCount` | `int` | 参与统计的点数（0 = 没算）。**NaN 与 0 是两件事**：NaN = 没算/不可算，0 = 算了但没有有效点 |
+
+> 残差距离的口径与 HALCON `distance_pc` 一致：线 = 点到无限直线；圆 = \|点到圆心 − R\|；
+> 椭圆 = 最短欧氏距（法向 Newton 解，不是"归一化残差 × 短半轴"的近似）。
 
 **每轮开头一律清零**：`Value` = 0、`Geometry` = null、`IsOk` = false、`Annotations` = null。
 所以失败轮下游读到的是空值，不会拿到上一轮的残留——但也别指望"`IsOk` 是 false"意味着本轮失败，它只意味着"本轮没判出 OK"。

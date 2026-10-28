@@ -785,9 +785,10 @@ namespace FlowCanvasChecks
                     ? "误写：ExtractTargetPoints=" + V("ExtractTargetPoints")
                     : "未写键（正确）");
 
-            // 26 = 5 个输入端口 + 21 个 [StepConfig]（2026-10-27 增加 RecipeAssetId：配方可以指向方案资产）
-            R("InputValues 仍是 26 个键（5 个输入端口 + 21 个 [StepConfig]，未因新入口增减）",
-                stepData.InputValues.Count == 26,
+            // 27 = 5 个输入端口 + 22 个 [StepConfig]
+            // （2026-10-27 增 KeepAnnotatedImage：算法只输出结果的兼容开关，默认 true 不改存量行为）
+            R("InputValues 仍是 27 个键（5 个输入端口 + 22 个 [StepConfig]，未因新入口增减）",
+                stepData.InputValues.Count == 27,
                 $"count={stepData.InputValues.Count}：{string.Join(",", stepData.InputValues.Keys.OrderBy(k => k))}");
 
             // 配置实例的重新打开口径：ExtractTargetPoints 回到默认 40（会话态，不随方案回来）

@@ -22,19 +22,176 @@ namespace VisionMaster.ViewModels
     /// 选中变了就整体重建，不做增量 diff。十几行属性的重建成本比维护一套同步逻辑便宜得多，
     /// 也彻底杜绝"面板里留着上一个图元的值"这类劈叉。
     /// </summary>
-    public sealed class ScadaPropertyGroup
+    public sealed class ScadaPropertyGroup : BindableBase
     {
-        public ScadaPropertyGroup(string name, IReadOnlyList<ScadaPropertyRowBase> rows)
+        private readonly bool _isSearching;
+        private bool _isExpanded;
+        private bool _hasError;
+        private bool _hasWarning;
+        private int _errorCount;
+        private int _warningCount;
+
+        public ScadaPropertyGroup(
+            string name,
+            IReadOnlyList<ScadaPropertyRowBase> rows,
+            IReadOnlyList<ScadaPropertyRowBase> allRows,
+            ScadaSeriesCard? seriesCard,
+            int matchCount,
+            int displayCount,
+            bool isExpanded,
+            bool isSearching)
         {
             Name = name;
             Rows = rows;
+            AllRows = allRows;
+            SeriesCard = seriesCard;
+            MatchCount = matchCount;
+            DisplayCount = displayCount;
+            _isExpanded = isExpanded;
+            _isSearching = isSearching;
+            RefreshState();
         }
 
         /// <summary>分组标题</summary>
         public string Name { get; }
 
-        /// <summary>该组下的属性行（保持声明里的次序）</summary>
+        /// <summary>该组下当前要显示的行（搜索时是过滤后的子集）</summary>
         public IReadOnlyList<ScadaPropertyRowBase> Rows { get; }
+
+        /// <summary>该组下的全部行（搜索时也不过滤；组头错误点与曲线卡用它）</summary>
+        public IReadOnlyList<ScadaPropertyRowBase> AllRows { get; }
+
+        /// <summary>多曲线趋势「数据」组的曲线卡模型（其它组为 null）</summary>
+        public ScadaSeriesCard? SeriesCard { get; }
+
+        /// <summary>本组是否用曲线卡呈现（4 条曲线一行一条）</summary>
+        public bool IsSeriesCard => SeriesCard != null;
+
+        /// <summary>搜索命中行数（未搜索时等于 <see cref="DisplayCount"/>）</summary>
+        public int MatchCount { get; }
+
+        /// <summary>组头计数：普通组 = 全部行数；曲线卡组 = 4 条曲线 + 3 项设置 = 7</summary>
+        public int DisplayCount { get; }
+
+        /// <summary>组头计数文本（搜索时「命中/总数」）</summary>
+        public string CountText => _isSearching ? $"{MatchCount}/{DisplayCount}" : DisplayCount.ToString(CultureInfo.InvariantCulture);
+
+        /// <summary>组展开状态（Expander 双向绑定；搜索时命中组强制展开）</summary>
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set => SetProperty(ref _isExpanded, value);
+        }
+
+        /// <summary>组内是否有校验错误（红点）</summary>
+        public bool HasError => _hasError;
+
+        /// <summary>组内是否有待完成项（琥珀点）</summary>
+        public bool HasWarning => _hasWarning;
+
+        /// <summary>琥珀点只在没有红点时显示（一组一个问题点，不叠两个）</summary>
+        public bool ShowWarningDot => _hasWarning && !_hasError;
+
+        /// <summary>错误/待完成项数（组头悬停说明用）</summary>
+        public int ErrorCount => _errorCount;
+
+        public int WarningCount => _warningCount;
+
+        public string ErrorTooltip
+            => _hasError ? $"{_errorCount} 项需要修正"
+             : _hasWarning ? $"{_warningCount} 项待完成"
+             : string.Empty;
+
+        /// <summary>行状态变了之后重算组头聚合点（面板在逐行回读后调用）</summary>
+        public void RefreshState()
+        {
+            int errors = 0;
+            int warnings = 0;
+
+            foreach (var row in AllRows)
+            {
+                if (row.HasError) errors++;
+                else if (row.HasWarning) warnings++;
+            }
+
+            if (errors != _errorCount)
+            {
+                _errorCount = errors;
+                RaisePropertyChanged(nameof(ErrorCount));
+            }
+
+            if (warnings != _warningCount)
+            {
+                _warningCount = warnings;
+                RaisePropertyChanged(nameof(WarningCount));
+            }
+
+            bool hasError = errors > 0;
+            bool hasWarning = warnings > 0;
+
+            if (hasError != _hasError)
+            {
+                _hasError = hasError;
+                RaisePropertyChanged(nameof(HasError));
+            }
+
+            if (hasWarning != _hasWarning)
+            {
+                _hasWarning = hasWarning;
+                RaisePropertyChanged(nameof(HasWarning));
+            }
+
+            RaisePropertyChanged(nameof(ShowWarningDot));
+            RaisePropertyChanged(nameof(ErrorTooltip));
+        }
+    }
+
+    /// <summary>
+    /// 多曲线趋势「数据」组的曲线卡模型（v2）：4 条曲线一行一条，
+    /// 每条 = 颜色点 + 名称 + 值 + ƒx。行对象仍是普通的 <see cref="ScadaPropertyRow"/>，
+    /// 这里只是把它们按曲线组织起来——落盘键、可绑语义、校验全部沿用原行。
+    /// </summary>
+    public sealed class ScadaSeriesCard
+    {
+        public ScadaSeriesCard(
+            IReadOnlyList<ScadaSeriesItem> items,
+            ScadaPropertyRowBase timeWindowRow,
+            ScadaPropertyRowBase rangeModeRow,
+            ScadaPropertyRowBase showLegendRow)
+        {
+            Items = items;
+            TimeWindowRow = timeWindowRow;
+            RangeModeRow = rangeModeRow;
+            ShowLegendRow = showLegendRow;
+        }
+
+        public IReadOnlyList<ScadaSeriesItem> Items { get; }
+
+        public ScadaPropertyRowBase TimeWindowRow { get; }
+
+        public ScadaPropertyRowBase RangeModeRow { get; }
+
+        public ScadaPropertyRowBase ShowLegendRow { get; }
+    }
+
+    /// <summary>曲线卡里的一条曲线：颜色 / 名称 / 值三行 + 序号标题</summary>
+    public sealed class ScadaSeriesItem
+    {
+        public ScadaSeriesItem(string title, ScadaPropertyRowBase colorRow, ScadaPropertyRowBase nameRow, ScadaPropertyRowBase valueRow)
+        {
+            Title = title;
+            ColorRow = colorRow;
+            NameRow = nameRow;
+            ValueRow = valueRow;
+        }
+
+        public string Title { get; }
+
+        public ScadaPropertyRowBase ColorRow { get; }
+
+        public ScadaPropertyRowBase NameRow { get; }
+
+        public ScadaPropertyRowBase ValueRow { get; }
     }
 
     /// <summary>
@@ -173,8 +330,13 @@ namespace VisionMaster.ViewModels
         /// <summary>标签文字</summary>
         public string DisplayName => Spec.DisplayName;
 
-        /// <summary>所属分组</summary>
-        public string Group => Spec.Group;
+        /// <summary>
+        /// 所属分组。默认取声明；<b>可被面板覆盖</b>——多曲线趋势的 4 个曲线颜色在 v2 里
+        /// 移入「数据」组卡（呈现层分组，落盘键与描述符声明都不动）。
+        /// </summary>
+        public string? GroupOverride { get; set; }
+
+        public string Group => GroupOverride ?? Spec.Group;
 
         /// <summary>编辑器类型（面板据此挑模板）</summary>
         public ElementPropertyKind Kind => Spec.Kind;
@@ -192,6 +354,9 @@ namespace VisionMaster.ViewModels
             "$X" or "$Y" or "$Width" or "$Height" => "px",
             "Width" or "Height" or "GridSize" => "px",
             "FontSize" or "StrokeThickness" or "CornerRadius" => "px",
+            "BackgroundOpacity" => "%",
+            "TimeWindow" => "s",
+            "PopupOffsetX" or "PopupOffsetY" => "px",
             "$Rotation" => "°",
             _ => string.Empty,
         };
@@ -253,6 +418,46 @@ namespace VisionMaster.ViewModels
         /// 而不是行类型，与编辑器按 <see cref="Kind"/> 分流是同一个手法（那个文件刻意不认自定义类型）。
         /// </summary>
         public virtual ScadaRowEditorKind EditorKind => ScadaRowEditorKind.Inline;
+
+        /// <summary>
+        /// 文本类字段用上标签布局（标签在上、控件全宽）。可绑行仍走左标签：
+        /// 它右侧要留 ƒx 槽与绑定 chip，上标签会把那一列挤没。
+        /// </summary>
+        public bool UseStackedLayout
+            => (Kind == ElementPropertyKind.Text || Kind == ElementPropertyKind.MultilineText) && !IsBindable;
+
+        /// <summary>本行是图片文件且已经选了图（决定空值占位与「清除」是否出现）</summary>
+        public bool HasImage => Kind == ElementPropertyKind.ImageFile && !string.IsNullOrWhiteSpace(_value);
+
+        /// <summary>本行有校验错误（组头红点聚合用）</summary>
+        public virtual bool HasError => !IsValid;
+
+        /// <summary>本行处于「待完成」状态（组头琥珀点聚合用；事件/动画行覆写）</summary>
+        public virtual bool HasWarning => false;
+
+        /// <summary>
+        /// 成对网格：左行的右伙伴（<b>view-only</b>，不改变行账本——<c>Rows.Count</c> 与断言都不动）。
+        /// 右行仍留在 <c>_rows</c> 里，只是由左行的模板渲染、自己的行模板收起。
+        /// </summary>
+        public ScadaPropertyRowBase? PairWith { get; set; }
+
+        /// <summary>成对网格：右行指向左行（搜索时任一命中要把伙伴一起带出来）</summary>
+        public ScadaPropertyRowBase? PairOwner { get; set; }
+
+        /// <summary>成对网格：本行是右伙伴，自己的行模板收起</summary>
+        public bool IsPairedFollow { get; set; }
+
+        /// <summary>本行是否带右伙伴</summary>
+        public bool HasPair => PairWith != null;
+
+        /// <summary>
+        /// 搜索匹配：属性名 / 键名 / 分组名，大小写不敏感。
+        /// 复合行可覆写以匹配子行（曲线卡、成对行）。
+        /// </summary>
+        public virtual bool MatchesSearch(string query)
+            => DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || Key.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || Group.Contains(query, StringComparison.OrdinalIgnoreCase);
 
         /// <summary>悬停说明</summary>
         public string? Description => Spec.Description;
@@ -449,6 +654,7 @@ namespace VisionMaster.ViewModels
             // 只把框标红——静默夹回边界值会让人以为鼠标坏了。
             SetError(RangeError(text));
             RaisePropertyChanged(nameof(SwatchBrush));
+            RaisePropertyChanged(nameof(HasImage));
         }
 
         private string? RangeError(string text)
@@ -623,6 +829,9 @@ namespace VisionMaster.ViewModels
         /// <summary>图片文件名摘要（属性面板那一行显示用）</summary>
         public string ImageSummary => IsImageFile ? ScadaImageFileRowSupport.Summary(Value) : string.Empty;
 
+        /// <summary>图片行上屏文本：空值给「未选择」占位（旧版空值只剩两个点，看着像坏行）</summary>
+        public string ImageSummaryText => IsImageFile ? (HasImage ? ImageSummary : "未选择") : string.Empty;
+
         /// <summary>缩略图（缺失/解码失败时为 null）</summary>
         public ImageSource? ImagePreview => IsImageFile ? ScadaImageFileRowSupport.Preview(_solutionPath, Value) : null;
 
@@ -680,6 +889,7 @@ namespace VisionMaster.ViewModels
                 return;
 
             RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImageSummaryText));
             RaisePropertyChanged(nameof(ImagePreview));
             ClearImageCommand.RaiseCanExecuteChanged();
         }
@@ -1173,6 +1383,9 @@ namespace VisionMaster.ViewModels
         /// <summary>图片文件名摘要（属性面板那一行显示用；不暴露完整路径）</summary>
         public string ImageSummary => IsImageFile ? ScadaImageFileRowSupport.Summary(Value) : string.Empty;
 
+        /// <summary>图片行上屏文本：空值给「未选择」占位</summary>
+        public string ImageSummaryText => IsImageFile ? (HasImage ? ImageSummary : "未选择") : string.Empty;
+
         /// <summary>缩略图（缺失/解码失败时为 null，模板回退占位）</summary>
         public ImageSource? ImagePreview => IsImageFile ? ScadaImageFileRowSupport.Preview(_solutionPath, Value) : null;
 
@@ -1197,6 +1410,7 @@ namespace VisionMaster.ViewModels
                 return;
 
             RaisePropertyChanged(nameof(ImageSummary));
+            RaisePropertyChanged(nameof(ImageSummaryText));
             RaisePropertyChanged(nameof(ImagePreview));
             ClearImageCommand.RaiseCanExecuteChanged();
         }
@@ -1445,6 +1659,9 @@ namespace VisionMaster.ViewModels
 
         /// <summary>有动作表可编辑（= 已勾上），驱动动作区的可见性</summary>
         public bool HasActions => Editor.HasActions;
+
+        /// <summary>组头聚合：配了事件却没有动作 = 待完成</summary>
+        public override bool HasWarning => Editor.HasWarning;
 
         /// <summary>动作类型下拉的候选</summary>
         public IReadOnlyList<ScadaActionTypeOption> ActionTypeChoices => Editor.ActionTypeChoices;
@@ -1884,6 +2101,34 @@ namespace VisionMaster.ViewModels
         /// <summary>摘要（不展开也能看出这条动画在干什么）</summary>
         public string Detail => Animation?.Detail ?? string.Empty;
 
+        private bool _isExpanded = true;
+
+        /// <summary>展开区开合（与「配没配」解耦：勾选管存在，箭头管展开）</summary>
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (SetProperty(ref _isExpanded, value))
+                    RaisePropertyChanged(nameof(IsBodyVisible));
+            }
+        }
+
+        /// <summary>参数区是否可见（配了 + 展开）</summary>
+        public bool IsBodyVisible => HasAnimation && IsExpanded;
+
+        /// <summary>折叠头摘要：有变量给 Detail，没变量给「未选变量」（琥珀）</summary>
+        public string Summary
+            => !HasAnimation ? string.Empty
+             : !HasVariable ? "未选变量"
+             : string.IsNullOrWhiteSpace(Detail) ? "已配置" : Detail;
+
+        /// <summary>摘要是否用琥珀色（配了但没选驱动变量，运行态会跳过）</summary>
+        public bool SummaryIsWarning => HasAnimation && !HasVariable;
+
+        /// <summary>组头聚合：配了动画却没选驱动变量 = 待完成</summary>
+        public override bool HasWarning => HasAnimation && !HasVariable;
+
         /// <summary>本行显示哪一块参数区（类型是行的固有属性，不会变，所以不必通知）</summary>
         public bool IsAppearance => Type == ScadaAnimationType.Appearance;
 
@@ -2074,6 +2319,9 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(Animation));
             RaisePropertyChanged(nameof(HasAnimation));
             RaisePropertyChanged(nameof(Detail));
+            RaisePropertyChanged(nameof(IsBodyVisible));
+            RaisePropertyChanged(nameof(Summary));
+            RaisePropertyChanged(nameof(SummaryIsWarning));
             RaisePropertyChanged(nameof(IsEnabled));
             RaisePropertyChanged(nameof(HasVariable));
             RaisePropertyChanged(nameof(VariableDisplayName));
@@ -2616,6 +2864,12 @@ namespace VisionMaster.ViewModels
         /// <summary>摊平的行（模型有外部写入时逐行回读；分组视图从它派生）</summary>
         private readonly List<ScadaPropertyRowBase> _rows = new();
 
+        /// <summary>分组折叠状态（按组名记住；搜索期间强制展开，清空后恢复）</summary>
+        private readonly Dictionary<string, bool> _expandedGroups = new(StringComparer.Ordinal);
+
+        /// <summary>多曲线趋势的曲线卡模型（其它图元为 null）</summary>
+        private ScadaSeriesCard? _seriesCard;
+
         private bool _subscribed;
         private ScadaElement? _element;
         private ScadaPage? _page;
@@ -2654,6 +2908,7 @@ namespace VisionMaster.ViewModels
             ClearBindingCommand = new DelegateCommand<ScadaPropertyRowBase>(OnClearBinding, row => row != null && row.HasBinding);
 
             ClearSearchCommand = new DelegateCommand(() => SearchText = string.Empty, () => HasSearchText);
+            ToggleFoldAllCommand = new DelegateCommand(OnToggleFoldAll);
 
             Activate();
         }
@@ -2666,6 +2921,18 @@ namespace VisionMaster.ViewModels
 
         /// <summary>有选中图元（驱动"锁定"勾选的可见性——锁定是图元才有的概念）</summary>
         public bool HasElement => _element != null;
+
+        /// <summary>
+        /// 当前编辑的是不是<b>基座页</b>（跨页公共层）——面板顶部据此常驻一句合成口径说明。
+        ///
+        /// 为什么读 <see cref="ScadaEditorViewModel.SelectedPage"/> 而不是本类的 <see cref="Page"/>：
+        /// 后者只在"没选中图元"时才有值，而这条说明讲的是"这一页是什么"——选中基座上的图元时同样成立。
+        ///
+        /// 文案只讲<b>一条</b>规则（只有图元会合成），并给出唯一正解（插一块铺满的矩形）。
+        /// 不写"为什么"：面板里每多一句解释，真正的属性就往下掉一行。
+        /// </summary>
+        public bool IsBasePageEditing
+            => _editor.SelectedPage is { } page && _editor.Document.IsBasePage(page);
 
         /// <summary>
         /// 面板上现在有没有行可显示（决定空态水印）。<b>按当前搜索词过滤后</b>算——
@@ -2702,6 +2969,23 @@ namespace VisionMaster.ViewModels
 
         /// <summary>「清空搜索」：把搜索词抹掉（与用户手动删空走同一条路径）</summary>
         public DelegateCommand ClearSearchCommand { get; }
+
+        /// <summary>「折叠全部 / 展开全部」：长面板一键收纳（v2）</summary>
+        public DelegateCommand ToggleFoldAllCommand { get; }
+
+        /// <summary>所有组都折叠了吗（决定按钮图标与提示）</summary>
+        public bool AllCollapsed => Groups.Count > 0 && Groups.All(g => !g.IsExpanded);
+
+        /// <summary>折叠按钮图标（⌃ = 可折叠，⌄ = 可展开）</summary>
+        public string FoldGlyph => AllCollapsed ? "⌄" : "⌃";
+
+        public string FoldTooltip => AllCollapsed ? "展开全部" : "折叠全部";
+
+        /// <summary>对象头的尺寸 chip（画面模式显示 1920 × 1080；图元模式为空）</summary>
+        public string HeaderMeta
+            => _page is { } page
+                ? $"{page.Width.ToString("0.##", CultureInfo.InvariantCulture)} × {page.Height.ToString("0.##", CultureInfo.InvariantCulture)}"
+                : string.Empty;
 
         /// <summary>
         /// 空态标题（水印第一行）。与 <see cref="EmptyHint"/> 分工：标题说"现在是什么状态"，
@@ -2872,6 +3156,14 @@ namespace VisionMaster.ViewModels
 
         private void OnEditorPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
+            // 基座注册/摘除不一定伴随换页（摘掉基座后用户还停在同一页）：只刷顶部那条说明，
+            // 不重建行——重建会把正在编辑的输入框与焦点一起换掉。
+            if (e.PropertyName == nameof(ScadaEditorViewModel.CanSelectBasePage))
+            {
+                RaisePropertyChanged(nameof(IsBasePageEditing));
+                return;
+            }
+
             // 只认选中变更。画布自己拖动图元不改 SelectedElement，那条路走 OnElementPropertyChanged。
             // Pages/Document 一并接住：换方案时编辑器视图模型会先把 SelectedElement 置空，
             // 但那之后它可能直接赋新值而不经过 null，少接一条就会编辑到已废弃的图元。
@@ -2958,6 +3250,9 @@ namespace VisionMaster.ViewModels
             foreach (var row in _rows)
                 row.RefreshValue();
 
+            // 行状态（非法 / 未完成）变了，组头聚合点要跟着重算——折叠时也能看见哪一组有问题。
+            RefreshGroupStates();
+
             // 行里只通知了"这一行绑没绑"（HasBinding），可清除按钮的可用性挂在<b>面板的命令</b>上，
             // 命令的 CanExecute 谓词读的正是 HasBinding。WPF 的 ButtonBase 只在命令抛
             // CanExecuteChanged 时重算 IsEnabledCore——不抛，按钮就停在模板实例化那一刻的
@@ -2993,10 +3288,19 @@ namespace VisionMaster.ViewModels
             foreach (var row in _rows)
                 row.RefreshValue();
 
+            RefreshGroupStates();
+
             if (e.PropertyName is null || e.PropertyName == nameof(ScadaPage.Name))
             {
                 RaisePropertyChanged(nameof(HeaderTitle));
                 RaisePropertyChanged(nameof(EmptyHint));
+            }
+
+            if (e.PropertyName is null
+                || e.PropertyName == nameof(ScadaPage.Width)
+                || e.PropertyName == nameof(ScadaPage.Height))
+            {
+                RaisePropertyChanged(nameof(HeaderMeta));
             }
         }
 
@@ -3056,9 +3360,8 @@ namespace VisionMaster.ViewModels
                         _rows[^1].IsReadOnly = true;
                 }
 
-                // 「类型」只读行：与「名称」同属「基本」组，组内次序取源次序，所以加在这里
-                // 就落在名称下面。它不在描述符里——类型键是"这一行实例"的事实，不是"这一类图元"的声明。
-                _rows.Add(new ScadaTypeRow(element));
+                // v2：不再生成「类型」只读行——类型键已在对象头（名称下面那行等宽小字）显示，
+                // 面板里再排一行只读框是重复信息。ScadaTypeRow 保留但不再进面板。
 
                 // S5 事件行：描述符声明了哪些事件就出哪几行（落在 ScadaPropertyGroups.Event 组）。
                 // 没声明任何事件的图元连这个组都不会有——"这个图元配不了事件"是描述符的表态，
@@ -3107,12 +3410,18 @@ namespace VisionMaster.ViewModels
                     _rows.Add(new ScadaEventRow(page, eventType, ScadaPageEvents.Group, _picker, _pagePicker, _flowPicker, _axisPicker, _recipePicker));
             }
 
+            // v2 呈现层重组：曲线卡（只对 MultiTrend）+ 成对网格（不改变行账本）。
+            BuildSeriesCard(element);
+            PairRows();
+
             RaisePropertyChanged(nameof(Element));
             RaisePropertyChanged(nameof(Page));
             RaisePropertyChanged(nameof(HasElement));
+            RaisePropertyChanged(nameof(IsBasePageEditing));
             RaisePropertyChanged(nameof(HeaderTitle));
             RaisePropertyChanged(nameof(HeaderSubtitle));
             RaisePropertyChanged(nameof(HeaderGlyph));
+            RaisePropertyChanged(nameof(HeaderMeta));
 
             // 换选中之后按当前搜索词重算分组。搜索词<b>不清空</b>：用户正按「温度」找属性时切了个图元，
             // 期望的是"在新图元里继续找温度"，而不是搜索框自己空掉。
@@ -3131,34 +3440,188 @@ namespace VisionMaster.ViewModels
         /// </summary>
         private void RebuildGroups()
         {
-            IEnumerable<ScadaPropertyRowBase> rows = _rows;
+            foreach (var old in Groups)
+                old.PropertyChanged -= OnGroupPropertyChanged;
 
-            if (_searchText.Length > 0)
-                rows = _rows.Where(row => MatchesSearch(row, _searchText));
+            bool searching = _searchText.Length > 0;
+            List<ScadaPropertyRowBase> filtered = searching
+                ? _rows.Where(row => row.MatchesSearch(_searchText)).ToList()
+                : _rows.ToList();
 
-            Groups = rows
+            if (searching)
+                IncludePairPartners(filtered);
+
+            var allByGroup = _rows
                 .GroupBy(row => row.Group, StringComparer.Ordinal)
-                .OrderBy(g => ScadaPropertyGroups.OrderOf(g.Key))
-                .Select(g => new ScadaPropertyGroup(g.Key, g.ToArray()))
-                .ToArray();
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<ScadaPropertyRowBase>)g.ToArray(), StringComparer.Ordinal);
+
+            var groups = new List<ScadaPropertyGroup>();
+
+            foreach (var g in filtered
+                         .GroupBy(row => row.Group, StringComparer.Ordinal)
+                         .OrderBy(g => ScadaPropertyGroups.OrderOf(g.Key)))
+            {
+                var all = allByGroup.TryGetValue(g.Key, out var allRows)
+                    ? allRows
+                    : Array.Empty<ScadaPropertyRowBase>();
+
+                bool series = _seriesCard != null
+                              && string.Equals(g.Key, ScadaPropertyGroups.Data, StringComparison.Ordinal);
+
+                int display = series ? _seriesCard!.Items.Count + 3 : all.Count;
+                bool expanded = searching
+                                || !_expandedGroups.TryGetValue(g.Key, out var state)
+                                || state;
+
+                var group = new ScadaPropertyGroup(
+                    g.Key, g.ToArray(), all, series ? _seriesCard : null,
+                    g.Count(), display, expanded, searching);
+
+                group.PropertyChanged += OnGroupPropertyChanged;
+                groups.Add(group);
+            }
+
+            Groups = groups;
 
             RaisePropertyChanged(nameof(Groups));
             RaisePropertyChanged(nameof(HasRows));
             RaisePropertyChanged(nameof(EmptyTitle));
             RaisePropertyChanged(nameof(EmptyHint));
+            RaisePropertyChanged(nameof(AllCollapsed));
+            RaisePropertyChanged(nameof(FoldGlyph));
+            RaisePropertyChanged(nameof(FoldTooltip));
         }
 
         /// <summary>
-        /// 搜索匹配：属性名 / 键名 / 分组名，大小写不敏感。
-        ///
-        /// 键名也参与匹配是因为它是英文（<c>Fill</c> / <c>FontSize</c>），有人习惯按它找；
-        /// 分组名参与匹配是因为"我想看布局那一组"是个很自然的诉求。
-        /// 用 <c>Contains</c> 而不是前缀：中文属性名多是"填充色"这种复合词，前缀匹配反而找不到。
+        /// 搜索命中一个成对行时把伙伴一起带出来：成对行只由左行的模板渲染，
+        /// 只留右行会得到一个"自己的模板被收起"的空行。
         /// </summary>
-        private static bool MatchesSearch(ScadaPropertyRowBase row, string query)
-            => row.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
-               || row.Key.Contains(query, StringComparison.OrdinalIgnoreCase)
-               || row.Group.Contains(query, StringComparison.OrdinalIgnoreCase);
+        private void IncludePairPartners(List<ScadaPropertyRowBase> rows)
+        {
+            for (int i = 0; i < rows.Count; i++)
+            {
+                var row = rows[i];
+
+                if (row.PairWith is { } partner && !rows.Contains(partner))
+                    rows.Add(partner);
+
+                if (row.PairOwner is { } owner && !rows.Contains(owner))
+                    rows.Add(owner);
+            }
+        }
+
+        /// <summary>逐行回读后重算组头聚合点（红点 / 琥珀点）</summary>
+        private void RefreshGroupStates()
+        {
+            foreach (var group in Groups)
+                group.RefreshState();
+        }
+
+        private void OnGroupPropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ScadaPropertyGroup.IsExpanded))
+                return;
+
+            if (sender is ScadaPropertyGroup group)
+                _expandedGroups[group.Name] = group.IsExpanded;
+
+            RaisePropertyChanged(nameof(AllCollapsed));
+            RaisePropertyChanged(nameof(FoldGlyph));
+            RaisePropertyChanged(nameof(FoldTooltip));
+        }
+
+        private void OnToggleFoldAll()
+        {
+            bool collapse = !AllCollapsed;
+
+            foreach (var group in Groups)
+                group.IsExpanded = !collapse;
+
+            RaisePropertyChanged(nameof(AllCollapsed));
+            RaisePropertyChanged(nameof(FoldGlyph));
+            RaisePropertyChanged(nameof(FoldTooltip));
+        }
+
+        /// <summary>
+        /// v2 成对网格：X/Y、宽/高、边框粗细/圆角、字号/字重、弹窗偏移 X/Y。
+        /// <b>只动视图</b>——右行仍留在 <c>_rows</c> 里（行账本与断言都不变），
+        /// 由左行的模板渲染、自己的行模板收起。
+        /// </summary>
+        private void PairRows()
+        {
+            Pair("$X", "$Y");
+            Pair("$Width", "$Height");
+            Pair("StrokeThickness", "CornerRadius");
+            Pair("FontSize", "FontWeight");
+            Pair("PopupOffsetX", "PopupOffsetY");
+        }
+
+        private void Pair(string leftKey, string rightKey)
+        {
+            var left = _rows.FirstOrDefault(r => string.Equals(r.Key, leftKey, StringComparison.Ordinal));
+            var right = _rows.FirstOrDefault(r => string.Equals(r.Key, rightKey, StringComparison.Ordinal));
+
+            if (left == null || right == null
+                || left.IsBindable || right.IsBindable
+                || left.PairWith != null || right.PairOwner != null)
+                return;
+
+            left.PairWith = right;
+            right.PairOwner = left;
+            right.IsPairedFollow = true;
+        }
+
+        /// <summary>
+        /// 多曲线趋势的曲线卡（v2）：4 条曲线一行一条（颜色点 + 名称 + 值 + ƒx）。
+        /// 只重组呈现：12 条系列行仍在 <c>_rows</c> 里（校验 / 绑定 / 搜索照旧），
+        /// 4 个曲线颜色在呈现层移入「数据」组，组头计数显示 7（4 曲线 + 3 设置）。
+        /// </summary>
+        private void BuildSeriesCard(ScadaElement? element)
+        {
+            _seriesCard = null;
+
+            if (element == null
+                || !string.Equals(element.TypeKey, "Hmi.MultiTrend", StringComparison.Ordinal))
+                return;
+
+            var byKey = new Dictionary<string, ScadaPropertyRowBase>(StringComparer.Ordinal);
+            foreach (var row in _rows)
+            {
+                if (!byKey.ContainsKey(row.Key))
+                    byKey[row.Key] = row;
+            }
+
+            string[] valueKeys = { "Value1", "Value2", "Value3", "Value4" };
+            string[] nameKeys = { "Series1Name", "Series2Name", "Series3Name", "Series4Name" };
+            string[] colorKeys = { "Series1Color", "Series2Color", "Series3Color", "Series4Color" };
+            string[] settingKeys = { "TimeWindow", "RangeMode", "ShowLegend" };
+
+            foreach (var key in valueKeys.Concat(nameKeys).Concat(colorKeys).Concat(settingKeys))
+            {
+                if (!byKey.ContainsKey(key))
+                    return;
+            }
+
+            var items = new List<ScadaSeriesItem>(4);
+            for (int i = 0; i < 4; i++)
+            {
+                items.Add(new ScadaSeriesItem(
+                    $"曲线 {i + 1}",
+                    byKey[colorKeys[i]],
+                    byKey[nameKeys[i]],
+                    byKey[valueKeys[i]]));
+            }
+
+            // 呈现层分组：曲线颜色从「外观」移入「数据」组卡（落盘 Group 与描述符都不动）
+            foreach (var key in colorKeys)
+                byKey[key].GroupOverride = ScadaPropertyGroups.Data;
+
+            _seriesCard = new ScadaSeriesCard(
+                items,
+                byKey["TimeWindow"],
+                byKey["RangeMode"],
+                byKey["ShowLegend"]);
+        }
 
         /// <summary>换图元订阅（幂等：还是同一个就不动，避免反复摘挂漏一层）</summary>
         private void BindElement(ScadaElement? element)

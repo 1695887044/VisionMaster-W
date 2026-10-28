@@ -30,18 +30,40 @@ namespace Plugin.ImageDiff
         internal static HImage ToGray(HImage image)
         {
             HOperatorSet.CountChannels(image, out HTuple channels);
-            if ((int)channels.D >= 3)
+            int n = channels.Length > 0 ? channels[0].I : 0;
+            if (n == 3)
             {
                 HOperatorSet.Rgb1ToGray(image, out HObject gray);
-                return new HImage(gray);
+                try { return new HImage(gray); }
+                finally { gray.Dispose(); }
             }
-            if ((int)channels.D == 1)
+            if (n == 4)
+            {
+                HObject? c1 = null, c2 = null, c3 = null, gray = null;
+                try
+                {
+                    HOperatorSet.AccessChannel(image, out c1, 1);
+                    HOperatorSet.AccessChannel(image, out c2, 2);
+                    HOperatorSet.AccessChannel(image, out c3, 3);
+                    HOperatorSet.Rgb3ToGray(c1, c2, c3, out gray);
+                    return new HImage(gray);
+                }
+                finally
+                {
+                    c1?.Dispose();
+                    c2?.Dispose();
+                    c3?.Dispose();
+                    gray?.Dispose();
+                }
+            }
+            if (n == 1)
             {
                 HOperatorSet.CopyImage(image, out HObject copy);
-                return new HImage(copy);
+                try { return new HImage(copy); }
+                finally { copy.Dispose(); }
             }
             throw new InvalidOperationException(
-                $"图像通道数为 {channels.D}（既不是灰度也不是三通道），无法做差分。请在上游统一成灰度或 RGB。");
+                $"图像通道数为 {n}（只支持 1/3/4 通道），无法做差分。请在上游统一成灰度或 RGB。");
         }
 
         /// <summary>
@@ -160,31 +182,48 @@ namespace Plugin.ImageDiff
 
                 if (algorithm == DiffAlgorithm.Signed)
                 {
-                    // 有符号差：先把差平移到 signedDisplay 附近，让人肉眼能分正负；判定仍用绝对值。
+                    // 有符号差：test − ref 直接加零点（不要再减一次 negDiff，否则会变成 2×）。
+                    // 极性只影响"保留哪个方向"：Brighter 只保留正差、Darker 只保留负差并**带负号**
+                    // （落在零点下方），Both 保留带符号差。Help 的算式是 pos − neg + 零点，
+                    // 若 Darker 也按正幅度加，变暗区会显示在零点上方、看起来像变亮。
+                    // 判定仍由调用方用绝对差做（见插件层 Signed 分支）。
                     HImage? bias = null;
+                    HImage? zero = null;
+                    HImage? clamped = null;
+                    HImage? negated = null;
                     HImage? signedImg = null;
                     try
                     {
                         bias = ConstantLike(posDiff, signedDisplay);
-                        // signed = (posDifff − negDiff) + bias，等价于 (test − ref) + bias
-                        HOperatorSet.SubImage(posDiff, negDiff, out HObject delta, 1.0, 0.0);
-                        HImage? deltaImg = null;
-                        try
+                        zero = ConstantLike(posDiff, 0.0);
+
+                        HImage delta = posDiff;
+                        if (polarity == DiffPolarity.Brighter)
                         {
-                            deltaImg = new HImage(delta);
-                            HOperatorSet.AddImage(deltaImg, bias, out HObject sv, 1.0, 0.0);
-                            signedImg = new HImage(sv);
-                            HOperatorSet.ConvertImageType(signedImg, out HObject b, "byte");
-                            return new HImage(b);
+                            HOperatorSet.MaxImage(posDiff, zero, out HObject p);
+                            clamped = new HImage(p);
+                            delta = clamped;
                         }
-                        finally
+                        else if (polarity == DiffPolarity.Darker)
                         {
-                            deltaImg?.Dispose();
+                            HOperatorSet.MaxImage(negDiff, zero, out HObject p);
+                            clamped = new HImage(p);
+                            HOperatorSet.SubImage(zero, clamped, out HObject n, 1.0, 0.0);
+                            negated = new HImage(n);
+                            delta = negated;
                         }
+
+                        HOperatorSet.AddImage(delta, bias, out HObject sv, 1.0, 0.0);
+                        signedImg = new HImage(sv);
+                        HOperatorSet.ConvertImageType(signedImg, out HObject b, "byte");
+                        return new HImage(b);
                     }
                     finally
                     {
                         bias?.Dispose();
+                        zero?.Dispose();
+                        clamped?.Dispose();
+                        negated?.Dispose();
                         signedImg?.Dispose();
                     }
                 }
@@ -251,12 +290,12 @@ namespace Plugin.ImageDiff
                 {
                     // 面积下限按"单片面积"筛，而不是 opening：
                     // opening 会把细长划痕（宽度小于圆盘直径）整条抹掉，而划痕恰恰是差分最常见的缺陷。
+                    // 无条件 SelectShape：minArea<=1 时若跳过，空区域经 Connection 后 CountObj 会返回 1，
+                    // 把"无差异"误报成 1 片。
                     HObject filtered = components;
-                    if (minArea > 1)
-                    {
-                        HOperatorSet.SelectShape(components, out bigEnough, "area", "and", minArea, double.MaxValue);
-                        filtered = bigEnough;
-                    }
+                    HOperatorSet.SelectShape(components, out bigEnough, "area", "and",
+                        Math.Max(minArea, 1), double.MaxValue);
+                    filtered = bigEnough;
 
                     HOperatorSet.CountObj(filtered, out HTuple countObj);
                     count = (int)countObj.D;
@@ -359,18 +398,20 @@ namespace Plugin.ImageDiff
                             HOperatorSet.GenImageProto(chR, out HObject proto, 0.0);
                             HImage protoImg = new HImage(proto);
                             HImage? mask = null;
+                            HImage? blue = null;
                             try
                             {
                                 HOperatorSet.PaintRegion(regions, protoImg, out HObject paintedH, 255.0, "fill");
                                 mask = new HImage(paintedH);
-                                // Compose3(red, green, blue)：原图给 R/G，掩膜给 B →
-                                // 差异区 (ref, ref, 255) 偏青，非差异区 (ref, ref, 0) 保持原灰度。
-                                // 不把掩膜压进 R 通道：红色通道被拉满会吃掉缺陷本身的明暗细节。
-                                HOperatorSet.Compose3(chR, chG, mask, out HObject comp);
+                                // 差异区叠蓝：背景保留原灰度，差异区 B=255（原图打底，不再丢蓝通道）。
+                                HOperatorSet.MaxImage(chR, mask, out HObject bch);
+                                blue = new HImage(bch);
+                                HOperatorSet.Compose3(chR, chG, blue, out HObject comp);
                                 overlay = new HImage(comp);
                             }
                             finally
                             {
+                                blue?.Dispose();
                                 mask?.Dispose();
                                 protoImg.Dispose();
                             }

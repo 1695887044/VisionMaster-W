@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "seedHeader": "# Global rules\n\n<!-- agenthub-memory:begin -->\n## Agent memory hub (AgentHub - per-machine project memory)\n- Scope: per-machine project context, decision intent, pitfalls and conventions.\n- Single-source-of-truth rule (Code-First): on-disk code is the only reality;\n  memory is reference only. Read before write. When memory conflicts with the\n  code on disk, the code wins. Retire stale memories with supersedes.\n- Call memory_core at session start; memory_search before answering\n  \"how did we decide this before\"; memory_write after decisions.\n<!-- agenthub-memory:end -->\n",
   "heading": "## 本项目（D:\\C#\\VM）硬约束 — DSH 与 ZCode 共用",
-  "note": "单一事实源是 `{0}`（当前 {1}）。本节由 `tools\\sync_constraints.ps1` 从该文件抽取生成，**不要手改**；改规则只改 AGENTS.md，然后重跑脚本。这里只放「违反即回滚 / 症状静默 / 验收口径」的 7 类，完整 R1–R184 以 AGENTS.md 为准。",
+  "note": "单一事实源是 `{0}`（当前 {1}）。本节由 `tools\\sync_constraints.ps1` 从该文件抽取生成，**不要手改**；改规则只改 AGENTS.md，然后重跑脚本。这里只放「违反即回滚 / 症状静默 / 验收口径」的 8 类，完整 R1–R190 以 AGENTS.md 为准。",
   "footer": "> 本节之外的规则（UI 令牌、WPF 表格、HALCON、SCADA 图元等）不在镜像范围。遇到本仓库任何具体改动，先读 `AGENTS.md` 对应章节再动手。",
   "rules": [
     {
@@ -64,6 +64,16 @@
         "docs 结构：`tools\\audit_docs.ps1` + `tools\\docs-layout.json`。`docs/` 根级只允许 `README.md`（文档中心，改结构先读它）与 `项目全景说明.md`；新增顶层目录/根文件必须登记进 `docs-layout.json`。",
         "往 `docs/code-changes/`、`docs/meetings/`、`docs/performance/` 加条目后跑 `tools\\gen_docs_index.ps1` 刷新 `INDEX.md`（幂等）；`INDEX.md` 由脚本生成，**不要手改**。",
         "本机 `Find`/全仓 `find` 极慢，别用全仓扫描代替定向查询。"
+      ]
+    },
+    {
+      "title": "变量链接只走绑定弹窗（R188/R189/R190）",
+      "lines": [
+        "端口取值只有一条通道：变量绑定弹窗（`DataBindView`）。**画布连线不作为取值入口**——它只表达流程顺序与模块级数据依赖；禁止新增「画布连线即绑值」或按端口拆开的画布锚点（`FlowCanvasView.xaml` 里 `Inputs[0]` / `Outputs[0]` 的下标只许 0）。",
+        "**绑定入口一律用公共控件 `Core.Controls.LinkableValueEditor`**（R189），禁止自己 `Publish(new LinkPathEvent{...})` 手搓按钮：它已封装 🔗→单绑定弹窗→`SetLink`、✕→`RemoveLink`、`LinkAddress` 回显、类型驱动渲染、封闭集合端口自动禁绑（R33）、空候选态给原因。最小用法 = 只给 `Port` + `StepData`。",
+        "动态端口两种合法接法：(a) 端口对象挂在行/单元格对象上 → `Port=\"{Binding Port}\"`，行对象随重建整体替换（`Plugin.Database`、`Plugin.Utility.VariableAssignment`）；(b) 端口按名字现取 → `MultiBinding` + 插件自己的 `InputPortConverter`（端口名 + 宿主插件 + `PortsVersion` 三路），每次重建端口后推一格 `PortsVersion`（`Plugin.DataRecord` / `CSharpScript` / `ImageScript` / `JudgeTable` / `ResultDisplay` / `ResultUpload`）。`Port` 可能为 null 的行用 `ContentControl`+`DataTemplate` 按需实例化，不许常驻 + `Visibility`。",
+        "**端口取值只许两种形态**（R190）：值型端口 → `LinkableValueEditor`；**只有「运行时变量」来源**允许手输变量名（按名运行期解析，编译期没有可连端口）。不许手打端口名/步骤名/上游输出名代替绑定，也不许自造可编辑框填卡地址/轴名/枚举（封闭集合由控件渲染下拉，R33/§26）。",
+        "三条判据（任一命中即违反）：① 插件视图出现「去画布上连线」的引导文案；② 画布节点渲染 `Inputs[0]` / `Outputs[0]` 之外的端口锚点；③ 新增动态输入端口却没有绑定入口。守门：人工评审。"
       ]
     }
   ]

@@ -98,6 +98,8 @@ namespace FlowCanvasChecks
             {
                 Check("OCR 真图断言（需要 HALCON 官方示例图库）", true,
                     "跳过：未找到 examples\\images\\ocr（HALCONIMAGES 与 HALCONROOT 都没配）");
+                // 端口契约不依赖真图，别跟着一起跳掉
+                RunStructuredOutputChecks(null);
                 return;
             }
 
@@ -174,6 +176,7 @@ namespace FlowCanvasChecks
                 $"dot02 拒识={dot02.RejectedCount}，dot01 拒识={dot01.RejectedCount}");
 
             RunPluginLevel(imageDir);
+            RunStructuredOutputChecks(imageDir);
         }
 
         /// <summary>
@@ -282,6 +285,315 @@ namespace FlowCanvasChecks
 
             image.Dispose();
             imageLow.Dispose();
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        //  结构化输出端口：Classes / Confidences / RejectedCount / CharBoxes
+        //
+        //  这一组钉的不是"认不认得出字"，而是"交给下游的数据自不自洽"：
+        //  类型定死没有、四个端口彼此对不对齐、拒识怎么表达、失败轮会不会把上一轮的值漏给下游。
+        //  判定（OK/NG）不归本插件 —— 这些端口只提供数据。
+        // ══════════════════════════════════════════════════════════════════
+
+        /// <summary>一次插件级结构化运行的快照（端口值原样取出，断言只读它）</summary>
+        private sealed class StructuredRun
+        {
+            public bool Ok;
+            public string Error = string.Empty;
+            public string Text = string.Empty;
+            public string Detail = string.Empty;
+            public string[] Classes = Array.Empty<string>();
+            public double[] Confidences = Array.Empty<double>();
+            public double[] Boxes = Array.Empty<double>();
+            public int Count;
+            public int RejectedCount;
+            public int ImageWidth;
+            public int ImageHeight;
+
+            public string Describe()
+            {
+                if (!Ok) return Error;
+
+                string boxes = string.Empty;
+                for (int i = 0; i + 3 < Boxes.Length; i += 4)
+                {
+                    if (boxes.Length > 0) boxes += " ";
+                    boxes += $"[{Boxes[i]:0},{Boxes[i + 1]:0},{Boxes[i + 2]:0}x{Boxes[i + 3]:0}]";
+                }
+
+                return $"文本='{Text}' 字符数={Count} 拒识={RejectedCount} 图={ImageWidth}x{ImageHeight} "
+                     + $"Classes={Classes.Length} Confidences={Confidences.Length} CharBoxes={Boxes.Length} "
+                     + $"框={boxes}";
+            }
+        }
+
+        /// <summary>
+        /// 结构化输出端口的断言。
+        /// <paramref name="imageDir"/> 为 null 时只跑不依赖真图的端口契约 —— 端口类型跟图库无关，
+        /// 不该因为"这台机器没装 HALCON 示例图"就一起不查了。
+        /// </summary>
+        private static void RunStructuredOutputChecks(string? imageDir)
+        {
+            Section("[OCR] 结构化输出端口：逐字符类别 / 置信度 / 拒识数 / 字符框");
+
+            // ---- ⑥ 端口契约：类型定死，改类型等于改下游全部取值代码 ----
+            var probe = new OcrPlugin { InstanceName = "OCR_端口契约" };
+            bool contractOk =
+                probe.Classes.DataType == typeof(string[])
+                && probe.Confidences.DataType == typeof(HTuple)
+                && probe.RejectedCount.DataType == typeof(int)
+                && probe.CharBoxes.DataType == typeof(HTuple);
+            Check("端口契约：Classes=string[] / Confidences=HTuple / RejectedCount=int / CharBoxes=HTuple",
+                contractOk,
+                $"Classes={probe.Classes.DataType.Name} Confidences={probe.Confidences.DataType.Name} "
+                + $"RejectedCount={probe.RejectedCount.DataType.Name} CharBoxes={probe.CharBoxes.DataType.Name}");
+            probe.Dispose();
+
+            if (imageDir == null) return; // 下面的真图断言需要 HALCON 官方示例图库
+
+            // ---- ① 11240B：四个端口与 Count 逐项对齐 ----
+            var main = RunStructured(imageDir, "lot_number_01.png", RoiLotNumber, null);
+
+            Check("结构化端口与 Count 对齐：Classes/Confidences 长度 = Count，CharBoxes 长度 = Count×4",
+                main.Ok && main.Count == 6
+                    && main.Classes.Length == main.Count
+                    && main.Confidences.Length == main.Count
+                    && main.Boxes.Length == main.Count * 4,
+                main.Describe());
+
+            // ---- ② Classes 拼起来 == Text：逐字符与整串同源 ----
+            // 若哪天有人给 Text 单独拼一遍（或给 Classes 换一套来源），这条立刻红。
+            string joined = string.Concat(main.Classes);
+            Check("Classes 直接拼接 == Text（逐字符与整串同源，不是两份数据）",
+                main.Ok && joined == main.Text,
+                $"拼接='{joined}' Text='{main.Text}'");
+
+            // ---- ③ 置信度逐项落在 0~1 ----
+            bool confInRange = main.Ok && main.Confidences.Length > 0;
+            for (int i = 0; i < main.Confidences.Length && confInRange; i++)
+                if (!(main.Confidences[i] >= 0 && main.Confidences[i] <= 1)) confInRange = false;
+
+            Check("Confidences 逐项落在 0~1（长度由对齐那条钉住）", confInRange,
+                main.Ok ? "置信度=" + JoinDoubles(main.Confidences) : main.Error);
+
+            // ---- ④ 零拒识：11240B 全是字符集内的字 ----
+            int subInMain = CountSub(main.Classes);
+            Check("11240B 零拒识：RejectedCount = 0 且 Classes 里没有 U+001A",
+                main.Ok && main.RejectedCount == 0 && subInMain == 0,
+                $"RejectedCount={main.RejectedCount} U+001A 个数={subInMain}");
+
+            // ---- ⑤ 字符框几何：宽高 > 0、落在图内、按阅读顺序（横排列递增）----
+            bool boxShape = main.Ok && main.Count > 0 && main.Boxes.Length == main.Count * 4;
+            bool boxInside = boxShape;
+            bool boxOrder = boxShape;
+            double prevCenterCol = double.NegativeInfinity;
+
+            for (int i = 0; i < main.Count && boxShape; i++)
+            {
+                double row1 = main.Boxes[i * 4 + 0];
+                double col1 = main.Boxes[i * 4 + 1];
+                double w = main.Boxes[i * 4 + 2];
+                double h = main.Boxes[i * 4 + 3];
+
+                if (!(w > 0) || !(h > 0)) boxShape = false;
+
+                if (row1 < -0.5 || col1 < -0.5
+                    || row1 + h > main.ImageHeight + 0.5 || col1 + w > main.ImageWidth + 0.5)
+                    boxInside = false;
+
+                double centerCol = col1 + (w - 1) / 2.0;
+                if (!(centerCol > prevCenterCol)) boxOrder = false;
+                prevCenterCol = centerCol;
+            }
+
+            Check("每个字符框宽高 > 0 且落在图像范围内（像素含端点，单像素宽的字也是 1）",
+                boxShape && boxInside, main.Describe());
+            Check("字符框按阅读顺序排列（横排：框中心列严格递增）",
+                boxOrder, main.Describe());
+
+            // ---- ④b 低对比点阵图：拒识数怎么算 ----
+            // 这两张图**允许分割失败**（既有断言的口径是"给出结果或可读原因"），所以一致性只核"跑出结果的那张"；
+            // "确有拒识"仍要求两张合计 > 0 —— 与既有第 12 条同口径，不额外收紧。
+            var dot02 = RunStructured(imageDir, "dot_print_02.png", RoiDotPrint02, TuneDotMatrix);
+            var dot01 = RunStructured(imageDir, "dot_print_01.png", RoiDotPrint01, TuneDotMatrix);
+
+            int sub02 = CountSub(dot02.Classes);
+            int sub01 = CountSub(dot01.Classes);
+            int rejectedTotal = (dot02.Ok ? dot02.RejectedCount : 0) + (dot01.Ok ? dot01.RejectedCount : 0);
+
+            bool rejectConsistent = true;
+            if (dot02.Ok && dot02.RejectedCount != sub02) rejectConsistent = false;
+            if (dot01.Ok && dot01.RejectedCount != sub01) rejectConsistent = false;
+
+            Check("【核心】拒识数 == Classes 里 U+001A 的个数（低对比点阵图确有拒识）",
+                rejectConsistent && rejectedTotal > 0,
+                $"dot02 拒识={dot02.RejectedCount}/U+001A={sub02}（{(dot02.Ok ? "已出结果" : "未出结果")}），"
+                + $"dot01 拒识={dot01.RejectedCount}/U+001A={sub01}（{(dot01.Ok ? "已出结果" : "未出结果")}）");
+
+            // ---- ④c 拒识位在 Detail 里显示 '?'（且只有拒识位是 '?'）----
+            bool detailOk = true;
+            if (dot02.Ok && !DetailMarksRejectedAsQuestion(dot02.Detail, dot02.Classes)) detailOk = false;
+            if (dot01.Ok && !DetailMarksRejectedAsQuestion(dot01.Detail, dot01.Classes)) detailOk = false;
+
+            Check("拒识位在 Detail 里是 '?'，非拒识位不是 '?'（逐位对照 Classes）",
+                detailOk && rejectedTotal > 0,
+                $"dot02 明细='{dot02.Detail}'；dot01 明细='{dot01.Detail}'");
+
+            // ---- ⑤b 反向：失败轮不许把上一轮的值留给下游 ----
+            // 同一个实例先跑成功、再清掉识别区（必然失败），四个新端口必须回到空 ——
+            // 否则下游在失败轮读到的是上一帧的字符，比"没有值"危险得多。
+            var pluginResidue = new OcrPlugin { RoiParams = RoiLotNumber, InstanceName = "OCR_残留" };
+            HOperatorSet.ReadImage(out HObject rawResidue, Path.Combine(imageDir, "lot_number_01.png"));
+            var imageResidue = new HImage(rawResidue);
+            rawResidue?.Dispose();
+
+            int firstCount = 0;
+            Exception residueBoom = null;
+            try
+            {
+                pluginResidue.Image.Value = imageResidue;
+                pluginResidue.Execute(MakeContext(new StubLog()));
+                firstCount = Convert.ToInt32(pluginResidue.Count.Value);
+
+                pluginResidue.RoiParams = Array.Empty<double>(); // 不框识别区 → 必然失败
+                pluginResidue.Execute(MakeContext(new StubLog()));
+            }
+            catch (Exception ex) { residueBoom = ex; }
+
+            bool allEmpty =
+                (pluginResidue.Classes.TypedValue?.Length ?? 0) == 0
+                && (pluginResidue.Confidences.TypedValue?.Length ?? 0) == 0
+                && (pluginResidue.CharBoxes.TypedValue?.Length ?? 0) == 0
+                && Convert.ToInt32(pluginResidue.RejectedCount.Value) == 0
+                && Convert.ToInt32(pluginResidue.Count.Value) == 0;
+
+            Check("【反向】失败轮四个新端口全空、Count = 0（下游读不到上一轮残留）",
+                residueBoom == null && firstCount > 0 && pluginResidue.Success.Value is false && allEmpty,
+                $"第一轮 Count={firstCount} 第二轮 Success={pluginResidue.Success.Value} "
+                + $"Count={pluginResidue.Count.Value} Classes={pluginResidue.Classes.TypedValue?.Length} "
+                + $"Confidences={pluginResidue.Confidences.TypedValue?.Length} "
+                + $"CharBoxes={pluginResidue.CharBoxes.TypedValue?.Length} "
+                + $"Rejected={pluginResidue.RejectedCount.Value}"
+                + (residueBoom == null ? "" : $" 异常={residueBoom.GetType().Name}: {residueBoom.Message}"));
+
+            pluginResidue.Dispose();
+            imageResidue.Dispose();
+        }
+
+        /// <summary>与 Run() 里 dot_print 两张图的用例保持完全相同的参数（改一处就要改两处，故意的）</summary>
+        private static void TuneDotMatrix(OcrPlugin plugin)
+        {
+            plugin.ClosingRadius = DotMatrixClosing;
+            plugin.MinCharHeight = 12;
+            plugin.MaxCharHeight = 45;
+            plugin.MinCharWidth = 4;
+            plugin.MaxCharWidth = 35;
+            plugin.MinArea = 25;
+            plugin.MaxArea = 900;
+        }
+
+        /// <summary>跑一次插件级"分割 → 识别"，把四个结构化端口的原值取出来</summary>
+        private static StructuredRun RunStructured(
+            string imageDir,
+            string fileName,
+            double[] roi,
+            Action<OcrPlugin>? tune)
+        {
+            var run = new StructuredRun();
+            string path = Path.Combine(imageDir, fileName);
+            if (!File.Exists(path))
+            {
+                run.Error = "测试图不存在：" + path;
+                return run;
+            }
+
+            var plugin = new OcrPlugin { RoiParams = roi, InstanceName = "OCR_结构化" };
+            tune?.Invoke(plugin);
+
+            HOperatorSet.ReadImage(out HObject raw, path);
+            var image = new HImage(raw);
+            raw?.Dispose();
+
+            try
+            {
+                HOperatorSet.GetImageSize(image, out HTuple imgW, out HTuple imgH);
+                run.ImageWidth = imgW.I;
+                run.ImageHeight = imgH.I;
+
+                plugin.Image.Value = image;
+                plugin.Execute(MakeContext(new StubLog()));
+
+                run.Ok = plugin.Success.Value is true;
+                run.Text = plugin.Text.Value as string ?? string.Empty;
+                run.Detail = plugin.Detail.Value as string ?? string.Empty;
+                run.Classes = plugin.Classes.TypedValue ?? Array.Empty<string>();
+                run.Confidences = ToDoubleArray(plugin.Confidences.TypedValue);
+                run.Boxes = ToDoubleArray(plugin.CharBoxes.TypedValue);
+                run.Count = Convert.ToInt32(plugin.Count.Value);
+                run.RejectedCount = Convert.ToInt32(plugin.RejectedCount.Value);
+
+                if (!run.Ok)
+                    run.Error = "本步失败：" + (plugin.ErrorMessage.Value as string ?? "");
+            }
+            catch (Exception ex)
+            {
+                run.Ok = false;
+                run.Error = $"抛出异常（不应发生）：{ex.GetType().Name}: {ex.Message}";
+            }
+            finally
+            {
+                plugin.Dispose();
+                image.Dispose();
+            }
+
+            return run;
+        }
+
+        private static double[] ToDoubleArray(HTuple? tuple)
+        {
+            if (tuple == null || tuple.Length == 0) return Array.Empty<double>();
+
+            var values = new double[tuple.Length];
+            for (int i = 0; i < tuple.Length; i++) values[i] = tuple[i].D;
+            return values;
+        }
+
+        /// <summary>数出 Classes 里含 U+001A（SUB，分类器的拒识占位）的个数</summary>
+        private static int CountSub(string[] classes)
+        {
+            int n = 0;
+            foreach (var cls in classes)
+                if (!string.IsNullOrEmpty(cls) && cls.IndexOf('\u001A') >= 0) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// 逐位对照：Classes 里是 U+001A 的位，Detail 必须显示 '?'；其余位不许是 '?'。
+        /// 反向那一半是关键 —— 只查"拒识位是 ?"的话，把 Detail 改成"全显示 ?"也能过。
+        /// </summary>
+        private static bool DetailMarksRejectedAsQuestion(string detail, string[] classes)
+        {
+            string[] tokens = detail.Split(' ');
+            if (tokens.Length != classes.Length) return false;
+
+            for (int i = 0; i < classes.Length; i++)
+            {
+                bool rejected = !string.IsNullOrEmpty(classes[i]) && classes[i].IndexOf('\u001A') >= 0;
+                bool showsQuestion = tokens[i].StartsWith((i + 1) + ":?", StringComparison.Ordinal);
+                if (rejected != showsQuestion) return false;
+            }
+            return true;
+        }
+
+        private static string JoinDoubles(double[] values)
+        {
+            string text = string.Empty;
+            foreach (var v in values)
+            {
+                if (text.Length > 0) text += " ";
+                text += v.ToString("0.000");
+            }
+            return text;
         }
 
         private static ExecutionContext MakeContext(ILogService log) =>

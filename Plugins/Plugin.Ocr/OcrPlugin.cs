@@ -28,8 +28,11 @@ namespace Plugin.Ocr
     ///
     /// 判定不归本插件管
     /// ---------
-    /// 只输出"认到了什么"（文本 + 逐字符置信度），合格与否交给下游的比较节点 ——
+    /// 只输出"认到了什么"（文本 + 逐字符类别/置信度/字符框），合格与否交给下游的比较节点 ——
     /// 与 Plugin.ColorCheck 立的规矩一致："没有合格与否的输出，判定请继续用现有方案"。
+    /// 逐字符三件套（<see cref="Classes"/>/<see cref="Confidences"/>/<see cref="CharBoxes"/>）
+    /// 按下标逐项对齐、顺序 = 阅读顺序，就是为了让下游能"按位"拼判定条件（第 3 位必须是 B、
+    /// 字符间距超限即报警之类），而不必再去解析 <see cref="Detail"/> 的字符串。
     ///
     /// 认不准必须看得出来
     /// ---------
@@ -150,6 +153,35 @@ namespace Plugin.Ocr
         /// <summary>逐字符明细：序号 + 字符 + 置信度；拒识字显示为 ?</summary>
         public OutputPort<string> Detail { get; } = new("Detail", "逐字符明细（序号+字符+置信度，?=拒识）");
 
+        // ---- 结构化输出（只给数据，不判 OK/NG；判定交给下游通用判定算子）----
+        // 与 Text/Count/Confidence/Detail 的关系：同一份识别结果的不同切面，
+        // Classes/Confidences/CharBoxes 三者**按下标逐项对齐**，下标顺序 = 阅读顺序。
+        // 类型口径跟仓内先例：类别名数组用 string[]（同 CodeReader.Codes），
+        // 数值数组用 HTuple（同 BlobDetect 的 CenterRows/DefectAreas 等）。
+
+        /// <summary>
+        /// 逐字符原始类别名（**不替换拒识占位符**：分类器认不出时就是 U+001A，原样给出）。
+        /// 与 <see cref="Confidences"/> / <see cref="CharBoxes"/> 逐项对齐，顺序 = 阅读顺序。
+        /// </summary>
+        public OutputPort<string[]> Classes { get; } =
+            new("Classes", "逐字符原始类别名（与 Confidences/CharBoxes 逐项对齐；拒识为 U+001A）");
+
+        /// <summary>逐字符置信度（0~1），长度 = <see cref="Count"/></summary>
+        public OutputPort<HTuple> Confidences { get; } =
+            new("Confidences", "逐字符置信度（0~1），与 Classes/CharBoxes 逐项对齐");
+
+        /// <summary>拒识字符数（= <see cref="Classes"/> 里 U+001A 的个数）</summary>
+        public OutputPort<int> RejectedCount { get; } =
+            new("RejectedCount", "拒识字符数（= Classes 里 U+001A 的个数）");
+
+        /// <summary>
+        /// 逐字符外接框，扁平 stride 4：<c>[row1,col1,width,height, row2,...]</c>。
+        /// 轴对齐最小外接矩形（<c>smallest_rectangle1</c>），宽高按像素**含端点**（<c>col2-col1+1</c>），
+        /// 顺序与 <see cref="Classes"/> 一致。0 字符时是空元组。
+        /// </summary>
+        public OutputPort<HTuple> CharBoxes { get; } =
+            new("CharBoxes", "逐字符外接框，扁平 stride 4：[row1,col1,width,height, ...]（像素，宽高含端点）");
+
         // ==================================================================
         //  运行期状态
         // ==================================================================
@@ -176,6 +208,15 @@ namespace Plugin.Ocr
             public double AverageConfidence { get; init; }
             public string Detail { get; init; } = string.Empty;
             public double UsedThreshold { get; init; }
+
+            /// <summary>逐字符原始类别名（拒识保留 U+001A，不替换成 '?'），顺序 = 阅读顺序</summary>
+            public string[] Classes { get; init; } = Array.Empty<string>();
+
+            /// <summary>逐字符置信度（0~1），与 <see cref="Classes"/> 逐项对齐</summary>
+            public double[] Confidences { get; init; } = Array.Empty<double>();
+
+            /// <summary>逐字符外接框，扁平 stride 4：[row1,col1,width,height, ...]（像素，宽高含端点）</summary>
+            public double[] CharBoxes { get; init; } = Array.Empty<double>();
         }
 
         // ==================================================================
@@ -423,6 +464,20 @@ namespace Plugin.Ocr
 
         public override void RunAlgorithm(IExecutionContext context)
         {
+            // 开轮重置所有"基类不会回收"的输出端口：基类的 AutoDisposeRoundOutputs 只处理 IDisposable
+            // （HImage/HRegion），string/int/double/HTuple 端口的上一轮值会原样留下 ——
+            // 本轮若失败，下游会读到上一轮的脏数据（BlobDetect 同款镜像 bug，见其 RunAlgorithm 开轮注释）。
+            // 四个结构化端口与原有四个一起清：否则失败轮会出现"Classes 为空但 Count 是上一轮的值"，
+            // 逐项对齐的契约当场自相矛盾。
+            Text.Value = string.Empty;
+            Count.Value = 0;
+            Confidence.Value = 0;
+            Detail.Value = string.Empty;
+            Classes.Value = Array.Empty<string>();
+            Confidences.Value = new HTuple();
+            RejectedCount.Value = 0;
+            CharBoxes.Value = new HTuple();
+
             var image = Image.GetTypedValue();
             if (image == null || !image.IsInitialized())
             {
@@ -440,6 +495,12 @@ namespace Plugin.Ocr
             Count.Value = outcome.Count;
             Confidence.Value = outcome.AverageConfidence;
             Detail.Value = outcome.Detail;
+
+            // 结构化输出：只给数据，不判 OK/NG。HTuple 由 double[] 逐项构造（空数组 = 空元组）
+            Classes.Value = outcome.Classes;
+            Confidences.Value = ToTuple(outcome.Confidences);
+            RejectedCount.Value = outcome.RejectedCount;
+            CharBoxes.Value = ToTuple(outcome.CharBoxes);
 
             context.Logger.Info(
                 $"OCR 识别：'{outcome.Text}'（{outcome.Count} 个字符，均值置信 {outcome.AverageConfidence:0.00}，"
@@ -507,6 +568,10 @@ namespace Plugin.Ocr
                 if (!_engine.TryRecognize(segment, modelPath, out var recognition, out error) || recognition == null)
                     return false;
 
+                // 字符框与类别/置信度必须同源、同序：都在 segment.Chars 的阅读顺序上按下标对齐
+                if (!TryBuildCharBoxes(segment, recognition.Count, out double[] charBoxes, out error))
+                    return false;
+
                 outcome = new OcrOutcome
                 {
                     Text = recognition.Text,
@@ -515,8 +580,78 @@ namespace Plugin.Ocr
                     AverageConfidence = recognition.AverageConfidence,
                     Detail = recognition.Detail,
                     UsedThreshold = segment.UsedThreshold,
+                    Classes = recognition.Classes,
+                    Confidences = recognition.Confidences,
+                    CharBoxes = charBoxes,
                 };
                 return true;
+            }
+        }
+
+        /// <summary>
+        /// <c>double[]</c> → <c>HTuple</c>。空数组走 <c>new HTuple()</c>：
+        /// "0 字符"这条路径必须稳定给出空元组，不依赖"用空数组构造 HTuple 会不会抛"这种实现细节。
+        /// </summary>
+        private static HTuple ToTuple(double[] values) =>
+            values.Length == 0 ? new HTuple() : new HTuple(values);
+
+        /// <summary>
+        /// 逐字符算轴对齐外接框（<c>smallest_rectangle1</c>），扁平 stride 4：<c>[row1,col1,width,height, ...]</c>。
+        ///
+        /// 为什么宽高要 +1（含端点）：<c>smallest_rectangle1</c> 给的是 row1..row2 / col1..col2 的**闭区间**，
+        /// 一个只占单像素宽的字 col1==col2，直接相减得 0 —— 下游拿 0 当"框不存在"会把这种字整条丢掉。
+        /// 按 <c>col2-col1+1</c> 算出来才是"覆盖了几个像素"，与 BlobDetect 的 DefectWidths 口径一致。
+        ///
+        /// 为什么逐对象 SelectObj 而不是一次 SmallestRectangle1 全算：后者返回的是元组，
+        /// 与 <c>segment.Chars</c> 的下标对齐全靠 HALCON 的输出顺序，而顺序契约没有任何断言守着；
+        /// 逐对象取 i+1 号对象则把"第 i 个框 ↔ 第 i 个类别"写死在代码里。
+        ///
+        /// 0 字符时输出空数组、不报错：识别不到字不是错误，是"这一帧没有字"。
+        /// </summary>
+        private static bool TryBuildCharBoxes(
+            CharSegmenter.SegmentResult segment,
+            int count,
+            out double[] charBoxes,
+            out string error)
+        {
+            error = string.Empty;
+
+            if (count <= 0)
+            {
+                charBoxes = Array.Empty<double>();
+                return true;
+            }
+
+            charBoxes = new double[count * 4];
+            try
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    // SelectObj 的索引是 1 基；取出的单个区域必须自己释放（HALCON 对象是进程级非托管资源）
+                    HOperatorSet.SelectObj(segment.Chars, out HObject single, i + 1);
+                    try
+                    {
+                        HOperatorSet.SmallestRectangle1(
+                            single, out HTuple row1, out HTuple col1, out HTuple row2, out HTuple col2);
+
+                        charBoxes[i * 4 + 0] = row1.D;
+                        charBoxes[i * 4 + 1] = col1.D;
+                        charBoxes[i * 4 + 2] = col2.D - col1.D + 1.0; // 宽：像素含端点
+                        charBoxes[i * 4 + 3] = row2.D - row1.D + 1.0; // 高：像素含端点
+                    }
+                    finally
+                    {
+                        single.Dispose();
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                charBoxes = Array.Empty<double>();
+                error = $"计算字符外接框失败：{ex.Message}";
+                return false;
             }
         }
 

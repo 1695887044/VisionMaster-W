@@ -214,11 +214,11 @@ static Guid G(string seed)
 {
   "FlowID": "流程ID（N 格式，无连字符）",
   "FlowName": "Main",
-  "Description": "主任务",
+  "Description": "主任务（随整线启动）",
   "Version": 0,
   "IsEnabled": true,
-  "Role": 2,
-  "InvokeType": 96,
+  "Role": 0,
+  "InvokeType": 224,
   "TimerIntervalMs": 0,
   "StepsEncrypted": false,
   "TriggerMode": 0,
@@ -231,12 +231,13 @@ static Guid G(string seed)
 
 | 值 | 含义 |
 | --- | --- |
-| 0 | None：普通/工位/子程序 |
-| 1 | Home：回零 |
-| 2 | Main：主任务；工具栏「运行主流程 / 循环主流程」只选它 |
-| 3 | End：收尾 |
+| 0 | None：普通/工位/子程序/整线成员（**绝大多数流程都是 0**） |
+| 1 | Home：回零（骨架，不可删） |
+| 2 | **保留位，已退役**：原「主流程（Main）」。**新方案不许写 2**；老文件里的 2 在加载时被迁移成 `Role=0` + `InvokeType|=128` |
+| 3 | End：收尾（骨架，不可删） |
 
-`Role` 不是 Flags；一个方案只应有一条启用的 Main。
+`Role` 不是 Flags。2026-10-28 起**没有"主流程角色"**：生产主任务由 `InvokeType` 的 `LineStart`(128) 位表达，
+可以有多条、彼此平级、各起各的会话（见 §3.2）。骨架只剩 Home / End 两条。
 
 ### 3.2 InvokeType（位集）
 
@@ -247,10 +248,13 @@ static Guid G(string seed)
 | Variable | 16 | 变量上升沿 |
 | Subroutine | 32 | 允许被「调用流程」拉起 |
 | Http | 64 | 允许 `/flow/{名字}` |
+| **LineStart** | **128** | **随工具栏「启动整线 / 整线循环」启动**（可多条，各起各的会话） |
 
-- 工位流程：`Role=0`、`InvokeType=32`、`IsEnabled=true`；
-- 需要 HTTP 的流程：再加 64，例如 `96`；
-- **工位流程必须启用**，否则 `FlowInvoker` 会拒绝；但 `Role=0` 让它不参与工具栏批量。
+- 生产主任务流程：`Role=0`、`InvokeType` 含 128（需要 HTTP 时再加 64，如 `224`）；
+- 工位流程：`Role=0`、`InvokeType=32`，要随整线一起跑就再勾 128（`160`）；
+- **工位流程必须启用**，否则 `FlowInvoker` 会拒绝；`Role=0` 不再影响是否参与批量——**只看 128 位**；
+- 一条 128 都没勾的方案，按「启动整线」不会启动任何流程（界面提示去「流程管理」勾「整线」），
+  没有"退回唯一主流程"这条兜底。
 
 ---
 
@@ -1111,11 +1115,11 @@ var flow = new JObject
 {
     ["FlowID"] = G("flow:Main").ToString("N"),
     ["FlowName"] = "Main",
-    ["Description"] = "主任务",
+    ["Description"] = "主任务（随整线启动）",
     ["Version"] = 0,
     ["IsEnabled"] = true,
-    ["Role"] = 2,
-    ["InvokeType"] = 96,
+    ["Role"] = 0,
+    ["InvokeType"] = 224,
     ["TimerIntervalMs"] = 0,
     ["StepsEncrypted"] = false,
     ["TriggerMode"] = 0,
@@ -1181,8 +1185,9 @@ dotnet run --project tools\probes\_ScadaUiProbe\_ScadaUiProbe.csproj -- --soluti
 | 跨分支引用步骤输出 | `[跨分支取数]` 编译失败 | 改用全局变量 |
 | `PluginTypeName` 写显示名 | 加载后步骤无法构造 | 用 AQN |
 | 枚举写中文 | 插件解析失败/回落默认 | 写成员名 |
-| 工位流程 `IsEnabled=false` | Main 调用失败“已禁用” | 启用 + `InvokeType=32` + `Role=0` |
-| 工位流程也设 `Role=Main` | 工具栏批量启动多条 | 只有一条 Main；工位 None |
+| 工位流程 `IsEnabled=false` | `调用流程` 报“已禁用” | 启用 + `InvokeType=32` + `Role=0` |
+| 新方案写 `Role=2` | 保留位，加载时被迁移成 `Role=0`+128 | 生产主任务写 `Role=0` + `InvokeType` 含 128 |
+| 以为"Role 决定谁参与整线启动" | 一条都不启动（提示去勾「整线」） | 参与批量只看 `InvokeType` 的 128 位，可多条 |
 | 图像采集放进 Parallel | 编译报 `[ParallelSafe]` | 采集放 Parallel 之前 |
 | `RunFlow` 放进 Parallel | 编译报 `[ParallelSafe]` | 工位级串行 |
 | SCADA 绑定 ID 随机 | 运行时值为空 | 用 `G("var:"+名字)` |

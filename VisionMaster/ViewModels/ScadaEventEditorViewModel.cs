@@ -217,6 +217,37 @@ namespace VisionMaster.ViewModels
         /// <summary>有动作表可编辑（= 已勾上），驱动动作区的可见性</summary>
         public bool HasActions => Actions != null;
 
+        private bool _isExpanded = true;
+
+        /// <summary>展开区开合（勾选管「配没配」，箭头管展开；v2 解耦）</summary>
+        public bool IsExpanded
+        {
+            get => _isExpanded;
+            set
+            {
+                if (SetProperty(ref _isExpanded, value))
+                    RaisePropertyChanged(nameof(IsBodyVisible));
+            }
+        }
+
+        /// <summary>动作区是否可见（配了 + 展开）</summary>
+        public bool IsBodyVisible => HasActions && IsExpanded;
+
+        /// <summary>动作条数（折叠头摘要用）</summary>
+        public int ActionCount => Actions?.Count ?? 0;
+
+        /// <summary>折叠头摘要：有动作给条数，没动作给「未配置动作」</summary>
+        public string Summary
+            => !HasActions ? string.Empty
+             : ActionCount > 0 ? $"{ActionCount} 个动作"
+             : "未配置动作";
+
+        /// <summary>摘要是否用琥珀色（配了事件但一条动作都没有，运行态不会有反应）</summary>
+        public bool SummaryIsWarning => HasActions && ActionCount == 0;
+
+        /// <summary>组头聚合：配了事件却没有动作 = 待完成</summary>
+        public bool HasWarning => HasActions && ActionCount == 0;
+
         /// <summary>
         /// 运行态命中该事件时是否先弹二次确认（P0）。
         /// 真值从钩子回读；没配钩子时为 false（确认行随动作区一起隐藏）。
@@ -334,6 +365,10 @@ namespace VisionMaster.ViewModels
             RaisePropertyChanged(nameof(IsConfigured));
             RaisePropertyChanged(nameof(Actions));
             RaisePropertyChanged(nameof(HasActions));
+            RaisePropertyChanged(nameof(IsBodyVisible));
+            RaisePropertyChanged(nameof(ActionCount));
+            RaisePropertyChanged(nameof(Summary));
+            RaisePropertyChanged(nameof(SummaryIsWarning));
             RaisePropertyChanged(nameof(RequireConfirmation));
             RaisePropertyChanged(nameof(ConfirmationMessage));
             RaisePropertyChanged(nameof(IsDangerous));
@@ -369,7 +404,12 @@ namespace VisionMaster.ViewModels
         private void OnWatchedHookPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ScadaEventHook.Actions))
+            {
                 RaisePropertyChanged(nameof(IsDangerous));
+                RaisePropertyChanged(nameof(ActionCount));
+                RaisePropertyChanged(nameof(Summary));
+                RaisePropertyChanged(nameof(SummaryIsWarning));
+            }
             else if (e.PropertyName == nameof(ScadaEventHook.RequireConfirmation))
                 RaisePropertyChanged(nameof(RequireConfirmation));
         }

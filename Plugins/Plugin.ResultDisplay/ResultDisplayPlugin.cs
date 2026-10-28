@@ -26,6 +26,14 @@ namespace Plugin.ResultDisplay
     /// （ImageCollectionService.BuildFrame 的缩略图与 Image 是同一份 copy；ImageExporter 只消费 frame.Image）。
     /// 覆盖层三条收益一条都拿不到。代价是每轮多一次全幅 DumpWindowImage 像素搬运，落在流程线程上。
     ///
+    /// 【2026-10-27 补充：几何走覆盖层】文字/数值仍烧录（缩略图/导出要带字）；算法插件只输出几何时
+    /// （如码读取的 SymbolContours、Blob 的 Defects、匹配的 MatchContours），通过 <see cref="OverlayContours"/>
+    /// 进来由本插件统一画。这样算法插件不用 CopyImage + PaintXld，颜色/线宽也不写死在算法里。
+    ///
+    /// 【2026-10-27 第二批：几何的两种承载】<see cref="BakeOverlay"/>（默认 true）= 几何并入烧录计划，
+    /// 画布与存档（缩略图/导出/CSV/SCADA）看到的是同一份内容；关掉才退回"只上屏"。
+    /// **两者互斥**：烧进去就不再发布覆盖层，不会画两遍 —— 这正是"算法烧一遍 + 显示层再烧一遍"重影的根治口径。
+    ///
     /// 【失败口径：宁缺显示不停线】取不到底图 / 认不出的类型 / 烧录抛错 / 发布抛异常，
     /// **一律不 Fail**：只 Warn + 降级（丢一项 → 丢整张标注 → 发原底图 → 什么都不发）。
     /// 显示算子失败会拖垮整轮（Engine\FlowInvoker.cs:132-133），而它只是"给人看"的。
@@ -52,8 +60,36 @@ namespace Plugin.ResultDisplay
             new("SrcImage", description: "底图：要标注的那张图（必接）");
 
         /// <summary>
+        /// 覆盖层几何（可选）：<b>HXLD 与 HRegion 都收</b>（区域按边界转轮廓再画）。
+        /// 算法插件只输出几何（读码的 SymbolContours、Blob 的 Defects、匹配的 MatchContours），
+        /// 显示层统一画；这样插件不用自己 CopyImage + PaintXld，颜色/线宽也不写死在算法里。
+        ///
+        /// 类型写成 <see cref="HObject"/> 而不是 HXLD：HRegion 与 HXLD 是兄弟类型，
+        /// `HXLD` 口接区域会被 FlowCompiler 的类型检查直接拒（IsLinkable 用 IsAssignableFrom）。
+        /// 运行时 <c>InputPort.RefreshLinkedCache</c> 有 `rawValue is T` 快路径，两种对象都能原样进来。
+        /// </summary>
+        public InputPort<HObject> OverlayContours { get; } =
+            new("OverlayContours", description: "覆盖层几何（可选）：轮廓或区域；BakeOverlay=true 时同时烧进 AnnotatedImage")
+            {
+                IsRequired = false,
+            };
+
+        /// <summary>
+        /// 覆盖层逐条标签（可选）：与 <see cref="OverlayContours"/> 顺序对应。
+        /// 接受 string[] / 逗号分隔 string / HTuple；第 i 条轮廓用第 i 个标签，
+        /// 标签数少于轮廓数时多出的轮廓不标字。
+        /// </summary>
+        public InputPort<object> OverlayLabels { get; } =
+            new("OverlayLabels", description: "覆盖层逐条标签（可选，与 OverlayContours 顺序对应）")
+            {
+                IsRequired = false,
+            };
+
+        /// <summary>
         /// 烧录后的标注图（全新图，**不是** SrcImage 的透传）。
-        /// 烧录失败 / 无底图 / DisplayViewIndex=0 时为 null。下游可接「CSV记录」的图片端口存带标注的图。
+        /// 含结果项文字/数值，以及 <see cref="BakeOverlay"/>=true 时的覆盖层几何。
+        /// 烧录失败 / 无底图 / （DisplayViewIndex=0 且 BakeWhenNotDisplayed=false）时为 null。
+        /// 下游可接「CSV记录」的图片端口存带标注的图。
         ///
         /// ⚠ 为什么"新增输出口"是安全的、而"SrcImage 透传口"是禁止的：
         /// 基类的 <c>Dispose()</c> 会释放所有输出端口的值，但它**没有**轮首回收那道透传防御
@@ -137,6 +173,45 @@ namespace Plugin.ResultDisplay
         /// </summary>
         [StepConfig]
         public bool ShowTextOnImage { get; set; } = true;
+
+        /// <summary>覆盖层轮廓颜色（HALCON 颜色名，如 green/red/yellow）。只影响 OverlayContours，不影响烧录文字。</summary>
+        [StepConfig, DefaultValue("green")]
+        public string OverlayColor { get; set; } = "green";
+
+        /// <summary>覆盖层多色调色板（逗号/分号分隔，如 green,red,yellow）；空 = 全部用 OverlayColor。</summary>
+        [StepConfig, DefaultValue("")]
+        public string OverlayPalette { get; set; } = "";
+
+        /// <summary>覆盖层线宽（0 = 沿用窗口当前线宽；1~10 有效）。只影响线条，不影响文字。</summary>
+        [StepConfig, DefaultValue(0)]
+        public int OverlayLineWidth { get; set; }
+
+        /// <summary>
+        /// 覆盖层逐对象编号（默认关）。开 = 没有显式标签的对象用 1 基序号标在重心上。
+        /// 缺陷这类"报表说 3 号超标、图上要能找到 3 号"的结果必须开；
+        /// 编号顺序 = 上游对象集顺序（与端口数组逐项对应），显示层不猜。
+        /// </summary>
+        [StepConfig]
+        public bool OverlayNumbering { get; set; }
+
+        /// <summary>
+        /// 覆盖层最多画多少个对象（0 = 不限；默认 300，与 <see cref="MaxDrawElements"/> 同口径）。
+        /// 噪声图上几千个 blob 时逐个取轮廓+画字会把节拍拖垮；端口数据永远全量，只是不画完。
+        /// </summary>
+        [StepConfig, DefaultValue(300)]
+        public partial int OverlayMaxObjects { get; set; }
+
+        partial void OnOverlayMaxObjectsChanging(ref int value) => value = Math.Clamp(value, 0, 5000);
+
+        /// <summary>
+        /// 覆盖层几何是否同时烧进 <see cref="AnnotatedImage"/>（默认 true）。
+        ///
+        /// true  = **画布与存档一致**：几何烧进像素，此时不再发布覆盖层（避免同一份几何画两遍）；
+        /// false = 只上屏、不进像素：省一次全幅 dump，但缩略图/导出/CSV/SCADA 都看不到几何。
+        /// 结果层几何不允许只存在于覆盖层 —— 要关就把这条责任显式交给调用方。
+        /// </summary>
+        [StepConfig]
+        public bool BakeOverlay { get; set; } = true;
 
         /// <summary>判定项（按 Label 匹配，找不到再按 Id 找一次）。空 = 不判定，文字全 green。</summary>
         [StepConfig, DefaultValue("")]
@@ -490,6 +565,18 @@ namespace Plugin.ResultDisplay
                 return;
             }
 
+            // 覆盖层几何：算法插件只给几何，显示层统一画。
+            // BakeOverlay=true（默认）→ 并入烧录计划，画布与存档是同一份内容；
+            // false → 只走窗口覆盖层（省一次全幅 dump，但 AnnotatedImage 不含几何）。
+            var overlayMarks = BuildOverlayMarks(
+                OverlayContours.ActualValue, OverlayLabels.ActualValue,
+                OverlayColor, OverlayPalette, OverlayLineWidth,
+                OverlayNumbering, OverlayMaxObjects, draw.Warnings);
+            if (BakeOverlay && overlayMarks.Count > 0)
+                DisplayDraw.AppendOverlayToPlan(draw, overlayMarks, ShowTextOnImage);
+
+            // 覆盖层解析产生的告警也要落日志：BuildOverlayMarks 在上一轮 Warn 之后才跑，
+            // 不在这里补一遍，几何解析失败会**静默**（旧实现就是空 catch，现场无从排查）
             foreach (var message in draw.Warnings)
                 Warn(context, message);
 
@@ -510,7 +597,7 @@ namespace Plugin.ResultDisplay
             if (annotated == null)
             {
                 Warn(context, "烧录失败，降级为发布原底图（不带标注）");
-                Publish(context, src, viewIndex, draw.InfoRows, out bool published);
+                Publish(context, src, viewIndex, draw.InfoRows, BakeOverlay ? null : overlayMarks, out bool published);
                 IsDisplayed.Value = published;
                 return;
             }
@@ -524,8 +611,174 @@ namespace Plugin.ResultDisplay
                 return;
             }
 
-            Publish(context, annotated, viewIndex, draw.InfoRows, out bool shown);
+            Publish(context, annotated, viewIndex, draw.InfoRows, BakeOverlay ? null : overlayMarks, out bool shown);
             IsDisplayed.Value = shown;
+        }
+
+        /// <summary>
+        /// 把覆盖层几何拆成逐对象 Polyline + 可选 Text 标注。
+        ///
+        /// 两种输入都收（<see cref="OverlayContours"/> 声明为 HObject）：
+        /// · XLD 轮廓：直接 <c>GetContourXld</c>；
+        /// · 区域（HRegion）：先 <c>GenContourRegionXld("border")</c> 取边界再读点——
+        ///   Blob 的缺陷集就是 HRegion，不转的话"缺陷红圈"永远画不出来。
+        ///
+        /// 标签优先级：显式 <c>OverlayLabels</c> 第 i 条 → 否则 <c>OverlayNumbering</c> 开时用 1 基序号。
+        /// 序号顺序 = 上游对象集顺序（与端口数组逐项对应），显示层**不猜**。
+        ///
+        /// 健壮性：逐对象 try/catch + Warn（旧实现是空 catch，轮廓解析失败连日志都没有）；
+        /// 点数按 <see cref="DisplayDraw.MaxContourPoints"/> 抽稀；对象数受 <paramref name="maxObjects"/> 限制。
+        /// </summary>
+        private static List<MeasureAnnotation> BuildOverlayMarks(
+            HObject? contours, object? labelsRaw, string color, string colors, int lineWidth,
+            bool numbering, int maxObjects, List<string> warnings)
+        {
+            var marks = new List<MeasureAnnotation>();
+            if (contours == null || !contours.IsInitialized()) return marks;
+
+            var palette = ParsePalette(color, colors);
+            var labels = NormalizeLabels(labelsRaw);
+            double width = Math.Clamp(lineWidth, 0, 10);
+
+            int total;
+            try
+            {
+                HOperatorSet.CountObj(contours, out HTuple count);
+                total = count.I;
+            }
+            catch (Exception ex)
+            {
+                AddWarning(warnings, $"覆盖层对象计数失败（本轮不画几何）：{ex.Message}");
+                return marks;
+            }
+
+            int limit = maxObjects > 0 && total > maxObjects ? maxObjects : total;
+            if (limit < total)
+                AddWarning(warnings, $"覆盖层对象 {total} 个，超过上限 {maxObjects}，只画前 {limit} 个（端口数据不受影响）");
+
+            int skipped = 0;
+            for (int i = 1; i <= limit; i++)
+            {
+                HObject? one = null;
+                HObject? border = null;
+                try
+                {
+                    HOperatorSet.SelectObj(contours, out one, i);
+
+                    // 区域 → 边界轮廓；XLD 原样用。取类名失败会在外层 catch 记 Warn 并跳过该对象。
+                    HObject source = one;
+                    HOperatorSet.GetObjClass(one, out HTuple objClass);
+                    string kind = objClass.Length > 0 ? objClass[0].S : string.Empty;
+                    if (string.Equals(kind, "region", StringComparison.OrdinalIgnoreCase))
+                    {
+                        HOperatorSet.GenContourRegionXld(one, out HObject contour, "border");
+                        border = contour;
+                        source = contour;
+                    }
+
+                    HOperatorSet.GetContourXld(source, out HTuple rows, out HTuple cols);
+                    if (rows.Length < 2) { skipped++; continue; }
+
+                    var points = new double[rows.Length * 2];
+                    double centerRow = 0, centerCol = 0;
+                    for (int j = 0; j < rows.Length; j++)
+                    {
+                        points[2 * j] = rows[j].D;
+                        points[2 * j + 1] = cols[j].D;
+                        centerRow += rows[j].D;
+                        centerCol += cols[j].D;
+                    }
+                    centerRow /= rows.Length;
+                    centerCol /= rows.Length;
+
+                    // 点数抽稀：覆盖层每条轮廓都会在每次重绘里逐段 DispLine，几万点会拖垮缩放
+                    if (points.Length / 2 > DisplayDraw.MaxContourPoints)
+                        points = DisplayDraw.ThinPoints(points, DisplayDraw.MaxContourPoints);
+
+                    string markColor = palette[(i - 1) % palette.Count];
+                    marks.Add(new MeasureAnnotation
+                    {
+                        Type = MeasureType.Polyline,
+                        Points = points,
+                        Color = markColor,
+                        LineWidth = width,
+                    });
+
+                    string? text = i - 1 < labels.Length && !string.IsNullOrWhiteSpace(labels[i - 1])
+                        ? labels[i - 1]
+                        : (numbering ? i.ToString(System.Globalization.CultureInfo.InvariantCulture) : null);
+
+                    if (!string.IsNullOrEmpty(text))
+                    {
+                        marks.Add(new MeasureAnnotation
+                        {
+                            Type = MeasureType.Text,
+                            Points = new[] { centerRow, centerCol },
+                            Text = text!,
+                            Color = markColor,
+                            LineWidth = width,
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 单条解析失败不影响其它条；但必须留痕（旧实现空 catch，现场无从排查）
+                    skipped++;
+                    if (skipped <= 3)
+                        AddWarning(warnings, $"覆盖层第 {i} 个对象解析失败（已跳过）：{ex.Message}");
+                }
+                finally
+                {
+                    border?.Dispose();
+                    one?.Dispose();
+                }
+            }
+
+            if (skipped > 3)
+                AddWarning(warnings, $"覆盖层共 {skipped} 个对象解析失败（前 3 条已单独告警）");
+
+            return marks;
+        }
+
+        private static void AddWarning(List<string> warnings, string message) => warnings?.Add(message);
+
+        private static List<string> ParsePalette(string color, string colors)
+        {
+            var list = (colors ?? string.Empty)
+                .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
+            if (list.Count == 0)
+                list.Add(string.IsNullOrWhiteSpace(color) ? "green" : color.Trim());
+            return list;
+        }
+
+        private static string[] NormalizeLabels(object? raw)
+        {
+            switch (raw)
+            {
+                case null:
+                    return Array.Empty<string>();
+                case string[] arr:
+                    return arr;
+                case string s:
+                    return s.Split(new[] { ',', ';' },
+                        StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                case HTuple h:
+                {
+                    var result = new string[h.Length];
+                    for (int i = 0; i < h.Length; i++)
+                    {
+                        try { result[i] = h[i].S ?? string.Empty; }
+                        catch { result[i] = h[i].ToString() ?? string.Empty; }
+                    }
+                    return result;
+                }
+                case System.Collections.IEnumerable e:
+                    return e.Cast<object>().Select(x => x?.ToString() ?? string.Empty).ToArray();
+                default:
+                    return new[] { raw.ToString() ?? string.Empty };
+            }
         }
 
         /// <summary>
@@ -555,17 +808,19 @@ namespace Plugin.ResultDisplay
 
         /// <summary>
         /// 发布到主界面视图窗口。
-        /// ★ 只烧录、不双发（D10）：annotations 一律传 null —— 同一批标注既烧进像素又走覆盖层就是画上两遍。
-        /// infoRows 照传（它只进缩略图悬停，不重复）。
+        /// ★ 文字/数值烧录；几何按 <see cref="BakeOverlay"/> 决定"烧进像素"还是"走 annotations 覆盖层"——
+        /// 两者**互斥**，同一份几何不会画两遍。infoRows 照传（只进缩略图悬停）。
         /// </summary>
         private void Publish(IExecutionContext context, HImage image, int viewIndex,
-            IReadOnlyList<ImageInfoRow> infoRows, out bool published)
+            IReadOnlyList<ImageInfoRow> infoRows, IReadOnlyList<MeasureAnnotation>? overlayMarks,
+            out bool published)
         {
             published = false;
             if (viewIndex <= 0) return;
             try
             {
-                this.PublishPreview(image, viewIndex, "结果显示", infoRows, null);
+                this.PublishPreview(image, viewIndex, "结果显示", infoRows,
+                    overlayMarks == null || overlayMarks.Count == 0 ? null : overlayMarks);
                 published = true;
             }
             catch (Exception ex)

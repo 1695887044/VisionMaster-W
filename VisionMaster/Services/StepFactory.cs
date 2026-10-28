@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Core.Interfaces;
 using VisionMaster.Models;
 
 namespace VisionMaster.Services
@@ -9,7 +11,8 @@ namespace VisionMaster.Services
     ///
     /// 为什么要抽出来：流程栏 Drop（ProcessViewModel）与画布 Drop（FlowCanvasViewModel）
     /// 都要"按 ToolItemModel 造一个步骤"，两处各抄一份必然漂移（改了一处忘另一处）。
-    /// 本文件只做两件纯计算：类型分派与自动命名；落点命中、运行锁、版本推进留在各自调用方
+    /// 本文件只做三件纯计算：类型分派、自动命名、创建即生效的端口默认值落盘
+    ///（<see cref="ApplyDeclaredDefaults"/>）；落点命中、运行锁、版本推进留在各自调用方
     ///（流程栏落点看 TreeView 命中项，画布落点看画布坐标）。
     ///
     /// 类型分派口径（与抽取前的 ProcessViewModel.Drop 逐字一致）：
@@ -27,8 +30,67 @@ namespace VisionMaster.Services
     {
         /// <summary>
         /// 按工具箱模板造一个步骤。stepName 由调用方给（「模板名_同型计数」见 <see cref="NextStepName"/>）。
+        ///
+        /// 造完立刻落一次"创建即生效的默认值"（见 <see cref="ApplyDeclaredDefaults"/>）：
+        /// 这一步是编译期必填检查能过的前提，别挪到调用方去 —— 两个落点各写一遍必然漂移。
         /// </summary>
         public static StepModel CreateFromTool(ToolItemModel tool, string stepName)
+        {
+            var step = CreateCore(tool, stepName);
+            ApplyDeclaredDefaults(step, tool?.ModuleTypeName);
+            return step;
+        }
+
+        /// <summary>
+        /// 把标了 <see cref="PortDefaultOnCreateAttribute"/> 的端口默认值写进 InputValues。
+        ///
+        /// 【为什么必须做】端口默认值只活在插件实例上，而编译期必填检查
+        /// （FlowCompiler「[参数缺失] 必填参数 'X' 未配置」）只认 <c>StepModel.InputValues</c>。
+        /// 不落盘的话，"拖进来就带着 500ms"的延时步骤会被判成没配置，必须先打开参数窗点一次
+        /// 「确定」（<c>VisionPluginBase.OnConfirm</c> 才写回）才能编译 —— 运行期其实一直是好的。
+        /// 落盘 = 替用户点了一次确定。
+        ///
+        /// 【没标特性的端口保持原样】轴目标位置、IO 输出值这类"默认值有机械后果"的端口不标，
+        /// 于是仍然要求人工确认 —— 这正是本特性要守住的边界（R38：跳过型断言必须能被反证）。
+        ///
+        /// 【失败一律静默】拿不到插件类型（画布/流程栏断言里的假类型名桩）、构造抛异常、
+        /// 端口取值抛异常，都只是"没有默认值可落"，退化成旧行为即可；
+        /// 拖入本身绝不能因为这一步失败。
+        /// </summary>
+        private static void ApplyDeclaredDefaults(StepModel step, string? pluginTypeName)
+        {
+            if (step is not ActionStep || string.IsNullOrWhiteSpace(pluginTypeName))
+                return;
+
+            try
+            {
+                // 与 FlowCompiler / StepParameterDialog.ResolvePluginInstance 同一条反射先例：
+                // 类型名是 AssemblyQualifiedName，插件程序集在启动扫描时已 LoadFrom 进默认上下文。
+                if (Type.GetType(pluginTypeName) is not { } type)
+                    return;
+
+                if (Activator.CreateInstance(type) is not VisionPluginBase prototype)
+                    return;
+
+                foreach (var name in prototype.AutoDefaultInputNames)
+                {
+                    if (!prototype.Inputs.TryGetValue(name, out var port))
+                        continue;
+
+                    var value = port.Value;
+                    if (value == null)
+                        continue;   // null 不算"有默认值"，仍交给人确认
+
+                    step.SetInputValue(name, value);
+                }
+            }
+            catch
+            {
+                // 插件构造/读端口失败 = 没有默认值可落，保持"必须人工确认"的旧行为
+            }
+        }
+
+        private static StepModel CreateCore(ToolItemModel tool, string stepName)
         {
             // 等待节点：非容器，但也不是算子（必须放在 !IsContainer 兜底之前，否则会静默变成 ActionStep）
             if (tool.ModuleTypeName == "BuiltIn_Wait")

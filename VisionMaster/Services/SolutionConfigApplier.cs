@@ -35,6 +35,10 @@ namespace VisionMaster.Services
             if (!Enum.IsDefined(typeof(eViewMode), mode))
                 mode = eViewMode.One;
 
+            // 先落静态形态再广播：此刻可能没有任何 ImageView 实例在树上（订阅随 Loaded/Unloaded
+            // 挂摘），只发事件会让"方案里存的布局"在下次显示时丢掉。
+            ImageView.ApplyModeForRestore(mode);
+
             GlobalEventBus.Publish<ImageCanvasChangeEvent>(new ImageCanvasChangeEvent
             {
                 ViewMode = mode

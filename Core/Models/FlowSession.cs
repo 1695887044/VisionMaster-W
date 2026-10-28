@@ -86,6 +86,18 @@ namespace VisionMaster.Models
         public string CompiledFlowId { get; set; } = string.Empty;
 
         /// <summary>
+        /// 本会话自己的轮次序号（连续运行每轮 +1，单次运行 +1；会话重建归零）。
+        /// 运行期状态，不落盘；用于 FlowRoundResult.RoundIndex。
+        /// </summary>
+        public long RoundIndex { get; set; }
+
+        /// <summary>
+        /// 最近一轮记录（引擎在轮末写入；被停止/取消的半轮不写）。
+        /// 运行期状态，不落盘；宿主统计/子流程调用/下钻都读它。
+        /// </summary>
+        public FlowRoundResult? LastRound { get; set; }
+
+        /// <summary>
         /// 会话唯一标识
         /// </summary>
         public string SessionID { get; } = Guid.NewGuid().ToString("N");

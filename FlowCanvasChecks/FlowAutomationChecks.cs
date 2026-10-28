@@ -39,6 +39,7 @@ namespace FlowCanvasChecks
             RunFlowTargetCandidates();
             TickSources();
             SchedulerWithRealClockRunsAndStops();
+            L2RoundRecordChecks();
         }
 
         /// <summary>节拍源工厂的"只试某一个"入口签名（直接复用产品代码的 TryCreate*，避免断言另写一份探测）</summary>
@@ -868,6 +869,80 @@ namespace FlowCanvasChecks
             int after = CountA.Runs;   // 在途那一拍可能刚好落地，取快照再等
             Thread.Sleep(400);
             Check("★Dispose 后节拍停住（计数不再增长）", CountA.Runs == after, $"{after} → {CountA.Runs}");
+        }
+
+        // ==================================================================
+        //  [L2] 每轮记录：LastRound / FlowRoundCompleted / NG 不是调用故障
+        // ==================================================================
+        private static void L2RoundRecordChecks()
+        {
+            Section("[L2] 每轮记录：LastRound / FlowRoundCompleted / NG 不是调用故障");
+
+            var flow = new FlowModel
+            {
+                FlowName = "L2_轮次",
+                IsEnabled = true,
+                InvokeType = FlowInvokeType.Subroutine,
+            };
+            flow.Steps.Add(new ActionStep("S", "计数", Aqn<CountC>(), "L2 子流程步骤"));
+
+            var (workspace, _) = NewWorkspace(flow);
+            var log = new StubLog();
+            var runtime = new RuntimeManager();
+            var resolver = new StubVerdictResolver();
+            var engine = new FlowEngineService(
+                runtime,
+                log,
+                workspace,
+                null,
+                new ResourceLockService(),
+                NullCameraProvider.Instance,
+                verdictResolver: resolver);
+
+            var session = CompileAndRegister(runtime, workspace, flow, out var error);
+            Check("L2-0 编译通过", session != null, error ?? string.Empty);
+            if (session == null) return;
+
+            FlowRoundResult published = null;
+            int publishedCount = 0;
+            engine.FlowRoundCompleted += r =>
+            {
+                published = r;
+                publishedCount++;
+            };
+
+            var run = engine.RunSessionOnceAsync(session);
+            WaitFor(() => run.IsCompleted, 10000);
+
+            var last = session.LastRound;
+            Check("L2-1 单次运行产出 LastRound", last != null, last?.OutcomeText ?? "null");
+            Check("L2-2 FlowRoundCompleted 触发一次", publishedCount == 1, $"{publishedCount}");
+            Check("L2-3 解析器 Ng → Outcome=Ng / Source=ResultStep",
+                last?.Outcome == FlowRoundOutcome.Ng && last?.VerdictSource == FlowVerdictSource.ResultStep,
+                $"{last?.Outcome} / {last?.VerdictSource}");
+            Check("L2-4 RoundIndex=1、StepCount=1、Completed=1",
+                last?.RoundIndex == 1 && last?.StepCount == 1 && last?.CompletedStepCount == 1,
+                $"{last?.RoundIndex} / {last?.StepCount} / {last?.CompletedStepCount}");
+            Check("L2-7 步骤时间线：1 步 / Success / 耗时 ≥ 0",
+                last?.Steps.Count == 1
+                && last.Steps[0].State == "Success"
+                && last.Steps[0].ElapsedMs >= 0,
+                $"{last?.Steps.Count} / {last?.Steps.FirstOrDefault()?.State} / {last?.Steps.FirstOrDefault()?.ElapsedMs:F1}ms");
+            Check("L2-5 发布的记录与 LastRound 同一条", ReferenceEquals(published, last), "same");
+
+            var invoker = new FlowInvoker(workspace, runtime, engine, new FlowCompiler(workspace), log);
+            var result = invoker.Invoke(flow.FlowName, 5000, CancellationToken.None);
+            Check("L2-6 子流程 Ng → Success=true / Outcome=Ng / IsOk=false",
+                result.Success && result.Outcome == FlowRoundOutcome.Ng && result.IsOk == false,
+                $"{result.Success} / {result.Outcome} / {result.IsOk} / {result.Message}");
+        }
+
+        private sealed class StubVerdictResolver : IFlowVerdictResolver
+        {
+            public FlowVerdict Verdict { get; set; } =
+                new(FlowRoundOutcome.Ng, FlowVerdictSource.ResultStep, "stub");
+
+            public FlowVerdict Resolve(FlowSession session) => Verdict;
         }
     }
 }

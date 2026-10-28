@@ -35,7 +35,7 @@ $project = Join-Path (Join-Path 'tools\probes' $p.dir) $p.project
 
 ---
 
-## 2. 已登记探针（17 个，唯一事实源 `probes.json`）
+## 2. 已登记探针（18 个，唯一事实源 `probes.json`）
 
 | 登记名 | 目录 | 工程文件 | 运行方式 | 用途 |
 | --- | --- | --- | --- | --- |
@@ -56,6 +56,7 @@ $project = Join-Path (Join-Path 'tools\probes' $p.dir) $p.project
 | `ScadaAlarmUiProbe` | `tools/probes/_ScadaAlarmUiProbe` | `_ScadaAlarmUiProbe.csproj` | `dotnet run` | 报警配置弹窗出图（九态，`--states=filled,stale,...`），出图落 `artifacts/render/<yyyyMMdd>/scada-alarm-config/` |
 | `UserManagementUiProbe` | `tools/probes/_UserManagementUiProbe` | `_UserManagementUiProbe.csproj` | `dotnet run` | 用户管理页 v4 七屏出图（账号 / 会话 / 审计 / 权限目录 / 行内新建 / 组编辑 / 32 满额） |
 | `ProjectAssetsUiProbe` | `tools/probes/_ProjectAssetsUiProbe` | `_ProjectAssetsUiProbe.csproj` | `dotnet run` | 项目资产管理页离屏出图 + 布局/导入/AssetId 解析断言（真实五类数量、徽标 22px/居中、模板/模型/图像导入/重复/序列化）；出图落 `artifacts/render/<yyyyMMdd>/project-assets-ui/` |
+| `ZoomProbe` | `tools/probes/_ZoomProbe` | `ZoomProbe.csproj` | `dotnet run` | 画布滚轮缩放探针（2026-10-27）：真窗口 + 真 `ImageDisplay`，逐格打印 part 跨度与窗口非黑像素占比；场景 D 验证缩放下限（铺满即止 / 缩过头弹回 / 放大上限）。退出码恒 0，结论看日志行 |
 
 ### 旧路径 → 新路径对照
 

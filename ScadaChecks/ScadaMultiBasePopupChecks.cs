@@ -431,6 +431,114 @@ namespace ScadaChecks
                     !vm.CanSelectBasePage,
                     $"CanSelectBasePage={vm.CanSelectBasePage}");
 
+                // ---- 空基座标注 + 插入公共底板矩形（2026-10-27 现场反馈）----
+                //
+                // 现场原话："我建了基座、主界面也引用了，怎么没反应"。成因不是引用没生效，
+                // 而是基座只合成<b>图元</b>：底色 / 尺寸 / 网格取引用页自己的，空基座勾了等于没勾。
+                // 这两处提示治的是"误解"而不是"故障"，所以判据必须落在用户看得见的两件事上：
+                // 菜单里的「无图元」标注（BasePageSelection.IsEmpty）与顶栏那条命令能不能用。
+                var selectionA = vm.BasePageSelections.FirstOrDefault(s => ReferenceEquals(s.Page, a));
+
+                Check("基座空态①空基座在候选里被标成「无图元」（IsEmpty=true）",
+                    selectionA != null && selectionA.IsEmpty,
+                    $"候选 {vm.BasePageSelections.Count} 个 / 找到={selectionA != null} / IsEmpty={selectionA?.IsEmpty}");
+
+                int emptyNotices = 0;
+
+                if (selectionA != null)
+                {
+                    ((System.ComponentModel.INotifyPropertyChanged)selectionA).PropertyChanged += (_, e) =>
+                    {
+                        if (e.PropertyName == nameof(BasePageSelection.IsEmpty))
+                            emptyNotices++;
+                    };
+                }
+
+                var prepElement = ElementRegistry.Find("Hmi.Rectangle")!.CreateElement(0, 0);
+
+                using (a.BeginEdit("断言准备：给基座放一个图元"))
+                {
+                    a.Elements.Add(prepElement);
+                }
+
+                Check("基座空态②基座上有了图元之后标注自己消失（发了 IsEmpty 通知，不用重建菜单）",
+                    selectionA != null && !selectionA.IsEmpty && emptyNotices == 1,
+                    $"IsEmpty={selectionA?.IsEmpty} / 通知 {emptyNotices} 次");
+
+                vm.SelectedPage = page;
+
+                Check("公共底板①普通页上命令不可用（公共只在基座上有意义）",
+                    !vm.InsertBaseBackdropCommand.CanExecute(),
+                    $"CanExecute={vm.InsertBaseBackdropCommand.CanExecute()}");
+
+                vm.SelectedPage = a;
+
+                Check("公共底板②基座页上命令可用",
+                    vm.InsertBaseBackdropCommand.CanExecute(),
+                    $"CanExecute={vm.InsertBaseBackdropCommand.CanExecute()}");
+
+                // 让基座重新被引用，并给引用页一个显眼的尺寸：插入的矩形必须按<b>引用页</b>铺满，
+                // 而不是按基座页自己的尺寸（公共层最终叠在引用页上）。
+                page.Width = 1600;
+                page.Height = 900;
+                doc.TryAddBasePageReference(page, a, out _);
+
+                int elementCountBefore = a.Elements.Count;
+                vm.InsertBaseBackdropCommand.Execute();
+
+                var backdrop = a.Elements.FirstOrDefault(e => e.Name == "公共底板");
+
+                Check("公共底板③插入的矩形铺满引用页、压在最下面、并成为选中项",
+                    backdrop != null
+                    && backdrop.TypeKey == "Hmi.Rectangle"
+                    && Math.Abs(backdrop.Width - 1600) < 0.001
+                    && Math.Abs(backdrop.Height - 900) < 0.001
+                    && backdrop.X == 0
+                    && backdrop.Y == 0
+                    && a.Elements.Where(e => !ReferenceEquals(e, backdrop)).All(e => e.ZIndex > backdrop.ZIndex)
+                    && ReferenceEquals(vm.SelectedElement, backdrop)
+                    && a.Elements.Count == elementCountBefore + 1,
+                    $"矩形={backdrop?.TypeKey} {backdrop?.Width}x{backdrop?.Height} Z={backdrop?.ZIndex} 选中={vm.SelectedElement?.Name}");
+
+                ScadaEditHistory.Undo();
+
+                Check("公共底板④一次插入 = 一条撤销记录（撤销后回到插入前）",
+                    a.Elements.Count == elementCountBefore
+                    && !a.Elements.Any(e => e.Name == "公共底板"),
+                    $"图元 {a.Elements.Count} 个 / 撤销栈剩 {ScadaEditHistory.UndoCount}");
+
+                // 属性面板顶部的基座说明条：判据只有 VM 一个布尔（视图侧是 DataTrigger）。
+                // 两件事一起钉：① 基座页亮、普通页不亮；② 换页时确实发了通知——
+                // 不发通知的话，DataTrigger 要等"重开面板/重建行"才更新，用户切回普通页还会看见那句说明。
+                var propertyPanel = new ScadaPropertyViewModel(
+                    vm,
+                    new RecordingNotifier(),
+                    new FakeVariablePicker(),
+                    new FakePagePicker(),
+                    new FakeFlowPicker(),
+                    new FakeAxisPicker(),
+                    new Core.Interfaces.MotionAxisRegistry(() => null));
+
+                int noticeNotices = 0;
+
+                propertyPanel.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(ScadaPropertyViewModel.IsBasePageEditing))
+                        noticeNotices++;
+                };
+
+                bool noticeOnBasePage = propertyPanel.IsBasePageEditing;
+
+                vm.SelectedPage = page;
+                bool noticeOnNormalPage = propertyPanel.IsBasePageEditing;
+                vm.SelectedPage = a;
+
+                Check("基座说明条：基座页亮、普通页不亮，且换页时发了通知（DataTrigger 不用等重开面板）",
+                    noticeOnBasePage && !noticeOnNormalPage && noticeNotices >= 2,
+                    $"基座页={noticeOnBasePage} / 普通页={noticeOnNormalPage} / 通知 {noticeNotices} 次");
+
+                propertyPanel.Deactivate();
+
                 // 与顶栏探针同一条纪律：`Activate()` 订阅的是**静态** ScadaEditHistory.Changed，
                 // 本段跑在一次性 STA 线程上，不摘就会让后面任何线程压栈都回调到一个死线程的 VM。
                 vm.Deactivate();

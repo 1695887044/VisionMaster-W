@@ -1268,7 +1268,47 @@ namespace VisionMaster.Scada.Controls
                         },
                     },
                     TextProperties.Text("标题", "产品记录", isBindable: false,
-                        description: "表格左上角的标题；留空则只剩右侧的行数")),
+                        description: "表格左上角的标题；留空则只剩右侧的行数"),
+                    // 外观三条 + 表头/斑马纹三条（2026-10-28 补）。
+                    // 此前刻意不声明 Fill/Stroke（模板写死深色令牌），浅色主题下整张表是一块黑；
+                    // 现在模板已改成 TemplateBinding Fill/Stroke/Foreground，声明即生效，不再是假开关。
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    TextProperties.Foreground("#FFA9B7C6"),
+                    new[]
+                    {
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HeaderBackground",
+                            DisplayName = "表头底色",
+                            Kind = ElementPropertyKind.Color,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = string.Empty,
+                            TargetProperty = DataGridElement.HeaderBackgroundProperty,
+                            Description = "标题条 / 列头 / 工具栏 / 底栏的底色。留空 = 深色令牌（原观感）；" +
+                                          "浅色主题给 #FFFFFFFF 或 #FFF9FAFB",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HeaderForeground",
+                            DisplayName = "表头文字色",
+                            Kind = ElementPropertyKind.Color,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = string.Empty,
+                            TargetProperty = DataGridElement.HeaderForegroundProperty,
+                            Description = "标题与列头文字颜色。留空 = 深色令牌；浅色主题给 #FF111827",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "ZebraBackground",
+                            DisplayName = "斑马纹底色",
+                            Kind = ElementPropertyKind.Color,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = string.Empty,
+                            TargetProperty = DataGridElement.ZebraBackgroundProperty,
+                            Description = "隔行底色。留空 = 8% 白（只在深色底上看得见）；浅色主题给 #FFF3F4F6",
+                        },
+                    }),
             },
 
             new()
@@ -1290,7 +1330,42 @@ namespace VisionMaster.Scada.Controls
                     TextProperties.Text("标题", "生产报表", isBindable: false,
                         description: "报表标题；打印与导出文件都用它"),
                     TextProperties.Foreground("#FFE6EEF7"),
-                    TextProperties.FontSize("12")),
+                    TextProperties.FontSize("12"),
+                    // 表头/斑马纹覆盖（2026-10-28 补）：浅色主题下那条深色标题条 + 列头太突兀。
+                    // 留空 = 深色令牌，零回归。
+                    new[]
+                    {
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HeaderBackground",
+                            DisplayName = "表头底色",
+                            Kind = ElementPropertyKind.Color,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = string.Empty,
+                            TargetProperty = ReportElement.HeaderBackgroundProperty,
+                            Description = "标题条 / 列头 / 工具条的底色。留空 = 深色令牌；浅色主题给 #FFFFFFFF",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "HeaderForeground",
+                            DisplayName = "表头文字色",
+                            Kind = ElementPropertyKind.Color,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = string.Empty,
+                            TargetProperty = ReportElement.HeaderForegroundProperty,
+                            Description = "标题与列头文字颜色。留空 = 深色令牌；浅色主题给 #FF111827",
+                        },
+                        new ElementPropertyDescriptor
+                        {
+                            Key = "ZebraBackground",
+                            DisplayName = "斑马纹底色",
+                            Kind = ElementPropertyKind.Color,
+                            Group = ScadaPropertyGroups.Appearance,
+                            DefaultValue = string.Empty,
+                            TargetProperty = ReportElement.ZebraBackgroundProperty,
+                            Description = "隔行底色。留空 = 8% 白（只在深色底上看得见）；浅色主题给 #FFF3F4F6",
+                        },
+                    }),
             },
 
             new()

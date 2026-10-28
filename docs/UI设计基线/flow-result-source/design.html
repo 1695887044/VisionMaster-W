@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisionMaster · 运行统计 · 结果源配置 · Web 设计基线 v1</title>
+<style>
+  :root{
+    --page-bg:#E9EEF5;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.16) 1px, transparent 0) 0 0/24px 24px,
+      var(--page-bg);
+    color:#0F172A; font-family:var(--font); font-size:13px; line-height:1.5;
+    padding:26px 26px 70px; -webkit-font-smoothing:antialiased;
+  }
+  button,select{ font-family:inherit; }
+  button{ color:inherit; border:0; background:none; padding:0; cursor:pointer; }
+  .page{ max-width:1560px; margin:0 auto 18px; }
+  .page h1{ margin:0; font-size:20px; font-weight:600; display:flex; align-items:center; gap:10px; letter-spacing:-.01em; }
+  .ver{ display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px; background:#E0F2FE; color:#0284C7; font-size:11px; font-weight:700; }
+  .page .meta{ margin:7px 0 0; color:#475569; font-size:12.5px; max-width:1480px; }
+  .page .meta b{ color:#0F172A; }
+  .legend{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .tag{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:6px; background:#FFF; border:1px solid #E2E8F0; color:#475569; font-size:11.5px; }
+  .tag i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot-ok{ background:#22C55E; } .dot-var{ background:#7C3AED; } .dot-port{ background:#0EA5E9; } .dot-none{ background:#94A3B8; }
+
+  /* 评审模式切换（不属于应用界面） */
+  .modes{ display:flex; align-items:center; gap:8px; max-width:1560px; margin:0 auto 14px; padding:10px 12px; background:#FFF; border:1px solid #CBD5E1; border-radius:12px; box-shadow:0 2px 8px rgba(15,23,42,.05); }
+  .modes .lbl{ font-size:11px; font-weight:700; color:#64748B; letter-spacing:.04em; }
+  .modes .seg{ display:flex; gap:2px; background:#F1F5F9; border-radius:8px; padding:3px; }
+  .modes .seg button{ height:28px; padding:0 12px; border-radius:6px; font-size:12px; color:#475569; }
+  .modes .seg button:hover{ background:#E2E8F0; color:#0F172A; }
+  .modes .seg button.on{ background:#FFF; color:#0F172A; font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.08); }
+  .modes .ro{ margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11.5px; color:#475569; }
+  .modes .ro input{ accent-color:#0284C7; }
+
+  /* 应用舞台（简化壳，只为把弹窗放进上下文） */
+  .stage{ position:relative; max-width:1560px; margin:0 auto; border-radius:14px; overflow:hidden; border:1px solid #CBD5E1; background:#FFF; box-shadow:0 12px 32px rgba(15,23,42,.12),0 2px 8px rgba(15,23,42,.05); }
+  .stage .screen{ position:relative; width:100%; aspect-ratio:16/9; background:#F1F5F9; display:flex; flex-direction:column; }
+  .tb{ height:40px; flex:none; display:flex; align-items:center; gap:8px; padding:0 12px; background:#FFF; border-bottom:1px solid #E2E8F0; }
+  .tb .logo{ width:22px; height:22px; border-radius:6px; display:grid; place-items:center; background:linear-gradient(135deg,#0EA5E9,#2563EB); color:#FFF; font-size:10px; font-weight:800; }
+  .tb .nm{ font-size:12.5px; font-weight:600; }
+  .tb .doc{ margin-left:auto; margin-right:auto; font-size:12px; color:#475569; }
+  .tb .doc b{ color:#0F172A; }
+  .workspace{ flex:1; min-height:0; display:flex; background:#F1F5F9; }
+  .rail{ width:190px; flex:none; background:#FFF; border-right:1px solid #E2E8F0; padding:10px; }
+  .rail .h{ font-size:10px; font-weight:700; color:#94A3B8; letter-spacing:.05em; margin:2px 4px 8px; }
+  .pill{ height:24px; display:flex; align-items:center; gap:6px; padding:0 8px; border-radius:6px; font-size:11.5px; color:#475569; margin-bottom:3px; }
+  .pill.on{ background:#E0F2FE; color:#0284C7; font-weight:600; }
+  .pill .d{ width:6px; height:6px; border-radius:50%; background:#22C55E; margin-left:auto; }
+  .canvas{ flex:1; padding:14px; display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .img{ border-radius:8px; border:1px solid #CBD5E1; background:linear-gradient(145deg,#0B1220,#111C2E 55%,#0A1526); position:relative; overflow:hidden; }
+  .img .grid{ position:absolute; inset:0; background-image:linear-gradient(rgba(148,163,184,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.12) 1px,transparent 1px); background-size:28px 28px; }
+  .img .roi{ position:absolute; left:30%; top:32%; width:38%; height:32%; border:2px solid #22C55E; border-radius:4px; box-shadow:0 0 0 9999px rgba(2,6,23,.28); }
+  .img .lbl{ position:absolute; top:8px; left:8px; height:20px; padding:0 7px; display:inline-flex; align-items:center; gap:6px; border-radius:5px; background:rgba(2,6,23,.72); color:#E2E8F0; font-size:10.5px; }
+  .img .lbl i{ width:6px; height:6px; border-radius:50%; background:#22C55E; }
+  .inspector{ width:230px; flex:none; background:#FFF; border-left:1px solid #E2E8F0; padding:10px; }
+  .inspector .h{ font-size:11px; font-weight:700; color:#475569; margin-bottom:8px; }
+  .irow{ display:flex; justify-content:space-between; padding:5px 0; border-bottom:1px dashed #EEF2F7; font-size:11px; }
+  .irow .k{ color:#94A3B8; } .irow .v{ color:#0F172A; font-weight:600; }
+  .statusbar{ height:28px; flex:none; display:flex; align-items:center; gap:8px; padding:0 10px; background:#F8FAFC; border-top:1px solid #E2E8F0; font-size:11px; color:#475569; }
+  .statusbar .ok{ color:#15803D; font-weight:600; } .statusbar .sep{ width:1px; height:14px; background:#CBD5E1; }
+
+  .overlay{ position:absolute; inset:0; background:rgba(15,23,42,.42); display:flex; align-items:center; justify-content:center; padding:18px; }
+  .dialog{ width:600px; max-width:calc(100% - 20px); background:#FFF; border:1px solid #CBD5E1; border-radius:12px; box-shadow:0 24px 64px rgba(15,23,42,.28),0 4px 12px rgba(15,23,42,.12); overflow:hidden; }
+  .dlg-h{ display:flex; align-items:flex-start; gap:10px; padding:14px 16px 12px; border-bottom:1px solid #EEF2F7; }
+  .dlg-h .t{ font-size:14px; font-weight:600; }
+  .dlg-h .s{ margin-top:2px; font-size:11px; color:#64748B; }
+  .dlg-h .x{ margin-left:auto; width:24px; height:24px; display:grid; place-items:center; border-radius:6px; color:#94A3B8; }
+  .dlg-h .x:hover{ background:#F1F5F9; color:#0F172A; }
+  .dlg-b{ display:grid; grid-template-columns:190px minmax(0,1fr); min-height:330px; }
+  .modecol{ background:#F8FAFC; border-right:1px solid #EEF2F7; padding:10px 8px; }
+  .modecol .lbl{ font-size:10px; font-weight:700; color:#94A3B8; letter-spacing:.05em; padding:2px 6px 7px; }
+  .mode{ display:block; width:100%; text-align:left; padding:8px 9px; border-radius:7px; margin-bottom:3px; border:1px solid transparent; }
+  .mode:hover{ background:#FFF; border-color:#E2E8F0; }
+  .mode.on{ background:#FFF; border-color:#BAE6FD; box-shadow:0 1px 2px rgba(15,23,42,.05); }
+  .mode .mt{ display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:#0F172A; }
+  .mode .md{ margin-top:2px; font-size:10px; color:#94A3B8; line-height:1.45; }
+  .mode.on .mt{ color:#0284C7; }
+  .mode .badge{ margin-left:auto; height:16px; padding:0 5px; border-radius:4px; background:#E0F2FE; color:#0284C7; font-size:9px; font-weight:700; display:inline-flex; align-items:center; }
+  .panel{ padding:14px 16px; }
+  .panel h3{ margin:0 0 4px; font-size:12px; }
+  .panel .hint{ margin:0 0 12px; font-size:10.5px; color:#64748B; line-height:1.6; }
+  .card{ border:1px solid #E2E8F0; border-radius:9px; padding:11px 12px; background:#FFF; }
+  .card + .card{ margin-top:8px; }
+  .card .ct{ display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:600; }
+  .src{ display:inline-flex; align-items:center; height:19px; padding:0 7px; border-radius:4px; font-size:10px; font-weight:700; }
+  .src.step{ background:#E0F2FE; color:#0284C7; }
+  .src.var{ background:#F5F3FF; color:#6D28D9; }
+  .src.port{ background:#ECFEFF; color:#0E7490; }
+  .src.none{ background:#F1F5F9; color:#64748B; }
+  .kv{ display:grid; grid-template-columns:72px minmax(0,1fr); gap:6px 8px; font-size:11px; margin-top:8px; }
+  .kv .k{ color:#94A3B8; } .kv .v{ color:#0F172A; font-weight:600; }
+  .kv .v.mono{ font-family:var(--mono); font-weight:500; }
+  .fallback{ margin:8px 0 0; padding-left:16px; font-size:10.5px; color:#475569; line-height:1.7; }
+  .fallback b{ color:#0F172A; }
+  .warn{ margin-top:9px; padding:8px 9px; border-radius:7px; background:#FFF4E5; color:#B45309; font-size:10.5px; line-height:1.6; }
+  .err{ margin-top:9px; padding:8px 9px; border-radius:7px; background:#FEF2F2; color:#B91C1C; font-size:10.5px; line-height:1.6; }
+  .okbox{ margin-top:9px; padding:8px 9px; border-radius:7px; background:#F0FDF4; color:#15803D; font-size:10.5px; line-height:1.6; }
+  label.f{ display:block; font-size:10px; font-weight:700; color:#64748B; letter-spacing:.03em; margin:0 0 4px; }
+  select{ width:100%; height:30px; padding:0 8px; border:1px solid #CBD5E1; border-radius:6px; background:#FFF; font-size:11.5px; color:#0F172A; }
+  select:disabled{ background:#F1F5F9; color:#94A3B8; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:10px; }
+  .val{ margin-top:6px; display:flex; align-items:center; gap:6px; font-size:10.5px; color:#64748B; }
+  .val b{ color:#0F172A; font-family:var(--mono); font-weight:600; }
+  .dlg-f{ display:flex; align-items:center; gap:10px; padding:11px 16px; border-top:1px solid #EEF2F7; background:#F8FAFC; }
+  .dlg-f .sum{ font-size:10.5px; color:#64748B; }
+  .dlg-f .sum b{ color:#0F172A; }
+  .dlg-f .btns{ margin-left:auto; display:flex; gap:8px; }
+  .btn{ height:30px; padding:0 13px; border-radius:6px; border:1px solid #CBD5E1; background:#FFF; color:#0F172A; font-size:12px; }
+  .btn:hover{ background:#F8FAFC; }
+  .btn.pri{ background:#0284C7; border-color:#0284C7; color:#FFF; font-weight:600; }
+  .btn.pri:hover{ background:#0369A1; }
+  .btn[disabled]{ opacity:.45; cursor:not-allowed; background:#F1F5F9; color:#94A3B8; border-color:transparent; }
+  .ro-note{ margin-top:8px; padding:8px 9px; border-radius:7px; background:#F1F5F9; color:#64748B; font-size:10.5px; }
+  .toast{ position:absolute; left:50%; bottom:18px; transform:translateX(-50%) translateY(6px); padding:7px 12px; border-radius:8px; background:rgba(15,23,42,.9); color:#F8FAFC; font-size:11px; opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease; }
+  .toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .notes{ max-width:1560px; margin:18px auto 0; display:grid; grid-template-columns:1.2fr 1fr; gap:14px; }
+  .note-card{ background:#FFF; border:1px solid #E2E8F0; border-radius:12px; padding:14px 16px; }
+  .note-card h3{ margin:0 0 8px; font-size:12px; }
+  .note-card ul{ margin:0; padding-left:18px; color:#475569; font-size:11px; line-height:1.8; }
+  .note-card b{ color:#0F172A; }
+  @media (max-width:1100px){ .dlg-b{ grid-template-columns:1fr; } .modecol{ border-right:0; border-bottom:1px solid #EEF2F7; } .notes{ grid-template-columns:1fr; } }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1>运行统计 · 结果源配置 <span class="ver">v1 草案</span></h1>
+  <p class="meta">
+    每条流程显式声明"本轮 OK/NG 从哪来"：<b>自动</b>（结果输出步骤 &gt; 结果变量 &gt; 步骤端口）、
+    <b>结果输出步骤</b>、<b>结果变量</b>、<b>步骤端口</b>、<b>不参与</b>。
+    保存前能看到"当前生效"和校验结果；不改流程图、不自动插入步骤。设计媒介，不是交付物（R126）。
+  </p>
+  <div class="legend">
+    <span class="tag"><i class="dot-ok"></i>自动 / 结果步骤</span>
+    <span class="tag"><i class="dot-var"></i>结果变量</span>
+    <span class="tag"><i class="dot-port"></i>步骤端口</span>
+    <span class="tag"><i class="dot-none"></i>不参与</span>
+  </div>
+</div>
+
+<div class="modes">
+  <span class="lbl">评审模式</span>
+  <div class="seg" id="modeSeg">
+    <button class="on" data-mode="auto">自动</button>
+    <button data-mode="step">结果输出步骤</button>
+    <button data-mode="variable">结果变量</button>
+    <button data-mode="port">步骤端口</button>
+    <button data-mode="none">不参与</button>
+  </div>
+  <label class="ro"><input type="checkbox" id="roToggle"> 只读态（无流程编辑权限）</label>
+</div>
+
+<div class="stage">
+  <div class="screen">
+    <div class="tb">
+      <span class="logo">VM</span><span class="nm">VisionMaster</span>
+      <span class="doc"><b>智能装配检测线</b> · 流程 <b>Station_B</b></span>
+    </div>
+    <div class="workspace">
+      <aside class="rail">
+        <div class="h">流程</div>
+        <div class="pill">Main <span class="d"></span></div>
+        <div class="pill">Station_A <span class="d"></span></div>
+        <div class="pill on">Station_B <span class="d"></span></div>
+        <div class="pill">Station_C <span class="d"></span></div>
+        <div class="pill" style="color:#94A3B8">Home</div>
+      </aside>
+      <main class="canvas">
+        <div class="img"><div class="grid"></div><div class="roi"></div><div class="lbl"><i></i>相机 1 · 定位</div></div>
+        <div class="img"><div class="grid"></div><div class="roi" style="border-color:#EF4444"></div><div class="lbl"><i style="background:#EF4444"></i>相机 2 · 焊点</div></div>
+      </main>
+      <aside class="inspector">
+        <div class="h">本轮</div>
+        <div class="irow"><span class="k">流程</span><span class="v">Station_B</span></div>
+        <div class="irow"><span class="k">轮次</span><span class="v">#12842</span></div>
+        <div class="irow"><span class="k">判定</span><span class="v" style="color:#B91C1C">NG</span></div>
+        <div class="irow"><span class="k">判定源</span><span class="v">结果输出步骤</span></div>
+        <div class="irow"><span class="k">步骤</span><span class="v">37 / 37</span></div>
+      </aside>
+    </div>
+    <div class="statusbar">
+      <span class="ok">● 运行中</span><span class="sep"></span><span>节拍 842 ms</span><span class="sep"></span><span>OK 1,284</span><span class="sep"></span><span>NG 17</span><span class="sep"></span><span>未判定 3</span>
+    </div>
+
+    <div class="overlay">
+      <div class="dialog" id="dialog">
+        <div class="dlg-h">
+          <div>
+            <div class="t">运行统计 · 结果源</div>
+            <div class="s">Station_B · 贴装检测 · 主任务</div>
+          </div>
+          <button class="x" title="关闭">✕</button>
+        </div>
+
+        <div class="dlg-b">
+          <div class="modecol" id="modeCol">
+            <div class="lbl">判定来源</div>
+            <button class="mode on" data-mode="auto">
+              <span class="mt">自动 <span class="badge">推荐</span></span>
+              <span class="md">结果输出步骤 &gt; 结果变量 &gt; 步骤端口</span>
+            </button>
+            <button class="mode" data-mode="step">
+              <span class="mt">结果输出步骤</span>
+              <span class="md">只用流程图里的「结果输出」</span>
+            </button>
+            <button class="mode" data-mode="variable">
+              <span class="mt">结果变量</span>
+              <span class="md">读已有布尔变量（如工位B_Result）</span>
+            </button>
+            <button class="mode" data-mode="port">
+              <span class="mt">步骤端口</span>
+              <span class="md">读判定表/逻辑运算的 bool 输出</span>
+            </button>
+            <button class="mode" data-mode="none">
+              <span class="mt">不参与统计</span>
+              <span class="md">不计入底栏 OK/NG；仍记录轮次</span>
+            </button>
+          </div>
+
+          <div class="panel" id="panel"></div>
+        </div>
+
+        <div class="dlg-f">
+          <div class="sum" id="summary"></div>
+          <div class="btns">
+            <button class="btn" id="cancelBtn">取消</button>
+            <button class="btn pri" id="saveBtn">保存</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note-card">
+    <h3>为什么需要它</h3>
+    <ul>
+      <li><b>旧方案没有结果输出步骤</b>：它们用 <code>&lt;工位&gt;_Result</code> 变量；显式配置后不用再靠命名约定猜。</li>
+      <li><b>判定表/逻辑运算直接给 bool 端口</b>：步骤端口模式不用额外加变量。</li>
+      <li><b>自动模式保留回退链</b>：结果输出步骤 &gt; 配置变量 &gt; 配置端口 &gt; 约定变量 &gt; 未判定。</li>
+      <li><b>不改流程图</b>：不自动插入步骤、不自动改变量；配置只影响宿主解析。</li>
+    </ul>
+  </div>
+  <div class="note-card">
+    <h3>待拍板（Q1~Q6）</h3>
+    <ul>
+      <li>Q1 入口：右键「运行统计…」还是流程管理列？<b>默认右键</b></li>
+      <li>Q2 变量候选：只列 bool，还是允许 string/int 归一化？<b>默认只列 bool</b></li>
+      <li>Q3 「不参与」是否允许主流程选？<b>允许 + 保存警告</b></li>
+      <li>Q4 自动模式没结果步骤：保存阻断还是只提示？<b>只提示</b></li>
+      <li>Q5 步骤端口是否允许分支里的步骤？<b>允许 + 提示未走到即未判定</b></li>
+      <li>Q6 配置何时生效？<b>下一轮（解析器轮末读取）</b></li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  const state = {
+    mode: 'auto',
+    variable: 'Station_B_Result',
+    step: '判定表 · 外观',
+    port: 'IsOk',
+    readonly: false,
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const srcClass = { step: 'step', variable: 'var', port: 'port', none: 'none' };
+
+  function modeLabel(mode) {
+    return { auto: '自动', step: '结果输出步骤', variable: '结果变量', port: '步骤端口', none: '不参与统计' }[mode];
+  }
+
+  function currentSummary() {
+    if (state.mode === 'auto') return '自动 · 结果输出步骤「结果输出」';
+    if (state.mode === 'step') return '结果输出步骤 · 结果输出';
+    if (state.mode === 'variable') return `结果变量 · ${state.variable || '未选择'}（当前值 false）`;
+    if (state.mode === 'port') return `步骤端口 · ${state.step || '未选择'}.${state.port || '未选择'}`;
+    return '不参与统计';
+  }
+
+  function validation() {
+    if (state.readonly) return { ok: false, text: '只读：需要流程编辑权限' };
+    if (state.mode === 'variable' && !state.variable) return { ok: false, text: '请选择结果变量' };
+    if (state.mode === 'port' && (!state.step || !state.port)) return { ok: false, text: '请选择判定步骤与 bool 输出端口' };
+    return { ok: true, text: '' };
+  }
+
+  function panelAuto() {
+    return `
+      <h3>自动（推荐）</h3>
+      <p class="hint">按固定优先级解析；命中第一个可用的来源。适合新方案，也兼容旧变量。</p>
+      <div class="card">
+        <div class="ct">当前生效 <span class="src step">结果输出步骤</span></div>
+        <div class="kv">
+          <span class="k">步骤</span><span class="v">结果输出 · 主路径末尾</span>
+          <span class="k">状态</span><span class="v" style="color:#15803D">本轮已执行 · Success</span>
+          <span class="k">判定</span><span class="v" style="color:#B91C1C">NG（IsOk=false）</span>
+        </div>
+        <div class="okbox">命中结果输出步骤；不会再去读变量/端口。</div>
+      </div>
+      <div class="card">
+        <div class="ct">回退顺序</div>
+        <ol class="fallback">
+          <li><b>结果输出步骤</b>（State=Success，取最后执行）</li>
+          <li>配置的<b>结果变量</b>（bool）</li>
+          <li>配置的<b>步骤端口</b>（bool）</li>
+          <li>约定变量 <b>&lt;流程名&gt;_Result</b></li>
+          <li>以上都没有 → <b>未判定</b></li>
+        </ol>
+      </div>`;
+  }
+
+  function panelStep() {
+    return `
+      <h3>结果输出步骤</h3>
+      <p class="hint">只认流程图里的「结果输出」步骤；没有或本轮没执行 → 未判定。</p>
+      <div class="card">
+        <div class="ct">检测到的结果输出步骤 <span class="src step">1 个</span></div>
+        <div class="kv">
+          <span class="k">步骤</span><span class="v">结果输出 · 主路径末尾</span>
+          <span class="k">位置</span><span class="v">主路径 · 最后一步</span>
+          <span class="k">IsOk 来源</span><span class="v mono">判定表 · 外观.IsOk</span>
+        </div>
+        <div class="okbox">保存后该流程的 OK/NG 由这个步骤声明。</div>
+      </div>
+      <div class="warn">没有结果输出步骤时，底栏 OK/NG 将显示「未判定」；不会自动插入步骤。</div>`;
+  }
+
+  function panelVariable() {
+    return `
+      <h3>结果变量</h3>
+      <p class="hint">读一个已存在的布尔变量。变量必须每轮被流程写入；跳过写入步骤时本轮会沿用上一轮。</p>
+      <div class="card">
+        <label class="f">结果变量（只列 bool）</label>
+        <select id="varSelect">
+          <option value="">（未选择）</option>
+          <option value="Station_B_Result" ${state.variable === 'Station_B_Result' ? 'selected' : ''}>Station_B_Result（bool）</option>
+          <option value="Line_Result" ${state.variable === 'Line_Result' ? 'selected' : ''}>Line_Result（bool）</option>
+        </select>
+        <div class="val">当前值 <b>${state.variable ? 'false' : '—'}</b> · 类型 <b>Boolean</b></div>
+        ${state.variable ? '<div class="okbox">变量存在且可写；保存后下一轮生效。</div>' : '<div class="err">请选择结果变量；否则无法保存。</div>'}
+      </div>
+      <div class="warn">变量必须由流程每轮无条件写入；否则建议改用结果输出步骤或加轮次戳。</div>`;
+  }
+
+  function panelPort() {
+    return `
+      <h3>步骤端口</h3>
+      <p class="hint">读某个步骤的 bool 输出端口（如判定表的 IsOk）。步骤本轮没执行 → 未判定。</p>
+      <div class="card">
+        <label class="f">判定步骤</label>
+        <select id="stepSelect">
+          <option value="">（未选择）</option>
+          <option value="判定表 · 外观" ${state.step === '判定表 · 外观' ? 'selected' : ''}>判定表 · 外观</option>
+          <option value="逻辑运算 · 汇总" ${state.step === '逻辑运算 · 汇总' ? 'selected' : ''}>逻辑运算 · 汇总</option>
+          <option value="结果输出 · 主路径末尾" ${state.step === '结果输出 · 主路径末尾' ? 'selected' : ''}>结果输出 · 主路径末尾</option>
+        </select>
+        <label class="f" style="margin-top:9px">输出端口（只列 bool）</label>
+        <select id="portSelect">
+          <option value="">（未选择）</option>
+          <option value="IsOk" ${state.port === 'IsOk' ? 'selected' : ''}>IsOk</option>
+          <option value="Result" ${state.port === 'Result' ? 'selected' : ''}>Result</option>
+        </select>
+        <div class="val">端口类型 <b>Boolean</b> · 取值 <b>${state.step && state.port ? 'false' : '—'}</b></div>
+        ${state.step && state.port ? '<div class="okbox">步骤在主路径上；保存后下一轮生效。</div>' : '<div class="err">请选择判定步骤与 bool 输出端口。</div>'}
+      </div>
+      <div class="warn">分支里的步骤允许选；但分支未走到时本轮记「未判定」，不会沿用上一轮。</div>`;
+  }
+
+  function panelNone() {
+    return `
+      <h3>不参与统计</h3>
+      <p class="hint">该流程不计入底栏 OK/NG / 未判定；轮次仍记录，可在下钻里查看。</p>
+      <div class="card">
+        <div class="ct">适用流程</div>
+        <div class="kv">
+          <span class="k">Home / End</span><span class="v">骨架流程，不产生产品</span>
+          <span class="k">子程序</span><span class="v">被调用流程，不独立计数</span>
+          <span class="k">辅助流程</span><span class="v">标定 / 调试 / 回原点</span>
+        </div>
+        <div class="warn">主流程选「不参与」时，底栏「全部」将没有线级 OK/NG 来源；保存时会再警告一次。</div>
+      </div>`;
+  }
+
+  function render() {
+    const panels = { auto: panelAuto, step: panelStep, variable: panelVariable, port: panelPort, none: panelNone };
+    $('panel').innerHTML = panels[state.mode]();
+    document.querySelectorAll('#modeCol .mode').forEach(b => b.classList.toggle('on', b.dataset.mode === state.mode));
+    document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === state.mode));
+    $('summary').innerHTML = `当前生效：<b>${currentSummary()}</b>`;
+
+    const v = validation();
+    $('saveBtn').disabled = !v.ok;
+    $('saveBtn').title = v.ok ? '' : v.text;
+    if (state.readonly) {
+      document.querySelectorAll('#dialog select,#dialog .mode').forEach(el => { el.disabled = true; });
+      $('panel').insertAdjacentHTML('beforeend', '<div class="ro-note">只读：当前账号没有流程编辑权限；请联系管理员。</div>');
+    }
+
+    const varSel = $('varSelect');
+    if (varSel) varSel.addEventListener('change', (e) => { state.variable = e.target.value; render(); });
+    const stepSel = $('stepSelect');
+    if (stepSel) stepSel.addEventListener('change', (e) => { state.step = e.target.value; render(); });
+    const portSel = $('portSelect');
+    if (portSel) portSel.addEventListener('change', (e) => { state.port = e.target.value; render(); });
+  }
+
+  document.querySelectorAll('#modeSeg button').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; state.readonly = false; $('roToggle').checked = false; render(); }));
+  document.querySelectorAll('#modeCol .mode').forEach(b => b.addEventListener('click', () => { if (state.readonly) return; state.mode = b.dataset.mode; render(); }));
+  $('roToggle').addEventListener('change', (e) => { state.readonly = e.target.checked; render(); });
+  $('cancelBtn').addEventListener('click', () => toast('取消（演示）'));
+  $('saveBtn').addEventListener('click', () => {
+    const v = validation();
+    if (!v.ok) { toast(v.text); return; }
+    toast('已保存：' + currentSummary() + '（演示）');
+  });
+
+  let timer = null;
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('on');
+    clearTimeout(timer);
+    timer = setTimeout(() => el.classList.remove('on'), 1800);
+  }
+
+  render();
+</script>
+</body>
+</html>

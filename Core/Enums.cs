@@ -288,7 +288,18 @@ namespace VisionMaster
         /// <summary>停止单条流程（按流程名找会话；未运行则提示）</summary>
         Stop,
         /// <summary>方案级变量事件配置（从流程栏进入；数据仍属方案，不属单条流程）</summary>
-        VariableEvents
+        VariableEvents,
+        /// <summary>
+        /// 批量设置本流程所有"带显示窗口"算子的显示窗口号（0 = 不显示，1~9 = 主界面第 N 格）。
+        /// 追加在末尾——本枚举只作 UI 命令参数、不存盘，但保持"只许末尾追加"的统一习惯。
+        /// </summary>
+        BatchDisplayWindow,
+
+        /// <summary>
+        /// 配置本流程的「运行统计 · 结果源」（自动 / 结果输出步骤 / 结果变量 / 步骤端口 / 不参与）。
+        /// 追加在末尾——本枚举只作 UI 命令参数、不存盘。
+        /// </summary>
+        ResultSource
     }
 
     /// <summary>

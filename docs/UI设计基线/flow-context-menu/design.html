@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>流程列表 · 右键菜单 设计基线 v1</title>
+<style>
+  /* ============================================================
+     令牌：与 UI/Controls/Themes/Colors.xaml 一一对应（README 有映射表）
+     ============================================================ */
+  :root {
+    --accent: #0EA5E9;              /* DialogAccentBrush */
+    --accent-text: #0369A1;         /* DialogAccentTextBrush */
+    --accent-soft: #F0F9FF;         /* DialogAccentSoftBrush */
+
+    --surface: #FFFFFF;             /* ScadaSurfaceBrush / DialogSurfaceBrush */
+    --background: #EEF2F7;          /* DialogBackgroundBrush（设计稿外壳，不进视图） */
+    --border: #E2E8F0;              /* DialogBorderBrush */
+    --border-light: #EEF2F7;        /* DialogBorderLightBrush */
+    --border-strong: #CBD5E1;       /* DialogBorderStrongBrush */
+
+    --text-1: #303133;              /* ScadaTextBrush */
+    --text-2: #66708A;              /* ScadaSecondaryTextBrush */
+    --text-3: #A8ABB2;              /* ScadaFaintTextBrush */
+    --text-4: #C0C4CC;              /* ScadaDisabledTextBrush */
+
+    --chip-bg: #E6EBF2;             /* ScadaBadgeBackgroundBrush */
+    --row-hover: #F1F5F9;           /* ScadaToolbarHoverBrush / DialogRowHoverBrush */
+
+    --indigo-fg: #4338CA;           /* LogicIfTextBrush */
+    --indigo-bg: #EEF2FF;           /* LogicIfSoftBrush */
+    --indigo-bd: #C7D2FE;           /* LogicIfBorderBrush */
+
+    --success: #22C55E;             /* FlowCanvasSuccessBrush / DialogSuccessBrush */
+    --success-fg: #15803D;          /* DialogSuccessTextBrush */
+    --success-bg: #F0FDF4;          /* DialogSuccessSubtleBrush */
+    --success-bd: #BBF7D0;          /* DialogSuccessBorderBrush */
+
+    --danger: #EF4444;              /* DialogDangerBrush */
+    --danger-fg: #B91C1C;           /* DialogDangerTextBrush */
+    --danger-bg: #FEF2F2;           /* DialogDangerSubtleBrush */
+    --danger-bd: #FECACA;           /* DialogDangerBorderBrush */
+
+    --amber-fg: #B45309;            /* DialogWarningTextBrush */
+    --amber-bg: #FFF4E5;            /* DialogWarningSubtleBrush */
+
+    --radius-menu: 14px;            /* StepContextMenuStyle CornerRadius */
+    --radius-row: 8px;
+    --radius-chip: 7px;
+    --font: "Segoe UI", "Microsoft YaHei", -apple-system, system-ui, sans-serif;
+    --mono: "Cascadia Mono", Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 28px 28px 60px;
+    background: var(--background);
+    font-family: var(--font);
+    color: var(--text-1);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .page-head { max-width: 1180px; margin: 0 auto 22px; }
+  .page-head h1 { margin: 0 0 6px; font-size: 19px; font-weight: 600; letter-spacing: .01em; }
+  .page-head .meta { font-size: 11.5px; color: var(--text-2); font-family: var(--mono); }
+  .page-head .meta b { color: var(--text-1); font-weight: 600; }
+  .page-head .status {
+    display: inline-block; margin-left: 8px; padding: 1px 7px;
+    border: 1px solid var(--border-strong); border-radius: 999px;
+    font-family: var(--font); font-size: 11px; color: var(--text-2);
+  }
+
+  section { max-width: 1180px; margin: 0 auto 30px; }
+  .sec-title {
+    display: flex; align-items: baseline; gap: 10px;
+    margin: 0 0 12px; padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px; font-weight: 600;
+  }
+  .sec-title small { font-weight: 400; font-size: 11.5px; color: var(--text-2); }
+
+  /* ============================================================
+     1. 真实上下文：流程栏（340px）+ 画布 + 菜单浮层
+     ============================================================ */
+  .app {
+    position: relative;
+    display: flex;
+    width: 980px;
+    height: 660px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(15,23,42,.08);
+    overflow: hidden;
+  }
+
+  .leftcol {
+    width: 340px;
+    flex: 0 0 340px;
+    border-right: 1px solid var(--border-light);
+    display: flex; flex-direction: column;
+    background: var(--surface);
+  }
+
+  /* --- 流程胶囊条（沿用 flow-list v2：112px 单行紧凑式） --- */
+  .flowlist { height: 112px; border-bottom: 1px solid var(--border-light); display: flex; flex-direction: column; }
+  .flowlist .strip { padding: 6px 6px 0; }
+  .flowlist .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .capsule {
+    display: flex; align-items: center; gap: 5px;
+    height: 22px; padding: 0 6px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: var(--surface); color: var(--text-2);
+    font-family: inherit; font-size: 11px; text-align: left; cursor: pointer;
+  }
+  .capsule .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--success); flex: 0 0 6px; }
+  .capsule .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .capsule .role {
+    flex: 0 0 auto; padding: 0 3px; border-radius: 2px;
+    font-size: 9px; line-height: 12px; border: 1px solid transparent;
+  }
+  .capsule .role.main { color: var(--indigo-fg); background: var(--indigo-bg); border-color: var(--indigo-bd); }
+  .capsule .role.home { color: #6D28D9; background: #F5F3FF; border-color: #DDD6FE; }
+  .capsule .role.end { color: var(--amber-fg); background: #FFFBEB; border-color: #FDE68A; }
+  .capsule .steps { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--text-3); }
+  .capsule[aria-pressed="true"] {
+    background: var(--indigo-bg); border-color: var(--indigo-bd); color: var(--indigo-fg); font-weight: 600;
+  }
+  .capsule[aria-pressed="true"] .steps { color: var(--indigo-fg); opacity: .75; }
+  .flowlist .footbar {
+    margin-top: auto; display: flex; align-items: center;
+    height: 26px; padding: 0 8px;
+    border-top: 1px solid var(--border-light);
+    font-size: 10.5px; color: var(--text-2);
+  }
+  .flowlist .footbar .right { margin-left: auto; }
+
+  /* --- 步骤树（菜单下方那层，只画观感） --- */
+  .steptree { flex: 1; padding: 8px 8px; overflow: hidden; }
+  .steptree .head { font-size: 10.5px; color: var(--text-3); margin: 2px 4px 6px; letter-spacing: .06em; }
+  .steprow {
+    display: flex; align-items: center; gap: 7px;
+    height: 26px; padding: 0 6px; border-radius: 6px;
+    color: var(--text-2); font-size: 11.5px;
+  }
+  .steprow .ic {
+    width: 16px; height: 16px; border-radius: 4px;
+    background: var(--chip-bg); display: flex; align-items: center; justify-content: center;
+    font-size: 9px; color: var(--text-2);
+  }
+  .steprow.branch { color: #0F766E; background: #F0FDFA; border: 1px solid #CCFBF1; margin: 3px 0; }
+
+  /* --- 画布（只画观感，给菜单一个真实落点） --- */
+  .canvas {
+    position: relative; flex: 1;
+    background:
+      radial-gradient(circle at 1px 1px, #D8DFE9 1px, transparent 0) 0 0 / 18px 18px,
+      #FBFCFE;
+    overflow: hidden;
+  }
+  .frame {
+    position: absolute; left: 40px; top: 40px; width: 560px; height: 470px;
+    border: 1px solid #86EFAC; border-radius: 12px; background: rgba(240,253,244,.55);
+  }
+  .frame .ftitle {
+    position: absolute; left: 14px; top: -9px; padding: 0 6px;
+    background: #FBFCFE; font-size: 10.5px; color: #15803D;
+  }
+  .node {
+    position: absolute; width: 168px; padding: 8px 10px;
+    background: #fff; border: 1px solid var(--border); border-radius: 9px;
+    box-shadow: 0 2px 6px rgba(15,23,42,.05);
+  }
+  .node .nhead { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-1); }
+  .node .nhead .ic {
+    width: 18px; height: 18px; border-radius: 5px; background: var(--chip-bg);
+    display: flex; align-items: center; justify-content: center; font-size: 9px; color: var(--text-2);
+  }
+  .node .nsub { margin: 4px 0 0 24px; font-size: 9.5px; color: var(--text-3); }
+  .node .ndot { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+  .link { position: absolute; width: 2px; background: #CBD5E1; }
+
+  /* ============================================================
+     2. 菜单组件
+     ============================================================ */
+  .menu {
+    width: 320px;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-menu);
+    box-shadow: 0 12px 32px rgba(15,23,42,.18), 0 2px 6px rgba(15,23,42,.06);
+    font-size: 12.5px;
+    user-select: none;
+  }
+  .menu .group { padding: 2px 0; }
+  .menu .group + .group { border-top: 1px solid var(--border-light); margin-top: 2px; padding-top: 4px; }
+
+  .menu .ghead {
+    display: flex; align-items: center; gap: 8px;
+    height: 20px; padding: 0 8px;
+    font-size: 10px; letter-spacing: .1em; color: var(--text-2);
+  }
+  .menu .ghead::after { content: ""; flex: 1; height: 1px; background: var(--border-light); }
+
+  .menu .item {
+    display: flex; align-items: center; gap: 9px;
+    height: 32px; padding: 0 8px;
+    border-radius: var(--radius-row);
+    color: var(--text-1); cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .menu .item .chip {
+    flex: 0 0 20px; width: 20px; height: 20px;
+    border-radius: var(--radius-chip); background: var(--chip-bg);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-2);
+    transition: background-color 150ms ease, color 150ms ease;
+  }
+  .menu .item .chip svg { width: 12px; height: 12px; display: block; }
+  .menu .item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .menu .item .badge {
+    flex: 0 0 auto; padding: 0 6px; border-radius: 999px;
+    font-size: 9.5px; line-height: 15px;
+    color: var(--text-2); background: var(--row-hover); border: 1px solid var(--border-light);
+  }
+
+  /* 语气色：图标底片（菜单与放大样张共用）+ 悬停底色（仅菜单） */
+  .item.tone-accent .chip { background: var(--accent-soft); color: var(--accent-text); }
+  .item.tone-indigo .chip { background: var(--indigo-bg); color: var(--indigo-fg); }
+  .item.tone-success .chip { background: var(--success-bg); color: var(--success-fg); }
+  .item.tone-amber .chip { background: var(--amber-bg); color: var(--amber-fg); }
+  .item.tone-danger .chip { background: var(--danger-bg); color: var(--danger); }
+  .item.tone-danger { color: var(--danger-fg); }
+
+  .menu .item.tone-accent:hover { background: var(--accent-soft); }
+  .menu .item.tone-indigo:hover { background: var(--indigo-bg); }
+  .menu .item.tone-success:hover { background: var(--success-bg); }
+  .menu .item.tone-amber:hover { background: var(--amber-bg); }
+  .menu .item.tone-danger:hover { background: var(--danger-bg); }
+  .menu .item.tone-slate:hover { background: var(--row-hover); }
+
+  .menu .item:hover .badge { background: #fff; border-color: var(--border); }
+
+  .menu .item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .menu .item[aria-disabled="true"] {
+    color: var(--text-3); cursor: default; background: transparent;
+  }
+  .menu .item[aria-disabled="true"] .chip { opacity: .5; }
+  .menu .item[aria-disabled="true"]:hover { background: transparent; }
+  .menu .item[aria-disabled="true"] .badge { color: var(--text-3); }
+
+  .menu .foot {
+    margin: 4px 0 -2px; padding: 7px 9px 3px;
+    border-top: 1px solid var(--border-light);
+    font-size: 10.5px; color: var(--text-3);
+  }
+  .menu .foot b { color: var(--text-2); font-weight: 600; }
+
+  /* ============================================================
+     3. 变体 B：双行说明式（与步骤菜单同款）
+     ============================================================ */
+  .menu--rich { width: 340px; }
+  .menu--rich .item { height: 44px; padding: 0 8px; }
+  .menu--rich .item .chip { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 8px; }
+  .menu--rich .item .chip svg { width: 14px; height: 14px; }
+  .menu--rich .item .texts { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
+  .menu--rich .item .label { flex: none; font-size: 12.5px; }
+  .menu--rich .item .desc {
+    font-size: 10.5px; color: var(--text-2); opacity: .78;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .menu--rich .item.tone-danger .desc { color: var(--danger-fg); opacity: .8; }
+  .menu--rich .item[aria-disabled="true"] .desc { color: var(--text-3); opacity: .7; }
+
+  /* ============================================================
+     4. 状态矩阵 / 放大样张
+     ============================================================ */
+  .matrix { display: flex; flex-wrap: wrap; gap: 22px; align-items: flex-start; }
+  /* 四态矩阵固定 2×2：320×4 一行放不下，flex-wrap 会折成 3+1 的孤行 */
+  .matrix-4 { display: grid; grid-template-columns: repeat(2, 320px); gap: 22px 26px; align-items: start; }
+  .cell { display: flex; flex-direction: column; gap: 8px; }
+  .cell .cap { font-size: 11px; color: var(--text-2); font-family: var(--mono); }
+  .cell .cap b { color: var(--text-1); }
+
+  .zoomrow { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .zoom { width: 320px; padding: 6px; background: var(--surface); border: 1px solid var(--border-light); border-radius: var(--radius-menu); box-shadow: 0 8px 22px rgba(15,23,42,.10); }
+  .zoom .cap2 { font-size: 10.5px; color: var(--text-3); padding: 4px 8px 0; }
+  .zoom .item { display: flex; align-items: center; gap: 9px; height: 32px; padding: 0 8px; border-radius: 8px; color: var(--text-1); font-size: 12.5px; }
+  .zoom .item .chip { width: 20px; height: 20px; border-radius: 7px; background: var(--chip-bg); display: flex; align-items: center; justify-content: center; color: var(--text-2); }
+  .zoom .item .chip svg { width: 12px; height: 12px; }
+  .zoom .item .badge { margin-left: auto; padding: 0 6px; border-radius: 999px; font-size: 9.5px; line-height: 15px; color: var(--text-2); background: var(--row-hover); border: 1px solid var(--border-light); }
+  .zoom .is-hover { background: var(--row-hover); }
+  .zoom .is-hover-indigo { background: var(--indigo-bg); }
+  .zoom .is-hover-indigo .chip { background: #fff; }
+  .zoom .is-danger { background: var(--danger-bg); color: var(--danger-fg); }
+  .zoom .is-danger .chip { background: #fff; color: var(--danger); }
+  .zoom .is-focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .zoom .is-disabled { color: var(--text-3); }
+  .zoom .is-disabled .chip { opacity: .5; }
+  .zoom .is-disabled .badge { color: var(--text-3); }
+
+  /* ============================================================
+     5. 规格与令牌表
+     ============================================================ */
+  table { border-collapse: collapse; width: 100%; max-width: 980px; background: var(--surface); font-size: 12px; }
+  th, td { border: 1px solid var(--border); padding: 6px 9px; text-align: left; vertical-align: top; }
+  th { background: #F8FAFC; font-weight: 600; color: var(--text-1); }
+  td code, p code { font-family: var(--mono); font-size: 11px; color: var(--text-1); }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; border: 1px solid rgba(0,0,0,.08); vertical-align: -1px; margin-right: 5px; }
+
+  .note {
+    max-width: 980px; margin-top: 10px; padding: 10px 12px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent); border-radius: 6px;
+    font-size: 11.5px; color: var(--text-2);
+  }
+  .note b { color: var(--text-1); }
+
+  .menu-anchor { position: absolute; left: 186px; top: 74px; z-index: 5; }
+</style>
+</head>
+<body>
+
+<header class="page-head">
+  <h1>流程列表 · 右键菜单 设计基线 v1</h1>
+  <div class="meta">
+    覆盖 <b>VisionMaster\Views\FlowListView.xaml</b> 的流程胶囊右键菜单 ·
+    2026-10-27 · 320 / 340 两档 · 12 项
+    <span class="status">待用户确认</span>
+  </div>
+</header>
+
+<!-- ============================================================
+     1. 推荐稿 A：在真实上下文中
+     ============================================================ -->
+<section>
+  <h2 class="sec-title">A · 推荐稿：分组 + 紧凑单行（320px）<small>菜单总高约 512px，112px 流程条下方仍可完整放下</small></h2>
+
+  <div class="app">
+    <div class="leftcol">
+      <div class="flowlist">
+        <div class="strip">
+          <div class="grid">
+            <button class="capsule" aria-pressed="false"><span class="dot"></span><span class="name">回原点</span><span class="role home">零</span><span class="steps">6</span></button>
+            <button class="capsule" aria-pressed="false"><span class="dot"></span><span class="name">主检测</span><span class="role main">主</span><span class="steps">18</span></button>
+            <button class="capsule" aria-pressed="false"><span class="dot"></span><span class="name">定位检测</span><span class="steps">11</span></button>
+            <button class="capsule" aria-pressed="true"><span class="dot"></span><span class="name">NCC缺陷检测</span><span class="steps">9</span></button>
+            <button class="capsule" aria-pressed="false"><span class="dot"></span><span class="name">数据上报</span><span class="steps">4</span></button>
+            <button class="capsule" aria-pressed="false"><span class="dot"></span><span class="name">收尾</span><span class="role end">尾</span><span class="steps">5</span></button>
+          </div>
+        </div>
+        <div class="footbar"><span><b class="mono">6</b> 条流程</span><span class="right">选中：NCC缺陷检测</span></div>
+      </div>
+
+      <div class="steptree">
+        <div class="head">步骤 · 9</div>
+        <div class="steprow"><span class="ic">◉</span>读取散焦图像</div>
+        <div class="steprow"><span class="ic">◉</span>NCC模板匹配</div>
+        <div class="steprow branch"><span class="ic">IF</span>If [Score &gt; 0.8]</div>
+        <div class="steprow" style="padding-left:20px"><span class="ic">◉</span>显示检测结果</div>
+        <div class="steprow"><span class="ic">◉</span>结果输出</div>
+        <div class="steprow"><span class="ic">◉</span>数据记录</div>
+      </div>
+    </div>
+
+    <div class="canvas">
+      <div class="frame"><span class="ftitle">遍历样例目录（工厂批量检测口径）</span></div>
+
+      <div class="node" style="left:70px; top:80px">
+        <div class="nhead"><span class="ic">◉</span>读取散焦图像<span class="ndot"></span></div>
+        <div class="nsub">散焦 · 采集</div>
+      </div>
+      <div class="node" style="left:70px; top:170px">
+        <div class="nhead"><span class="ic">◉</span>NCC模板匹配<span class="ndot"></span></div>
+        <div class="nsub">模板匹配 · find_ncc_model</div>
+      </div>
+      <div class="node" style="left:70px; top:270px">
+        <div class="nhead"><span class="ic">◉</span>显示检测结果<span class="ndot"></span></div>
+        <div class="nsub">结果显示 · 标注图与判定</div>
+      </div>
+      <div class="node" style="left:300px; top:170px">
+        <div class="nhead"><span class="ic">IF</span>If [Score &gt; 0.8]<span class="ndot"></span></div>
+        <div class="nsub">分支 · 2 条</div>
+      </div>
+
+      <div class="link" style="left:153px; top:132px; height:38px"></div>
+      <div class="link" style="left:153px; top:232px; height:38px"></div>
+    </div>
+
+    <!-- 菜单锚点：与选中的胶囊同一水平线，向右下展开 -->
+    <div class="menu-anchor">
+      <div class="menu" id="menuA"></div>
+    </div>
+  </div>
+
+  <div class="note">
+    <b>为什么去掉「流程 ▸」子菜单：</b>当前 12 项里有 9 项藏在二级菜单里，每次都要多一次悬停；
+    而菜单本身只有 320px 宽、12 项在 512px 高度内放得下。分组标题（流程 / 配置 / 运行 / 方案）
+    比子菜单更快扫读，也让「批量设置显示窗口」这类新命令有固定归属。
+  </div>
+</section>
+
+<!-- ============================================================
+     2. 状态矩阵
+     ============================================================ -->
+<section>
+  <h2 class="sec-title">B · 四种真实状态<small>禁用项一律带 ToolTip 说明原因（不是静默变灰）</small></h2>
+  <div class="matrix-4">
+    <div class="cell">
+      <div class="cap"><b>B1</b> 默认：流程启用、未运行</div>
+      <div class="menu" id="menuB1"></div>
+    </div>
+    <div class="cell">
+      <div class="cap"><b>B2</b> 流程已禁用（禁用态不阻止选中，右键仍可用）</div>
+      <div class="menu" id="menuB2"></div>
+    </div>
+    <div class="cell">
+      <div class="cap"><b>B3</b> 骨架流程（主流程 Main）</div>
+      <div class="menu" id="menuB3"></div>
+    </div>
+    <div class="cell">
+      <div class="cap"><b>B4</b> 运行中（暂停时「批量设置」恢复可用）</div>
+      <div class="menu" id="menuB4"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     3. 变体 B：双行说明式
+     ============================================================ -->
+<section>
+  <h2 class="sec-title">C · 变体：双行说明式（340px，与步骤菜单同款）<small>零新样式面，但菜单总高约 660px</small></h2>
+  <div class="matrix">
+    <div class="cell">
+      <div class="cap">C1 · 默认态（完整 12 项）</div>
+      <div class="menu menu--rich" id="menuC"></div>
+    </div>
+    <div class="cell" style="max-width:560px">
+      <div class="note" style="margin-top:0">
+        <b>取舍：</b>双行式直接复用 <code>StepContextMenuStyle</code> / <code>StepMenuItemStyle</code>
+        （44px 行、28px 图标底片、13/11px 双行、页脚），与流程栏步骤右键完全一致，<b>不需要新增任何样式</b>；
+        代价是 12 项 × 44px + 4 个分组标题 ≈ <b>660px</b>，在 1366×768 这类窗口高度下会超出可视区
+        （模板里的 ScrollViewer 会接管，但滚动菜单不好用）。
+        <br><br>
+        <b>建议：</b>默认用 A（320px / 32px 行 / 512px 高）；如果后续菜单项还要增加，
+        或者希望"和步骤菜单长得一模一样"，再切到 C，并同时把「流程管理 / 变量事件」挪到二级。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     4. 交互态放大样张
+     ============================================================ -->
+<section>
+  <h2 class="sec-title">D · 交互态（R115 五态）<small>悬停按语气着色；焦点环 2px 内嵌；禁用不响应悬停</small></h2>
+  <div class="zoomrow">
+    <div class="zoom">
+      <div class="cap2">Normal</div>
+      <div class="item tone-indigo"><span class="chip" data-icon="window"></span>批量设置显示窗口</div>
+      <div class="cap2">Hover（语气浅底）</div>
+      <div class="item tone-indigo is-hover"><span class="chip" data-icon="window"></span>批量设置显示窗口</div>
+      <div class="cap2">Focus（键盘）</div>
+      <div class="item tone-indigo is-focus"><span class="chip" data-icon="window"></span>批量设置显示窗口</div>
+    </div>
+
+    <div class="zoom">
+      <div class="cap2">Danger · Normal</div>
+      <div class="item tone-danger"><span class="chip" data-icon="trash"></span>删除</div>
+      <div class="cap2">Danger · Hover</div>
+      <div class="item tone-danger is-danger"><span class="chip" data-icon="trash"></span>删除</div>
+      <div class="cap2">Disabled（灰字 + 灰底片）</div>
+      <div class="item is-disabled" aria-disabled="true" title="骨架流程不允许删除"><span class="chip" data-icon="trash"></span>删除</div>
+    </div>
+
+    <div class="zoom">
+      <div class="cap2">状态徽标（启用/禁用）</div>
+      <div class="item tone-amber"><span class="chip" data-icon="power"></span>禁用流程<span class="badge">当前：已启用</span></div>
+      <div class="cap2">状态徽标（停止）</div>
+      <div class="item tone-danger"><span class="chip" data-icon="stop"></span>停止本流程<span class="badge">未运行</span></div>
+      <div class="cap2">页脚（作用范围）</div>
+      <div style="padding:2px 8px 6px;font-size:10.5px;color:var(--text-3);border-top:1px solid var(--border-light)">仅作用于「NCC缺陷检测」</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     5. 规格 + 令牌映射
+     ============================================================ -->
+<section>
+  <h2 class="sec-title">E · 规格与令牌映射<small>全部键都已在 Colors.xaml 存在，不新增令牌</small></h2>
+
+  <table>
+    <tr><th style="width:170px">项</th><th style="width:190px">值</th><th>WPF 落地</th></tr>
+    <tr><td>菜单宽</td><td>320（变体 340）</td><td><code>Width="320"</code>；模板 <code>Margin="10"</code> 留给阴影</td></tr>
+    <tr><td>菜单内边距</td><td>6</td><td><code>Padding="6"</code>（沿用 StepContextMenuStyle）</td></tr>
+    <tr><td>圆角</td><td>14</td><td><code>CornerRadius="14"</code></td></tr>
+    <tr><td>行高</td><td>32（变体 44）</td><td>行 <code>MinHeight</code>；<code>Margin="0,1"</code></td></tr>
+    <tr><td>行圆角</td><td>8（变体 9）</td><td><code>CornerRadius="8"</code></td></tr>
+    <tr><td>图标底片</td><td>20×20 / 圆角 7 / 图标 12</td><td><code>Border Width=20 Height=20 CornerRadius=7</code>；<code>FontSize=12</code></td></tr>
+    <tr><td>分组标题</td><td>高 20 · 10px · 字距 .1em</td><td>不可聚焦的 <code>MenuItem</code>（<code>IsEnabled=False</code> + <code>Focusable=False</code>）或自定义 <code>Separator</code> 模板</td></tr>
+    <tr><td>页脚</td><td>高 28 · 10.5px</td><td>沿用 StepContextMenuStyle 的 <code>Footer</code>（<code>MenuItemEx.Footer</code>）</td></tr>
+    <tr><td>阴影</td><td>0 12 32 / .18 + 0 2 6 / .06</td><td><code>DropShadowEffect BlurRadius=28 ShadowDepth=6 Opacity=.18</code></td></tr>
+    <tr><td>动效</td><td>背景/前景 150ms</td><td>WPF 菜单项无过渡；<b>不做</b>（R116 的 150~200ms 只用于有过渡的控件）</td></tr>
+  </table>
+
+  <table style="margin-top:14px">
+    <tr><th style="width:150px">语义</th><th style="width:120px">Web 值</th><th style="width:250px">WPF 资源键</th><th>用途</th></tr>
+    <tr><td>菜单底</td><td><span class="swatch" style="background:#FFFFFF"></span>#FFFFFF</td><td><code>ScadaSurfaceBrush</code></td><td>外框</td></tr>
+    <tr><td>外框描边</td><td><span class="swatch" style="background:#EEF2F7"></span>#EEF2F7</td><td><code>DialogBorderLightBrush</code></td><td>1px 边框 / 分组分隔 / 页脚上边</td></tr>
+    <tr><td>正文</td><td><span class="swatch" style="background:#303133"></span>#303133</td><td><code>ScadaTextBrush</code></td><td>菜单项标题</td></tr>
+    <tr><td>次级</td><td><span class="swatch" style="background:#66708A"></span>#66708A</td><td><code>ScadaSecondaryTextBrush</code></td><td>默认图标 / 徽标文字</td></tr>
+    <tr><td>弱化</td><td><span class="swatch" style="background:#A8ABB2"></span>#A8ABB2</td><td><code>ScadaFaintTextBrush</code></td><td>分组标题 / 页脚 / 禁用项</td></tr>
+    <tr><td>图标底片</td><td><span class="swatch" style="background:#E6EBF2"></span>#E6EBF2</td><td><code>ScadaBadgeBackgroundBrush</code></td><td>中性项 20×20 底</td></tr>
+    <tr><td>悬停底</td><td><span class="swatch" style="background:#F1F5F9"></span>#F1F5F9</td><td><code>ScadaToolbarHoverBrush</code></td><td>中性项 hover</td></tr>
+    <tr><td>强调（新增/焦点）</td><td><span class="swatch" style="background:#0EA5E9"></span>#0EA5E9</td><td><code>DialogAccentBrush</code></td><td>焦点环 / 「添加流程」</td></tr>
+    <tr><td>强调浅底 / 深字</td><td><span class="swatch" style="background:#F0F9FF"></span>#F0F9FF · <span class="swatch" style="background:#0369A1"></span>#0369A1</td><td><code>DialogAccentSoftBrush</code> / <code>DialogAccentTextBrush</code></td><td>「添加流程」底与字</td></tr>
+    <tr><td>配置族（靛蓝）</td><td><span class="swatch" style="background:#EEF2FF"></span>#EEF2FF · <span class="swatch" style="background:#4338CA"></span>#4338CA</td><td><code>LogicIfSoftBrush</code> / <code>LogicIfTextBrush</code></td><td>「批量设置显示窗口」</td></tr>
+    <tr><td>运行族（绿）</td><td><span class="swatch" style="background:#F0FDF4"></span>#F0FDF4 · <span class="swatch" style="background:#15803D"></span>#15803D</td><td><code>DialogSuccessSubtleBrush</code> / <code>DialogSuccessTextBrush</code></td><td>运行一次 / 循环运行</td></tr>
+    <tr><td>警示族（琥珀）</td><td><span class="swatch" style="background:#FFF4E5"></span>#FFF4E5 · <span class="swatch" style="background:#B45309"></span>#B45309</td><td><code>DialogWarningSubtleBrush</code> / <code>DialogWarningTextBrush</code></td><td>禁用 / 启用流程</td></tr>
+    <tr><td>危险族（红）</td><td><span class="swatch" style="background:#FEF2F2"></span>#FEF2F2 · <span class="swatch" style="background:#EF4444"></span>#EF4444 · <span class="swatch" style="background:#B91C1C"></span>#B91C1C</td><td><code>DialogDangerSubtleBrush</code> / <code>DialogDangerBrush</code> / <code>DialogDangerTextBrush</code></td><td>删除 / 停止</td></tr>
+  </table>
+
+  <div class="note">
+    <b>图标：</b>Web 稿用 12px 线性图标示意；WPF 用现有 <code>DialogIconFont</code>（Font Awesome 6 Pro Solid）字形，
+    每个菜单项的字形码点在 <code>README.md</code> 的「图标映射」表里逐项给出（沿用现有菜单已用的码点，只新增启用的 <code>f204/f205</code>）。
+  </div>
+</section>
+
+<script>
+/* ============================================================
+   菜单数据：12 项 = 现有 11 个 FlowAction + 本次新增 BatchDisplayWindow
+   ============================================================ */
+const ICONS = {
+  plus:    '<path d="M12 5v14M5 12h14"/>',
+  pen:     '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+  comment: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  trash:   '<path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/>',
+  power:   '<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><path d="M12 2v10"/>',
+  bolt:    '<path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/>',
+  window:  '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M15 3v6"/>',
+  play:    '<path d="M8 5v14l11-7z" fill="currentColor" stroke="none"/>',
+  rotate:  '<path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/>',
+  stop:    '<rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none"/>',
+  list:    '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  bell:    '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>'
+};
+
+function svg(name) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" '
+       + 'stroke-linecap="round" stroke-linejoin="round">' + (ICONS[name] || '') + '</svg>';
+}
+
+const GROUPS = [
+  { title: '流程', items: [
+    { id: 'create',  label: '添加流程', icon: 'plus',    tone: 'accent',  desc: '在当前流程之后插入一条新流程' },
+    { id: 'rename',  label: '重命名',   icon: 'pen',     tone: 'slate',   desc: '修改流程名（运行标识，必须唯一）' },
+    { id: 'comment', label: '编辑注释', icon: 'comment', tone: 'slate',   desc: '补充这条流程的用途说明' },
+    { id: 'delete',  label: '删除',     icon: 'trash',   tone: 'danger',  desc: '连同步骤一起删除；骨架流程不允许删除' }
+  ]},
+  { title: '配置', items: [
+    { id: 'toggle',  label: '禁用流程', labelAlt: '启用流程', icon: 'power', tone: 'amber', desc: '禁用后不参与自动触发，手动运行也会被拦截' },
+    { id: 'compile', label: '编译本流程', icon: 'bolt',  tone: 'slate',   desc: '按当前图纸重新编译，供运行使用' },
+    { id: 'batch',   label: '批量设置显示窗口', icon: 'window', tone: 'indigo', desc: '把本流程所有出图算子的显示窗口一次设好' }
+  ]},
+  { title: '运行', items: [
+    { id: 'runOnce', label: '运行一次', icon: 'play',    tone: 'success', desc: '单次执行这条流程' },
+    { id: 'runLoop', label: '循环运行', icon: 'rotate',  tone: 'success', desc: '连续执行，直到「停止本流程」' },
+    { id: 'stop',    label: '停止本流程', icon: 'stop',  tone: 'danger',  desc: '停止这条流程的运行会话' }
+  ]},
+  { title: '方案', items: [
+    { id: 'manager', label: '流程管理', icon: 'list',    tone: 'slate',   desc: '批量查看与管理方案内所有流程' },
+    { id: 'events',  label: '变量事件（方案级）', icon: 'bell', tone: 'slate', desc: '配置方案级变量变化触发的动作' }
+  ]}
+];
+
+/* 状态配置：disabled 里的 id 会变灰；reasons 给 ToolTip；badges 显示右侧徽标 */
+const STATES = {
+  default: {
+    disabled: ['stop'],
+    reasons: { stop: '当前未运行' },
+    badges: { toggle: '当前：已启用', stop: '未运行' }
+  },
+  disabledFlow: {
+    disabled: ['compile', 'batch', 'runOnce', 'runLoop', 'stop'],
+    reasons: {
+      compile: '流程已禁用，编译会被跳过',
+      batch: '流程已禁用，请先启用',
+      runOnce: '流程已禁用，请先启用',
+      runLoop: '流程已禁用，请先启用',
+      stop: '流程已禁用，不会运行'
+    },
+    alt: { toggle: true },
+    badges: { toggle: '当前：已禁用' }
+  },
+  mandatory: {
+    disabled: ['delete', 'stop'],
+    reasons: { delete: '骨架流程不允许删除', stop: '当前未运行' },
+    badges: { toggle: '当前：已启用', stop: '未运行' }
+  },
+  running: {
+    disabled: ['compile', 'batch', 'runOnce', 'runLoop'],
+    reasons: {
+      compile: '流程运行中，禁止编辑；如需修改请先停止',
+      batch: '流程运行中，禁止编辑；如需修改请先停止',
+      runOnce: '流程正在运行，请先停止',
+      runLoop: '流程正在运行，请先停止'
+    },
+    badges: { toggle: '当前：已启用', stop: '运行中' }
+  }
+};
+
+function renderMenu(el, stateName, rich) {
+  const st = STATES[stateName] || STATES.default;
+  const dis = new Set(st.disabled || []);
+  let html = '';
+
+  GROUPS.forEach((group, gi) => {
+    html += '<div class="group">';
+    html += '<div class="ghead">' + group.title + '</div>';
+    group.items.forEach(it => {
+      const isDis = dis.has(it.id);
+      const label = (st.alt && st.alt[it.id] && it.labelAlt) ? it.labelAlt : it.label;
+      const badge = (st.badges && st.badges[it.id]) || '';
+      const reason = (st.reasons && st.reasons[it.id]) || (isDis ? '当前不可用' : '');
+      html += '<div class="item tone-' + it.tone + '"'
+            + (isDis ? ' aria-disabled="true" title="' + reason + '"' : ' title="' + it.desc + '"')
+            + ' tabindex="' + (isDis ? '-1' : '0') + '">'
+            + '<span class="chip">' + svg(it.icon) + '</span>'
+            + (rich
+                ? '<span class="texts"><span class="label">' + label + '</span><span class="desc">' + it.desc + '</span></span>'
+                : '<span class="label">' + label + '</span>')
+            + (badge ? '<span class="badge">' + badge + '</span>' : '')
+            + '</div>';
+    });
+    html += '</div>';
+  });
+
+  html += '<div class="foot">仅作用于<b>「NCC缺陷检测」</b></div>';
+  el.innerHTML = html;
+}
+
+renderMenu(document.getElementById('menuA'), 'default', false);
+renderMenu(document.getElementById('menuB1'), 'default', false);
+renderMenu(document.getElementById('menuB2'), 'disabledFlow', false);
+renderMenu(document.getElementById('menuB3'), 'mandatory', false);
+renderMenu(document.getElementById('menuB4'), 'running', false);
+renderMenu(document.getElementById('menuC'), 'default', true);
+
+/* 放大样张里的图标（span.chip 自带 data-icon） */
+document.querySelectorAll('[data-icon]').forEach(el => {
+  el.innerHTML = svg(el.getAttribute('data-icon'));
+});
+</script>
+</body>
+</html>

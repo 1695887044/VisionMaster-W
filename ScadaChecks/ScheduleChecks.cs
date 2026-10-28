@@ -25,11 +25,13 @@ namespace ScadaChecks
 
                 // ---------------- 时间算术 ----------------
 
-                Check("[SC1] 时刻解析：HH:mm 认、非法回落 false、秒被丢弃",
+                Check("[SC1] 时刻解析：HH:mm 认、非法回落 false、秒被丢弃、单数字分钟（8:0 / 8:5）拒绝",
                     ScadaScheduleClock.TryParseTimeOfDay("08:00", out var eight) && eight == TimeSpan.FromHours(8)
                     && ScadaScheduleClock.TryParseTimeOfDay("20:30:45", out var half) && half == new TimeSpan(20, 30, 0)
                     && !ScadaScheduleClock.TryParseTimeOfDay("25:00", out _)
-                    && !ScadaScheduleClock.TryParseTimeOfDay("abc", out _),
+                    && !ScadaScheduleClock.TryParseTimeOfDay("abc", out _)
+                    && !ScadaScheduleClock.TryParseTimeOfDay("8:0", out _)
+                    && !ScadaScheduleClock.TryParseTimeOfDay("8:5", out _),
                     eight.ToString());
 
                 var days = ScadaScheduleClock.ParseDays("1,3,5,9,x");

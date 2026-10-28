@@ -50,7 +50,7 @@ namespace Plugin.Calibration
         ShortName = "\uf05b"
     )]
     [ParallelSafe] // 二期真并行：纯视觉计算
-    public partial class CalibrationPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class CalibrationPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
     {
         /// <summary>画布标记半径的下限（图像像素）：大图上按图幅比例放大，小图上不至于变成一坨</summary>
         private const double MarkerMinRadius = 8;
@@ -342,6 +342,42 @@ namespace Plugin.Calibration
         /// <summary>写入方案资产时用的稳定 Id（留空 = 由步骤名确定性生成）</summary>
         [StepConfig, DefaultValue("")]
         public partial string CatalogAssetId { get; set; }
+
+        /// <summary>
+        /// 标定图来自哪份**图像资产**（留空 = 用 <see cref="SourceImagePath"/> 端口里的路径）。
+        ///
+        /// 为什么要有它：标定图是这一份标定的"源内容"，而端口里存的是本机绝对路径 ——
+        /// 换台机器 / 图被挪走，标定就无法复核。资产 Id 跨机器稳定，路径由宿主按方案目录解析。
+        /// **只对单图标定成立**（像素当量 / 九点 / 透视 / 网格）；批量内参标定用的是一整个
+        /// 文件夹（<see cref="IntrinsicsImageFolder"/>），一个 image 资产表达不了 N 张图。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public partial string SourceImageAssetId { get; set; }
+
+        /// <summary>可选的图像资产（配置壳打开时由宿主推送；含第一项"（不使用资产）"）</summary>
+        public ObservableCollection<AssetPathOption> ImageAssetOptions { get; } = new();
+
+        private PluginConfigContext? _configContext;
+
+        /// <summary>宿主在配置窗口打开后推一次上下文快照（见 IPluginConfigContextProvider）</summary>
+        public void SetConfigContext(PluginConfigContext context)
+        {
+            _configContext = context;
+
+            ImageAssetOptions.Clear();
+            ImageAssetOptions.Add(new AssetPathOption { AssetId = Guid.Empty, Name = "（不使用资产）" });
+            if (context?.Assets != null)
+            {
+                foreach (var asset in context.Assets.Where(
+                             a => string.Equals(a.Kind, "image", StringComparison.OrdinalIgnoreCase)))
+                    ImageAssetOptions.Add(asset);
+            }
+
+            OnPropertyChanged(nameof(ImageAssetOptions));
+            PostToUIAsync(EnsurePreviewLoaded);
+        }
+
+        partial void OnSourceImageAssetIdChanged(string value) => PostToUIAsync(EnsurePreviewLoaded);
 
         /// <summary>标定数据是否可编辑（界面绑定 IsEnabled；锁定 = 只读防误改）</summary>
         public bool IsEditable => !IsCalibrationLocked;
@@ -2371,11 +2407,39 @@ namespace Plugin.Calibration
         }
 
         /// <summary>路径与已载入的不一致就载图（手工输入/浏览/链接变更都汇到这里）</summary>
+        /// <summary>
+        /// 实际要载入的标定图路径：**图像资产优先**，其次端口值（旧路径）。
+        ///
+        /// 资产解析不到时**不静默退回端口**：那会让人以为"选了资产"，实际看的却是另一张图，
+        /// 而这张图的尺寸还会被写进标定快照（换分辨率就失效的自证元信息）。
+        /// </summary>
+        private string ResolveSourceImagePath(out string assetError)
+        {
+            assetError = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(SourceImageAssetId))
+                return SourceImagePath.GetTypedValue() ?? string.Empty;
+
+            if (PluginConfigAssetPaths.TryResolve(_configContext, SourceImageAssetId, "image", out var path, out var error))
+                return path;
+
+            assetError = error;
+            return string.Empty;
+        }
+
         private void EnsurePreviewLoaded()
         {
             if (_disposed) return;
 
-            var path = SourceImagePath.GetTypedValue();
+            var path = ResolveSourceImagePath(out var assetError);
+            if (assetError.Length > 0)
+            {
+                // 不动当前预览：清掉画布会让人以为图丢了，而实际只是资产暂时解析不到
+                // （已归档 / 文件被移走 / 方案还没保存）。
+                SetStatus("标定图资产无法解析：" + assetError, StatusLevel.Error);
+                return;
+            }
+
             if (string.IsNullOrWhiteSpace(path))
             {
                 // "显式移除"才作废元信息：此前确有文件预览（或刚载过）→ 清尺寸；

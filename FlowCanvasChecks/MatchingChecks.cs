@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Threading;
 using Core.Halcon.Color;
 using Core.Interfaces;
+using Core.Interfaces.Assets;
 using HalconDotNet;
 using Plugin.Matching;
 using VisionMaster.Models;
@@ -36,11 +39,14 @@ namespace FlowCanvasChecks
             RunLocateContract();
             RunTransformContract();
             RunScaleAndSerialize();
+            RunAnisoScaleContract();
             RunNotFoundAndStaleness();
             RunCircleTemplate();
             RunSmearMask();
             RunNccOrigin();
+            RunHalconSampleSolution();
             RunRecipeContract();
+            RunRefImageAssetContract();
             RunMigration();
             RunRegressionFixes();
         }
@@ -370,6 +376,319 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  ③b 各向异性缩放（行/列分别缩放）：create_aniso_shape_model 链路
+        // ==================================================================
+
+        /// <summary>各向异性图案的中心（与 BuildScene 的 (150,200) 错开，避免两个图案的断言互相借用真值）</summary>
+        private const double AnisoRow = 200,
+            AnisoCol = 260;
+
+        /// <summary>
+        /// 各向异性专用图案：暗底板（120×100，灰 60）+ 5 根 7px 细亮竖条 + 右下角不对称方块（灰 255）。
+        ///
+        /// 为什么不用 <see cref="BuildScene"/> 的"圆盘 + 十字"：那套图案 90° 旋转对称，
+        /// 列向拉伸 1.2 时**各向异性与等比都能凑到 0.84 分**（本机实测），反向判据立不住。
+        /// 细竖条把"列向拉伸"累积成逐条错位，等比模型分数会明显掉下来（实测 0.77），
+        /// 各向异性模型则能回到 0.9997 —— 这就是"功能真的被使用"的判据来源。
+        /// </summary>
+        private static HImage BuildAnisoScene(double row, double col)
+        {
+            HOperatorSet.GenImageConst(out HObject proto, "byte", ImgW, ImgH);
+            HOperatorSet.GenImageProto(proto, out HObject img, 180);
+            HOperatorSet.GenRectangle1(out HObject body, row - 50, col - 60, row + 50, col + 60);
+            HOperatorSet.OverpaintRegion(img, body, 60, "fill");
+            for (int i = 0; i < 5; i++)
+            {
+                double c0 = col - 56 + i * 24;
+                HOperatorSet.GenRectangle1(out HObject bar, row - 44, c0, row + 20, c0 + 7);
+                HOperatorSet.OverpaintRegion(img, bar, 255, "fill");
+                bar.Dispose();
+            }
+            HOperatorSet.GenRectangle1(out HObject marker, row + 30, col + 34, row + 46, col + 56);
+            HOperatorSet.OverpaintRegion(img, marker, 255, "fill");
+            body.Dispose();
+            marker.Dispose();
+            proto.Dispose();
+            var image = new HImage(img);
+            img.Dispose();
+            return image;
+        }
+
+        /// <summary>
+        /// 各向异性档与等比档的同一个"列向拉伸 1.2 / 行向不变"图。
+        /// 参数顺序踩过的坑：`zoom_image_factor(Image, Zoomed, ScaleWidth, ScaleHeight, Interpolation)`
+        /// —— **宽度（列）在前**，与"行/列"的直觉顺序相反；写反了得到的是行向拉伸，断言会假红。
+        /// </summary>
+        private static HImage StretchColumns(HImage src, double colFactor, double rowFactor)
+        {
+            HOperatorSet.ZoomImageFactor(src, out HObject zoomed, colFactor, rowFactor, "constant");
+            var result = new HImage(zoomed);
+            zoomed.Dispose();
+            return result;
+        }
+
+        /// <summary>
+        /// 建一条"梳状图案"模板（aniso=true 走各向异性档，false 走等比档），并返回配置态 + 运行态。
+        /// 每个 creator 拿一份自己的图像拷贝：`MatchingPlugin.Dispose()` 会释放 `DisplayImage`，
+        /// 两个模板共用同一张图会让"先释放一个 creator 再跑另一个"变成用已释放的图。
+        /// </summary>
+        private static (MatchingPlugin creator, MatchingPlugin runtime) BuildAnisoTemplate(
+            HImage scene,
+            bool aniso,
+            double rowMin,
+            double rowMax,
+            double colMin,
+            double colMax
+        )
+        {
+            var creator = new MatchingPlugin { InstanceName = "匹配_各向异性_建模板" };
+            creator.DisplayImage = new HImage(scene);
+            creator.AddTemplateEntry("各向异性");
+            creator.CanvasShape = RoiShapeNames.Rectangle;
+            creator.CanvasRect = new double[] { AnisoRow, AnisoCol, 0, 70, 70 };
+
+            var entry = creator.EditingEntry!;
+            if (aniso)
+            {
+                entry.AnisoScaleEnabled = true;
+                entry.ScaleRowMin = rowMin;
+                entry.ScaleRowMax = rowMax;
+                entry.ScaleColMin = colMin;
+                entry.ScaleColMax = colMax;
+            }
+            else
+            {
+                entry.ScaleEnabled = true;
+                entry.ScaleMin = rowMin;
+                entry.ScaleMax = colMax; // 等比只有一路：取能覆盖拉伸倍率的上限
+            }
+
+            creator.CreateTemplate();
+
+            var runtime = new MatchingPlugin { InstanceName = "匹配_各向异性_断言" };
+            runtime.Initialize(ConfirmToStepData(creator));
+            return (creator, runtime);
+        }
+
+        /// <summary>
+        /// 各向异性缩放的四组判据：
+        /// ① 列向拉伸 1.2 的图必须命中、列缩放回准 1.2、行缩放回准 1.0；
+        /// ② 反向：同一张图关掉各向异性（只开等比）分数必须明显下降（证明功能真被用到）；
+        /// ③ 与同进程 HALCON 参考实现对拍（同图同参数）；
+        /// ④ 指纹与 JSON（改列范围 → 需重学；往返保留新字段；老 JSON 走默认值）。
+        /// 外加两条"不许静默"：NCC 下勾各向异性要明确告警；开关改了没重学要落 Warn。
+        ///
+        /// 本机实测（HALCON 23.05，520×400 合成图，拉伸 = zoom_image_factor(宽 1.2, 高 1.0)）：
+        /// 各向异性 ScaleR=0.9994 / ScaleC=1.2000 / Score=0.9997；
+        /// 等比（0.9~1.35）Score=0.7665 —— 容差按这组实测值定（行/列 ±0.02，分数 ≥0.95 vs ≤0.85）。
+        /// </summary>
+        private static void RunAnisoScaleContract()
+        {
+            Section("[Matching] 各向异性缩放：行/列分别缩放（create_aniso_shape_model / find_aniso_shape_model）");
+
+            using var scene = BuildAnisoScene(AnisoRow, AnisoCol);
+            using var stretched = StretchColumns(scene, 1.2, 1.0);
+
+            // 各向异性范围：行 0.9~1.1、列 1.0~1.35（**必须包含 1.0**，否则参考图自匹配不到、
+            // 原点锚定会静默失效；目标列缩放 1.2 也落在范围内）
+            var (creator, runtime) = BuildAnisoTemplate(scene, true, 0.9, 1.1, 1.0, 1.35);
+            try
+            {
+                // ---- ① 命中 + 行/列缩放回准 ----
+                Check("【各向异性】学习成功且载荷随方案序列化",
+                    creator.StatusLevel != StatusLevel.Error && creator.Library[0].Model.Length > 1000,
+                    $"StatusLevel={creator.StatusLevel} 文案='{creator.StatusMessage}' 载荷={creator.Library[0].Model.Length}");
+
+                var log = new StubLog();
+                runtime.Image.Value = stretched;
+                runtime.Execute(MakeContext(log));
+
+                int count = Convert.ToInt32(runtime.MatchCount.Value);
+                double score = Convert.ToDouble(runtime.Score.Value);
+                double[] rowsScale = AsDoubles(runtime.ScalesRow.Value);
+                double[] colsScale = AsDoubles(runtime.ScalesCol.Value);
+                double[] scales = AsDoubles(runtime.Scales.Value);
+                double scaleRow = rowsScale.FirstOrDefault();
+                double scaleCol = colsScale.FirstOrDefault();
+
+                Check("【各向异性】列 1.2 拉伸图命中 1 个实例且分数 ≥ 0.95",
+                    count == 1 && score >= 0.95,
+                    $"MatchCount={count} Score={score:0.000}（实测 0.9997）");
+                Check("【各向异性】列缩放回准 1.2（±0.02，实测 1.2000）",
+                    Math.Abs(scaleCol - 1.2) <= 0.02,
+                    $"ScaleCol={scaleCol:0.0000}（实测 1.2000，容差 ±0.02 覆盖金字塔/亚像素离散）");
+                Check("【各向异性】行缩放回准 1.0（±0.02，实测 0.9994）",
+                    Math.Abs(scaleRow - 1.0) <= 0.02,
+                    $"ScaleRow={scaleRow:0.0000}（实测 0.9994，容差 ±0.02）");
+                Check("【各向异性】Scales = 行缩放、ScalesCol = 列缩放（两路真的分开，差 ≈0.2）",
+                    Math.Abs(scales.FirstOrDefault() - scaleRow) <= 1e-9
+                    && Math.Abs(scaleCol - scaleRow) >= 0.15,
+                    $"Scales={scales.FirstOrDefault():0.0000} ScaleRow={scaleRow:0.0000} ScaleCol={scaleCol:0.0000}");
+                Check("【各向异性】ScalesRow/ScalesCol 与命中数逐项对齐",
+                    rowsScale.Length == count && colsScale.Length == count && count > 0,
+                    $"MatchCount={count} ScalesRow={rowsScale.Length} ScalesCol={colsScale.Length}");
+
+                // ---- ③ 与同进程 HALCON 参考实现对拍（同图、同参数）----
+                HOperatorSet.GenRectangle2(out HObject refRoi, AnisoRow, AnisoCol, 0, 70, 70);
+                HOperatorSet.ReduceDomain(scene, refRoi, out HObject refDomain);
+                refRoi.Dispose();
+                HOperatorSet.CreateAnisoShapeModel(
+                    refDomain, 5, -Math.PI, 2 * Math.PI, "auto",
+                    0.9, 1.1, "auto", 1.0, 1.35, "auto",
+                    "auto", "use_polarity", "auto", "auto",
+                    out HTuple refModelId);
+                refDomain.Dispose();
+                try
+                {
+                    HOperatorSet.FindAnisoShapeModel(
+                        stretched, refModelId, -Math.PI, 2 * Math.PI,
+                        0.9, 1.1, 1.0, 1.35, 0.5, 1, 0.3,
+                        "least_squares", new HTuple(new[] { 5, 1 }), 0.8,
+                        out _, out _, out _, out HTuple refRowScale, out HTuple refColScale, out HTuple refScores);
+                    double refRow = refRowScale.Length > 0 ? refRowScale[0].D : double.NaN;
+                    double refCol = refColScale.Length > 0 ? refColScale[0].D : double.NaN;
+                    double refScore = refScores.Length > 0 ? refScores[0].D : double.NaN;
+                    Check("【各向异性·对拍】与 HALCON 参考实现行缩放差 < 0.01",
+                        Math.Abs(refRow - scaleRow) < 0.01,
+                        $"插件 {scaleRow:0.######} / 参考 {refRow:0.######} 差 {Math.Abs(refRow - scaleRow):0.######}");
+                    Check("【各向异性·对拍】与 HALCON 参考实现列缩放差 < 0.01",
+                        Math.Abs(refCol - scaleCol) < 0.01,
+                        $"插件 {scaleCol:0.######} / 参考 {refCol:0.######} 差 {Math.Abs(refCol - scaleCol):0.######}");
+                    Check("【各向异性·对拍】与 HALCON 参考实现分数差 < 0.02",
+                        Math.Abs(refScore - score) < 0.02,
+                        $"插件 {score:0.######} / 参考 {refScore:0.######} 差 {Math.Abs(refScore - score):0.######}");
+                }
+                finally
+                {
+                    HOperatorSet.ClearShapeModel(refModelId);
+                }
+
+                // ---- ④ 指纹：改列范围必须提示重学（改回即恢复）----
+                var entry = creator.EditingEntry!;
+                entry.ScaleColMax = 1.5;
+                bool staleAfterEdit = creator.IsModelStale;
+                entry.ScaleColMax = 1.35;
+                bool staleAfterRevert = creator.IsModelStale;
+                Check("【各向异性·指纹】改 ScaleColMax 后提示需重新学习（改回即恢复）",
+                    staleAfterEdit && !staleAfterRevert,
+                    $"改后 IsModelStale={staleAfterEdit}，改回 IsModelStale={staleAfterRevert}");
+
+                // ---- ④ JSON：方案往返保留新字段 ----
+                var roundTrip = runtime.Library[0];
+                Check("【各向异性·JSON】方案往返保留各向异性字段（确认 → 新实例加载）",
+                    roundTrip.AnisoScaleEnabled
+                    && Math.Abs(roundTrip.ScaleRowMin - 0.9) < 1e-9
+                    && Math.Abs(roundTrip.ScaleRowMax - 1.1) < 1e-9
+                    && Math.Abs(roundTrip.ScaleColMin - 1.0) < 1e-9
+                    && Math.Abs(roundTrip.ScaleColMax - 1.35) < 1e-9
+                    && roundTrip.LearnedAnisoScaleEnabled,
+                    $"往返后 Aniso={roundTrip.AnisoScaleEnabled} 行 {roundTrip.ScaleRowMin}/{roundTrip.ScaleRowMax} "
+                        + $"列 {roundTrip.ScaleColMin}/{roundTrip.ScaleColMax} 学习快照={roundTrip.LearnedAnisoScaleEnabled}");
+
+                // 老 JSON（升级前保存的条目）没有这五个字段 → 必须是"各向异性关 + 0.9/1.1"
+                var legacy = Newtonsoft.Json.JsonConvert.DeserializeObject<MatchingTemplateEntry>(
+                    "{\"Name\":\"老模板\",\"ScaleEnabled\":true,\"ScaleMin\":0.8,\"ScaleMax\":1.2}");
+                Check("【各向异性·JSON】老 JSON 缺字段走默认值（关 / 行 0.9~1.1 / 列 0.9~1.1）",
+                    legacy != null
+                    && !legacy.AnisoScaleEnabled
+                    && Math.Abs(legacy.ScaleRowMin - 0.9) < 1e-9
+                    && Math.Abs(legacy.ScaleRowMax - 1.1) < 1e-9
+                    && Math.Abs(legacy.ScaleColMin - 0.9) < 1e-9
+                    && Math.Abs(legacy.ScaleColMax - 1.1) < 1e-9
+                    && !legacy.LearnedAnisoScaleEnabled
+                    && legacy.ScaleEnabled,
+                    legacy == null
+                        ? "反序列化返回 null"
+                        : $"Aniso={legacy.AnisoScaleEnabled} 行 {legacy.ScaleRowMin}/{legacy.ScaleRowMax} "
+                            + $"列 {legacy.ScaleColMin}/{legacy.ScaleColMax} 等比={legacy.ScaleEnabled}/{legacy.ScaleMin}/{legacy.ScaleMax}");
+            }
+            finally
+            {
+                creator.Dispose();
+                runtime.Dispose();
+            }
+
+            // ---- ② 反向判据：同一张拉伸图，关掉各向异性（只开等比）分数必须明显下降 ----
+            // 等比范围取 0.9~1.35（覆盖 1.2），排除"范围没覆盖到"这种伪原因。
+            var (eqCreator, eqRuntime) = BuildAnisoTemplate(scene, false, 0.9, 1.1, 1.0, 1.35);
+            try
+            {
+                eqRuntime.Image.Value = stretched;
+                eqRuntime.Execute(MakeContext(new StubLog()));
+                int eqCount = Convert.ToInt32(eqRuntime.MatchCount.Value);
+                double eqScore = Convert.ToDouble(eqRuntime.Score.Value);
+                double[] eqScales = AsDoubles(eqRuntime.Scales.Value);
+                double[] eqRow = AsDoubles(eqRuntime.ScalesRow.Value);
+                double[] eqCol = AsDoubles(eqRuntime.ScalesCol.Value);
+
+                Check("【各向异性·反向】同一张 1.2 拉伸图：等比档分数 ≤ 0.85（各向异性 ≥ 0.95）",
+                    eqCount == 0 || eqScore <= 0.85,
+                    $"等比 MatchCount={eqCount} Score={eqScore:0.000}（实测 0.7665，容差上界 0.85）");
+                Check("【各向异性·反向】等比档两路缩放恒相等（它表达不了行/列差异）",
+                    eqRow.Length == eqCol.Length
+                    && eqRow.Zip(eqCol, (a, b) => Math.Abs(a - b) <= 1e-9).All(x => x),
+                    $"Scales={string.Join(",", eqScales.Select(v => v.ToString("0.0000")))} "
+                        + $"ScalesRow={string.Join(",", eqRow.Select(v => v.ToString("0.0000")))} "
+                        + $"ScalesCol={string.Join(",", eqCol.Select(v => v.ToString("0.0000")))}");
+            }
+            finally
+            {
+                eqCreator.Dispose();
+                eqRuntime.Dispose();
+            }
+
+            // ---- NCC 下勾各向异性：学习成功但必须明确告警"已忽略" ----
+            {
+                var nccCreator = new MatchingPlugin { InstanceName = "匹配_各向异性_NCC" };
+                try
+                {
+                    nccCreator.DisplayImage = new HImage(scene);
+                    nccCreator.AddTemplateEntry("NCC各向异性");
+                    nccCreator.CanvasShape = RoiShapeNames.Rectangle;
+                    nccCreator.CanvasRect = new double[] { AnisoRow, AnisoCol, 0, 70, 70 };
+                    var nccEntry = nccCreator.EditingEntry!;
+                    nccEntry.Algorithm = MatchingAlgorithm.Ncc;
+                    nccEntry.AnisoScaleEnabled = true;
+                    nccCreator.CreateTemplate();
+
+                    Check("【各向异性·NCC】NCC 下勾各向异性：学习成功但状态栏是 Warning 且写明已忽略",
+                        nccCreator.StatusLevel == StatusLevel.Warning
+                        && nccCreator.StatusMessage.Contains("各向异性")
+                        && nccCreator.StatusMessage.Contains("NCC")
+                        && !nccCreator.Library[0].LearnedAnisoScaleEnabled,
+                        $"StatusLevel={nccCreator.StatusLevel} 学习快照={nccCreator.Library[0].LearnedAnisoScaleEnabled} "
+                            + $"文案='{nccCreator.StatusMessage}'");
+                }
+                finally
+                {
+                    nccCreator.Dispose();
+                }
+            }
+
+            // ---- 运行期守卫：开关改了没重学 → 必须落一行 Warn（HALCON 对此不报错，只会静默错结果）----
+            {
+                var (guardCreator, guardRuntime) = BuildAnisoTemplate(scene, false, 0.9, 1.1, 1.0, 1.35);
+                try
+                {
+                    // 模拟"用户在配置界面勾上各向异性但没重新学习"：模型仍是等比/普通模型
+                    guardRuntime.Library[0].AnisoScaleEnabled = true;
+                    var guardLog = new StubLog();
+                    guardRuntime.Image.Value = stretched;
+                    guardRuntime.Execute(MakeContext(guardLog));
+                    Check("【各向异性·守卫】开关改了没重学：运行期落一行 Warn（不静默错结果）",
+                        guardLog.HasWarn("各向异性"),
+                        guardLog.Warns.Count == 0 ? "没有任何 Warn（静默）" : string.Join(" | ", guardLog.Warns));
+                }
+                finally
+                {
+                    guardCreator.Dispose();
+                    guardRuntime.Dispose();
+                }
+            }
+        }
+
+
+        // ==================================================================
         //  ④ 未找到的失败语义 + 多实例 + 参数变更重学提示
         // ==================================================================
         private static void RunNotFoundAndStaleness()
@@ -679,8 +998,240 @@ namespace FlowCanvasChecks
         }
 
         // ==================================================================
+        //  ⑥c HALCON 样例流程：视觉样例对拍.vms（NCC / 形状）
+        // ==================================================================
+        private static void RunHalconSampleSolution()
+        {
+            RunHalconSampleFlow(
+                "模板匹配_NCC散焦图", "读取散焦图像", "NCC模板匹配",
+                "NCC", 11, 307.952, 308.395, 0.0, 0.7824);
+            RunHalconSampleFlow(
+                "形状匹配_散焦PCB", "读取PCB散焦图像", "形状模板匹配",
+                "形状", 121, 225.206, 362.393, -0.302, 0.8795);
+        }
+
+        private static void RunHalconSampleFlow(
+            string flowName, string acqStepName, string matchStepName,
+            string label, int expectedCount, double expectedRow, double expectedCol,
+            double expectedAngle, double expectedScore)
+        {
+            Section($"[Matching] HALCON 样例流程：视觉样例对拍.vms / {flowName}");
+
+            string repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            string vmsPath = Path.Combine(repoRoot, "解决方案", "视觉样例对拍", "视觉样例对拍.vms");
+            Check("样例方案存在（解决方案\\视觉样例对拍\\视觉样例对拍.vms）", File.Exists(vmsPath), vmsPath);
+            if (!File.Exists(vmsPath)) return;
+
+            var loaded = new SolutionService().LoadAsync(vmsPath).GetAwaiter().GetResult();
+            Check("样例方案可被生产加载器打开", loaded.Success && loaded.Data != null, loaded.Message);
+            if (!loaded.Success || loaded.Data == null) return;
+            // 生产宿主在 Load 后会把落盘路径写回模型；资产解析（方案根 + RelativePath）依赖它
+            loaded.Data.SolutionFilePath = vmsPath;
+
+            var flow = loaded.Data.Flows.FirstOrDefault(f => f.FlowName == flowName);
+            Check($"流程名 = {flowName}", flow != null,
+                $"流程={string.Join(",", loaded.Data.Flows.Select(f => f.FlowName))}");
+            if (flow == null) return;
+
+            CheckBatchFlow(flow, expectedCount);
+
+            var sampleSteps = FlattenActionSteps(flow.Steps).ToList();
+            var acq = sampleSteps.FirstOrDefault(s => s.StepName == acqStepName);
+            var match = sampleSteps.FirstOrDefault(s => s.StepName == matchStepName);
+            Check($"采集/算法两个步骤存在（{acqStepName} / {matchStepName}）", acq != null && match != null,
+                $"步骤={string.Join(" → ", sampleSteps.Select(s => s.StepName))}");
+            if (acq == null || match == null) return;
+
+            var display = sampleSteps.FirstOrDefault(s => s.PluginName == "结果显示");
+            bool displayOk = display != null
+                && display.InputValues.TryGetValue("DisplayViewIndex", out var dv)
+                && Convert.ToInt32(dv) >= 1
+                && display.LinkedSources.TryGetValue("SrcImage", out var displayLink)
+                && displayLink.TargetPortName == "Image"
+                && display.LinkedSources.TryGetValue("OverlayContours", out var overlayLink)
+                && overlayLink.TargetPortName == "MatchContours";
+            Check("结果显示接原始图 + 算法几何（MatchContours），标注图不再由算法烧", displayOk,
+                display == null
+                    ? "缺少「结果显示」步骤"
+                    : $"View={display.InputValues.GetValueOrDefault("DisplayViewIndex")} "
+                      + $"SrcImage→{display.LinkedSources.GetValueOrDefault("SrcImage")?.TargetPortName} "
+                      + $"OverlayContours→{display.LinkedSources.GetValueOrDefault("OverlayContours")?.TargetPortName}");
+            Check("算法步骤只输出结果（DisplayViewIndex=0 且 KeepAnnotatedImage=false）",
+                Convert.ToInt32(match.InputValues.GetValueOrDefault("DisplayViewIndex") ?? 1) == 0
+                && !Convert.ToBoolean(match.InputValues.GetValueOrDefault("KeepAnnotatedImage") ?? true),
+                $"View={match.InputValues.GetValueOrDefault("DisplayViewIndex")} "
+                + $"Keep={match.InputValues.GetValueOrDefault("KeepAnnotatedImage")}");
+
+            string imagePath = acq.InputValues.TryGetValue("FilePath", out var p) ? p as string : null;
+            // 文件夹化方案：ImageAcquisition 的 FilePath 是方案内相对路径，按 .vms 所在目录解析
+            if (imagePath != null && !Path.IsPathRooted(imagePath))
+                imagePath = Path.Combine(Path.GetDirectoryName(vmsPath)!, imagePath);
+            Check("图像路径指向方案内样例图且存在", imagePath != null && File.Exists(imagePath), imagePath ?? "(null)");
+            if (imagePath == null || !File.Exists(imagePath)) return;
+
+            var workspace = new WorkspaceContext();
+            workspace.SwitchSolution(loaded.Data);
+
+            string imageAssetId = acq.InputValues.TryGetValue("ImageAssetId", out var aid) ? aid as string : null;
+            var assetContext = new ExecutionContext(
+                new StubLog(), new FlowSession { FlowName = flow.FlowName }, workspace, CancellationToken.None);
+            bool assetOk = ProjectAssetPathResolver.TryResolve(
+                assetContext, imageAssetId, imagePath, "image", out var assetPath, out var assetError)
+                && File.Exists(assetPath);
+            Check("ImageAssetId 解析到方案内图片（方案根 + RelativePath）", assetOk,
+                assetOk ? assetPath : $"AssetId='{imageAssetId}' Err='{assetError}' Path='{assetPath}'");
+
+            var compiled = new FlowCompiler(workspace).Compile(flow.Steps.ToArray(), flow.FlowName);
+            Check("样例流程编译通过（端口名/连线类型）", compiled.Success,
+                compiled.Success ? "" : string.Join(" | ", compiled.Errors.Select(e => e.Message)));
+            if (!compiled.Success) return;
+
+            HOperatorSet.ReadImage(out HObject raw, imagePath);
+            using var image = new HImage(raw);
+            raw.Dispose();
+            var plugin = new MatchingPlugin { InstanceName = $"样例_{label}" };
+            try
+            {
+                plugin.Initialize(match);
+                plugin.Image.LinkedSource = null;   // 直接喂图，不让它去解析上游步骤
+                plugin.Image.Value = image;
+                plugin.Execute(new ExecutionContext(
+                    new StubLog(), new FlowSession { FlowName = flow.FlowName },
+                    workspace, CancellationToken.None));
+
+                double row = Convert.ToDouble(plugin.Row.Value);
+                double col = Convert.ToDouble(plugin.Column.Value);
+                double angle = Convert.ToDouble(plugin.Angle.Value);
+                double score = Convert.ToDouble(plugin.Score.Value);
+                int count = Convert.ToInt32(plugin.MatchCount.Value);
+                Check($"{label} 结果与 HALCON 一致（{expectedRow:0.###},{expectedCol:0.###},"
+                    + $"{expectedAngle:0.###}°,{expectedScore:0.####}）",
+                    count == 1
+                    && Math.Abs(row - expectedRow) <= 0.01
+                    && Math.Abs(col - expectedCol) <= 0.01
+                    && Math.Abs(angle - expectedAngle) <= 0.01
+                    && Math.Abs(score - expectedScore) <= 0.001,
+                    $"count={count} ({row:0.###},{col:0.###},{angle:0.###}°,{score:0.####}) "
+                    + $"Err='{plugin.ErrorMessage.Value}'");
+            }
+            finally
+            {
+                plugin.Dispose();
+            }
+        }
+
+        // ==================================================================
         //  ⑦ 多模板/配方驱动：A/B 两条模板，RecipeName 端口选条目（二期核心）
         // ==================================================================
+        // ==================================================================
+        //  ⑩ 条目参考图 × 图像资产（2026-10-28）
+        // ==================================================================
+
+        /// <summary>
+        /// 条目参考图能不能挂"图像资产"，以及"资产优先、解析不到不静默退回"这条判据。
+        ///
+        /// 为什么必须测：条目里的 RefImagePath 是本机绝对路径，换台机器"重学"就断；
+        /// 而最容易写错的不是解析本身，是**失败时静默用旧路径** —— 那样界面上看到的是另一张图，
+        /// 学出来的模型与框住的区域对不上，且没有任何报错指向真因。
+        /// </summary>
+        private static void RunRefImageAssetContract()
+        {
+            var image = FindRepoImage(Path.Combine("Image", "board", "board_01.png"));
+            var imageAssetId = Guid.NewGuid();
+            var templateAssetId = Guid.NewGuid();
+            var context = new PluginConfigContext
+            {
+                Assets =
+                {
+                    new AssetPathOption
+                    {
+                        AssetId = imageAssetId,
+                        Kind = "image",
+                        Name = "标定板",
+                        AbsolutePath = image ?? string.Empty,
+                        Version = 3,
+                    },
+                    new AssetPathOption
+                    {
+                        AssetId = templateAssetId,
+                        Kind = "template",
+                        Name = "模板库",
+                        AbsolutePath = image ?? string.Empty,
+                    },
+                },
+            };
+
+            // ① 契约：正常解析
+            bool okPath = PluginConfigAssetPaths.TryResolve(
+                context, imageAssetId.ToString(), "image", out var resolved, out var err1);
+            Check("【参考图资产】契约：image 资产 → 解析出绝对路径",
+                okPath && string.Equals(resolved, image, StringComparison.OrdinalIgnoreCase),
+                okPath ? resolved : err1);
+
+            // ② 契约：类型不匹配必须拒，并点名两边类型
+            bool okKind = PluginConfigAssetPaths.TryResolve(
+                context, templateAssetId.ToString(), "image", out _, out var err2);
+            Check("【参考图资产】契约：template 资产当 image 用 → 拒绝并点名两边类型",
+                !okKind && err2.Contains("template") && err2.Contains("image"), err2);
+
+            // ③ 契约：空 / 非法 Guid / 不存在 / 无上下文 → 四种都拒
+            bool okEmpty = PluginConfigAssetPaths.TryResolve(context, "", "image", out _, out var err3);
+            bool okBad = PluginConfigAssetPaths.TryResolve(context, "not-a-guid", "image", out _, out var err4);
+            bool okMissing = PluginConfigAssetPaths.TryResolve(context, Guid.NewGuid().ToString(), "image", out _, out var err5);
+            bool okNoCtx = PluginConfigAssetPaths.TryResolve(null, imageAssetId.ToString(), "image", out _, out var err6);
+            Check("【参考图资产】契约：空/非法/不存在/无上下文 → 全部拒绝且各有中文原因",
+                !okEmpty && !okBad && !okMissing && !okNoCtx
+                && err3.Length > 0 && err4.Contains("Guid") && err5.Length > 0 && err6.Contains("上下文"),
+                $"{err3} | {err4} | {err5} | {err6}");
+
+            if (image == null)
+            {
+                // 判红而不是跳过：仓库自带这张样例图，缺了说明工作区不完整（R38）
+                Check("【参考图资产】仓库样例图 Image\\board\\board_01.png 存在", false, "找不到该文件");
+                return;
+            }
+
+            // ④ 插件层：资产优先于旧路径（旧路径故意写成不存在的文件）
+            var plugin = new MatchingPlugin { InstanceName = "匹配_参考图资产" };
+            plugin.SetConfigContext(context);
+            plugin.AddTemplateEntry("A型");
+            plugin.EditingEntry!.RefImagePath =
+                Path.Combine(Path.GetTempPath(), "不存在的参考图_" + Guid.NewGuid().ToString("N") + ".png");
+            plugin.EditingEntry.RefImageAssetId = imageAssetId.ToString();
+
+            plugin.LoadPreviewImage();
+            Check("【参考图资产】插件层：选了资产 → 用资产图（旧路径不存在也不影响）",
+                plugin.DisplayImage != null && plugin.StatusMessage.Contains("已载入参考图"),
+                plugin.DisplayImage == null ? "画布没载入图：" + plugin.StatusMessage : plugin.StatusMessage);
+
+            // ⑤ 资产解析不到 → 明确失败，**不**静默退回旧路径（旧路径这次是好的）
+            plugin.EditingEntry.RefImagePath = image;
+            plugin.EditingEntry.RefImageAssetId = Guid.NewGuid().ToString();
+            plugin.LoadPreviewImage();
+            Check("【参考图资产】插件层：资产解析不到 → 明确报错，不静默退回旧路径",
+                plugin.StatusMessage.Contains("参考图无法解析"), plugin.StatusMessage);
+
+            // ⑥ 条目字段随模板库 JSON 往返（重开方案后还在）
+            plugin.EditingEntry.RefImageAssetId = imageAssetId.ToString();
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(plugin.Library);
+            var back = Newtonsoft.Json.JsonConvert.DeserializeObject<List<MatchingTemplateEntry>>(json);
+            Check("【参考图资产】条目字段随库 JSON 往返",
+                back != null && back.Count == 1 && back[0].RefImageAssetId == imageAssetId.ToString(),
+                back == null ? "反序列化为 null" : back[0].RefImageAssetId);
+        }
+
+        /// <summary>从 exe 目录向上找仓库里的样例图（断言宿主在 bin 深处，不能写死相对层级）</summary>
+        private static string? FindRepoImage(string relative)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            for (var i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+            {
+                var candidate = Path.Combine(dir.FullName, relative);
+                if (File.Exists(candidate)) return candidate;
+            }
+            return null;
+        }
+
         private static void RunRecipeContract()
         {
             // 两个产品两条模板：A型（图案在 (150,200)）、B型（图案在 (280,360)）

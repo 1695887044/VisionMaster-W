@@ -1,4 +1,5 @@
 using AvalonDock;
+using AvalonDock.Controls;
 using AvalonDock.Layout;
 using AvalonDock.Layout.Serialization;
 using System;
@@ -7,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Media;
 using System.Xml.Linq;
 using Core.Interfaces;
 using UI.Core;
@@ -389,6 +391,10 @@ namespace VisionMaster.Services
                     // 旧现场可能把右侧检查器面板拖成了中央文档（CanDockAsTabbedDocument 之前是默认 true）；
                     // 这里把 4 个检查器面板从 LayoutDocument 迁回右侧 LayoutAnchorablePane。
                     EnsureInspectorPanelsAreAnchorables(manager);
+
+                    // 旧现场也可能把检查器面板停靠在左侧工作列（与流程导航同一个 pane）：
+                    // 那份归属会被 Layout.xml 一次次原样恢复，必须在恢复布局的同一拍里纠正。
+                    EnsureInspectorPanelsOnRightColumn(manager);
 
                     // XmlLayoutSerializer 会新建 LayoutAnchorable，XML 里没写的属性回落库默认
                     // （CanDockAsTabbedDocument=true / AutoHideWidth=0 / CanFloat=true）。
@@ -1102,6 +1108,45 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 让「自定义胶囊」与 AvalonDock 自带的自动隐藏页签只出现一个。
+        ///
+        /// <para>图钉按下后，库会在右边缘生成一条 <see cref="LayoutAnchorControl"/>（33px 竖排页签）；
+        /// 我们的胶囊轨道是叠在 DockingManager 上的 18px 覆盖层，两者会并排/互相遮挡，
+        /// 现场表现就是「工具箱旁边还有一条被挡住的工具箱」。</para>
+        ///
+        /// <para>口径：<paramref name="capsuleIds"/> 里的面板已有自定义胶囊，库页签必须隐藏；
+        /// 不在集合里的面板（例如流程导航）仍保留库页签，避免把别人的恢复入口一起藏掉。
+        /// 只改可视层 <see cref="UIElement.Visibility"/>，不动 <c>IsAutoHidden</c>/布局模型，
+        /// 因此 <see cref="ShowAnchorable"/> 的 ToggleAutoHide 收回路径不受影响。</para>
+        /// </summary>
+        public static void SyncAutoHideTabs(DockingManager? manager, IEnumerable<string>? capsuleIds)
+        {
+            if (manager == null) return;
+
+            var wanted = capsuleIds == null
+                ? new HashSet<string>(StringComparer.Ordinal)
+                : new HashSet<string>(capsuleIds, StringComparer.Ordinal);
+
+            foreach (var tab in FindVisualDescendants<LayoutAnchorControl>(manager))
+            {
+                if (tab.Model is not LayoutAnchorable anchorable) continue;
+                var target = wanted.Contains(anchorable.ContentId) ? Visibility.Collapsed : Visibility.Visible;
+                if (tab.Visibility != target) tab.Visibility = target;
+            }
+        }
+
+        private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root) where T : DependencyObject
+        {
+            var count = VisualTreeHelper.GetChildrenCount(root);
+            for (var i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(root, i);
+                if (child is T typed) yield return typed;
+                foreach (var sub in FindVisualDescendants<T>(child)) yield return sub;
+            }
+        }
+
+        /// <summary>
         /// 激活指定面板（按 ContentId）：隐藏的恢复显示、被遮挡的切到前台
         /// </summary>
         public static void ShowPanel(string contentId) => ShowPanel(FindManager(), contentId);
@@ -1132,6 +1177,11 @@ namespace VisionMaster.Services
                 // 同一 pane 的多个 anchorable 是标签页：IsActive 表示"整个 DockingManager 的活动内容"，
                 // 切到哪个标签要看 IsSelected。属性/图层合并后，这里少一句就会停在最后一个 Show 的标签上。
                 anchorable.IsSelected = true;
+
+                // 落点错了就地迁回：检查器面板只能待在右侧检查器列，不许与流程导航共列
+                // （2026-10-28 现场：Layout.xml 把工具箱停在左侧工作列，之后每次点胶囊都回那一列）。
+                if (IsInspectorPanel(contentId))
+                    EnsureInspectorPanelsOnRightColumn(manager);
             }
 
             content.IsActive = true;
@@ -1274,14 +1324,21 @@ namespace VisionMaster.Services
             var root = manager.Layout;
             // 落点只认 LayoutAnchorablePane：remembered 可能是 LayoutDocumentPane（旧现场）或
             // LayoutAnchorGroup（自动隐藏组），把 anchorable 塞进这两种容器都不是“回到右侧列”。
-            var rememberedGroup = remembered as LayoutAnchorablePane;
-            bool rememberedUsable = rememberedGroup != null && IsAttachedTo(rememberedGroup, root);
+            // 另外：检查器面板的记忆列若是左侧工作列（流程导航那一列），必须判废——
+            // 否则"工具箱与流程栏挤在同一个 pane"会被一次次原样恢复并持久化（2026-10-28 现场）。
+            var processColumn = FindProcessColumnPane(manager);
+            bool Acceptable(LayoutAnchorablePane? pane)
+                => pane != null
+                   && IsAttachedTo(pane, root)
+                   && !(IsInspectorPanel(anchorable.ContentId) && ReferenceEquals(pane, processColumn));
 
-            var emptyRemembered = rememberedUsable && rememberedGroup!.ChildrenCount == 0 ? rememberedGroup : null;
+            var rememberedGroup = remembered as LayoutAnchorablePane;
+            var usableRemembered = Acceptable(rememberedGroup) ? rememberedGroup : null;
+            var emptyRemembered = usableRemembered != null && usableRemembered.ChildrenCount == 0 ? usableRemembered : null;
             var anyEmpty = root.Descendents()
                 .OfType<LayoutAnchorablePane>()
-                .FirstOrDefault(p => p.ChildrenCount == 0 && IsAttachedTo(p, root));
-            var home = emptyRemembered ?? anyEmpty ?? (rememberedUsable ? rememberedGroup : null);
+                .FirstOrDefault(p => p.ChildrenCount == 0 && Acceptable(p));
+            var home = emptyRemembered ?? anyEmpty ?? usableRemembered;
 
             if (home != null)
             {
@@ -1474,10 +1531,15 @@ namespace VisionMaster.Services
                         .FirstOrDefault(d => string.Equals(d.ContentId, contentId, StringComparison.Ordinal));
                     if (document == null) continue;
 
+                    // 落点优先"不是左侧工作列的空列"：旧布局里左列常因流程导航被收起而空着，
+                    // 按"第一个空列"挑会把检查器面板搬进流程栏那一列（2026-10-28 现场）。
+                    var processColumn = FindProcessColumnPane(manager);
                     var rightPane = manager.Layout.Descendents()
                                         .OfType<LayoutAnchorablePane>()
-                                        .FirstOrDefault(p => p.ChildrenCount == 0 && IsAttachedTo(p, manager.Layout))
-                                    ?? FindInspectorHomePane(manager)
+                                        .FirstOrDefault(p => p.ChildrenCount == 0
+                                                             && !ReferenceEquals(p, processColumn)
+                                                             && IsAttachedTo(p, manager.Layout))
+                                    ?? FindInspectorColumnPane(manager, processColumn)
                                     ?? CreateInspectorPane(manager);
                     if (rightPane == null) continue;
 
@@ -1555,7 +1617,40 @@ namespace VisionMaster.Services
             }
         }
 
-        private static LayoutAnchorablePane? FindInspectorHomePane(DockingManager manager)
+        /// <summary>
+        /// 左侧工作列（流程导航的设计归属列）。判据三档，都要求容器仍挂在当前布局树上：
+        /// ① 流程导航当前停靠的那个 <see cref="LayoutAnchorablePane"/>；
+        /// ② 根面板**第一个子项**是 anchorable pane（本仓默认布局：左栏 → 文档区 → 检查器列）；
+        /// ③ 都不成立返回 null —— 布局被用户改成别的形状时不猜，宁可不迁也不乱迁。
+        /// </summary>
+        private static LayoutAnchorablePane? FindProcessColumnPane(DockingManager manager)
+        {
+            if (FindPanel(manager, ProcessViewContentId) is LayoutAnchorable process
+                && process.Parent is LayoutAnchorablePane current
+                && IsAttachedTo(current, manager.Layout))
+            {
+                return current;
+            }
+
+            if (manager.Layout.RootPanel?.Children.FirstOrDefault() is LayoutAnchorablePane first
+                && IsAttachedTo(first, manager.Layout))
+            {
+                return first;
+            }
+
+            return null;
+        }
+
+        private static bool IsInspectorPanel(string? contentId)
+            => !string.IsNullOrEmpty(contentId) && InspectorPanelIds.Contains(contentId, StringComparer.Ordinal);
+
+        /// <summary>
+        /// 右侧检查器列（属性/图层/工具箱/图元工具箱的家）。
+        /// ① 其它检查器面板当前或记忆所在的列（按 <see cref="InspectorPanelIds"/> 顺序，属性优先）；
+        /// ② 根面板里最后一个空列（<c>Hide()</c> 不摘 pane，检查器列被掏空后仍是落点）。
+        /// <paramref name="excluded"/> 用来排除左侧工作列。
+        /// </summary>
+        private static LayoutAnchorablePane? FindInspectorColumnPane(DockingManager manager, LayoutAnchorablePane? excluded)
         {
             foreach (var contentId in InspectorPanelIds)
             {
@@ -1563,10 +1658,73 @@ namespace VisionMaster.Services
 
                 var pane = anchorable.Parent as LayoutAnchorablePane
                            ?? ReadPreviousContainer(anchorable) as LayoutAnchorablePane;
-                if (pane != null && IsAttachedTo(pane, manager.Layout)) return pane;
+                if (pane != null && !ReferenceEquals(pane, excluded) && IsAttachedTo(pane, manager.Layout))
+                    return pane;
             }
 
-            return null;
+            return manager.Layout.RootPanel?.Children
+                .OfType<LayoutAnchorablePane>()
+                .LastOrDefault(p => p.ChildrenCount == 0
+                                    && !ReferenceEquals(p, excluded)
+                                    && IsAttachedTo(p, manager.Layout));
+        }
+
+        /// <summary>
+        /// 检查器面板不得停靠在左侧工作列（与流程导航同一个 <see cref="LayoutAnchorablePane"/>）。
+        ///
+        /// <para>为什么必须有：列宽有 <see cref="EnsureInspectorColumnWidth"/>、可见性有
+        /// <see cref="ApplyScadaPanelMode"/>，唯独"落在哪一列"没有任何约束。工具箱一旦被拖到/收回
+        /// 左列，<c>Layout.xml</c> 会原样持久化；下次启动恢复布局、点胶囊走
+        /// <c>ToggleAutoHide()</c> 收回原 pane，于是"流程栏 + 工具箱"变成同一容器里的两个标签，
+        /// 而且每启动一次就复现一次（2026-10-28 现场）。</para>
+        ///
+        /// <para>只动归属、不动可见性与宽度；迁完把活动内容还给检查器列。返回迁移条数（断言宿主用）。</para>
+        /// </summary>
+        internal static int EnsureInspectorPanelsOnRightColumn(DockingManager? manager)
+        {
+            if (manager == null) return 0;
+
+            try
+            {
+                var processColumn = FindProcessColumnPane(manager);
+                if (processColumn == null) return 0;
+
+                var misplaced = InspectorPanelIds
+                    .Select(id => FindPanel(manager, id) as LayoutAnchorable)
+                    .OfType<LayoutAnchorable>()
+                    .Where(a => a.Parent is LayoutAnchorablePane pane && ReferenceEquals(pane, processColumn))
+                    .ToList();
+                if (misplaced.Count == 0) return 0;
+
+                var home = FindInspectorColumnPane(manager, processColumn) ?? CreateInspectorPane(manager);
+                if (home == null || ReferenceEquals(home, processColumn)) return 0;
+
+                var moved = 0;
+                foreach (var anchorable in misplaced)
+                {
+                    if (anchorable.Parent is not LayoutAnchorablePane source) continue;
+
+                    source.Children.Remove(anchorable);
+                    home.Children.Add(anchorable);
+                    moved++;
+                    Console.WriteLine($"检查器面板 {anchorable.ContentId} 曾停靠在左侧工作列，已迁回右侧检查器列");
+                }
+
+                if (moved > 0)
+                {
+                    // 被迁的都是停靠中的可见面板；活动内容留在被掏空的那一列会让胶囊/焦点状态分叉
+                    misplaced[^1].IsSelected = true;
+                    misplaced[^1].IsActive = true;
+                }
+
+                return moved;
+            }
+            catch (Exception ex)
+            {
+                // 布局修复失败不许带崩启动（App 没有全局异常兜底）
+                Console.WriteLine($"检查器面板列归属修复失败（不影响启动）：{ex.Message}");
+                return 0;
+            }
         }
 
         private static LayoutAnchorablePane? CreateInspectorPane(DockingManager manager)

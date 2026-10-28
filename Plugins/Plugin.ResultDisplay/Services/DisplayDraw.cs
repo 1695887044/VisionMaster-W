@@ -94,6 +94,10 @@ namespace Plugin.ResultDisplay.Services
                 {
                     if (it.Def == null) continue;
                     int before = ctx.Used;
+                    // 逐项样式：几何项可以用自己的颜色/线宽（Blob 缺陷红圈、卡尺多色分层）。
+                    // 文字颜色仍由判定项统一决定 —— 逐项颜色只作用于几何。
+                    ctx.ItemColor = it.Def.Color;
+                    ctx.ItemWidth = it.Def.LineWidth;
                     try
                     {
                         Dispatch(it, ctx);
@@ -102,6 +106,11 @@ namespace Plugin.ResultDisplay.Services
                     {
                         // 单项翻译失败只丢这一项：显示算子绝不能把一次成功的检测判成失败
                         ctx.Warn($"结果项「{LabelOf(it.Def)}」处理失败（已跳过该项）：{ex.GetType().Name}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        ctx.ItemColor = null;
+                        ctx.ItemWidth = 0;
                     }
                     if (ctx.Used > before) res.DisplayedCount++;
                 }
@@ -210,18 +219,21 @@ namespace Plugin.ResultDisplay.Services
 
                 var p = a.Points;
                 var color = string.IsNullOrWhiteSpace(a.Color) ? "green" : a.Color;
+                // 线宽按标注自带值画（覆盖层走 HalconBase.RenderAnnotations 时也是这个口径，
+                // 这里丢掉会让"画布上 3px、存档里 2px"两处不一致）
+                int width = a.LineWidth > 0 ? (int)Math.Round(a.LineWidth) : 2;
 
                 switch (a.Type)
                 {
                     case MeasureType.Line when p.Length >= 4:
-                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[2], p[3] }, color, 2);
+                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[2], p[3] }, color, width);
                         if (!string.IsNullOrEmpty(a.Text))
                             ctx.AddTextAt(a.Text, (p[0] + p[2]) / 2.0, (p[1] + p[3]) / 2.0, color);
                         break;
 
                     case MeasureType.Angle when p.Length >= 6:
-                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[2], p[3] }, color, 2);
-                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[4], p[5] }, color, 2);
+                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[2], p[3] }, color, width);
+                        ctx.AddShape(BakeShapeKind.Line, new[] { p[0], p[1], p[4], p[5] }, color, width);
                         if (!string.IsNullOrEmpty(a.Text))
                             ctx.AddTextAt(a.Text, p[0], p[1], color);
                         break;
@@ -233,14 +245,14 @@ namespace Plugin.ResultDisplay.Services
 
                     case MeasureType.Polyline when p.Length >= 4:
                         for (int i = 0; i + 3 < p.Length; i += 2)
-                            ctx.AddShape(BakeShapeKind.Line, new[] { p[i], p[i + 1], p[i + 2], p[i + 3] }, color, 2);
+                            ctx.AddShape(BakeShapeKind.Line, new[] { p[i], p[i + 1], p[i + 2], p[i + 3] }, color, width);
 
                         if (a.ShowVertices)
                         {
                             for (int i = 0; i + 1 < p.Length; i += 2)
                             {
                                 double r = p[i], c = p[i + 1];
-                                ctx.AddShape(BakeShapeKind.Cross, new[] { r, c, 10.0 }, color, 2);
+                                ctx.AddShape(BakeShapeKind.Cross, new[] { r, c, 10.0 }, color, width);
                                 if (!string.IsNullOrEmpty(a.Text))
                                     ctx.AddTextAt(a.Text + (i / 2 + 1), r - 14, c + 6, color);
                             }
@@ -252,7 +264,7 @@ namespace Plugin.ResultDisplay.Services
                         break;
 
                     case MeasureType.Point when p.Length >= 2:
-                        ctx.AddShape(BakeShapeKind.Cross, new[] { p[0], p[1], 12.0 }, color, 2);
+                        ctx.AddShape(BakeShapeKind.Cross, new[] { p[0], p[1], 12.0 }, color, width);
                         if (!string.IsNullOrEmpty(a.Text))
                             ctx.AddTextAt(a.Text, p[0] - 14, p[1] + 6, color);
                         break;
@@ -266,6 +278,82 @@ namespace Plugin.ResultDisplay.Services
         /// 图像值一律拒收：底图只有 <c>SrcImage</c> 一个入口。
         /// 不拒收的后果是"往离屏窗口 disp_obj 一张图" = 把底图盖掉，用户看到一张莫名其妙的图。
         /// </summary>
+        /// <summary>
+        /// 把覆盖层标注**直接并入烧录计划**（<c>BakeOverlay=true</c> 时用）。
+        ///
+        /// 与 <see cref="AppendAnnotations"/> 的区别：本方法不占结果项预算、不写信息行，
+        /// 只把同一批几何/文字搬进 <see cref="BakePlan"/>，让"画布上看到的"与"存下来的 AnnotatedImage"
+        /// 是同一份内容（R 纪律：覆盖层不得成为结果的唯一载体）。
+        /// 位置口径与覆盖层逐项一致（线在两点中点、角在顶点、折线顶点号在 (r-14,c+6)、点在 (r-14,c+6)）。
+        /// </summary>
+        internal static void AppendOverlayToPlan(DisplayDrawResult res, IReadOnlyList<MeasureAnnotation>? marks, bool showText = true)
+        {
+            if (res == null || marks == null) return;
+
+            foreach (var a in marks)
+            {
+                if (a?.Points == null) continue;
+                var p = a.Points;
+                var color = string.IsNullOrWhiteSpace(a.Color) ? "green" : a.Color;
+                int width = a.LineWidth > 0 ? (int)Math.Round(a.LineWidth) : 2;
+                // 关掉「图上叠字」时几何标签也不烧：与 ShowTextOnImage 的语义一致（只画图形）
+                bool text = showText && !string.IsNullOrEmpty(a.Text);
+
+                switch (a.Type)
+                {
+                    case MeasureType.Line when p.Length >= 4:
+                        res.Plan.Shapes.Add(new BakeShape(BakeShapeKind.Line,
+                            new[] { p[0], p[1], p[2], p[3] }, color, width));
+                        if (text)
+                            res.Plan.Texts.Add(new BakeText(a.Text, (p[0] + p[2]) / 2.0, (p[1] + p[3]) / 2.0, color, 0, false));
+                        break;
+
+                    case MeasureType.Angle when p.Length >= 6:
+                        res.Plan.Shapes.Add(new BakeShape(BakeShapeKind.Line,
+                            new[] { p[0], p[1], p[2], p[3] }, color, width));
+                        res.Plan.Shapes.Add(new BakeShape(BakeShapeKind.Line,
+                            new[] { p[0], p[1], p[4], p[5] }, color, width));
+                        if (text)
+                            res.Plan.Texts.Add(new BakeText(a.Text, p[0], p[1], color, 0, false));
+                        break;
+
+                    case MeasureType.Text when p.Length >= 2:
+                        if (text)
+                            res.Plan.Texts.Add(new BakeText(a.Text, p[0], p[1], color, 0, false));
+                        break;
+
+                    case MeasureType.Polyline when p.Length >= 4:
+                        for (int i = 0; i + 3 < p.Length; i += 2)
+                            res.Plan.Shapes.Add(new BakeShape(BakeShapeKind.Line,
+                                new[] { p[i], p[i + 1], p[i + 2], p[i + 3] }, color, width));
+
+                        if (a.ShowVertices)
+                        {
+                            for (int i = 0; i + 1 < p.Length; i += 2)
+                            {
+                                double r = p[i], c = p[i + 1];
+                                res.Plan.Shapes.Add(new BakeShape(BakeShapeKind.Cross,
+                                    new[] { r, c, 10.0 }, color, width));
+                                if (text)
+                                    res.Plan.Texts.Add(new BakeText(a.Text + (i / 2 + 1), r - 14, c + 6, color, 0, false));
+                            }
+                        }
+                        else if (text)
+                        {
+                            res.Plan.Texts.Add(new BakeText(a.Text, p[0], p[1], color, 0, false));
+                        }
+                        break;
+
+                    case MeasureType.Point when p.Length >= 2:
+                        res.Plan.Shapes.Add(new BakeShape(BakeShapeKind.Cross,
+                            new[] { p[0], p[1], 12.0 }, color, width));
+                        if (text)
+                            res.Plan.Texts.Add(new BakeText(a.Text, p[0] - 14, p[1] + 6, color, 0, false));
+                        break;
+                }
+            }
+        }
+
         private static void RejectImage(string label, Ctx ctx)
         {
             ctx.Warn($"结果项「{label}」不支持图像值（底图请用 SrcImage），已在图上标红字");
@@ -281,7 +369,7 @@ namespace Plugin.ResultDisplay.Services
                 return;
             }
             // 上游给的对象：所有权在上游，本插件只读不释放（所以不进 TempObjects）
-            ctx.AddObj(obj, GeometryColor, 2, "margin");
+            ctx.AddObj(obj, ctx.ResolveColor(GeometryColor), ctx.ResolveWidth(2), "margin");
             ctx.Info(label, kindName);
         }
 
@@ -380,11 +468,11 @@ namespace Plugin.ResultDisplay.Services
             for (int i = 0; i < count; i++)
             {
                 double x1 = boxes[i * 4], y1 = boxes[i * 4 + 1], x2 = boxes[i * 4 + 2], y2 = boxes[i * 4 + 3];
-                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x1, y1, x2 }, OkColor, 2);   // 上边
-                ctx.AddShape(BakeShapeKind.Line, new[] { y2, x1, y2, x2 }, OkColor, 2);   // 下边
-                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x1, y2, x1 }, OkColor, 2);   // 左边
-                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x2, y2, x2 }, OkColor, 2);   // 右边
-                ctx.AddTextAt($"{label}{i + 1}", Math.Max(0, y1 - ctx.FontSize), x1, OkColor);
+                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x1, y1, x2 }, ctx.ResolveColor(OkColor), ctx.ResolveWidth(2));   // 上边
+                ctx.AddShape(BakeShapeKind.Line, new[] { y2, x1, y2, x2 }, ctx.ResolveColor(OkColor), ctx.ResolveWidth(2));   // 下边
+                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x1, y2, x1 }, ctx.ResolveColor(OkColor), ctx.ResolveWidth(2));   // 左边
+                ctx.AddShape(BakeShapeKind.Line, new[] { y1, x2, y2, x2 }, ctx.ResolveColor(OkColor), ctx.ResolveWidth(2));   // 右边
+                ctx.AddTextAt($"{label}{i + 1}", Math.Max(0, y1 - ctx.FontSize), x1, ctx.ResolveColor(OkColor));
             }
         }
 
@@ -405,8 +493,8 @@ namespace Plugin.ResultDisplay.Services
             switch (g.Kind)
             {
                 case GeometryKind.Point:
-                    ctx.AddShape(BakeShapeKind.Cross, new[] { g.Row, g.Col, crossSize }, GeometryColor, 2);
-                    ctx.AddTextAt(label, g.Row - crossSize - ctx.FontSize, g.Col + crossSize, GeometryColor);
+                    ctx.AddShape(BakeShapeKind.Cross, new[] { g.Row, g.Col, crossSize }, ctx.ResolveColor(GeometryColor), ctx.ResolveWidth(2));
+                    ctx.AddTextAt(label, g.Row - crossSize - ctx.FontSize, g.Col + crossSize, ctx.ResolveColor(GeometryColor));
                     ctx.Info(label, g.ToString());
                     break;
 
@@ -418,9 +506,9 @@ namespace Plugin.ResultDisplay.Services
                     {
                         g.Row - half * dr, g.Col - half * dc,
                         g.Row + half * dr, g.Col + half * dc
-                    }, GeometryColor, 2);
+                    }, ctx.ResolveColor(GeometryColor), ctx.ResolveWidth(2));
                     ctx.AddTextAt($"{label} φ={g.Phi.ToString("0.0", CultureInfo.InvariantCulture)}°",
-                        g.Row + 4, g.Col + 4, GeometryColor);
+                        g.Row + 4, g.Col + 4, ctx.ResolveColor(GeometryColor));
                     ctx.Info(label, g.ToString());
                     break;
                 }
@@ -432,10 +520,10 @@ namespace Plugin.ResultDisplay.Services
                         ctx.Info(label, g.ToString());
                         break;
                     }
-                    ctx.AddShape(BakeShapeKind.Circle, new[] { g.Row, g.Col, g.Radius }, GeometryColor, 2);
+                    ctx.AddShape(BakeShapeKind.Circle, new[] { g.Row, g.Col, g.Radius }, ctx.ResolveColor(GeometryColor), ctx.ResolveWidth(2));
                     ctx.AddShape(BakeShapeKind.Cross, new[] { g.Row, g.Col, crossSize }, GeometryColor, 1);
                     ctx.AddTextAt($"{label} r={g.Radius.ToString("0.0", CultureInfo.InvariantCulture)}",
-                        g.Row + 4, g.Col + 4, GeometryColor);
+                        g.Row + 4, g.Col + 4, ctx.ResolveColor(GeometryColor));
                     ctx.Info(label, g.ToString());
                     break;
 
@@ -452,9 +540,9 @@ namespace Plugin.ResultDisplay.Services
                     //   Plugin.CreateRoi\CreateRoiPlugin.cs:881 直接把 phi 交给 GenEllipse）。
                     //   两边差一个负号，不取反就把长轴镜像到另一条对角线上——φ=0/90 时看不出来，φ=45 才现形。
                     ctx.AddShape(BakeShapeKind.Ellipse,
-                        new[] { g.Row, g.Col, -g.Phi, g.Radius, g.Radius2 }, GeometryColor, 2);
+                        new[] { g.Row, g.Col, -g.Phi, g.Radius, g.Radius2 }, ctx.ResolveColor(GeometryColor), ctx.ResolveWidth(2));
                     ctx.AddTextAt($"{label} {g.Radius.ToString("0.0", CultureInfo.InvariantCulture)}×{g.Radius2.ToString("0.0", CultureInfo.InvariantCulture)}",
-                        g.Row + 4, g.Col + 4, GeometryColor);
+                        g.Row + 4, g.Col + 4, ctx.ResolveColor(GeometryColor));
                     ctx.Info(label, g.ToString());
                     break;
 
@@ -504,12 +592,12 @@ namespace Plugin.ResultDisplay.Services
 
             HOperatorSet.GenContourPolygonXld(out HObject xld, new HTuple(rows), new HTuple(cols));
             ctx.Temp.Add(xld);                 // 本插件自己造的 → 用完必须释放
-            ctx.AddObj(xld, GeometryColor, 2, "margin");
+            ctx.AddObj(xld, ctx.ResolveColor(GeometryColor), ctx.ResolveWidth(2), "margin");
             ctx.Info(label, g.ToString() + (n < coordCount / 2 ? $"（已抽稀到 {n} 点）" : ""));
         }
 
         /// <summary>等间隔抽样到 ≤ maxPoints 个点；首末点必留（否则轮廓开口）。</summary>
-        private static double[] ThinPoints(double[] pts, int maxPoints)
+        internal static double[] ThinPoints(double[] pts, int maxPoints)
         {
             int n = pts.Length / 2;
             if (n <= maxPoints) return pts;
@@ -739,6 +827,22 @@ namespace Plugin.ResultDisplay.Services
 
             /// <summary>本轮收集到的堆叠行数（供断言核对"锚点算的是不是真实行数"）</summary>
             public int StackCount => _stack.Count;
+
+            /// <summary>
+            /// 当前结果项自带的几何样式（空/0 = 用默认）。只作用于**几何**，
+            /// 文字颜色仍由判定项统一决定（否则"判定 NG 变红"会被逐项颜色顶掉）。
+            /// </summary>
+            public string? ItemColor { get; set; }
+
+            /// <summary>当前结果项的几何线宽（0 = 默认 2）</summary>
+            public int ItemWidth { get; set; }
+
+            /// <summary>取生效颜色：项自带优先，否则回落调用方给的默认色。</summary>
+            public string ResolveColor(string fallback)
+                => string.IsNullOrWhiteSpace(ItemColor) ? fallback : ItemColor!.Trim();
+
+            /// <summary>取生效线宽：项自带优先，否则回落调用方给的默认值。</summary>
+            public int ResolveWidth(int fallback) => ItemWidth > 0 ? ItemWidth : fallback;
 
             /// <summary>文本项颜色：未配判定项 = green；判定项命中 NG 值 = red（§5.6）</summary>
             public string TextColor { get; set; } = OkColor;

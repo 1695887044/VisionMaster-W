@@ -359,23 +359,25 @@ namespace FlowCanvasChecks
             var xaml = File.ReadAllText(xamlPath);
             int editors = System.Text.RegularExpressions.Regex
                 .Matches(xaml, @"<cv:LinkableValueEditor").Count;
-            // 精确到绑定串：光看"文件里有没有 ComboBox"会把「作用域」那一行的下拉也算进来
-            bool nameBoxBound = xaml.Contains(
-                "Text=\"{Binding VariableName.Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"");
-            bool candidatesBound = xaml.Contains("ItemsSource=\"{Binding NameCandidates}\"");
-            bool userInputReported = File.ReadAllText(
-                    ResolveRepoFile(@"Plugins\Plugin.Utility\VariableAssignmentView.xaml.cs") ?? xamlPath)
-                .Contains("NotifyNameEditedByUser");
-            // 光有上报方法不够：三处挂载删掉了照样绿（复核提出的弱断言）。逐个钉住挂载串。
+            // 运行时名字：可编辑 ComboBox（Text 两向）；候选来自行视图模型。
+            bool runtimeNameBound = xaml.Contains(
+                "Text=\"{Binding Row.VariableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"");
+            bool candidatesBound = xaml.Contains("ItemsSource=\"{Binding Candidates}\"");
+            // 全局名字：按钮 + 搜索浮层 + 候选点击（只能选，不能手填）。
+            bool globalOnlySelect = xaml.Contains("x:Name=\"GlobalNameToggle\"")
+                && xaml.Contains("SelectGlobalCandidateCommand")
+                && xaml.Contains("FilteredCandidates");
             var viewCs = File.ReadAllText(
                 ResolveRepoFile(@"Plugins\Plugin.Utility\VariableAssignmentView.xaml.cs") ?? xamlPath);
-            bool hooksPresent = viewCs.Contains("NameBox.PreviewTextInput")
-                && viewCs.Contains("NameBox.SelectionChanged")
+            bool userInputReported = viewCs.Contains("NotifyRowNameEditedByUser");
+            // 光有上报方法不够：三处挂载删掉了照样绿。逐个钉住挂载串。
+            bool hooksPresent = viewCs.Contains("TextBox.PreviewTextInputEvent")
+                && viewCs.Contains("Selector.SelectionChangedEvent")
                 && viewCs.Contains("DataObject.PastingEvent");
-            Check("【视图】名字行是「名字编辑器」（候选下拉 + 手填文本 + 用户输入上报），通用绑定控件只剩「值」那一行",
-                editors == 1 && nameBoxBound && candidatesBound && userInputReported && hooksPresent,
-                $"LinkableValueEditor 出现 {editors} 次（应为 1：值行）；名字行两向绑定={nameBoxBound}；"
-                + $"候选绑定={candidatesBound}；上报用户输入={userInputReported}；输入事件挂载={hooksPresent}");
+            Check("【视图】名字行：全局只能选（失效项保留）/ 运行时可选可填；值行只有 LinkableValueEditor；用户输入上报挂在真实事件上",
+                editors == 1 && runtimeNameBound && candidatesBound && globalOnlySelect && userInputReported && hooksPresent,
+                $"LinkableValueEditor 出现 {editors} 次（应为 1：值行模板）；运行时名字绑定={runtimeNameBound}；"
+                + $"候选绑定={candidatesBound}；全局只选={globalOnlySelect}；上报用户输入={userInputReported}；输入事件挂载={hooksPresent}");
         }
 
         /// <summary>

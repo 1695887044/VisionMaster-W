@@ -43,6 +43,23 @@ namespace VisionMaster.Services
         /// <summary>运行锁拦截的统一文案（流程栏 / 画布共用一份字面；改文案只改这里）</summary>
         public const string RunLockedMessage = "流程运行中，禁止编辑；如需修改请先点击“停止”";
 
+        /// <summary>
+        /// 进程内最近一次广播的运行态（由 <c>ShellViewModel.RunState</c> 的 setter 同步写入）。
+        ///
+        /// 【为什么需要它】<c>GlobalEventBus</c> 是纯转发，**不缓存最后一条消息**；而本门禁的订阅
+        /// 随面板挂/摘反复 Activate/Deactivate（AvalonDock 隐藏面板、切标签、组态设计态收敛都会
+        /// 让 View 走 Unloaded）。离树期间发生的那次状态变化就永远收不到，重新入树后
+        /// <see cref="_runState"/> 停在旧值——现场表现正是"流程在循环运行，双击算子却还能弹出参数窗"
+        /// （2026-10-27 真机：弹窗把主窗口置灰，用户感知为界面卡死）。
+        /// 因此 <see cref="Activate"/> 先用这个镜像补种，再订阅后续变化。
+        ///
+        /// 与 <c>ImagePreviewCaptureHub.Current</c> 同一形态：状态由唯一持有方写入，消费方只读。
+        /// </summary>
+        public static MainRunState LastPublishedRunState { get; private set; } = MainRunState.NotStarted;
+
+        /// <summary>运行态持有方（<c>ShellViewModel.RunState</c> setter）调用：更新镜像供后入树的门禁补种</summary>
+        public static void PublishRunState(MainRunState state) => LastPublishedRunState = state;
+
         private MainRunState _runState = MainRunState.NotStarted;
         private bool _subscribed;
 
@@ -60,6 +77,15 @@ namespace VisionMaster.Services
         {
             if (_subscribed) return;
             _subscribed = true;
+
+            // 先补种：离树期间发生的状态变化收不到（总线不缓存），不补种就会带着旧值入树，
+            // 运行中照样放行编辑。补种后仍订阅，后续变化照常覆盖。
+            if (_runState != LastPublishedRunState)
+            {
+                _runState = LastPublishedRunState;
+                RunStateChanged?.Invoke();
+            }
+
             // 用命名方法而非 lambda：GlobalEventBus.Unsubscribe 依赖委托的 Target+Method 匹配
             GlobalEventBus.Subscribe<MainRunState>(OnMainRunStateChanged);
         }

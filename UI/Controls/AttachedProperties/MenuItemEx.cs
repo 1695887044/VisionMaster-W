@@ -8,6 +8,9 @@ namespace UI.AttachedProperties
         /// <summary>中性（默认灰底）。</summary>
         Default,
 
+        /// <summary>建设性/主操作（天蓝，与 DialogAccent 同族；流程菜单「添加流程」用）。</summary>
+        Accent,
+
         /// <summary>结构/分支类动作（靛蓝）。</summary>
         Indigo,
 
@@ -72,6 +75,25 @@ namespace UI.AttachedProperties
 
         public static void SetFooter(DependencyObject obj, string? value) =>
             obj.SetValue(FooterProperty, value);
+
+        /// <summary>
+        /// 行尾状态徽标（如「当前：已启用」「运行中」）。空串 / null 时整块收起。
+        ///
+        /// 为什么单独开一个附加属性而不是复用 Tag：Tag 是通用口袋，谁都能往里塞东西；
+        /// 徽标是菜单模板的**显示契约**，写进这里才能在模板里稳定绑定，也不会和别的用法打架。
+        /// </summary>
+        public static readonly DependencyProperty BadgeProperty =
+            DependencyProperty.RegisterAttached(
+                "Badge",
+                typeof(string),
+                typeof(MenuItemEx),
+                new PropertyMetadata(null));
+
+        public static string? GetBadge(DependencyObject obj) =>
+            (string?)obj.GetValue(BadgeProperty);
+
+        public static void SetBadge(DependencyObject obj, string? value) =>
+            obj.SetValue(BadgeProperty, value);
 
         public static readonly DependencyProperty FlyoutTitleProperty =
             DependencyProperty.RegisterAttached(

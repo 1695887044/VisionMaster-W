@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisionMaster · 流程运行统计 · Web 设计基线 v1</title>
+<style>
+  /* =====================================================================
+     VisionMaster · 流程运行统计（底栏 KPI / 工位浮窗 / 轮次下钻 / 架构）
+     Web 设计基线 v1 · 设计媒介，不是交付物（AGENTS.md R126）
+     颜色沿用 app-shell-chrome v2 令牌，不新增颜色（R140 同口径）
+     ===================================================================== */
+  :root{
+    --page-bg:#E9EEF5;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --mono:"Cascadia Mono",Consolas,"Microsoft YaHei UI",monospace;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.16) 1px, transparent 0) 0 0/24px 24px,
+      var(--page-bg);
+    color:#0F172A; font-family:var(--font); font-size:13px; line-height:1.5;
+    padding:26px 26px 70px; -webkit-font-smoothing:antialiased;
+  }
+  button{ font-family:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
+  code{ font-family:var(--mono); font-size:11.5px; }
+  .mono{ font-family:var(--mono); font-variant-numeric:tabular-nums; }
+
+  /* ---------- 页面说明（不属于应用界面） ---------- */
+  .page{ max-width:1560px; margin:0 auto 18px; }
+  .page h1{ margin:0; font-size:20px; font-weight:600; display:flex; align-items:center; gap:10px; letter-spacing:-.01em; }
+  .ver{ display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px;
+        background:#E0F2FE; color:#0284C7; font-size:11px; font-weight:700; }
+  .page .meta{ margin:7px 0 0; color:#475569; font-size:12.5px; max-width:1480px; }
+  .page .meta b{ color:#0F172A; }
+  .legend{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .tag{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:6px;
+        background:#FFFFFF; border:1px solid #E2E8F0; color:#475569; font-size:11.5px; }
+  .tag i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot-ok{ background:#22C55E; } .dot-ng{ background:#EF4444; } .dot-unk{ background:#F59E0B; }
+  .dot-line{ background:#0284C7; } .dot-off{ background:#94A3B8; }
+
+  /* ---------- 设计画布 ---------- */
+  .frame{ max-width:1560px; margin:0 auto 22px; background:#FFF; border:1px solid #CBD5E1;
+          border-radius:14px; overflow:hidden; box-shadow:0 12px 32px rgba(15,23,42,.12), 0 2px 8px rgba(15,23,42,.05); }
+  .frame-head{ display:flex; align-items:center; gap:12px; padding:11px 14px; background:#F8FAFC; border-bottom:1px solid #E2E8F0; }
+  .frame-head .t{ font-size:13px; font-weight:600; }
+  .frame-head .s{ font-size:11.5px; color:#64748B; margin-top:1px; }
+  .frame-head .right{ margin-left:auto; display:flex; align-items:center; gap:10px; }
+  .seg{ display:flex; gap:2px; background:#F1F5F9; border-radius:8px; padding:3px; }
+  .seg button{ height:26px; padding:0 11px; border-radius:6px; font-size:12px; color:#475569; transition:background .15s ease,color .15s ease; }
+  .seg button:hover{ background:#E2E8F0; color:#0F172A; }
+  .seg button.on{ background:#FFFFFF; color:#0F172A; font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.08); }
+  .stagewrap{ background:#E9EEF5; padding:16px; }
+  .stage{ width:100%; border-radius:10px; overflow:hidden; border:1px solid #CBD5E1; background:#FFFFFF; box-shadow:0 2px 8px rgba(15,23,42,.06); }
+  .screen{ position:relative; width:100%; aspect-ratio:16/9; display:flex; flex-direction:column; background:#F1F5F9; }
+
+  /* ---------- 应用令牌 ---------- */
+  .app{
+    --surface:#FFFFFF; --surface-2:#F8FAFC; --surface-3:#F1F5F9;
+    --border:#E2E8F0; --border-soft:#EEF2F7; --border-strong:#CBD5E1;
+    --text:#0F172A; --text-2:#475569; --text-3:#94A3B8;
+    --primary:#0EA5E9; --primary-strong:#0284C7; --primary-soft:#F0F9FF; --primary-light:#E0F2FE;
+    --success:#15803D; --success-chip:#F0FDF4; --success-line:#22C55E;
+    --danger:#B91C1C; --danger-chip:#FEF2F2; --danger-line:#EF4444;
+    --warning:#B45309; --warning-chip:#FFF4E5; --warning-line:#F59E0B;
+    --radius-sm:6px; --radius-md:8px; --radius-pill:999px;
+    --titlebar-h:40px; --statusbar-h:28px; --runbar-h:46px;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-pop:0 8px 24px rgba(15,23,42,.14), 0 2px 6px rgba(15,23,42,.06);
+    color:var(--text);
+  }
+
+  /* ---------- 顶栏 ---------- */
+  .titlebar{ height:var(--titlebar-h); flex:none; display:flex; align-items:center; gap:4px; padding:0 0 0 8px;
+             background:var(--surface); border-bottom:1px solid var(--border); position:relative; z-index:6; }
+  .tb-brand{ display:flex; align-items:center; gap:7px; padding-right:8px; }
+  .tb-logo{ width:22px; height:22px; border-radius:6px; display:grid; place-items:center;
+            background:linear-gradient(135deg,#0EA5E9,#2563EB); color:#FFF; font-size:10px; font-weight:800; }
+  .tb-brand .nm{ font-size:12.5px; font-weight:600; }
+  .modes{ display:flex; align-items:center; gap:2px; background:var(--surface-3); border-radius:var(--radius-md); padding:3px; margin-left:4px; }
+  .modes .m{ height:26px; padding:0 11px; border-radius:6px; font-size:12px; color:var(--text-2); }
+  .modes .m:hover{ background:#E2E8F0; color:var(--text); }
+  .modes .m.on{ background:var(--surface); color:var(--text); font-weight:600; box-shadow:var(--shadow-1); }
+  .modes .m .k{ font-size:10px; color:var(--text-3); font-variant-numeric:tabular-nums; }
+  .modes .m.on .k{ color:var(--primary-strong); }
+  .tb-doc{ margin-left:auto; margin-right:auto; display:flex; align-items:center; gap:7px; height:30px; padding:0 10px; border-radius:var(--radius-sm); }
+  .tb-doc:hover{ background:var(--surface-3); }
+  .tb-doc .nm{ font-size:12.5px; font-weight:600; }
+  .tb-doc .st{ display:flex; align-items:center; gap:5px; font-size:11px; color:var(--text-2); }
+  .tb-doc .st .d{ width:6px; height:6px; border-radius:50%; background:var(--success-line); }
+  .winctl{ display:flex; height:100%; }
+  .winctl button{ width:44px; display:grid; place-items:center; color:var(--text-2); }
+  .winctl button:hover{ background:var(--surface-3); color:var(--text); }
+
+  /* ---------- 工作区 ---------- */
+  .workspace{ flex:1; min-height:0; display:flex; background:var(--surface-3); }
+  .rail{ width:176px; flex:none; background:var(--surface); border-right:1px solid var(--border); padding:8px; }
+  .rail-h{ font-size:10.5px; font-weight:700; letter-spacing:.04em; color:var(--text-3); padding:2px 6px 7px; }
+  .flow-pill{ display:flex; align-items:center; gap:6px; height:24px; padding:0 8px; border-radius:var(--radius-sm);
+              font-size:11.5px; color:var(--text-2); margin-bottom:3px; }
+  .flow-pill .dot{ width:6px; height:6px; border-radius:50%; background:var(--text-3); margin-left:auto; }
+  .flow-pill .dot.run{ background:var(--success-line); box-shadow:0 0 0 3px rgba(34,197,94,.14); }
+  .flow-pill.on{ background:var(--primary-light); color:var(--primary-strong); font-weight:600; }
+  .flow-pill.off{ color:var(--text-3); text-decoration:line-through; }
+  .canvas{ flex:1; min-width:0; display:flex; flex-direction:column; padding:10px; gap:8px; }
+  .canvas-toolbar{ height:26px; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-2); }
+  .canvas-toolbar .chip{ height:20px; padding:0 7px; }
+  .canvas-body{ flex:1; min-height:0; display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .image-card{ position:relative; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-strong);
+               background:linear-gradient(145deg,#0B1220,#111C2E 55%,#0A1526); }
+  .image-card .grid{ position:absolute; inset:0; background-image:linear-gradient(rgba(148,163,184,.12) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(148,163,184,.12) 1px,transparent 1px); background-size:28px 28px; }
+  .image-card .roi{ position:absolute; border:2px solid var(--success-line); border-radius:4px; box-shadow:0 0 0 9999px rgba(2,6,23,.28); }
+  .image-card.ng .roi{ border-color:var(--danger-line); }
+  .image-card .lbl{ position:absolute; top:8px; left:8px; display:inline-flex; align-items:center; gap:6px;
+                    height:20px; padding:0 7px; border-radius:5px; background:rgba(2,6,23,.72); color:#E2E8F0; font-size:10.5px; }
+  .image-card .lbl .d{ width:6px; height:6px; border-radius:50%; background:var(--success-line); }
+  .image-card.ng .lbl .d{ background:var(--danger-line); }
+  .image-card .res{ position:absolute; right:8px; bottom:8px; font-size:10.5px; color:#CBD5E1; font-family:var(--mono); }
+  .inspector{ width:236px; flex:none; background:var(--surface); border-left:1px solid var(--border); padding:8px 10px; }
+  .insp-h{ font-size:11px; font-weight:700; color:var(--text-2); padding:2px 0 8px; }
+  .insp-row{ display:flex; justify-content:space-between; gap:8px; padding:5px 0; border-bottom:1px dashed var(--border-soft); font-size:11px; }
+  .insp-row .k{ color:var(--text-3); }
+  .insp-row .v{ color:var(--text); font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+  .insp-row .v.ok{ color:var(--success); } .insp-row .v.ng{ color:var(--danger); }
+
+  /* ---------- 运行条 ---------- */
+  .runbar{ height:var(--runbar-h); flex:none; display:flex; align-items:center; gap:8px; padding:0 12px;
+           background:var(--surface); border-top:1px solid var(--border); }
+  .btn{ height:28px; display:inline-flex; align-items:center; gap:6px; padding:0 10px; border-radius:var(--radius-sm);
+        border:1px solid transparent; font-size:12px; color:var(--text-2); }
+  .btn.line{ border-color:var(--border-strong); background:var(--surface); color:var(--text); }
+  .btn.pri{ background:var(--primary-strong); color:#FFF; }
+  .btn.danger{ background:var(--danger-line); color:#FFF; }
+  .runbar .grow{ flex:1; }
+  .runbar .hint{ font-size:11px; color:var(--text-3); }
+  .state{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:var(--radius-pill);
+          background:var(--surface-3); font-size:11.5px; font-weight:600; color:var(--text-2); }
+  .state .d{ width:8px; height:8px; border-radius:50%; background:var(--text-3); }
+  .state.run{ background:var(--success-chip); color:var(--success); }
+  .state.run .d{ background:var(--success-line); box-shadow:0 0 0 3px rgba(34,197,94,.18); }
+
+  /* ---------- 底栏 ---------- */
+  .statusbar{ height:var(--statusbar-h); flex:none; display:flex; align-items:center; gap:0; padding:0 8px;
+              background:var(--surface-2); border-top:1px solid var(--border); font-size:11.5px; color:var(--text-2); }
+  .sb-left,.sb-right{ display:flex; align-items:center; min-width:0; }
+  .sb-right{ margin-left:auto; gap:2px; }
+  .sb-run{ display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 6px; border-radius:var(--radius-sm); font-weight:600; }
+  .sb-run .d{ width:7px; height:7px; border-radius:50%; background:var(--text-3); }
+  .sb-run.run{ color:var(--success); } .sb-run.run .d{ background:var(--success-line); }
+  .sep{ width:1px; height:14px; background:var(--border-strong); margin:0 6px; flex:none; opacity:.7; }
+  .kpi{ display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 6px; border-radius:var(--radius-sm); white-space:nowrap; }
+  .kpi:hover{ background:var(--surface-3); }
+  .kpi .lb{ color:var(--text-3); font-size:11px; }
+  .kpi .vl{ font-weight:700; color:var(--text); font-variant-numeric:tabular-nums; }
+  .kpi .sub{ color:var(--text-3); font-size:10.5px; }
+  .kpi.ok .vl{ color:var(--success); } .kpi.ng .vl{ color:var(--danger); } .kpi.wn .vl{ color:var(--warning); }
+  .kpi.scope .vl{ font-weight:600; color:var(--text); }
+  .kpi.scope .caret{ color:var(--text-3); font-size:9px; }
+  .mini{ display:inline-flex; align-items:center; height:16px; padding:0 5px; border-radius:4px;
+         background:var(--primary-soft); color:var(--primary-strong); font-size:10px; font-weight:700; }
+  .mini.hide{ display:none; }
+  .chip{ display:inline-flex; align-items:center; gap:5px; height:22px; padding:0 8px; border-radius:var(--radius-pill);
+         font-size:11px; font-weight:600; white-space:nowrap; }
+  .chip.info{ background:var(--primary-soft); color:var(--primary-strong); }
+  .chip.info:hover{ background:var(--primary-light); }
+  .chip.plain{ background:var(--surface-3); color:var(--text-2); }
+  .perf{ display:inline-flex; align-items:center; gap:5px; padding:0 5px; font-size:11px; color:var(--text-2); font-variant-numeric:tabular-nums; }
+  .perf .bar{ width:26px; height:4px; border-radius:2px; background:var(--surface-3); overflow:hidden; }
+  .perf .bar i{ display:block; height:100%; border-radius:2px; background:var(--primary); }
+  .sb-btn{ height:22px; display:inline-flex; align-items:center; gap:5px; padding:0 7px; border-radius:var(--radius-sm); color:var(--text-2); }
+  .sb-btn:hover{ background:var(--surface-3); color:var(--text); }
+  .clock{ padding:0 6px; font-family:var(--mono); font-size:11px; color:var(--text-2); }
+  .user{ display:inline-flex; align-items:center; gap:6px; height:22px; padding:0 6px; border-radius:var(--radius-sm); }
+  .user:hover{ background:var(--surface-3); }
+  .user .av{ width:16px; height:16px; border-radius:50%; display:grid; place-items:center;
+             background:var(--primary-light); color:var(--primary-strong); font-size:9px; font-weight:800; }
+  .user .nm{ font-size:11px; color:var(--primary-strong); font-weight:600; }
+
+  /* ---------- 工位浮窗 ---------- */
+  .popup{ position:absolute; left:12px; bottom:calc(var(--statusbar-h) + 8px); width:820px; max-width:calc(100% - 24px);
+          background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:var(--shadow-pop);
+          z-index:20; display:none; overflow:hidden; }
+  .popup.open{ display:block; }
+  .pop-h{ display:flex; align-items:flex-start; gap:8px; padding:10px 12px 8px; border-bottom:1px solid var(--border-soft); }
+  .pop-h b{ font-size:12px; }
+  .pop-h .muted{ display:block; margin-top:1px; font-size:10.5px; color:var(--text-3); font-weight:400; }
+  .pop-h .x{ margin-left:auto; width:22px; height:22px; display:grid; place-items:center; border-radius:5px; color:var(--text-3); }
+  .pop-h .x:hover{ background:var(--surface-3); color:var(--text); }
+  .pop-table{ padding:4px 8px 2px; max-height:300px; overflow:auto; }
+  .prow{ display:grid; grid-template-columns:14px 1.5fr .62fr .62fr .62fr .62fr .62fr 1.2fr .78fr 52px;
+         align-items:center; gap:7px; height:30px; padding:0 6px; border-radius:6px; font-size:11px; text-align:left; }
+  .prow.head{ height:22px; color:var(--text-3); font-size:10px; font-weight:600; position:sticky; top:0; background:var(--surface); z-index:1; }
+  .prow:not(.head):hover{ background:var(--surface-2); }
+  .prow.sel{ background:var(--primary-soft); box-shadow:inset 0 0 0 1px var(--primary-light); }
+  .prow.off{ opacity:.55; }
+  .prow .st{ width:7px; height:7px; border-radius:50%; background:var(--text-3); }
+  .prow .st.run{ background:var(--success-line); } .prow .st.stop{ background:var(--text-3); }
+  .prow .st.debug{ background:var(--warning-line); }
+  .prow .nm{ font-weight:600; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .prow .nm small{ font-weight:400; color:var(--text-3); margin-left:4px; }
+  .prow .role{ color:var(--text-3); font-size:10.5px; }
+  .prow .num{ font-family:var(--mono); font-variant-numeric:tabular-nums; text-align:right; color:var(--text-2); }
+  .prow .num.ok{ color:var(--success); font-weight:700; } .prow .num.ng{ color:var(--danger); font-weight:700; }
+  .prow .num.unk{ color:var(--warning); font-weight:700; }
+  .prow .src{ display:inline-flex; align-items:center; height:18px; padding:0 6px; border-radius:4px; font-size:10px; font-weight:600; white-space:nowrap; }
+  .src.step{ background:var(--primary-soft); color:var(--primary-strong); }
+  .src.var{ background:#F5F3FF; color:#6D28D9; }
+  .src.line{ background:var(--success-chip); color:var(--success); }
+  .src.none{ background:var(--surface-3); color:var(--text-3); }
+  .prow .go{ font-size:10.5px; color:var(--primary-strong); font-weight:600; text-align:right; }
+  .pop-foot{ display:flex; align-items:center; gap:8px; padding:7px 12px 9px; border-top:1px solid var(--border-soft);
+             font-size:10.5px; color:var(--text-3); }
+  .pop-foot .link{ margin-left:auto; color:var(--primary-strong); font-weight:600; }
+  .pop-foot .link:hover{ text-decoration:underline; }
+
+  /* ---------- 表格（放大版） ---------- */
+  .tablewrap{ padding:14px 16px 16px; display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; background:#FFF; }
+  table{ width:100%; border-collapse:separate; border-spacing:0; font-size:11.5px; }
+  thead th{ text-align:left; color:#64748B; font-weight:600; font-size:10.5px; padding:0 8px 7px; border-bottom:1px solid #E2E8F0; white-space:nowrap; }
+  tbody td{ padding:8px; border-bottom:1px solid #EEF2F7; vertical-align:middle; }
+  tbody tr:hover td{ background:#F8FAFC; }
+  tbody tr.off td{ color:#94A3B8; }
+  tbody td.num{ text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; }
+  tbody td.num.ok{ color:#15803D; font-weight:700; } tbody td.num.ng{ color:#B91C1C; font-weight:700; }
+  tbody td.num.unk{ color:#B45309; font-weight:700; }
+  .who{ display:flex; align-items:center; gap:7px; }
+  .who .st{ width:7px; height:7px; border-radius:50%; background:#94A3B8; flex:none; }
+  .who .st.run{ background:#22C55E; } .who .st.debug{ background:#F59E0B; }
+  .who b{ font-weight:600; }
+  .who small{ color:#94A3B8; }
+  .side{ background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; padding:12px; }
+  .side h4{ margin:0 0 8px; font-size:11.5px; color:#0F172A; }
+  .side ul{ margin:0; padding-left:16px; color:#475569; font-size:11px; line-height:1.7; }
+  .side li b{ color:#0F172A; }
+  .side .note{ margin-top:10px; padding:8px; border-radius:7px; background:#FFF4E5; color:#B45309; font-size:10.5px; }
+
+  /* ---------- 轮次下钻 ---------- */
+  .roundwrap{ padding:16px; background:#FFF; }
+  .round-top{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .round-top .t{ font-size:14px; font-weight:600; }
+  .round-top .sub{ color:#64748B; font-size:11.5px; }
+  .round-top .right{ margin-left:auto; display:flex; gap:6px; }
+  .outcome{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 10px; border-radius:999px; font-size:11.5px; font-weight:700; }
+  .outcome.ok{ background:#F0FDF4; color:#15803D; } .outcome.ng{ background:#FEF2F2; color:#B91C1C; }
+  .outcome .d{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .round-grid{ display:grid; grid-template-columns:minmax(0,1fr) 360px; gap:14px; }
+  .card{ border:1px solid #E2E8F0; border-radius:10px; background:#FFF; overflow:hidden; }
+  .card-h{ display:flex; align-items:center; gap:8px; padding:9px 12px; background:#F8FAFC; border-bottom:1px solid #E2E8F0; font-size:11.5px; font-weight:600; }
+  .card-b{ padding:12px; }
+  .kv{ display:grid; grid-template-columns:92px minmax(0,1fr); gap:7px 10px; font-size:11.5px; }
+  .kv .k{ color:#94A3B8; } .kv .v{ color:#0F172A; font-weight:600; }
+  .kv .v.mono{ font-family:var(--mono); font-weight:500; }
+  .reason{ margin-top:10px; padding:10px 12px; border-radius:8px; background:#FEF2F2; border:1px solid #FECACA; color:#B91C1C; font-size:11.5px; }
+  .reason b{ display:block; margin-bottom:2px; }
+  .reason .why{ color:#7F1D1D; opacity:.8; font-size:10.5px; margin-top:3px; }
+  .timeline{ display:flex; flex-direction:column; gap:0; }
+  .tl{ display:grid; grid-template-columns:16px minmax(0,1fr) 58px 54px; gap:8px; align-items:center; padding:7px 0; border-bottom:1px dashed #EEF2F7; font-size:11px; }
+  .tl:last-child{ border-bottom:0; }
+  .tl .dot{ width:9px; height:9px; border-radius:50%; background:#22C55E; }
+  .tl.fail .dot{ background:#EF4444; } .tl.skip .dot{ background:#94A3B8; }
+  .tl .nm{ font-weight:600; color:#0F172A; } .tl .nm small{ font-weight:400; color:#94A3B8; margin-left:5px; }
+  .tl .ms{ font-family:var(--mono); color:#475569; text-align:right; }
+  .tl .stt{ font-size:10px; font-weight:700; text-align:right; color:#15803D; }
+  .tl.fail .stt{ color:#B91C1C; } .tl.skip .stt{ color:#94A3B8; }
+  .callout{ margin-top:10px; padding:9px 11px; border-radius:8px; background:#F0F9FF; border:1px solid #BAE6FD; color:#075985; font-size:10.5px; line-height:1.65; }
+  .callout b{ color:#0C4A6E; }
+  .whybox{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; }
+  .whybox .it{ padding:9px 10px; border-radius:8px; background:#F8FAFC; border:1px solid #E2E8F0; font-size:10.5px; color:#475569; }
+  .whybox .it b{ display:block; color:#0F172A; font-size:11px; margin-bottom:2px; }
+
+  /* ---------- 架构 ---------- */
+  .archwrap{ padding:16px; background:#FFF; }
+  .arch{ display:grid; grid-template-columns:1fr 34px 1fr 34px 1.15fr; align-items:center; gap:0; }
+  .arch-col{ display:flex; flex-direction:column; gap:6px; }
+  .arch-title{ font-size:10px; font-weight:700; letter-spacing:.04em; color:#94A3B8; text-transform:uppercase; margin-bottom:2px; }
+  .node{ padding:8px 10px; border-radius:8px; border:1px solid #E2E8F0; background:#F8FAFC; font-size:11px; color:#334155; }
+  .node.strong{ background:#F0F9FF; border-color:#BAE6FD; color:#075985; font-weight:700; }
+  .node.ok{ background:#F0FDF4; border-color:#BBF7D0; color:#166534; }
+  .arrow{ display:grid; place-items:center; color:#94A3B8; font-size:16px; }
+  .projection{ margin-top:12px; padding:9px 12px; border-radius:8px; background:#F8FAFC; border:1px dashed #CBD5E1; font-size:11px; color:#475569; text-align:center; }
+  .projection b{ color:#0F172A; }
+  .adv{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+  .adv .it{ padding:11px 12px; border-radius:10px; border:1px solid #E2E8F0; background:#FFF; }
+  .adv .it h4{ margin:0 0 4px; font-size:11.5px; color:#0F172A; }
+  .adv .it p{ margin:0; font-size:10.5px; color:#475569; line-height:1.6; }
+  .adv .it code{ font-size:10px; color:#0284C7; }
+  .matrix{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+  .matrix .box{ border:1px solid #E2E8F0; border-radius:10px; overflow:hidden; }
+  .matrix .box h4{ margin:0; padding:9px 12px; background:#F8FAFC; border-bottom:1px solid #E2E8F0; font-size:11.5px; }
+  .matrix .box table{ font-size:10.5px; }
+  .matrix .box th,.matrix .box td{ padding:6px 9px; }
+  .roadmap{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:14px; }
+  .road{ padding:12px; border-radius:10px; border:1px solid #E2E8F0; background:#FFF; }
+  .road.hot{ border-color:#7DD3FC; background:#F0F9FF; box-shadow:0 0 0 1px #BAE6FD inset; }
+  .road .tagline{ display:inline-flex; align-items:center; height:19px; padding:0 7px; border-radius:5px; background:#F1F5F9; color:#475569; font-size:10px; font-weight:700; }
+  .road.hot .tagline{ background:#E0F2FE; color:#0284C7; }
+  .road h4{ margin:7px 0 4px; font-size:12px; }
+  .road p{ margin:0; font-size:10.5px; color:#475569; line-height:1.6; }
+  .nochange{ margin-top:14px; padding:10px 12px; border-radius:10px; background:#FFFBEB; border:1px solid #FDE68A; font-size:10.5px; color:#92400E; line-height:1.7; }
+  .nochange b{ color:#78350F; }
+
+  /* ---------- 提示 ---------- */
+  .toast{ position:absolute; left:50%; bottom:calc(var(--statusbar-h) + 14px); transform:translateX(-50%) translateY(6px);
+          padding:7px 12px; border-radius:8px; background:rgba(15,23,42,.9); color:#F8FAFC; font-size:11px;
+          opacity:0; pointer-events:none; transition:opacity .18s ease, transform .18s ease; z-index:30; }
+  .toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+  @media (max-width:1200px){
+    .popup{ width:calc(100% - 24px); }
+    .tablewrap,.round-grid,.matrix{ grid-template-columns:1fr; }
+    .adv{ grid-template-columns:1fr 1fr; }
+    .arch{ grid-template-columns:1fr; gap:8px; }
+    .arrow{ transform:rotate(90deg); }
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <h1>流程运行统计 · 底栏 KPI 与轮次记录 <span class="ver">v1 草案</span></h1>
+  <p class="meta">
+    多流程 / 多工位同时运行时，<b>节拍 / OK / NG 是每流程一份</b>，一条全局数没有定义。
+    本稿演示三件事：① 底栏按「当前流程」显示，点「N 条在跑」看工位浮窗；② 每轮产出一条
+    <b>FlowRoundResult</b>，OK/NG 可下钻到步骤与原因；③ 复用现有系统变量底座，
+    把同一份统计开放给 SCADA / 上报 / 报表。设计媒介，不是交付物（R126）。
+  </p>
+  <div class="legend">
+    <span class="tag"><i class="dot-ok"></i>OK：业务判定通过</span>
+    <span class="tag"><i class="dot-ng"></i>NG：业务判定不通过（不是技术故障）</span>
+    <span class="tag"><i class="dot-unk"></i>未判定：没拿到判定 / 调试 / 跳过</span>
+    <span class="tag"><i class="dot-line"></i>线级：主流程汇总，不跨站求和</span>
+    <span class="tag"><i class="dot-off"></i>不计入：Home / End / 调试轮</span>
+  </div>
+</div>
+
+<!-- ===================== 场景 A：底栏 + 工位浮窗 ===================== -->
+<section class="frame">
+  <div class="frame-head">
+    <div>
+      <div class="t">场景 A · 四条流程同时运行</div>
+      <div class="s">底栏跟当前选中流程；点「4 条在跑」打开工位浮窗；点行尾「详情」下钻轮次</div>
+    </div>
+    <div class="right">
+      <div class="seg" id="scopeSeg">
+        <button class="on" data-scope="selected">当前流程</button>
+        <button data-scope="all">全部在跑</button>
+      </div>
+    </div>
+  </div>
+  <div class="stagewrap">
+    <div class="stage">
+      <div class="screen app" id="app">
+
+        <div class="titlebar">
+          <div class="tb-brand"><span class="tb-logo">VM</span><span class="nm">VisionMaster</span></div>
+          <div class="modes">
+            <button class="m on">调试 <span class="k">^1</span></button>
+            <button class="m">运行 <span class="k">^2</span></button>
+            <button class="m">组态 <span class="k">^3</span></button>
+            <button class="m">自由 <span class="k">^4</span></button>
+          </div>
+          <button class="tb-doc">
+            <span class="nm">智能装配检测线</span>
+            <span class="st"><i class="d"></i>已保存 · D:\Projects\Line-01.vms</span>
+          </button>
+          <div class="winctl"><button>—</button><button>□</button><button>✕</button></div>
+        </div>
+
+        <div class="workspace">
+          <aside class="rail">
+            <div class="rail-h">流程</div>
+            <div class="flow-pill on">Main <span class="dot run"></span></div>
+            <div class="flow-pill">Station_A <span class="dot run"></span></div>
+            <div class="flow-pill">Station_B <span class="dot run"></span></div>
+            <div class="flow-pill">Station_C <span class="dot run"></span></div>
+            <div class="flow-pill">Home <span class="dot"></span></div>
+            <div class="flow-pill off">Debug_Test <span class="dot"></span></div>
+          </aside>
+
+          <main class="canvas">
+            <div class="canvas-toolbar">
+              <span class="chip plain">Station_B · 贴装检测</span>
+              <span class="chip plain">第 12842 轮</span>
+              <span class="chip info">结果输出步骤：NG</span>
+              <span style="margin-left:auto;color:#94A3B8">图像 2 路 · 1 路 NG</span>
+            </div>
+            <div class="canvas-body">
+              <div class="image-card">
+                <div class="grid"></div>
+                <div class="roi" style="left:28%;top:30%;width:42%;height:34%"></div>
+                <div class="lbl"><i class="d"></i>相机 1 · 定位</div>
+                <div class="res">score 0.93 · 12.4 ms</div>
+              </div>
+              <div class="image-card ng">
+                <div class="grid"></div>
+                <div class="roi" style="left:36%;top:38%;width:26%;height:22%"></div>
+                <div class="lbl"><i class="d"></i>相机 2 · 焊点</div>
+                <div class="res">d = 0.42 mm · NG</div>
+              </div>
+            </div>
+          </main>
+
+          <aside class="inspector">
+            <div class="insp-h">本轮</div>
+            <div class="insp-row"><span class="k">流程</span><span class="v">Station_B</span></div>
+            <div class="insp-row"><span class="k">轮次</span><span class="v">#12842</span></div>
+            <div class="insp-row"><span class="k">节拍</span><span class="v">842 ms</span></div>
+            <div class="insp-row"><span class="k">判定</span><span class="v ng">NG</span></div>
+            <div class="insp-row"><span class="k">判定源</span><span class="v">结果输出步骤</span></div>
+            <div class="insp-row"><span class="k">失败步骤</span><span class="v ng">判定表 · 外观</span></div>
+            <div class="insp-row"><span class="k">步骤</span><span class="v">37 / 37</span></div>
+            <div class="insp-row"><span class="k">触发</span><span class="v">定时</span></div>
+          </aside>
+        </div>
+
+        <div class="runbar">
+          <span class="state run"><i class="d"></i>运行中</span>
+          <button class="btn pri">▶ 循环运行</button>
+          <button class="btn line">单次运行</button>
+          <button class="btn danger">■ 停止</button>
+          <span class="grow"></span>
+          <span class="hint">Main / Station_A / Station_B / Station_C 在跑 · Home 待机</span>
+        </div>
+
+        <div class="statusbar" id="statusbar">
+          <div class="sb-left">
+            <span class="sb-run run"><i class="d"></i>运行中</span>
+            <span class="sep"></span>
+            <button class="kpi scope" id="scopeChip" title="打开工位浮窗">
+              <span class="lb">范围</span><span class="vl" id="scopeVal">Station_B · 贴装检测</span><span class="caret">▾</span>
+            </button>
+            <span class="sep"></span>
+            <button class="kpi" id="cycleKpi">
+              <span class="lb">节拍</span><span class="vl" id="cycleVal">842 ms</span><span class="sub" id="cycleSub">上一轮</span>
+            </button>
+            <span class="sep"></span>
+            <button class="kpi ok"><span class="lb">OK</span><span class="vl" id="okVal">1,284</span><span class="mini hide" id="okLine">线级</span></button>
+            <button class="kpi ng"><span class="lb">NG</span><span class="vl" id="ngVal">17</span><span class="mini hide" id="ngLine">线级</span></button>
+            <button class="kpi wn"><span class="lb">未判定</span><span class="vl" id="unkVal">3</span></button>
+            <span class="sep"></span>
+            <button class="kpi wn" title="未确认的产线告警（≠ 日志警告）"><span class="lb">告警</span><span class="vl">2</span></button>
+            <button class="chip info" id="runningChip">4 条在跑</button>
+          </div>
+          <div class="sb-right">
+            <span class="perf">CPU 2.1% <span class="bar"><i style="width:8%"></i></span></span>
+            <span class="perf">MEM 428 MB</span>
+            <span class="sep"></span>
+            <button class="sb-btn">▁ 控制台</button>
+            <span class="sep"></span>
+            <span class="clock">14:32:11</span>
+            <button class="user"><span class="av">A</span><span class="nm">管理员 · admin</span></button>
+          </div>
+        </div>
+
+        <div class="popup open" id="flowPopup">
+          <div class="pop-h">
+            <div><b>在跑流程</b><span class="muted">按工位聚合 · 只统计生产流程 · 点行选中，点「详情」看轮次</span></div>
+            <button class="x" id="popClose" title="关闭">✕</button>
+          </div>
+          <div class="pop-table" id="popTable"></div>
+          <div class="pop-foot">
+            <span>Home / End / 调试轮不计入；串联线不做跨站求和，线级取主流程汇总。</span>
+            <button class="link" id="clearBtn">清零计数…</button>
+          </div>
+        </div>
+
+        <div class="toast" id="toast"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 场景 B：工位 KPI 表 ===================== -->
+<section class="frame">
+  <div class="frame-head">
+    <div>
+      <div class="t">场景 B · 工位 KPI 表（浮窗的全宽版）</div>
+      <div class="s">每流程一行：状态 / 节拍 / OK / NG / 未判定 / 判定源 / 最近一轮；右侧是口径说明</div>
+    </div>
+  </div>
+  <div class="tablewrap">
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:170px">流程 / 工位</th>
+            <th style="width:70px">角色</th>
+            <th style="width:76px">状态</th>
+            <th style="width:78px;text-align:right">节拍</th>
+            <th style="width:62px;text-align:right">OK</th>
+            <th style="width:62px;text-align:right">NG</th>
+            <th style="width:70px;text-align:right">未判定</th>
+            <th style="width:120px">判定源</th>
+            <th style="width:88px">最近一轮</th>
+            <th style="width:70px">计入</th>
+          </tr>
+        </thead>
+        <tbody id="stationTable"></tbody>
+      </table>
+    </div>
+    <aside class="side">
+      <h4>口径（现场能解释）</h4>
+      <ul>
+        <li><b>节拍</b>：上一轮 <code>FlowRunStarted → FlowRunCompleted</code>；「全部」范围取<b>瓶颈</b>（在跑流程的最大值），不取平均。</li>
+        <li><b>OK / NG</b>：只认业务判定；<b>NG 不是步骤失败</b>。判定表 NG 时步骤 Failed，卡尺/斑点 NG 时 Success 仍为 true。</li>
+        <li><b>未判定</b>：判定步骤没执行 / 没配置判定源 / 类型不符。单独一桶，不混进 NG。</li>
+        <li><b>线级</b>：串联线取主流程汇总（样例 <code>CurrentResult</code>），不把各站相加；并联独立工位才允许求和。</li>
+        <li><b>不计入</b>：<code>Role=Home/End</code>、调试轮、单次手动调试；<b>子程序按工位计入</b>（线级 OK/NG 仍只取主流程）。</li>
+      </ul>
+      <div class="note">同一件产品过多个工位时，跨站相加会重复计数；没有产品身份（SN/工单）时，只能做工位统计，不能算线级良率。</div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== 场景 C：轮次下钻 ===================== -->
+<section class="frame" id="roundFrame">
+  <div class="frame-head">
+    <div>
+      <div class="t">场景 C · 轮次下钻（FlowRoundResult）</div>
+      <div class="s">点「详情」打开；同一轮记录同时供底栏、SCADA、上报、报表使用</div>
+    </div>
+    <div class="right">
+      <div class="seg" id="roundSeg">
+        <button class="on" data-round="b">Station_B · NG</button>
+        <button data-round="a">Station_A · OK</button>
+        <button data-round="c">Station_C · NG（变量）</button>
+        <button data-round="main">Main · 线级</button>
+      </div>
+    </div>
+  </div>
+  <div class="roundwrap">
+    <div class="round-top">
+      <span class="outcome ng" id="rOutcome"><i class="d"></i>NG</span>
+      <div>
+        <div class="t" id="rTitle">Station_B · 第 12842 轮</div>
+        <div class="sub" id="rSub">贴装检测 · 定时触发 · 非调试</div>
+      </div>
+      <div class="right">
+        <button class="btn line">查看图像</button>
+        <button class="btn line">查看日志</button>
+        <button class="btn line">上一轮</button>
+        <button class="btn line">下一轮</button>
+      </div>
+    </div>
+
+    <div class="round-grid">
+      <div class="card">
+        <div class="card-h">轮次记录 · 不可变</div>
+        <div class="card-b">
+          <div class="kv" id="rKv"></div>
+          <div class="reason" id="rReason">
+            <b>NG 原因</b>
+            <span id="rReasonText">焊点直径 0.42 mm &lt; 0.50 mm（规则：焊点直径）</span>
+            <div class="why" id="rWhy">判定表 Failed = 产品 NG；结果输出步骤仍然 Success；本轮 Outcome=NG，不计技术故障。</div>
+          </div>
+          <div class="whybox">
+            <div class="it"><b>为什么可信</b>判定源、原因、失败步骤、轮次时间都在同一条记录里，不靠现场猜。</div>
+            <div class="it"><b>为什么不串数</b>按 FlowId / SessionId 归属；A 的轮次不会改 B 的计数。</div>
+            <div class="it"><b>为什么有「未判定」</b>判定步骤被跳过或没配置时，不能沿用上一轮，也不能冒充 NG。</div>
+            <div class="it"><b>为什么不求和</b>串联线同一件产品过多个工位，跨站相加会重复计数。</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-h">关键步骤 · 示例 <span class="mono" style="margin-left:auto;color:#94A3B8" id="rSteps">37 / 37</span></div>
+        <div class="card-b">
+          <div class="timeline" id="rTimeline"></div>
+          <div class="callout" id="rCallout">
+            <b>关键语义：</b>「判定表」步骤 Failed 表示产品 NG，不是技术故障；
+            「结果输出」步骤始终 Success，只负责把判定交给宿主。两者分开，底栏才敢把 NG 和故障分开计数。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== 场景 D：架构与现有优点 ===================== -->
+<section class="frame">
+  <div class="frame-head">
+    <div>
+      <div class="t">场景 D · 一套记录，多个消费者</div>
+      <div class="s">L2 目标架构：引擎产出一轮记录；底栏 / SCADA / 上报 / 报表 / 子流程调用读同一份</div>
+    </div>
+  </div>
+  <div class="archwrap">
+    <div class="arch">
+      <div class="arch-col">
+        <div class="arch-title">引擎（已有事件）</div>
+        <div class="node"><code>FlowRunStarted</code></div>
+        <div class="node"><code>FlowRunCompleted</code></div>
+        <div class="node"><code>SessionStateChanged</code></div>
+        <div class="node" style="border-style:dashed;color:#64748B">轮内：FocusedStep / 步骤 State</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="arch-col">
+        <div class="arch-title">单一事实源（L2 新增）</div>
+        <div class="node strong"><code>FlowRoundResult</code><br><span style="font-weight:400;font-size:10px">FlowId · 轮次 · 节拍 · Outcome · 原因 · 步骤</span></div>
+        <div class="node"><code>IFlowVerdictResolver</code><br><span style="font-size:10px">结果输出步骤 &gt; 变量 &gt; 步骤端口 &gt; Unknown</span></div>
+        <div class="node"><code>FlowSession.LastRound</code></div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="arch-col">
+        <div class="arch-title">消费者（同一份）</div>
+        <div class="node ok">底栏 KPI / 工位浮窗</div>
+        <div class="node ok">SCADA 图元（<code>System.Flow.*</code>）</div>
+        <div class="node ok">结果上报 / 数据记录 / 报表</div>
+        <div class="node ok">子流程调用 <code>FlowInvoker</code></div>
+      </div>
+    </div>
+    <div class="projection"><b>System.Flow.&lt;流程名&gt;.*</b> 只读系统变量：从 <code>FlowRoundResult</code> 投影，供 SCADA / 脚本绑定；不落盘、确定性 Id、改名不丢。</div>
+
+    <div class="adv">
+      <div class="it"><h4>① 复用现有系统变量底座</h4><p><code>SystemVariableModel</code> 只读派生、确定性 Guid、不落盘；<code>SystemVariableHost</code> 合并多提供方。已有 <code>RecipeVariableCatalog</code> 先例，不用另造一套。</p></div>
+      <div class="it"><h4>② 复用引擎每轮事件</h4><p><code>FlowRunStarted / FlowRunCompleted</code> 每轮各一次，连续/单次都触发；<code>SessionStateChanged</code> 管运行/暂停/停止/故障。</p></div>
+      <div class="it"><h4>③ SCADA 直接绑定</h4><p>每个工位在 HMI 上绑 <code>System.Flow.&lt;工位&gt;.CycleTimeMs</code> / <code>.OkCount</code>，不用写插件、不用改画面逻辑。</p></div>
+      <div class="it"><h4>④ 修掉一个现存问题</h4><p><code>FlowInvoker</code> 现在把“有步骤 Failed”当调用失败；判定表 NG 恰好 Fail，产品不良被报成调用故障。L2 用 <code>Outcome</code> 分开。</p></div>
+      <div class="it"><h4>⑤ NG 与故障分离</h4><p>判定表 NG 时步骤 Failed；卡尺/斑点 NG 时 Success=true。步骤状态语义不一致，所以判定必须显式声明，不能靠 Failed 猜。</p></div>
+      <div class="it"><h4>⑥ KPI 可下钻</h4><p>点 OK/NG 看到最近 N 轮的步骤、原因、图像、日志；没有记录的数字不可解释，也没法验收。</p></div>
+    </div>
+
+    <div class="matrix">
+      <div class="box">
+        <h4>为什么不能把各工位 OK/NG 相加</h4>
+        <table>
+          <thead><tr><th>拓扑</th><th>线级结果</th><th>底栏「全部」</th></tr></thead>
+          <tbody>
+            <tr><td>串联（同一产品过站）</td><td>主流程汇总 / 末站判定</td><td>显示线级，<b>不求和</b></td></tr>
+            <tr><td>并联（各自独立产品）</td><td>各站求和有效</td><td>可求和，需方案声明</td></tr>
+            <tr><td>无产品身份（SN/工单）</td><td>只能做工位统计</td><td>显示「N 条在跑」，OK/NG 分流程看</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="box">
+        <h4>本轮设计边界（不做什么）</h4>
+        <table>
+          <tbody>
+            <tr><td style="width:44%"><b>不自动插入</b>结果输出步骤</td><td>静默改用户流程图是红线级行为；旧方案 → Unknown + 编译警告</td></tr>
+            <tr><td><b>不跨站求和</b></td><td>串联线线级取主流程汇总；并联求和需方案级声明</td></tr>
+            <tr><td><b>不把调试/骨架计入</b></td><td>Home / End / 调试轮排除；子程序按工位计入</td></tr>
+            <tr><td><b>不把步骤 Failed 当 NG</b></td><td>技术故障与产品不良分开；未判定单独一桶</td></tr>
+            <tr><td><b>v1 不改引擎契约</b></td><td>先做系统变量 + 结果输出步骤；L2 再上 FlowRoundResult</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="roadmap">
+      <div class="road">
+        <span class="tagline">L1 · 现在可做</span>
+        <h4>系统变量 + 结果输出步骤</h4>
+        <p>底栏有数、工位可绑 SCADA；不动引擎契约。旧方案用结果变量兼容；缺步骤 → 未判定。</p>
+      </div>
+      <div class="road hot">
+        <span class="tagline">L2 · 推荐</span>
+        <h4>FlowRoundResult + 判定解析器</h4>
+        <p>单一事实源；修 FlowInvoker 的 NG 当失败；底栏/SCADA/上报/报表共用；支持下钻。引擎契约增量，需 R12 评审。</p>
+      </div>
+      <div class="road">
+        <span class="tagline">L3 · 按需</span>
+        <h4>Ledger + 线级拓扑 + 班次</h4>
+        <p>追溯、良率、OEE、班次/工单报表。线级良率需要产品身份；写入必须异步，不能拖慢流程轮。</p>
+      </div>
+    </div>
+
+    <div class="nochange">
+      <b>评审结论：</b>结果输出步骤只是「判定来源之一」，不是统计核心；真正的完美方案是把「一轮」变成引擎一等对象（L2）。
+      底栏只做摘要 + 下钻；统计口径写进同一条记录，不再让底栏、SCADA、上报各算一套。
+    </div>
+  </div>
+</section>
+
+<script>
+  /* ---------------- 演示数据（仅设计稿） ---------------- */
+  const flows = [
+    { id:'main', name:'Main', station:'整线汇总', role:'主任务', state:'running', cycle:1120, ok:1280, ng:21, unknown:0, source:'主流程汇总变量', src:'line', last:'14:32:08', included:true },
+    { id:'a', name:'Station_A', station:'上料定位', role:'工位', state:'running', cycle:410, ok:1301, ng:0, unknown:0, source:'结果输出步骤', src:'step', last:'14:32:09', included:true },
+    { id:'b', name:'Station_B', station:'贴装检测', role:'工位', state:'running', cycle:842, ok:1284, ng:17, unknown:3, source:'结果输出步骤', src:'step', last:'14:32:08', included:true },
+    { id:'c', name:'Station_C', station:'终检', role:'工位', state:'running', cycle:655, ok:1280, ng:4, unknown:0, source:'结果变量 C_Result', src:'var', last:'14:32:07', included:true },
+    { id:'home', name:'Home', station:'回原点', role:'骨架', state:'stopped', cycle:null, ok:0, ng:0, unknown:0, source:'不参与', src:'none', last:'—', included:false, note:'骨架流程，不计入生产 KPI' },
+    { id:'debug', name:'Debug_Test', station:'调试', role:'普通', state:'debug', cycle:null, ok:0, ng:0, unknown:0, source:'不参与', src:'none', last:'—', included:false, note:'调试轮，不计入生产 KPI' },
+  ];
+
+  const rounds = {
+    b: {
+      title:'Station_B · 第 12842 轮', sub:'贴装检测 · 定时触发 · 非调试', outcome:'NG', cycle:842,
+      source:'结果输出步骤（IFlowResultSource）', reason:'焊点直径 0.42 mm < 0.50 mm（规则：焊点直径）',
+      why:'判定表 Failed = 产品 NG；结果输出步骤仍然 Success；本轮 Outcome=NG，不计技术故障。',
+      steps:'37 / 37',
+      timeline:[
+        ['采集图像','相机 2 · 500 万','210 ms','Success',''],
+        ['模板定位','score 0.93','120 ms','Success',''],
+        ['卡尺测量','焊点直径 0.42 mm','190 ms','Success',''],
+        ['判定表 · 外观','规则：焊点直径 ≥ 0.50','40 ms','Failed','fail'],
+        ['结果输出','IsOk=false · 交给宿主','1 ms','Success',''],
+      ],
+      kv:[['FlowId','flow_7c1e…（稳定）'],['SessionId','sess_9a3b…'],['轮次','#12842'],['开始 / 结束','14:32:07.158 / 14:32:08.000'],['节拍','842 ms'],['判定源','结果输出步骤'],['失败步骤','判定表 · 外观'],['触发 / 调试','定时 / false']],
+      callout:'<b>关键语义：</b>「判定表」步骤 Failed 表示产品 NG，不是技术故障；「结果输出」步骤始终 Success，只负责把判定交给宿主。两者分开，底栏才敢把 NG 和故障分开计数。'
+    },
+    a: {
+      title:'Station_A · 第 12842 轮', sub:'上料定位 · 定时触发 · 非调试', outcome:'OK', cycle:410,
+      source:'结果输出步骤（IFlowResultSource）', reason:'定位得分 0.93 ≥ 0.80；无 NG 规则触发。',
+      why:'结果输出步骤 IsOk=true；本轮 Outcome=OK，计入工位 OK。',
+      steps:'12 / 12',
+      timeline:[
+        ['采集图像','相机 1 · 500 万','160 ms','Success',''],
+        ['模板定位','score 0.93','180 ms','Success',''],
+        ['结果输出','IsOk=true · 交给宿主','1 ms','Success',''],
+      ],
+      kv:[['FlowId','flow_2a9d…（稳定）'],['SessionId','sess_41cf…'],['轮次','#12842'],['开始 / 结束','14:32:07.590 / 14:32:08.000'],['节拍','410 ms'],['判定源','结果输出步骤'],['失败步骤','—'],['触发 / 调试','定时 / false']],
+      callout:'<b>关键语义：</b>OK 与 NG 走同一条判定源；结果输出步骤只声明判定，不写全局变量、不改系统变量。'
+    },
+    c: {
+      title:'Station_C · 第 12842 轮', sub:'终检 · 定时触发 · 非调试', outcome:'NG', cycle:655,
+      source:'结果变量 C_Result（兼容旧方案）', reason:'终检高度超差 0.08 mm；变量 C_Result=false。',
+      why:'旧方案没有结果输出步骤，宿主按配置读取结果变量；变量存在且本轮被写入，Outcome=NG。',
+      steps:'21 / 21',
+      timeline:[
+        ['采集图像','相机 3 · 500 万','200 ms','Success',''],
+        ['高度测量','高度 12.08 mm','260 ms','Success',''],
+        ['变量赋值 · C_Result','写全局变量 C_Result=false','1 ms','Success',''],
+      ],
+      kv:[['FlowId','flow_8be2…（稳定）'],['SessionId','sess_77d0…'],['轮次','#12842'],['开始 / 结束','14:32:07.345 / 14:32:08.000'],['节拍','655 ms'],['判定源','结果变量 C_Result'],['失败步骤','—（变量判定）'],['触发 / 调试','定时 / false']],
+      callout:'<b>兼容路径：</b>变量模式要求判定变量每轮无条件写；若流程可能跳过写入步骤，宿主无法区分“本轮没写”和“上一轮的值”，应改用结果输出步骤或加轮次戳。'
+    },
+    main: {
+      title:'Main · 第 12842 轮', sub:'整线汇总 · 定时触发 · 非调试', outcome:'NG', cycle:1120,
+      source:'主流程汇总变量 CurrentResult', reason:'七工位中 Station_B / Station_C 未通过（allOk=false）；线级结果取主流程汇总。',
+      why:'线级 NG 来自主流程对七个工位结果的汇总，不是把各工位 OK 相加。',
+      steps:'37 / 37',
+      timeline:[
+        ['调用 Station_A','上料定位 · OK','412 ms','Success',''],
+        ['调用 Station_B','贴装检测 · NG','845 ms','Success',''],
+        ['调用 Station_C','终检 · NG','658 ms','Success',''],
+        ['汇总脚本 · CurrentResult','allOk=false → NG','3 ms','Success',''],
+        ['结果输出','IsOk=false · 交给宿主','1 ms','Success',''],
+      ],
+      kv:[['FlowId','flow_main…（稳定）'],['SessionId','sess_main…'],['轮次','#12842'],['开始 / 结束','14:32:06.880 / 14:32:08.000'],['节拍','1,120 ms'],['判定源','主流程汇总变量'],['失败步骤','—（线级汇总）'],['触发 / 调试','定时 / false']],
+      callout:'<b>线级口径：</b>样例的 Main 顺序调用各工位并汇总 allOk；产品身份隐含在一轮里。若各工位是独立会话并发跑，必须补 SN/工单才能算线级良率。'
+    },
+  };
+
+  let selectedId = 'b';
+  let scope = 'selected';
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n) => n == null ? '—' : n.toLocaleString('en-US');
+
+  function flowById(id){ return flows.find(f => f.id === id); }
+
+  function renderPopupRows(){
+    const host = $('popTable');
+    const head = `<div class="prow head">
+      <span></span><span>流程 / 工位</span><span>角色</span><span>状态</span>
+      <span class="num">节拍</span><span class="num">OK</span><span class="num">NG</span>
+      <span class="num">未判定</span><span>判定源</span><span></span>
+    </div>`;
+    const rows = flows.map(f => {
+      const sel = f.id === selectedId ? ' sel' : '';
+      const off = f.included ? '' : ' off';
+      const stateText = f.state === 'running' ? '运行' : f.state === 'debug' ? '调试' : '停止';
+      const counts = f.included
+        ? `<span class="num ok">${fmt(f.ok)}</span><span class="num ng">${fmt(f.ng)}</span><span class="num unk">${fmt(f.unknown)}</span>`
+        : `<span class="num">—</span><span class="num">—</span><span class="num">—</span>`;
+      const src = f.included
+        ? `<span class="src ${f.src}">${f.source}</span>`
+        : `<span class="src none">不计入</span>`;
+      return `<div class="prow${sel}${off}" data-id="${f.id}" ${f.included ? '' : 'data-off="1"'}>
+        <span class="st ${f.state}"></span>
+        <span class="nm">${f.name}<small>${f.station}</small></span>
+        <span class="role">${f.role}</span>
+        <span class="role">${stateText}</span>
+        <span class="num">${f.cycle ? f.cycle + ' ms' : '—'}</span>
+        ${counts}
+        ${src}
+        <span class="go">${f.included ? '详情 →' : '—'}</span>
+      </div>`;
+    }).join('');
+    host.innerHTML = head + rows;
+    host.querySelectorAll('.prow:not(.head)').forEach(el => {
+      el.addEventListener('click', (e) => {
+        const id = el.dataset.id;
+        if (el.dataset.off === '1') { toast('该流程不计入生产 KPI（Home / End / 调试轮）'); return; }
+        if (e.target.classList.contains('go')) { openRound(id); return; }
+        selectFlow(id);
+      });
+    });
+  }
+
+  function renderStationTable(){
+    const body = $('stationTable');
+    body.innerHTML = flows.map(f => {
+      const stateText = f.state === 'running' ? '运行中' : f.state === 'debug' ? '调试' : '停止';
+      const counts = f.included
+        ? `<td class="num ok">${fmt(f.ok)}</td><td class="num ng">${fmt(f.ng)}</td><td class="num unk">${fmt(f.unknown)}</td>`
+        : `<td class="num">—</td><td class="num">—</td><td class="num">—</td>`;
+      const src = f.included ? `<span class="src ${f.src}">${f.source}</span>` : `<span class="src none">不参与</span>`;
+      return `<tr class="${f.included ? '' : 'off'}">
+        <td><div class="who"><span class="st ${f.state}"></span><span><b>${f.name}</b><br><small>${f.station}</small></span></div></td>
+        <td>${f.role}</td>
+        <td>${stateText}</td>
+        <td class="num">${f.cycle ? f.cycle + ' ms' : '—'}</td>
+        ${counts}
+        <td>${src}</td>
+        <td class="mono">${f.last}</td>
+        <td>${f.included ? '<span class="mini">计入</span>' : '<span class="src none">不计入</span>'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function updateBar(){
+    const sel = flowById(selectedId) || flows[1];
+    const okLine = $('okLine'), ngLine = $('ngLine');
+    if (scope === 'selected') {
+      $('scopeVal').textContent = `${sel.name} · ${sel.station}`;
+      $('cycleVal').textContent = sel.cycle ? `${fmt(sel.cycle)} ms` : '—';
+      $('cycleSub').textContent = '上一轮';
+      $('okVal').textContent = fmt(sel.ok);
+      $('ngVal').textContent = fmt(sel.ng);
+      $('unkVal').textContent = fmt(sel.unknown);
+      okLine.classList.add('hide'); ngLine.classList.add('hide');
+    } else {
+      const running = flows.filter(f => f.included && f.state === 'running');
+      const bottleneck = Math.max(...running.map(f => f.cycle || 0));
+      const line = flowById('main');
+      $('scopeVal').textContent = `全部在跑 · ${running.length} 条`;
+      $('cycleVal').textContent = `${fmt(bottleneck)} ms`;
+      $('cycleSub').textContent = '瓶颈';
+      $('okVal').textContent = line ? fmt(line.ok) : '—';
+      $('ngVal').textContent = line ? fmt(line.ng) : '—';
+      $('unkVal').textContent = fmt(running.reduce((s, f) => s + f.unknown, 0));
+      okLine.classList.toggle('hide', !line);
+      ngLine.classList.toggle('hide', !line);
+    }
+  }
+
+  function selectFlow(id){
+    const f = flowById(id);
+    if (!f || !f.included) { toast('该流程不计入生产 KPI'); return; }
+    selectedId = id;
+    scope = 'selected';
+    document.querySelectorAll('#scopeSeg button').forEach(b => b.classList.toggle('on', b.dataset.scope === 'selected'));
+    renderPopupRows();
+    updateBar();
+  }
+
+  function setScope(next){
+    scope = next;
+    document.querySelectorAll('#scopeSeg button').forEach(b => b.classList.toggle('on', b.dataset.scope === next));
+    updateBar();
+  }
+
+  function openRound(id, scroll = true){
+    const r = rounds[id];
+    if (!r) return;
+    selectedId = id;
+    scope = 'selected';
+    document.querySelectorAll('#scopeSeg button').forEach(b => b.classList.toggle('on', b.dataset.scope === 'selected'));
+    renderPopupRows();
+    updateBar();
+
+    $('rTitle').textContent = r.title;
+    $('rSub').textContent = r.sub;
+    const out = $('rOutcome');
+    out.className = 'outcome ' + (r.outcome === 'OK' ? 'ok' : 'ng');
+    out.innerHTML = `<i class="d"></i>${r.outcome}`;
+    $('rSteps').textContent = r.steps;
+    $('rReasonText').textContent = r.reason;
+    $('rWhy').textContent = r.why;
+    $('rKv').innerHTML = r.kv.map(([k, v]) => `<span class="k">${k}</span><span class="v ${k === '判定源' ? '' : 'mono'}">${v}</span>`).join('');
+    $('rTimeline').innerHTML = r.timeline.map(([nm, sub, ms, st, cls]) => `
+      <div class="tl ${cls || ''}">
+        <span class="dot"></span>
+        <span class="nm">${nm}<small>${sub}</small></span>
+        <span class="ms">${ms}</span>
+        <span class="stt">${st}</span>
+      </div>`).join('');
+    $('rCallout').innerHTML = r.callout;
+
+    document.querySelectorAll('#roundSeg button').forEach(b => b.classList.toggle('on', b.dataset.round === id));
+    if (scroll) document.getElementById('roundFrame').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  let toastTimer = null;
+  function toast(msg){
+    const el = $('toast');
+    el.textContent = msg;
+    el.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('on'), 1800);
+  }
+
+  function closePopup(){ $('flowPopup').classList.remove('open'); }
+  function togglePopup(){ $('flowPopup').classList.toggle('open'); }
+
+  /* ---------------- 事件 ---------------- */
+  document.querySelectorAll('#scopeSeg button').forEach(b => {
+    b.addEventListener('click', () => setScope(b.dataset.scope));
+  });
+  document.querySelectorAll('#roundSeg button').forEach(b => {
+    b.addEventListener('click', () => openRound(b.dataset.round));
+  });
+  $('runningChip').addEventListener('click', togglePopup);
+  $('scopeChip').addEventListener('click', togglePopup);
+  $('popClose').addEventListener('click', closePopup);
+  $('clearBtn').addEventListener('click', () => toast('清零只清计数，不改历史轮次记录（演示）'));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closePopup(); });
+  document.addEventListener('click', (e) => {
+    if (!$('flowPopup').classList.contains('open')) return;
+    if ($('flowPopup').contains(e.target) || $('runningChip').contains(e.target) || $('scopeChip').contains(e.target)) return;
+    closePopup();
+  });
+
+  /* ---------------- 初始化 ---------------- */
+  renderPopupRows();
+  renderStationTable();
+  updateBar();
+  openRound('b', false);
+</script>
+</body>
+</html>

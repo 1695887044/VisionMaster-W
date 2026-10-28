@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Newtonsoft.Json;
 
 namespace VisionMaster.Scada
@@ -282,6 +283,16 @@ namespace VisionMaster.Scada
     /// </summary>
     public static class ScadaScheduleClock
     {
+        /// <summary>
+        /// 时刻格式：<c>h:mm</c> / <c>hh:mm</c> / <c>hh:mm:ss</c>，分钟必须两位。
+        ///
+        /// 为什么要先卡格式：<see cref="TimeSpan.TryParse(string, out TimeSpan)"/> 把 <c>"8:0"</c>
+        /// 读成 <b>8 分钟</b>（00:08）、<c>"8:5"</c> 读成 8 分 5 秒——想填 08:00 的人会得到 00:08，
+        /// 而且不报错。2026-10-27 计划表走查里"8:0 应该被判非法"就是这条。
+        /// </summary>
+        private static readonly Regex TimeOfDayPattern =
+            new(@"^\d{1,2}:\d{2}(:\d{2})?$", RegexOptions.Compiled);
+
         /// <summary>解析 <c>HH:mm</c>（也接受 <c>H:mm</c> 与 <c>HH:mm:ss</c>，秒被丢弃）</summary>
         public static bool TryParseTimeOfDay(string? text, out TimeSpan time)
         {
@@ -289,7 +300,12 @@ namespace VisionMaster.Scada
             if (string.IsNullOrWhiteSpace(text))
                 return false;
 
-            if (!TimeSpan.TryParse(text.Trim(), CultureInfo.InvariantCulture, out var parsed))
+            var trimmed = text.Trim();
+
+            if (!TimeOfDayPattern.IsMatch(trimmed))
+                return false;
+
+            if (!TimeSpan.TryParse(trimmed, CultureInfo.InvariantCulture, out var parsed))
                 return false;
 
             if (parsed < TimeSpan.Zero || parsed >= TimeSpan.FromDays(1))

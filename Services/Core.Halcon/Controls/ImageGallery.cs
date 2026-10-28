@@ -62,11 +62,39 @@ namespace Core.Halcon.Controls
 
         private bool _recomputeQueued;
         private INotifyCollectionChanged? _observedSource;
+        private bool _sourceHooked;
 
         static ImageGallery()
         {
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(ImageGallery), new FrameworkPropertyMetadata(typeof(ImageGallery)));
+        }
+
+        public ImageGallery()
+        {
+            // 集合订阅随加载状态成对挂/摘：控件被移出树（切标签、布局重建、方案切换）后仍订阅，
+            // 会变成"幽灵格子"——每一帧都跑一次 Recompute，且整个可视树被静态集合钉住不回收。
+            // 首次订阅仍由 ItemsSource 赋值触发（断言宿主里控件不进树，不会触发 Loaded）。
+            Loaded += (_, __) => HookSource();
+            Unloaded += (_, __) => UnhookSource();
+        }
+
+        /// <summary>挂上数据源集合的变更通知（幂等；未赋值数据源时是 no-op）</summary>
+        private void HookSource()
+        {
+            if (_observedSource == null) return;
+            _observedSource.CollectionChanged -= OnSourceCollectionChanged;
+            _observedSource.CollectionChanged += OnSourceCollectionChanged;
+            _sourceHooked = true;
+            QueueRecompute();
+        }
+
+        /// <summary>摘掉数据源集合的变更通知（幂等）</summary>
+        private void UnhookSource()
+        {
+            if (!_sourceHooked || _observedSource == null) return;
+            _observedSource.CollectionChanged -= OnSourceCollectionChanged;
+            _sourceHooked = false;
         }
 
         /// <summary>宿主挂"清空图集"的动作；控件本身不删数据</summary>
@@ -240,6 +268,56 @@ namespace Core.Halcon.Controls
         /// </summary>
         public event EventHandler? ThumbnailStripToggleRequested;
 
+        /// <summary>
+        /// 请求"放大本格 / 还原本格"（双击大图，或大图右键菜单里那一项）。
+        /// 控件不做任何布局——多格怎么让位是宿主（<c>ImageView</c>）的事。
+        /// </summary>
+        public event EventHandler? MaximizeToggleRequested;
+
+        /// <summary>
+        /// 本格是否处在"多格布局"里（有别的格可以让位）。true 时接管双击：
+        /// 双击大图 = 请求放大/还原，不再切「适应窗口/1:1」（F/1 与右键菜单仍可缩放）。
+        /// 由宿主按当前布局推下来；单格布局为 false，双击保持原有缩放语义。
+        /// </summary>
+        public bool IsPaneMaximizable
+        {
+            get => _paneMaximizable;
+            set
+            {
+                if (_paneMaximizable == value) return;
+                _paneMaximizable = value;
+                ApplyPaneState();
+            }
+        }
+
+        private bool _paneMaximizable;
+
+        /// <summary>本格当前是否已放大（宿主摆好布局后回写，供右键菜单切换文案）</summary>
+        public bool IsPaneMaximized
+        {
+            get => _paneMaximized;
+            set
+            {
+                if (_paneMaximized == value) return;
+                _paneMaximized = value;
+                SyncMaximizeMenuItem();
+            }
+        }
+
+        private bool _paneMaximized;
+
+        /// <summary>把"能不能放大/是不是已放大"推给模板里的元素（模板可能晚于属性赋值就绪）</summary>
+        private void ApplyPaneState()
+        {
+            if (_big != null)
+            {
+                // 多格时才独占双击；单格双击仍是"适应窗口/1:1"（F/1 也照旧）
+                _big.SuppressDoubleClickZoom = _paneMaximizable;
+                EnsureMaximizeMenuItem();
+            }
+            SyncMaximizeMenuItem();
+        }
+
         #endregion
 
         /// <summary>筛选后的帧列表（与 <see cref="ItemsSource"/> 同步维护，供模板直接绑定）</summary>
@@ -261,6 +339,7 @@ namespace Core.Halcon.Controls
             base.OnApplyTemplate();
             HookTemplateParts();
             EnsureContextMenu();
+            ApplyPaneState();
 
             if (_flowFilter != null)
                 _flowFilter.SelectedItem = AvailableFlows.Contains(SelectedFlow) ? SelectedFlow : AllFlowsLabel;
@@ -287,6 +366,8 @@ namespace Core.Halcon.Controls
 
             if (_list != null) _list.MouseDoubleClick += OnListDoubleClick;
             if (_list != null) _list.PreviewMouseWheel += OnListMouseWheel;
+            if (_big != null) _big.CanvasDoubleClicked += OnBigDoubleClicked;
+            if (_big != null) _big.Loaded += OnBigLoaded;
             if (_flowFilter != null) _flowFilter.SelectionChanged += OnFlowFilterSelectionChanged;
             if (_clearButton != null) _clearButton.Click += OnClearClick;
             if (_lockToggle != null) _lockToggle.Checked += OnLockChanged;
@@ -302,6 +383,8 @@ namespace Core.Halcon.Controls
         {
             if (_list != null) _list.MouseDoubleClick -= OnListDoubleClick;
             if (_list != null) _list.PreviewMouseWheel -= OnListMouseWheel;
+            if (_big != null) _big.CanvasDoubleClicked -= OnBigDoubleClicked;
+            if (_big != null) _big.Loaded -= OnBigLoaded;
             if (_flowFilter != null) _flowFilter.SelectionChanged -= OnFlowFilterSelectionChanged;
             if (_clearButton != null) _clearButton.Click -= OnClearClick;
             if (_lockToggle != null) _lockToggle.Checked -= OnLockChanged;
@@ -443,6 +526,79 @@ namespace Core.Halcon.Controls
         private void OnListDoubleClick(object sender, MouseButtonEventArgs e) => _big?.FitToImage();
 
         /// <summary>
+        /// 双击大图：多格布局下请求放大/还原本格。单格布局直接放行——那时双击仍是
+        /// 基类的「适应窗口/1:1」切换（多格下该能力改由 F/1 与右键菜单提供）。
+        /// </summary>
+        private void OnBigDoubleClicked(object? sender, EventArgs e)
+        {
+            if (!IsPaneMaximizable) return;
+            TogglePaneMaximize();
+        }
+
+        /// <summary>
+        /// 请求宿主放大/还原本格（双击大图与右键菜单同一出口；断言宿主也走这里）。
+        /// 单格布局下是 no-op：没有别的格可让位。
+        /// </summary>
+        public void TogglePaneMaximize()
+        {
+            if (!IsPaneMaximizable) return;
+            MaximizeToggleRequested?.Invoke(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// 大图 Loaded 后补右键菜单项：ImageDisplay 的 ContextMenu 在它自己的
+        /// OnApplyTemplate 里建，晚于本控件的 OnApplyTemplate（那时还是 null）。
+        /// </summary>
+        private void OnBigLoaded(object sender, RoutedEventArgs e) => EnsureMaximizeMenuItem();
+
+        /// <summary>大图右键菜单里的「最大化本格 / 还原布局」（只在多格布局出现）</summary>
+        private MenuItem? _maximizeMenuItem;
+
+        /// <summary>菜单项当前挂在哪份菜单上（模板重挂会换菜单，Opened 订阅要跟着搬）</summary>
+        private ContextMenu? _maximizeMenu;
+
+        private void EnsureMaximizeMenuItem()
+        {
+            if (_big?.ContextMenu is not ContextMenu menu) return;
+
+            _maximizeMenuItem ??= CreateMaximizeMenuItem();
+
+            if (!menu.Items.Contains(_maximizeMenuItem))
+            {
+                // 模板重挂会换一份 ContextMenu：先摘掉旧的逻辑父，再挂到新的
+                if (_maximizeMenuItem.Parent is ItemsControl owner && !ReferenceEquals(owner, menu))
+                    owner.Items.Remove(_maximizeMenuItem);
+                menu.Items.Add(_maximizeMenuItem);
+            }
+
+            if (!ReferenceEquals(_maximizeMenu, menu))
+            {
+                if (_maximizeMenu != null) _maximizeMenu.Opened -= OnMaximizeMenuOpened;
+                menu.Opened += OnMaximizeMenuOpened;
+                _maximizeMenu = menu;
+            }
+
+            SyncMaximizeMenuItem();
+        }
+
+        private MenuItem CreateMaximizeMenuItem()
+        {
+            var item = new MenuItem();
+            item.Click += (_, __) => TogglePaneMaximize();
+            return item;
+        }
+
+        /// <summary>每次打开菜单按当前状态刷文案与显隐：布局可能刚被宿主改过</summary>
+        private void OnMaximizeMenuOpened(object? sender, RoutedEventArgs e) => SyncMaximizeMenuItem();
+
+        private void SyncMaximizeMenuItem()
+        {
+            if (_maximizeMenuItem == null) return;
+            _maximizeMenuItem.Visibility = _paneMaximizable ? Visibility.Visible : Visibility.Collapsed;
+            _maximizeMenuItem.Header = _paneMaximized ? "还原布局（双击大图）" : "最大化本格（双击大图）";
+        }
+
+        /// <summary>
         /// 缩略图条是单行横向滚动的，而鼠标滚轮默认只认纵向：不映射的话用户会觉得"滑不动"
         /// （只有底部那条细滚动条能拖，现场很难发现）。
         ///
@@ -521,12 +677,11 @@ namespace Core.Halcon.Controls
         {
             if (d is not ImageGallery gallery) return;
 
-            if (gallery._observedSource != null)
-                gallery._observedSource.CollectionChanged -= gallery.OnSourceCollectionChanged;
+            gallery.UnhookSource();
 
             gallery._observedSource = e.NewValue as INotifyCollectionChanged;
             if (gallery._observedSource != null)
-                gallery._observedSource.CollectionChanged += gallery.OnSourceCollectionChanged;
+                gallery.HookSource();
 
             gallery.QueueRecompute();
         }
@@ -598,6 +753,10 @@ namespace Core.Halcon.Controls
                              .ThenBy(f => f.Sequence)
                              .ToList();
 
+            // “最新”必须按发布序号取，不能取排序后的最后一个：
+            // 排序键是流程名（展示分组需要），流程名最大的那条流程的帧不一定是最新发布的。
+            var newest = visible.Count == 0 ? null : visible.OrderBy(f => f.Sequence).Last();
+
             // 3) 原地同步（抑制无谓的整表重建，保持 ListBox 选中/滚动状态）
             if (!FilteredFrames.SequenceEqual(visible))
             {
@@ -605,19 +764,32 @@ namespace Core.Halcon.Controls
                 FilteredFrames.Clear();
                 foreach (var f in visible) FilteredFrames.Add(f);
 
-                if (previous != null && visible.Contains(previous))
+                // 每格只留一张（无缩略图条/无锁定入口）时，用户没有“选中旧帧”的手段，
+                // 必须跟随最新发布；否则另一条流程的旧帧会永久占住画面。
+                if (!SupportsFrameHistory)
+                    SetCurrentValue(SelectedFrameProperty, newest);
+                else if (previous != null && visible.Contains(previous))
                     SetCurrentValue(SelectedFrameProperty, previous);
-                else if (AutoSelectNewest && visible.Count > 0)
-                    SetCurrentValue(SelectedFrameProperty, visible[visible.Count - 1]);
-                else if (visible.Count == 0)
+                else if (AutoSelectNewest)
+                    SetCurrentValue(SelectedFrameProperty, newest);
+                else
+                    // 锁定跟随 + 原选中帧已被同槽新帧覆盖/被上限淘汰：**不能留着它**。
+                    // 帧的 Image 已被 Dispose（ImageFrame.Dispose 置 null，而它是普通 CLR 属性、
+                    // 不通知绑定），画布会永久停在"黑底 + 标注"且不自愈（2026-10-27 真机）。
+                    // 锁定锁的是"新帧不抢焦点"，不是"抱着已释放的帧"；口径与下面锁定分支一致。
                     SetCurrentValue(SelectedFrameProperty, null);
             }
             else if (SelectedFrame != null && !visible.Contains(SelectedFrame))
             {
-                SetCurrentValue(SelectedFrameProperty, AutoSelectNewest && visible.Count > 0
-                    ? visible[visible.Count - 1]
-                    : null);
+                SetCurrentValue(SelectedFrameProperty, AutoSelectNewest ? newest : null);
             }
+
+            // 钉住的对比基准被覆盖/淘汰后同样不能留：帧已 Dispose，右侧对比大图会永久"黑底 + 标注"。
+            // 判据只看"还在不在数据源里"（未按流程筛选的 all）——**不要**拿 Image==null 判：
+            // 只是被流程下拉挡住的帧仍然活着，切筛选不该丢基准；而"图还在、Image 暂时为空"是
+            // 显示层的问题（HalconBase.RenderAll 已经按"没有活图就清屏"处理）。
+            if (PinnedFrame != null && !all.Contains(PinnedFrame))
+                SetCurrentValue(PinnedFrameProperty, null);
         }
     }
 }

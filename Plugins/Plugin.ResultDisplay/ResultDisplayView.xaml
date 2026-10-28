@@ -573,6 +573,7 @@
                                             <Grid.RowDefinitions>
                                                 <RowDefinition Height="Auto" />
                                                 <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
                                             </Grid.RowDefinitions>
 
                                             <!-- 第一行：启用 / 名称 / 删除 -->
@@ -671,6 +672,29 @@
                                                         Text="{Binding Unit, UpdateSourceTrigger=PropertyChanged}"
                                                         ToolTip="单位后缀，紧跟数值显示（mm / ° / ms …）。换算请在产出该数值的算子里做，本算子只贴标签不改数" />
                                                 </Grid>
+                                            </Grid>
+
+                                            <!-- 第三行：几何样式（只影响几何项：区域/轮廓/图形；文字颜色仍由判定项决定） -->
+                                            <Grid Grid.Row="2" Margin="0,4,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="58" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBox
+                                                    Grid.Column="0"
+                                                    Height="36"
+                                                    Style="{StaticResource DialogInput}"
+                                                    Tag="颜色（几何）"
+                                                    Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
+                                                    ToolTip="该项几何的颜色（HALCON 颜色名：red/green/cyan/yellow…）。空 = 默认青色；只影响几何，不影响数值文字" />
+                                                <TextBox
+                                                    Grid.Column="1"
+                                                    Height="36"
+                                                    Margin="7,0,0,0"
+                                                    Style="{StaticResource DialogInput}"
+                                                    Tag="线宽"
+                                                    Text="{Binding LineWidth, UpdateSourceTrigger=PropertyChanged}"
+                                                    ToolTip="该项几何的线宽（0 = 默认 2；1~10）。只影响几何，不影响文字" />
                                             </Grid>
                                         </Grid>
                                     </Border>

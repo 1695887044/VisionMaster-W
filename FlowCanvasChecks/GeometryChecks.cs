@@ -128,10 +128,10 @@ namespace FlowCanvasChecks
         /// 残差（P1-B A2）：点到几何的最小距离统计。
         ///
         /// 这一组守两件事：
-        ///   · <see cref="GeometryMath.PointResidual"/> 的公式（点距/线距/圆半径差/椭圆长轴系归一化）；
+        ///   · <see cref="GeometryMath.PointResidual"/> 的公式（点距/线距/圆半径差/椭圆最短欧氏距）；
         ///   · 「没接点集 = 合法跳过，接了但空/类型不可算 = 明确失败」这条三态纪律——
         ///     它决定了下游能不能把 ResidualCount=0 当成"完美拟合"来用。
-        /// 断言全用合成点集，误差控到 1e-6；椭圆那条刻意放宽到 5%，因为实现是近似式。
+        /// 断言全用合成点集，误差控到 1e-6；椭圆用精确解（与 HALCON distance_pc 同口径）。
         /// </summary>
         private static void RunResidualChecks()
         {
@@ -157,7 +157,7 @@ namespace FlowCanvasChecks
             Check("残差 圆几何：圆上点 (0,5) 残差 = 0",
                 Math.Abs(GeometryMath.PointResidual(circle5, 0, 5)) < 1e-6, "");
 
-            // ── 点到椭圆（长轴系归一化近似）──
+            // ── 点到椭圆（最短欧氏距，HALCON distance_pc 口径）──
             // 轴对齐椭圆：中心(0,0) phi=0 长半轴 10（沿 Col）短半轴 5（沿 Row）
             // 点(0,10) 在长轴端点 → 残差 0；点(5,0) 在短轴端点 → 残差 0
             var ellipse = GeometryParam.Ellipse(0, 0, 0, 10, 5);
@@ -166,18 +166,17 @@ namespace FlowCanvasChecks
             Check("残差 椭圆几何：短轴端点在椭圆上 → 0",
                 Math.Abs(GeometryMath.PointResidual(ellipse, 5, 0)) < 1e-6, "");
 
-            // 轴外点的近似口径：点(5,12) → norm=sqrt(1.2²+1²)=1.562，残差 = 0.562×5 = 2.81
-            // 真值（法向距离）约 2.6，这就是"近似值"的偏差量级；断言按实现口径钉死，
-            // 将来若要改成精确解，这条会红——提醒同步改 Help 与断言，而不是让偏差悄悄漂。
-            Check("残差 椭圆几何：轴外点(5,12) ≈ 2.81（长轴系归一化近似，非精确法向距）",
-                Math.Abs(GeometryMath.PointResidual(ellipse, 5, 12) - 2.8105) <= 0.005,
+            // 轴外点(5,12)：长轴系 (u,v)=(12,5)。最短欧氏距由法向条件
+            // sin t·(24−15cos t)=5cos t 解出 t≈0.4455，最近点 (9.024,2.154)，距离 4.1177。
+            // 旧的"归一化近似"给 2.81，在长轴方向按扁率低估——已改成精确解。
+            Check("残差 椭圆几何：轴外点(5,12) = 4.1177（最短欧氏距）",
+                Math.Abs(GeometryMath.PointResidual(ellipse, 5, 12) - 4.1177) <= 0.001,
                 GeometryMath.PointResidual(ellipse, 5, 12).ToString("0.####"));
 
-            // 长轴上外溢点(0,12)：归一化式子给的是 |sqrt(1.44)−1|×5 = 1，真实法向距是 2。
-            // 这就是"近似值"的已知偏差（≤ 长短轴比 × 越界量），**按实现口径钉死并把偏差写成判据**，
-            // 将来改精确解时这条会红——提醒同步改 Help/断言，不允许偏差悄悄漂。
-            Check("残差 椭圆几何：长轴外溢点(0,12) = 1（归一化近似，真实法向距 2 —— 已知偏差）",
-                Math.Abs(GeometryMath.PointResidual(ellipse, 0, 12) - 1.0) <= 0.005,
+            // 长轴上外溢点(0,12)：最近点是长轴端点 (10,0)，距离 = 2。
+            // 旧近似式给 1（按扁率低估一半），改成精确解后必须回到 2。
+            Check("残差 椭圆几何：长轴外溢点(0,12) = 2（最短欧氏距）",
+                Math.Abs(GeometryMath.PointResidual(ellipse, 0, 12) - 2.0) <= 1e-6,
                 GeometryMath.PointResidual(ellipse, 0, 12).ToString("0.####"));
 
             // ── 不可算的类型 → NaN（不编造 0）──

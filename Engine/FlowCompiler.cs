@@ -1641,6 +1641,34 @@ namespace VisionMaster.Services
             Dictionary<string, List<StepModel>> runtime,
             Dictionary<string, List<StepModel>> global)
         {
+            // 新行模型：Rows 非空时以它为准。
+            // InputValues["Rows"] 有两种形态：刚确认过是 ObservableCollection<AssignmentRow>，
+            // 从 .vms 加载未确认时是 JArray；两种都要认，否则"打开旧方案直接编译"会漏检。
+            if (step.InputValues != null
+                && step.InputValues.TryGetValue("Rows", out var rowsRaw)
+                && rowsRaw is IEnumerable rows)
+            {
+                bool any = false;
+                foreach (var item in rows)
+                {
+                    if (item == null) continue;
+                    if (!TryReadAssignmentRow(item, out var rowName, out var rowScope, out var rowEnabled))
+                        continue;
+                    if (!rowEnabled || string.IsNullOrWhiteSpace(rowName)) continue;
+
+                    bool rowIsGlobal = string.Equals(rowScope, "Global", StringComparison.OrdinalIgnoreCase);
+                    var target = rowIsGlobal ? global : runtime;
+                    if (!target.TryGetValue(rowName, out var list))
+                        target[rowName] = list = new List<StepModel>();
+                    if (!list.Contains(step))
+                        list.Add(step);
+                    any = true;
+                }
+
+                if (any) return;
+            }
+
+            // 旧单值模型：Rows 为空时回退到 Name/Scope。
             if (step.LinkedSources != null && step.LinkedSources.ContainsKey("Name"))
                 return; // 变量名来自连线：无法静态判定
 
@@ -1652,10 +1680,37 @@ namespace VisionMaster.Services
                 && step.InputValues.TryGetValue("Scope", out var scopeObj)
                 && string.Equals(scopeObj?.ToString(), "Global", StringComparison.OrdinalIgnoreCase);
 
-            var target = isGlobal ? global : runtime;
-            if (!target.TryGetValue(varName, out var list))
-                target[varName] = list = new List<StepModel>();
-            list.Add(step);
+            var legacyTarget = isGlobal ? global : runtime;
+            if (!legacyTarget.TryGetValue(varName, out var legacyList))
+                legacyTarget[varName] = legacyList = new List<StepModel>();
+            if (!legacyList.Contains(step))
+                legacyList.Add(step);
+        }
+
+        /// <summary>
+        /// 从一条赋值行里读「变量名 / 作用域 / 是否启用」（兼容 POCO 与 JObject 两种形态）。
+        /// 编译器不引用插件工程，所以不能直接转 AssignmentRow。
+        /// </summary>
+        private static bool TryReadAssignmentRow(object item, out string name, out string scope, out bool enabled)
+        {
+            name = null;
+            scope = "Runtime";
+            enabled = true;
+
+            if (item is JObject jo)
+            {
+                name = jo.Value<string>("VariableName");
+                scope = jo.Value<string>("Scope") ?? "Runtime";
+                enabled = jo.Value<bool?>("Enabled") ?? true;
+                return true;
+            }
+
+            var type = item.GetType();
+            name = type.GetProperty("VariableName")?.GetValue(item) as string;
+            scope = type.GetProperty("Scope")?.GetValue(item) as string ?? "Runtime";
+            var enabledValue = type.GetProperty("Enabled")?.GetValue(item);
+            enabled = enabledValue is bool flag ? flag : true;
+            return true;
         }
 
         /// <summary>

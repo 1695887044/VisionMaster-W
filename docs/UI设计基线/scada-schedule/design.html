@@ -3,660 +3,930 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SCADA 计划表 · 设计基线 v1</title>
+<title>SCADA 计划表 · 设计基线 v2</title>
 <style>
-  :root {
-    /* ===== 令牌（与 UI/Controls/Themes/Colors.xaml + ScadaTokens.xaml 对齐）===== */
-    --surface: #151C23;
-    --raised: #1B2430;
-    --sunken: #0F141A;
-    --border: #2A3745;
-    --border-strong: #3A4A5C;
-    --text: #E6EEF7;
-    --text-secondary: #9AA5B1;
-    --text-muted: #7C8A99;
-    --accent: #38BDF8;
-    --accent-soft: rgba(56, 189, 248, .14);
-    --green: #34C759;
-    --amber: #FFB020;
-    --red: #E03A2B;
-    --red-soft: rgba(224, 58, 43, .12);
+  /* ============================================================
+     令牌：全部取自 UI/Controls/Themes/Colors.xaml 的 Dialog* 族
+     （浅色弹窗域，主色 #0EA5E9）。设计稿不引入任何新色值。
+     ============================================================ */
+  :root{
+    --accent:#0EA5E9;            /* DialogAccentBrush */
+    --accent-dark:#0284C7;       /* DialogAccentDarkBrush */
+    --accent-light:#E0F2FE;      /* DialogAccentLightBrush */
+    --accent-soft:#F0F9FF;       /* DialogAccentSoftBrush */
+    --accent-border:#BAE6FD;     /* DialogAccentBorderBrush */
+    --accent-text:#0369A1;       /* DialogAccentTextBrush */
 
-    /* 间距：4 的倍数 */
-    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px;
-    /* 圆角 */
-    --r-sm: 4px; --r-md: 6px; --r-lg: 8px;
-    /* 字号 */
-    --fs-meta: 11px; --fs-body: 12px; --fs-body-lg: 13px; --fs-title: 15px;
+    --surface:#FFFFFF;           /* DialogSurfaceBrush */
+    --bg:#EEF2F7;                /* DialogBackgroundBrush */
+    --card-border:#E3E9F2;       /* DialogCardBorderBrush */
+    --input-bg:#F8FAFC;          /* DialogInputBackgroundBrush */
+
+    --border:#E2E8F0;            /* DialogBorderBrush */
+    --border-light:#EEF2F7;      /* DialogBorderLightBrush */
+    --border-strong:#CBD5E1;     /* DialogBorderStrongBrush */
+
+    --text:#0F172A;              /* DialogTextPrimaryBrush */
+    --text-2:#475569;            /* DialogTextSecondaryBrush */
+    --text-3:#64748B;            /* DialogTextTertiaryBrush（4.8:1） */
+    --text-muted:#94A3B8;        /* DialogTextMutedBrush（仅占位/禁用） */
+
+    --success:#22C55E; --success-text:#15803D; --success-soft:#F0FDF4; --success-border:#BBF7D0;
+    --danger:#EF4444;  --danger-text:#B91C1C;  --danger-soft:#FEF2F2;  --danger-border:#FECACA;
+    --warning:#F59E0B; --warning-text:#B45309; --warning-soft:#FFF4E5; --warning-border:#FDE68A;
+
+    --row-hover:#F1F5F9;         /* DialogRowHoverBrush */
+
+    --r-xs:4px; --r-sm:6px; --r-md:8px; --r-lg:12px;
+    --h:30px;                    /* 控件高：Dialog.Input 紧凑档 */
   }
 
-  * { box-sizing: border-box; }
-  html, body { margin: 0; }
-  body {
-    background: #0B0F14;
-    color: var(--text);
-    font-family: "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
-    font-size: var(--fs-body);
-    padding: var(--s5);
-    display: flex;
-    flex-direction: column;
-    gap: var(--s4);
-    align-items: center;
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:"Microsoft YaHei UI","Segoe UI",system-ui,-apple-system,sans-serif;
+    font-size:13px; line-height:1.45; color:#CBD5E1;
+    background-color:#0E1218;
+    background-image:
+      linear-gradient(rgba(255,255,255,.032) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.032) 1px,transparent 1px);
+    background-size:24px 24px;
+    padding:24px 24px 40px;
+    display:flex; flex-direction:column; align-items:center; gap:16px;
+  }
+  body.shot{padding:24px; gap:0}
+  body.shot .draft-bar,body.shot .notes{display:none}
+
+  /* ============ 草稿外壳（不属于产品界面） ============ */
+  .draft-bar{
+    width:980px; max-width:100%;
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  }
+  .draft-title{font-size:12px; color:#8A97A8}
+  .draft-title b{color:#E2E8F0; font-weight:600; margin-left:2px}
+  .states{display:flex; gap:6px; flex-wrap:wrap}
+  .chip{
+    font:inherit; font-size:11.5px; color:#94A3B8; cursor:pointer;
+    background:#151B24; border:1px solid #263140; border-radius:999px; padding:4px 11px;
+  }
+  .chip:hover{background:#1B2430; color:#CBD5E1}
+  .chip[aria-pressed="true"]{background:rgba(14,165,233,.16); border-color:#0EA5E9; color:#E0F2FE}
+  .draft-note{margin-left:auto; font-size:11px; color:#5C6A7C}
+
+  /* ============ 对话框 ============ */
+  .stage{display:flex; justify-content:center; width:100%}
+  .dialog{
+    width:980px; max-width:100%;
+    background:var(--surface);
+    border:1px solid var(--card-border);
+    border-radius:var(--r-lg);
+    box-shadow:0 24px 64px rgba(2,8,20,.55), 0 2px 6px rgba(2,8,20,.25);
+    overflow:hidden; color:var(--text);
+    display:flex; flex-direction:column;
   }
 
-  /* ===== 草稿页外壳（不属于产品界面）===== */
-  .draft-head {
-    width: 980px; max-width: 100%;
-    display: flex; align-items: baseline; gap: var(--s3);
-    color: var(--text-muted); font-size: var(--fs-meta);
+  .titlebar{
+    height:52px; flex:none; padding:0 18px 0 22px;
+    display:flex; align-items:center; gap:12px;
+    border-bottom:1px solid var(--border-light);
   }
-  .draft-head b { color: var(--text); font-size: var(--fs-body-lg); font-weight: 500; }
-  .draft-head .spacer { flex: 1; }
+  .titlebar h1{margin:0; font-size:15px; font-weight:600; letter-spacing:.2px}
+  .titlebar .meta{font-size:11.5px; color:var(--text-3)}
+  .titlebar .spacer{flex:1}
 
-  .chip-toggle {
-    border: 1px solid var(--border-strong); background: var(--raised); color: var(--text-secondary);
-    border-radius: var(--r-md); padding: 5px 10px; font: inherit; font-size: var(--fs-meta); cursor: pointer;
+  .icon-btn{
+    width:28px; height:28px; padding:0; flex:none;
+    display:inline-flex; align-items:center; justify-content:center;
+    background:transparent; border:1px solid transparent; border-radius:var(--r-sm);
+    color:var(--text-3); cursor:pointer; font:inherit;
   }
-  .chip-toggle[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
+  .icon-btn:hover{background:var(--row-hover); color:var(--text)}
+  .icon-btn:focus-visible{outline:2px solid rgba(14,165,233,.55); outline-offset:1px}
+  .icon-btn.del:hover{background:var(--danger-soft); color:var(--danger-text)}
+  .ic{width:14px; height:14px; display:block}
 
-  /* ===== 对话框 ===== */
-  .dialog {
-    width: 980px; max-width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-lg);
-    overflow: hidden;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, .55);
+  /* 只读提示条 */
+  .ro-banner{
+    display:none; align-items:center; gap:8px;
+    padding:7px 22px; font-size:11.5px;
+    background:var(--warning-soft); border-bottom:1px solid var(--warning-border);
+    color:var(--warning-text);
+  }
+  .ro-banner .ic{width:13px; height:13px}
+  body[data-state="readonly"] .ro-banner{display:flex}
+  body[data-state="readonly"] .editable{opacity:.55; pointer-events:none}
+  body[data-state="readonly"] .item .switch{opacity:.45; pointer-events:none}
+  body[data-state="readonly"] .new-plan{opacity:.45; pointer-events:none}
+  body[data-state="readonly"] .footer-edit{display:none}
+  body[data-state="readonly"] .footer-ro{display:flex}
+  body[data-state="readonly"] .btn-delete{visibility:hidden}
+
+  .body{display:flex; min-height:540px; max-height:620px; align-items:stretch}
+
+  /* ============ 左列：计划清单 ============ */
+  .list-col{
+    width:300px; flex:none; display:flex; flex-direction:column;
+    background:#FBFCFE; border-right:1px solid var(--border-light);
+  }
+  .list-head{
+    display:flex; align-items:center; gap:8px;
+    padding:14px 14px 8px;
+  }
+  .list-head .label{font-size:12px; font-weight:600; color:var(--text-2)}
+  .list-head .count{
+    font-size:10.5px; color:var(--text-3); background:#F1F5F9;
+    border-radius:999px; padding:1px 7px;
+  }
+  .list-rows{flex:1; overflow:auto; padding:0 8px 8px}
+
+  .item{
+    display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 10px;
+    padding:9px 10px; margin-bottom:4px;
+    border:1px solid transparent; border-radius:var(--r-md);
+    cursor:pointer; position:relative;
+  }
+  .item:hover{background:var(--row-hover)}
+  .item.selected{background:var(--accent-soft); border-color:var(--accent-border); box-shadow:inset 3px 0 0 var(--accent)}
+  .item .name{
+    grid-column:1; font-size:12.5px; font-weight:500; color:var(--text);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .item .sub{
+    grid-column:1; font-size:11px; color:var(--text-3);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .item .switch{grid-column:2; grid-row:1 / span 2}
+  .only-invalid{display:none}
+  body[data-state="invalid"] .only-normal{display:none}
+  body[data-state="invalid"] .only-invalid{display:inline}
+
+  .switch{
+    width:30px; height:17px; flex:none; border-radius:999px;
+    background:var(--border-strong); position:relative; cursor:pointer;
+    transition:background .15s ease;
+  }
+  .switch::after{
+    content:""; position:absolute; top:2px; left:2px; width:13px; height:13px;
+    border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(15,23,42,.28);
+    transition:left .15s ease;
+  }
+  .switch.on{background:var(--accent)}
+  .switch.on::after{left:15px}
+
+  .list-empty{
+    display:none; flex:1; flex-direction:column; align-items:center; justify-content:center;
+    gap:6px; padding:24px 22px; text-align:center;
+  }
+  .empty-badge{
+    width:42px; height:42px; border-radius:50%; background:#F1F5F9;
+    display:flex; align-items:center; justify-content:center; color:var(--text-muted);
+    margin-bottom:2px;
+  }
+  .empty-badge .ic{width:20px; height:20px}
+  .list-empty .t{font-size:12.5px; font-weight:500; color:var(--text-2)}
+  .list-empty .d{font-size:11px; color:var(--text-3); line-height:1.6}
+  body[data-state="empty"] .list-rows{display:none}
+  body[data-state="empty"] .list-empty{display:flex}
+
+  .new-plan{
+    margin:8px; height:30px; flex:none;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background:#fff; border:1px solid var(--border-strong); border-radius:var(--r-sm);
+    color:var(--text-2); font:inherit; font-size:12.5px; cursor:pointer;
+  }
+  .new-plan:hover{background:var(--input-bg); border-color:var(--text-muted)}
+
+  /* ============ 右列：编辑区 ============ */
+  .form-col{flex:1; min-width:0; display:flex; flex-direction:column}
+  .form{
+    flex:1; overflow:auto; padding:18px 22px 16px;
+    display:flex; flex-direction:column; gap:16px;
   }
 
-  .dlg-title {
-    display: flex; align-items: center; gap: var(--s3);
-    height: 46px; padding: 0 var(--s4);
-    background: var(--raised);
-    border-bottom: 1px solid var(--border);
+  .field{display:flex; flex-direction:column; gap:6px}
+  .field-head{display:flex; align-items:center; gap:8px; min-height:18px}
+  .field-head .spacer{flex:1}
+  .label{font-size:12px; font-weight:500; color:var(--text-2)}
+  .req{color:var(--danger); font-style:normal; margin-left:1px}
+  .hint{font-size:11px; color:var(--text-3); line-height:1.5}
+  .switch-label{font-size:11.5px; color:var(--text-2)}
+
+  .input,.sel select{
+    height:var(--h); width:100%;
+    padding:0 10px; font:inherit; font-size:12.5px; color:var(--text);
+    background:#fff; border:1px solid var(--border); border-radius:var(--r-sm);
+    outline:none; transition:border-color .12s ease, box-shadow .12s ease;
   }
-  .dlg-title h1 { margin: 0; font-size: var(--fs-title); font-weight: 500; }
-  .dlg-title .meta { color: var(--text-muted); font-size: var(--fs-meta); }
-  .dlg-title .spacer { flex: 1; }
-  .icon-btn {
-    width: 24px; height: 24px; padding: 0; line-height: 22px; text-align: center;
-    background: transparent; color: var(--text-secondary);
-    border: 1px solid transparent; border-radius: var(--r-sm); font: inherit; cursor: pointer;
+  .input::placeholder{color:var(--text-muted)}
+  .input:hover,.sel select:hover{border-color:var(--border-strong)}
+  .input:focus,.sel select:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(14,165,233,.15)}
+  .input:disabled,.sel select:disabled{background:var(--input-bg); color:var(--text-3)}
+
+  .sel{position:relative}
+  .sel select{appearance:none; -webkit-appearance:none; padding-right:26px; cursor:pointer}
+  .sel .caret{
+    position:absolute; right:8px; top:50%; transform:translateY(-50%);
+    color:var(--text-3); pointer-events:none; width:14px; height:14px;
   }
-  .icon-btn:hover { background: var(--raised); border-color: var(--border-strong); color: var(--text); }
+  .sel select:disabled + .caret{opacity:.5}
 
-  .readonly-banner {
-    display: none;
-    padding: var(--s2) var(--s4);
-    background: rgba(255, 176, 32, .10);
-    border-bottom: 1px solid rgba(255, 176, 32, .35);
-    color: var(--amber); font-size: var(--fs-meta);
+  .row{display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap}
+  .row > .field{flex:none}
+
+  /* 分段控件 */
+  .seg{
+    display:flex; gap:2px; padding:3px; flex:none;
+    background:#F1F5F9; border:1px solid var(--border-light); border-radius:var(--r-md);
   }
-  .dialog.is-readonly .readonly-banner { display: block; }
-  .dialog.is-readonly .editable { opacity: .55; pointer-events: none; }
-
-  .dlg-body { display: flex; min-height: 520px; }
-
-  /* ===== 左列：计划清单 ===== */
-  .list-col {
-    width: 300px; flex: none;
-    border-right: 1px solid var(--border);
-    display: flex; flex-direction: column;
-    background: var(--surface);
+  .field > .seg{align-self:flex-start}
+  .seg-item{
+    height:24px; padding:0 14px; font:inherit; font-size:12px;
+    color:var(--text-3); background:transparent; border:0; border-radius:var(--r-sm);
+    cursor:pointer; white-space:nowrap;
   }
-  .list-head {
-    display: flex; align-items: center; gap: var(--s2);
-    padding: var(--s3) var(--s3) var(--s2);
-    color: var(--text-muted); font-size: var(--fs-meta);
+  .seg-item:hover{color:var(--text-2)}
+  .seg-item.active{
+    background:#fff; color:var(--text); font-weight:600;
+    box-shadow:0 1px 2px rgba(15,23,42,.10), 0 0 0 1px rgba(15,23,42,.04);
   }
-  .list-head .spacer { flex: 1; }
-  .list-scroll { flex: 1; overflow: auto; padding: 0 var(--s2) var(--s2); }
+  /* 触发：默认时间计划；事件态切到事件 */
+  body[data-state="event"] .seg-kind .seg-item[data-kind="time"]{background:transparent; color:var(--text-3); font-weight:400; box-shadow:none}
+  body[data-state="event"] .seg-kind .seg-item[data-kind="event"]{background:#fff; color:var(--text); font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.10)}
+  /* 周期：默认每天；weekly/date 各自切换 */
+  body[data-state="weekly"] .seg-period .seg-item[data-period="daily"]{background:transparent; color:var(--text-3); font-weight:400; box-shadow:none}
+  body[data-state="weekly"] .seg-period .seg-item[data-period="weekly"]{background:#fff; color:var(--text); font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.10)}
+  body[data-state="date"] .seg-period .seg-item[data-period="daily"]{background:transparent; color:var(--text-3); font-weight:400; box-shadow:none}
+  body[data-state="date"] .seg-period .seg-item[data-period="date"]{background:#fff; color:var(--text); font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.10)}
 
-  .item {
-    display: grid; grid-template-columns: 1fr auto; gap: 2px var(--s2);
-    padding: var(--s2) var(--s3); margin-bottom: var(--s1);
-    border: 1px solid transparent; border-radius: var(--r-md);
-    cursor: pointer;
+  /* 时刻 / 数值：带单位后缀 */
+  .input-wrap{position:relative; display:flex; align-items:center; flex:none}
+  .input-wrap .input{padding-right:46px}
+  .input-wrap .suffix{
+    position:absolute; right:10px; font-size:11px; color:var(--text-3); pointer-events:none;
   }
-  .item:hover { background: var(--raised); }
-  .item.is-selected { background: var(--accent-soft); border-color: rgba(56, 189, 248, .45); }
-  .item .name { font-size: var(--fs-body-lg); }
-  .item .summary { grid-column: 1; color: var(--text-muted); font-size: var(--fs-meta); }
-  .item .state { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: var(--fs-meta); }
-  .item .state.on { color: var(--green); }
-  .item .state.off { color: var(--text-muted); }
-
-  .list-foot { padding: var(--s2) var(--s3) var(--s3); border-top: 1px solid var(--border); }
-
-  /* ===== 右列：编辑区 ===== */
-  .form-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-  .form-scroll { flex: 1; overflow: auto; padding: var(--s4); display: flex; flex-direction: column; gap: var(--s4); }
-
-  .section { display: flex; flex-direction: column; gap: var(--s2); }
-  .section > .label { color: var(--text-muted); font-size: var(--fs-meta); letter-spacing: .02em; }
-
-  .row { display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap; }
-  .row.tight { gap: var(--s1); }
-  .grow { flex: 1; min-width: 120px; }
-
-  input[type="text"], input[type="time"], input[type="date"], select {
-    height: 30px; padding: 0 var(--s2);
-    background: var(--sunken); color: var(--text);
-    border: 1px solid var(--border-strong); border-radius: var(--r-sm);
-    font: inherit; font-size: var(--fs-body);
+  .input-wrap .cal-btn{
+    position:absolute; right:4px; width:24px; height:24px;
+    display:flex; align-items:center; justify-content:center;
+    background:transparent; border:0; border-radius:var(--r-xs); color:var(--text-3); cursor:pointer;
   }
-  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
-  input::placeholder { color: var(--text-muted); }
-  input.invalid, select.invalid { border-color: var(--red); background: var(--red-soft); }
-  select { cursor: pointer; }
+  .input-wrap .cal-btn:hover{background:var(--row-hover); color:var(--text-2)}
 
-  .seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--sunken); border: 1px solid var(--border-strong); border-radius: var(--r-md); }
-  .seg button {
-    border: 0; background: transparent; color: var(--text-muted);
-    padding: 5px 12px; border-radius: var(--r-sm); font: inherit; font-size: var(--fs-body); cursor: pointer;
+  /* 星期多选 */
+  .week-row,.date-row{display:none}
+  body[data-state="weekly"] .week-row{display:flex}
+  body[data-state="date"] .date-row{display:flex}
+  .chips{display:flex; gap:6px}
+  .chip-day{
+    width:32px; height:28px; font:inherit; font-size:12px; cursor:pointer;
+    color:var(--text-2); background:#fff; border:1px solid var(--border); border-radius:var(--r-sm);
   }
-  .seg button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
-
-  .days { display: flex; gap: var(--s1); }
-  .days button {
-    width: 34px; height: 28px; border-radius: var(--r-sm); cursor: pointer; font: inherit; font-size: var(--fs-meta);
-    background: var(--sunken); color: var(--text-secondary); border: 1px solid var(--border-strong);
+  .chip-day:hover{border-color:var(--border-strong); background:var(--input-bg)}
+  .chip-day.on{
+    background:var(--accent-light); border-color:#7DD3FC; color:var(--accent-text); font-weight:600;
   }
-  .days button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); border-color: var(--accent); }
 
-  .hint { color: var(--text-muted); font-size: var(--fs-meta); }
-  .hint b { color: var(--accent); font-weight: 400; }
+  /* 预览条 */
+  .preview{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; border-radius:var(--r-sm);
+    background:var(--input-bg); border:1px solid var(--border);
+    font-size:12px; color:var(--text-2);
+  }
+  .preview .ic{width:13px; height:13px; color:var(--text-3); flex:none}
+  .preview .preview-label{color:var(--text-3); font-size:11.5px}
+  .preview b{color:var(--text); font-weight:600; font-size:12px}
+  .preview .preview-note{margin-left:auto; font-size:11px; color:var(--text-muted)}
+  body[data-state="invalid"] .preview b{color:var(--danger-text)}
 
-  .switch { display: inline-flex; align-items: center; gap: var(--s2); cursor: pointer; color: var(--text-secondary); font-size: var(--fs-meta); }
-  .switch input { accent-color: var(--accent); }
+  /* 事件块 */
+  .block-time{display:flex; flex-direction:column; gap:14px}
+  .block-event{display:none; flex-direction:column; gap:12px}
+  body[data-state="event"] .block-time{display:none}
+  body[data-state="event"] .block-event{display:flex}
 
   /* 动作表 */
-  .actions { display: flex; flex-direction: column; gap: var(--s1); }
-  .action-row {
-    display: grid; grid-template-columns: 150px 1fr auto; gap: var(--s2); align-items: center;
-    padding: var(--s2); background: var(--raised); border: 1px solid var(--border); border-radius: var(--r-md);
+  .block-actions{
+    border-top:1px solid var(--border-light); padding-top:14px;
+    display:flex; flex-direction:column; gap:8px;
   }
-  .action-row .order { color: var(--text-muted); font-size: var(--fs-meta); width: 18px; text-align: center; }
-  .action-row { grid-template-columns: 18px 150px 1fr auto; }
+  .section-head{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+  .section-head .label{font-weight:600}
+  .act-table{display:flex; flex-direction:column}
+  .act-head,.act-row{
+    display:grid; grid-template-columns:24px 128px 1fr 1fr 84px;
+    align-items:center; gap:8px;
+  }
+  .act-head{
+    font-size:10.5px; color:var(--text-3); padding:0 0 6px;
+    border-bottom:1px solid var(--border-light);
+  }
+  .act-row{padding:7px 0; border-bottom:1px solid #F6F8FB}
+  .act-row:hover{background:#FCFDFE}
+  .idx{font-size:11.5px; font-weight:600; color:var(--text-muted); text-align:center}
+  .cell-na{
+    height:var(--h); display:flex; align-items:center; justify-content:center;
+    color:var(--text-muted); font-size:12px;
+  }
+  .act-ops{display:flex; justify-content:flex-end; gap:2px}
+  .act-ops .icon-btn{width:26px; height:26px; color:var(--text-3)}
+  .act-ops .icon-btn .ic{width:13px; height:13px}
+  .act-ops .icon-btn:disabled{opacity:.35; cursor:default; background:transparent; color:var(--text-3)}
 
-  .btn {
-    height: 30px; padding: 0 var(--s3); border-radius: var(--r-md); font: inherit; font-size: var(--fs-body); cursor: pointer;
-    background: var(--raised); color: var(--text); border: 1px solid var(--border-strong);
-  }
-  .btn:hover { background: #223041; }
-  .btn.primary { background: var(--accent); color: #06222F; border-color: var(--accent); font-weight: 500; }
-  .btn.primary:hover { filter: brightness(1.08); }
-  .btn.danger { color: var(--red); border-color: rgba(224, 58, 43, .5); }
-  .btn:disabled { opacity: .45; cursor: default; }
-  .btn.ghost { background: transparent; }
+  .acts-event{display:none}
+  body[data-state="event"] .acts-time{display:none}
+  body[data-state="event"] .acts-event{display:block}
 
-  .dlg-foot {
-    display: flex; align-items: center; gap: var(--s2);
-    padding: var(--s3) var(--s4); border-top: 1px solid var(--border); background: var(--raised);
+  .act-empty{
+    display:none; align-items:center; justify-content:center; gap:8px;
+    height:64px; border:1px dashed var(--danger-border); border-radius:var(--r-md);
+    background:var(--danger-soft); color:var(--danger-text); font-size:12px;
   }
-  .dlg-foot .error { color: var(--red); font-size: var(--fs-meta); flex: 1; min-height: 16px; }
-  .dlg-foot .spacer { flex: 1; }
+  body[data-state="invalid"] .act-table{display:none}
+  body[data-state="invalid"] .act-empty{display:flex}
 
-  /* 运行态只读信息条 */
-  .runtime-strip {
-    display: flex; gap: var(--s5); padding: var(--s2) var(--s3);
-    background: var(--sunken); border: 1px dashed var(--border-strong); border-radius: var(--r-md);
-    color: var(--text-muted); font-size: var(--fs-meta);
+  .btn-add{
+    align-self:flex-start; margin-top:2px;
+    height:28px; padding:0 12px;
+    display:inline-flex; align-items:center; gap:5px;
+    background:#fff; border:1px solid var(--border-strong); border-radius:var(--r-sm);
+    color:var(--text-2); font:inherit; font-size:12px; cursor:pointer;
   }
-  .runtime-strip b { color: var(--text-secondary); font-weight: 400; }
+  .btn-add:hover{background:var(--input-bg)}
+  .btn-add .ic{width:12px; height:12px}
 
-  /* ===== 令牌表（草稿附注）===== */
-  .tokens {
-    width: 980px; max-width: 100%;
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s4);
-    padding: var(--s4); background: var(--surface);
-    border: 1px solid var(--border); border-radius: var(--r-lg);
+  /* 字段级错误 */
+  .err{display:none; font-size:11px; color:var(--danger-text)}
+  body[data-state="invalid"] .field-error .err{display:block}
+  body[data-state="invalid"] .field-error .input{border-color:var(--danger); background:var(--danger-soft)}
+  body[data-state="invalid"] .field-error .input:focus{box-shadow:0 0 0 3px rgba(239,68,68,.15)}
+
+  /* 空态（右侧） */
+  .form-empty{
+    display:none; flex:1; flex-direction:column; align-items:center; justify-content:center;
+    gap:8px; padding:40px; text-align:center;
   }
-  .tokens h2 { margin: 0 0 var(--s2); font-size: var(--fs-body); font-weight: 500; color: var(--text-secondary); }
-  .tokens ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-meta); color: var(--text-muted); }
-  .tokens li { display: flex; align-items: center; gap: var(--s2); }
-  .sw { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border-strong); flex: none; }
-  .mono { font-family: Consolas, monospace; }
+  .form-empty .t{font-size:13px; font-weight:500; color:var(--text-2)}
+  .form-empty .d{font-size:11.5px; color:var(--text-3); max-width:280px; line-height:1.6}
+  .form-empty .btn-add{margin-top:6px; height:30px}
+  body[data-state="empty"] .form{display:none}
+  body[data-state="empty"] .form-empty{display:flex}
+
+  /* ============ 页脚 ============ */
+  .footer{
+    flex:none; min-height:56px; padding:12px 22px;
+    display:flex; align-items:center; gap:12px;
+    border-top:1px solid var(--border-light);
+  }
+  .footer .spacer{flex:1}
+  .footer-error{display:none; align-items:center; gap:6px; font-size:11.5px; color:var(--danger-text)}
+  .footer-error .ic{width:13px; height:13px}
+  body[data-state="invalid"] .footer-error{display:flex}
+  .footer-actions{display:flex; align-items:center; gap:8px}
+  .footer-ro{display:none}
+
+  .btn{
+    height:var(--h); padding:0 14px; font:inherit; font-size:12.5px;
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    background:#fff; color:var(--text-2);
+    border:1px solid var(--border-strong); border-radius:var(--r-sm); cursor:pointer;
+  }
+  .btn:hover{background:var(--input-bg); color:var(--text)}
+  .btn:focus-visible{outline:2px solid rgba(14,165,233,.55); outline-offset:1px}
+  .btn-primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:500}
+  .btn-primary:hover{background:var(--accent-dark); border-color:var(--accent-dark); color:#fff}
+  .btn-danger-ghost{
+    background:transparent; border-color:transparent; color:var(--danger-text); padding:0 10px;
+  }
+  .btn-danger-ghost:hover{background:var(--danger-soft); color:var(--danger-text)}
+  .btn:disabled{opacity:.45; cursor:default; background:#fff; color:var(--text-3); border-color:var(--border)}
+  .btn-primary:disabled{background:var(--border-strong); border-color:var(--border-strong); color:#fff}
+  body[data-state="empty"] .btn-delete{opacity:.4; pointer-events:none}
+  body[data-state="empty"] .footer .btn-primary{opacity:.45; pointer-events:none}
+
+  /* ============ 说明区（不属于产品界面） ============ */
+  .notes{
+    width:980px; max-width:100%;
+    background:#131820; border:1px solid #1F2937; border-radius:10px;
+    padding:12px 18px 16px;
+  }
+  .notes summary{
+    cursor:pointer; font-size:12px; color:#94A3B8; outline:none;
+  }
+  .notes summary::marker{color:#475569}
+  .notes ol{
+    margin:12px 0 0; padding:0; list-style:none;
+    display:grid; grid-template-columns:1fr 1fr; gap:8px 24px;
+  }
+  .notes li{display:flex; gap:8px; font-size:11.5px; line-height:1.55; color:#B6C2D2}
+  .notes .n{
+    flex:none; width:18px; height:18px; border-radius:50%;
+    background:#1E2836; color:#7F8EA3; font-size:10.5px;
+    display:flex; align-items:center; justify-content:center; margin-top:1px;
+  }
+  .notes b{color:#E2E8F0; font-weight:600}
+  .notes .foot{
+    margin-top:12px; padding-top:10px; border-top:1px solid #1F2937;
+    font-size:11px; color:#5C6A7C;
+  }
+  @media (max-width:900px){
+    .notes ol{grid-template-columns:1fr}
+  }
 </style>
 </head>
-<body>
 
-<div class="draft-head">
-  <b>SCADA 计划表 · Web 设计基线 v1</b>
-  <span>对话框 980×620 · 深色画面 · 可点击原型</span>
-  <span class="spacer"></span>
-  <button class="chip-toggle" id="permToggle" aria-pressed="false">以「操作员」预览只读态</button>
-</div>
+<body data-state="default">
 
-<div class="dialog" id="dialog">
-  <div class="dlg-title">
-    <h1>计划表</h1>
-    <span class="meta" id="titleMeta">3 条 · 2 条启用</span>
-    <span class="spacer"></span>
-    <button class="icon-btn" title="关闭">✕</button>
+<header class="draft-bar">
+  <div class="draft-title">SCADA 计划表 · 设计基线 <b>v2</b></div>
+  <div class="states" role="group" aria-label="状态切换">
+    <button class="chip" data-state="default" aria-pressed="true">默认 · 每天</button>
+    <button class="chip" data-state="weekly" aria-pressed="false">每周</button>
+    <button class="chip" data-state="date" aria-pressed="false">指定日期</button>
+    <button class="chip" data-state="event" aria-pressed="false">事件计划</button>
+    <button class="chip" data-state="empty" aria-pressed="false">空列表</button>
+    <button class="chip" data-state="invalid" aria-pressed="false">校验失败</button>
+    <button class="chip" data-state="readonly" aria-pressed="false">操作员只读</button>
   </div>
+  <div class="draft-note">980 × 自适应 · 浅色 Dialog 令牌</div>
+</header>
 
-  <div class="readonly-banner">当前角色是「操作员」：计划表只读。需要「工程师」及以上才能修改（权限在按下前判定）。</div>
+<main class="stage">
+  <section class="dialog" aria-label="计划表">
 
-  <div class="dlg-body">
-    <!-- 左列 -->
-    <div class="list-col">
-      <div class="list-head">
-        <span>计划</span>
-        <span class="spacer"></span>
-        <span id="listCount">3</span>
-      </div>
-      <div class="list-scroll" id="list"></div>
-      <div class="list-foot editable">
-        <button class="btn ghost" id="addBtn" style="width:100%">＋ 新建计划</button>
-      </div>
+    <!-- 标题条 -->
+    <div class="titlebar">
+      <h1>计划表</h1>
+      <span class="meta js-title-meta">3 条计划 · 2 条启用</span>
+      <div class="spacer"></div>
+      <button class="icon-btn" title="关闭" aria-label="关闭">
+        <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
     </div>
 
-    <!-- 右列 -->
-    <div class="form-col">
-      <div class="form-scroll editable" id="form"></div>
-      <div class="dlg-foot">
-        <span class="error" id="error"></span>
-        <span class="spacer"></span>
-        <button class="btn danger editable" id="deleteBtn">删除</button>
-        <button class="btn editable">取消</button>
-        <button class="btn primary editable" id="okBtn">确定</button>
+    <!-- 只读提示条 -->
+    <div class="ro-banner">
+      <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="3.2" y="7" width="9.6" height="6.4" rx="1.4"/><path d="M5.6 7V5.2a2.4 2.4 0 0 1 4.8 0V7"/></svg>
+      <span>当前账号为操作员：计划表只读。修改需要工程师权限。</span>
+    </div>
+
+    <div class="body">
+
+      <!-- ================= 左列：计划清单 ================= -->
+      <aside class="list-col">
+        <div class="list-head">
+          <span class="label">计划</span>
+          <span class="count js-list-count">3 条 · 2 启用</span>
+        </div>
+
+        <div class="list-rows">
+          <div class="item item-1 selected">
+            <span class="name"><span class="only-normal">早班开机</span><span class="only-invalid">未命名计划</span></span>
+            <span class="sub">每天 08:00 · 3 个动作</span>
+            <span class="switch on" role="switch" aria-checked="true" tabindex="0" aria-label="启用 早班开机"></span>
+          </div>
+          <div class="item item-2">
+            <span class="name">液位高停泵</span>
+            <span class="sub">液位_1#罐 &gt; 90 持续 10 秒 · 2 个动作</span>
+            <span class="switch on" role="switch" aria-checked="true" tabindex="0" aria-label="启用 液位高停泵"></span>
+          </div>
+          <div class="item item-3">
+            <span class="name">夜间停线</span>
+            <span class="sub">2026-11-01 23:00 · 1 个动作</span>
+            <span class="switch" role="switch" aria-checked="false" tabindex="0" aria-label="启用 夜间停线"></span>
+          </div>
+        </div>
+
+        <div class="list-empty">
+          <div class="empty-badge">
+            <svg class="ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M7 7h6M7 10h6M7 13h4"/></svg>
+          </div>
+          <div class="t">还没有计划</div>
+          <div class="d">在固定时刻或变量条件满足时自动执行动作。<br>点下方「新建计划」创建第一条。</div>
+        </div>
+
+        <button class="new-plan">
+          <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+          新建计划
+        </button>
+      </aside>
+
+      <!-- ================= 右列：编辑区 ================= -->
+      <section class="form-col">
+
+        <!-- 表单 -->
+        <div class="form editable">
+
+          <!-- 名称 + 启用 -->
+          <div class="field field-error">
+            <div class="field-head">
+              <label class="label" for="f-name">名称 <span class="req">*</span></label>
+              <div class="spacer"></div>
+              <span class="switch-label">启用</span>
+              <span class="switch on" role="switch" aria-checked="true" tabindex="0" aria-label="启用此计划"></span>
+            </div>
+            <input id="f-name" class="input js-name" value="早班开机" placeholder="例如：早班开机">
+            <div class="err">名称不能为空</div>
+          </div>
+
+          <!-- 触发 -->
+          <div class="field">
+            <div class="field-head"><span class="label">触发</span></div>
+            <div class="seg seg-kind">
+              <button class="seg-item active" data-kind="time">时间计划</button>
+              <button class="seg-item" data-kind="event">事件计划</button>
+            </div>
+            <div class="hint">时间计划按钟点执行；事件计划在变量条件成立并持续后执行。</div>
+          </div>
+
+          <!-- 时间计划 -->
+          <div class="block block-time">
+            <div class="row">
+              <div class="field">
+                <div class="field-head"><span class="label">周期 <span class="req">*</span></span></div>
+                <div class="seg seg-period">
+                  <button class="seg-item active" data-period="daily">每天</button>
+                  <button class="seg-item" data-period="weekly">每周</button>
+                  <button class="seg-item" data-period="date">指定日期</button>
+                </div>
+              </div>
+              <div class="field field-error">
+                <div class="field-head"><label class="label" for="f-time">时刻 <span class="req">*</span></label></div>
+                <div class="input-wrap" style="width:126px">
+                  <input id="f-time" class="input js-time" value="08:00" placeholder="08:00">
+                  <span class="suffix">HH:mm</span>
+                </div>
+                <div class="err">用 HH:mm，例如 08:00</div>
+              </div>
+            </div>
+
+            <div class="field week-row">
+              <div class="field-head"><span class="label">星期 <span class="req">*</span></span></div>
+              <div class="row" style="align-items:center">
+                <div class="chips">
+                  <button class="chip-day on">一</button>
+                  <button class="chip-day on">二</button>
+                  <button class="chip-day on">三</button>
+                  <button class="chip-day on">四</button>
+                  <button class="chip-day on">五</button>
+                  <button class="chip-day">六</button>
+                  <button class="chip-day">日</button>
+                </div>
+                <div class="hint">选中哪几天就在哪几天执行；至少选一天。</div>
+              </div>
+            </div>
+
+            <div class="field date-row">
+              <div class="field-head"><span class="label">日期 <span class="req">*</span></span></div>
+              <div class="row" style="align-items:center">
+                <div class="input-wrap" style="width:190px">
+                  <input class="input" value="2026-11-01" placeholder="yyyy-MM-dd">
+                  <button class="cal-btn" title="选择日期" aria-label="选择日期">
+                    <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="2.6" y="3.4" width="10.8" height="10" rx="1.6"/><path d="M2.6 6.4h10.8M5.6 2.4v2M10.4 2.4v2"/></svg>
+                  </button>
+                </div>
+                <div class="hint">只触发一次；执行后这条计划自动转为停用。</div>
+              </div>
+            </div>
+
+            <div class="preview">
+              <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 5.2V8l2 1.2"/></svg>
+              <span class="preview-label">下次触发</span>
+              <b class="js-preview">明天 08:00（周三）</b>
+              <span class="preview-note">按当前时刻计算</span>
+            </div>
+          </div>
+
+          <!-- 事件计划 -->
+          <div class="block block-event">
+            <div class="row">
+              <div class="field">
+                <div class="field-head"><span class="label">变量 <span class="req">*</span></span></div>
+                <div class="sel" style="width:280px">
+                  <select aria-label="变量名">
+                    <option>液位_1#罐</option>
+                    <option>液位_2#罐</option>
+                    <option>通信_心跳</option>
+                  </select>
+                  <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                </div>
+              </div>
+              <div class="field">
+                <div class="field-head"><span class="label">条件 <span class="req">*</span></span></div>
+                <div class="sel" style="width:150px">
+                  <select aria-label="条件">
+                    <option>高于上限</option>
+                    <option>低于下限</option>
+                    <option>为真</option>
+                    <option>为假</option>
+                    <option>值改变</option>
+                  </select>
+                  <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                </div>
+              </div>
+              <div class="field">
+                <div class="field-head"><label class="label" for="f-duration">持续 <span class="req">*</span></label></div>
+                <div class="input-wrap" style="width:126px">
+                  <input id="f-duration" class="input" value="10">
+                  <span class="suffix">秒</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="field">
+                <div class="field-head"><label class="label" for="f-upper">上限</label></div>
+                <input id="f-upper" class="input" style="width:96px" value="90">
+              </div>
+              <div class="field">
+                <div class="field-head"><label class="label" for="f-lower">下限</label></div>
+                <input id="f-lower" class="input" style="width:96px" value="" placeholder="不使用">
+              </div>
+              <div class="hint" style="padding-bottom:7px">上限 / 下限只在「高于上限」「低于下限」时出现</div>
+            </div>
+
+            <div class="hint">变量按工程变量名选择；条件一断就重新计时，「值改变」不看持续时长。</div>
+
+            <div class="preview">
+              <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="5.6"/><path d="M8 5.2V8l2 1.2"/></svg>
+              <span class="preview-label">执行时机</span>
+              <b class="js-preview">满足条件并持续 10 秒后</b>
+              <span class="preview-note">条件消失即重新计时</span>
+            </div>
+          </div>
+
+          <!-- 动作 -->
+          <div class="block-actions">
+            <div class="section-head">
+              <span class="label">动作 <span class="req">*</span></span>
+              <span class="hint">按顺序执行；参数按名字引用变量 / 画面 / 流程 / 配方。</span>
+            </div>
+
+            <div class="act-rows">
+              <!-- 时间计划动作 -->
+              <div class="act-table acts-time">
+                <div class="act-head"><span>#</span><span>动作</span><span>对象或内容</span><span>参数</span><span>操作</span></div>
+
+                <div class="act-row">
+                  <span class="idx">1</span>
+                  <div class="sel">
+                    <select aria-label="动作类型">
+                      <option>跳页</option><option>写变量</option><option>启动流程</option>
+                      <option>停止流程</option><option>应用配方</option><option>播放声音</option>
+                      <option>语音播报</option><option selected>日志</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <div class="sel">
+                    <select aria-label="目标画面">
+                      <option>运行总览</option><option>灌装画面</option><option>报警画面</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <div class="cell-na">—</div>
+                  <div class="act-ops">
+                    <button class="icon-btn" disabled title="上移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V4M5 7l3-3 3 3"/></svg></button>
+                    <button class="icon-btn" title="下移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5V12M5 9l3 3 3-3"/></svg></button>
+                    <button class="icon-btn del" title="删除"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="act-row">
+                  <span class="idx">2</span>
+                  <div class="sel">
+                    <select aria-label="动作类型">
+                      <option>跳页</option><option selected>写变量</option><option>启动流程</option>
+                      <option>停止流程</option><option>应用配方</option><option>播放声音</option>
+                      <option>语音播报</option><option>日志</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <div class="sel">
+                    <select aria-label="变量名">
+                      <option>班次</option><option>当班产量</option><option>报警复位</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <input class="input" value="白班" placeholder="写入的值">
+                  <div class="act-ops">
+                    <button class="icon-btn" title="上移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V4M5 7l3-3 3 3"/></svg></button>
+                    <button class="icon-btn" title="下移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5V12M5 9l3 3 3-3"/></svg></button>
+                    <button class="icon-btn del" title="删除"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="act-row">
+                  <span class="idx">3</span>
+                  <div class="sel">
+                    <select aria-label="动作类型">
+                      <option>跳页</option><option>写变量</option><option>启动流程</option>
+                      <option>停止流程</option><option>应用配方</option><option>播放声音</option>
+                      <option>语音播报</option><option selected>日志</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <input class="input" value="早班开机完成" placeholder="日志文本">
+                  <div class="cell-na">—</div>
+                  <div class="act-ops">
+                    <button class="icon-btn" title="上移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V4M5 7l3-3 3 3"/></svg></button>
+                    <button class="icon-btn" disabled title="下移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5V12M5 9l3 3 3-3"/></svg></button>
+                    <button class="icon-btn del" title="删除"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 事件计划动作 -->
+              <div class="act-table acts-event">
+                <div class="act-head"><span>#</span><span>动作</span><span>对象或内容</span><span>参数</span><span>操作</span></div>
+
+                <div class="act-row">
+                  <span class="idx">1</span>
+                  <div class="sel">
+                    <select aria-label="动作类型">
+                      <option>跳页</option><option>写变量</option><option>启动流程</option>
+                      <option selected>停止流程</option><option>应用配方</option><option>播放声音</option>
+                      <option>语音播报</option><option>日志</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <div class="sel">
+                    <select aria-label="流程名">
+                      <option>灌装线</option><option>包装线</option><option>码垛线</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <div class="cell-na">—</div>
+                  <div class="act-ops">
+                    <button class="icon-btn" disabled title="上移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V4M5 7l3-3 3 3"/></svg></button>
+                    <button class="icon-btn" title="下移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5V12M5 9l3 3 3-3"/></svg></button>
+                    <button class="icon-btn del" title="删除"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                  </div>
+                </div>
+
+                <div class="act-row">
+                  <span class="idx">2</span>
+                  <div class="sel">
+                    <select aria-label="动作类型">
+                      <option>跳页</option><option>写变量</option><option>启动流程</option>
+                      <option>停止流程</option><option>应用配方</option><option>播放声音</option>
+                      <option>语音播报</option><option selected>日志</option>
+                    </select>
+                    <svg class="caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 6.2L8 9.8l3.5-3.6"/></svg>
+                  </div>
+                  <input class="input" value="液位高停泵已执行" placeholder="日志文本">
+                  <div class="cell-na">—</div>
+                  <div class="act-ops">
+                    <button class="icon-btn" title="上移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12.5V4M5 7l3-3 3 3"/></svg></button>
+                    <button class="icon-btn" disabled title="下移"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5V12M5 9l3 3 3-3"/></svg></button>
+                    <button class="icon-btn del" title="删除"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 校验失败：动作表为空 -->
+              <div class="act-empty">
+                <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.6M8 11h.01"/></svg>
+                至少需要一个动作
+              </div>
+            </div>
+
+            <button class="btn-add">
+              <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+              添加动作
+            </button>
+          </div>
+        </div>
+
+        <!-- 右侧空态 -->
+        <div class="form-empty">
+          <div class="empty-badge">
+            <svg class="ic" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="3" y="4" width="14" height="12" rx="2"/><path d="M6.5 8h7M6.5 11h4.5"/></svg>
+          </div>
+          <div class="t">还没有选中计划</div>
+          <div class="d">从左侧选择一条计划进行编辑，或者新建一条。</div>
+          <button class="btn-add">
+            <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3.5v9M3.5 8h9"/></svg>
+            新建计划
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <!-- 页脚 -->
+    <div class="footer">
+      <button class="btn btn-danger-ghost btn-delete">
+        <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3.2 4.6h9.6M6.4 4.6V3.4h3.2v1.2M4.6 4.6l.6 8.2h5.6l.6-8.2"/></svg>
+        删除这条
+      </button>
+      <div class="footer-error">
+        <svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3.6M8 11h.01"/></svg>
+        <span>有 3 处需要修正：名称、时刻、动作</span>
+      </div>
+      <div class="spacer"></div>
+      <div class="footer-actions footer-edit">
+        <button class="btn">取消</button>
+        <button class="btn btn-primary">确定</button>
+      </div>
+      <div class="footer-actions footer-ro">
+        <button class="btn btn-primary">关闭</button>
       </div>
     </div>
-  </div>
-</div>
+  </section>
+</main>
 
-<div class="tokens">
-  <div>
-    <h2>颜色令牌</h2>
-    <ul>
-      <li><span class="sw" style="background:#151C23"></span>表面 surface <span class="mono">#151C23</span></li>
-      <li><span class="sw" style="background:#1B2430"></span>抬升 raised <span class="mono">#1B2430</span></li>
-      <li><span class="sw" style="background:#0F141A"></span>输入底 sunken <span class="mono">#0F141A</span></li>
-      <li><span class="sw" style="background:#2A3745"></span>分隔 border <span class="mono">#2A3745</span></li>
-      <li><span class="sw" style="background:#38BDF8"></span>强调 accent <span class="mono">#38BDF8</span></li>
-      <li><span class="sw" style="background:#34C759"></span>启用 green <span class="mono">#34C759</span></li>
-      <li><span class="sw" style="background:#FFB020"></span>只读/警告 amber <span class="mono">#FFB020</span></li>
-      <li><span class="sw" style="background:#E03A2B"></span>校验失败 red <span class="mono">#E03A2B</span></li>
-    </ul>
+<details class="notes">
+  <summary>本次改版对应的 17 条问题（点击展开）</summary>
+  <ol>
+    <li><span class="n">1</span><span><b>左栏空态</b>：图标 + 一句话说明 + 新建入口，不再是纯灰块。</span></li>
+    <li><span class="n">2</span><span><b>启用开关</b>：表单右上「启用」开关 + 列表行内开关，顶部给出「N 条 · M 启用」计数。</span></li>
+    <li><span class="n">3</span><span><b>编辑/新建可辨</b>：选中行高亮 + 左侧色条；未选中时右侧给空态，不再出现"表单有内容但列表没选中"。</span></li>
+    <li><span class="n">4</span><span><b>互斥条件</b>：周期改分段控件，只显示当前周期要填的字段；星期改多选芯片，日期带选择入口。</span></li>
+    <li><span class="n">5</span><span><b>动作表</b>：序号列 + 表头（动作 / 对象或内容 / 参数）+ 每行 ↑↓✕ 调序与删除。</span></li>
+    <li><span class="n">6</span><span><b>被裁切的窄条</b>：操作列固定 84px，三个图标按钮完整显示，不再有空白碎块。</span></li>
+    <li><span class="n">7</span><span><b>下拉弹层</b>：统一用宽度跟随控件的选择器，弹层不超出控件，也不盖住下方字段。</span></li>
+    <li><span class="n">8</span><span><b>输入框外观</b>：一种规格——30 高、6 圆角、1px 描边、白底；选择器与输入框同形。</span></li>
+    <li><span class="n">9</span><span><b>对齐</b>：标签统一在上，字段同宽、右边缘对齐；行内控件按 8px 栅格排布。</span></li>
+    <li><span class="n">10</span><span><b>间距</b>：只保留 6 / 10 / 14 / 16 四档，同组字段等距，分区间用 1px 分隔线。</span></li>
+    <li><span class="n">11</span><span><b>栏间距</b>：列表固定 300 + 分隔线 + 22px 内边距，两栏边界清楚。</span></li>
+    <li><span class="n">12</span><span><b>下半空白</b>：列表与表单等高，页脚独立 56px，内容不足时不留大块空白。</span></li>
+    <li><span class="n">13</span><span><b>占位与真实值</b>：真实值用正文色，空字段才用浅灰占位；动作默认值按类型给出示例文案。</span></li>
+    <li><span class="n">14</span><span><b>必填与校验</b>：必填星号 + 字段级红框与说明 + 页脚汇总（有 3 处需要修正）。</span></li>
+    <li><span class="n">15</span><span><b>标题层级</b>：分区标题统一 12/600，说明文字 11 号，二者基线对齐。</span></li>
+    <li><span class="n">16</span><span><b>按钮体系</b>：主（实心主色）/ 次（描边）/ 危险幽灵 / 图标四种，圆角与高度统一。</span></li>
+    <li><span class="n">17</span><span><b>对比度</b>：标签 #475569（7.4:1）、说明 #64748B（4.8:1）、占位 #94A3B8 仅用于空值。</span></li>
+  </ol>
+  <div class="foot">
+    令牌全部来自 <code>UI/Controls/Themes/Colors.xaml</code> 的 <code>Dialog*</code> 族；本稿不新增色值、不改任何 WPF 代码。
+    深色 v1 已归档为 <code>design-v1.html</code>。
   </div>
-  <div>
-    <h2>间距 / 圆角</h2>
-    <ul>
-      <li>行内 gap 8 · 块间 16 · 区块间 24</li>
-      <li>输入高 30 · 按钮高 30 · 图标按钮 24</li>
-      <li>对话框圆角 8 · 卡片 6 · 输入/按钮 4</li>
-      <li>左列固定 300 · 右列自适应</li>
-      <li>对话框 980×620（1440×900 下居中）</li>
-    </ul>
-  </div>
-  <div>
-    <h2>字号 / 状态</h2>
-    <ul>
-      <li>标题 15 / 正文 13 / 常规 12 / 注脚 11</li>
-      <li>五态：空列表 · 列表 · 编辑中 · 校验失败 · 只读</li>
-      <li>触发类型切换：字段互斥，不显示无关项</li>
-      <li>时间预览：每次改周期/时刻都刷新「下次触发」</li>
-    </ul>
-  </div>
-</div>
+</details>
 
 <script>
 (function () {
-  "use strict";
+  var body = document.body;
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.states .chip'));
+  var titleMeta = document.querySelector('.js-title-meta');
+  var listCount = document.querySelector('.js-list-count');
+  var preview = document.querySelector('.js-preview');
+  var previewLabel = document.querySelector('.preview-label');
+  var nameInput = document.querySelector('.js-name');
+  var timeInput = document.querySelector('.js-time');
 
-  var dialog = document.getElementById("dialog");
-  var listEl = document.getElementById("list");
-  var formEl = document.getElementById("form");
-  var errorEl = document.getElementById("error");
-  var metaEl = document.getElementById("titleMeta");
-  var listCountEl = document.getElementById("listCount");
+  var TITLE = {
+    'default': '3 条计划 · 2 条启用',
+    'weekly': '3 条计划 · 2 条启用',
+    'date': '3 条计划 · 2 条启用',
+    'event': '3 条计划 · 2 条启用',
+    'empty': '0 条计划',
+    'invalid': '3 条计划 · 1 条待修正',
+    'readonly': '3 条计划 · 2 条启用'
+  };
+  var COUNT = {
+    'default': '3 条 · 2 启用',
+    'weekly': '3 条 · 2 启用',
+    'date': '3 条 · 2 启用',
+    'event': '3 条 · 2 启用',
+    'empty': '0 条',
+    'invalid': '3 条 · 2 启用',
+    'readonly': '3 条 · 2 启用'
+  };
+  var PREVIEW = {
+    'default': ['下次触发', '明天 08:00（周三）'],
+    'weekly': ['下次触发', '明天 08:00（周三）'],
+    'date': ['下次触发', '2026-11-01 08:00（周日）'],
+    'event': ['执行时机', '满足条件并持续 10 秒后'],
+    'empty': ['下次触发', '—'],
+    'invalid': ['下次触发', '时刻格式无效，暂不计算'],
+    'readonly': ['下次触发', '明天 08:00（周三）']
+  };
 
-  var DAYS = ["一", "二", "三", "四", "五", "六", "日"];
+  function apply(state) {
+    if (!TITLE[state]) state = 'default';
+    body.setAttribute('data-state', state);
 
-  var schedules = [
-    {
-      id: 1, name: "白班开班", enabled: true, kind: "time",
-      period: "daily", time: "08:00", days: [0, 1, 2, 3, 4], date: "",
-      actions: [
-        { type: "Navigate", param: "1#精制单元 · 白班" },
-        { type: "Log", param: "白班开班" }
-      ]
-    },
-    {
-      id: 2, name: "交接班提醒", enabled: true, kind: "time",
-      period: "daily", time: "19:55", days: [0, 1, 2, 3, 4, 5, 6], date: "",
-      actions: [{ type: "PlaySound", param: "Warning" }]
-    },
-    {
-      id: 3, name: "液位高停泵", enabled: false, kind: "event",
-      variable: "T101.液位", condition: "高于上限", duration: 600, unit: "s",
-      actions: [{ type: "WriteVariable", param: "P101.启动 = 0" }]
-    }
-  ];
-
-  var selectedId = 1;
-  var dirty = false;
-
-  var ACTION_TYPES = [
-    ["Navigate", "跳页", "目标画面"],
-    ["WriteVariable", "写变量", "变量 = 值"],
-    ["StartFlow", "启动流程", "流程名"],
-    ["StopFlow", "停止流程", "流程名"],
-    ["PlaySound", "播放声音", "Info / Warning / Critical"],
-    ["ApplyRecipe", "应用配方", "配方名"],
-    ["ExportReport", "导出报表", "报表名 + 格式"]
-  ];
-
-  var CONDITIONS = ["为真", "为假", "值改变", "高于上限", "低于下限"];
-
-  function byId(id) { return schedules.filter(function (s) { return s.id === id; })[0]; }
-  function selected() { return byId(selectedId); }
-
-  function esc(t) {
-    return String(t == null ? "" : t)
-      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-
-  function summary(s) {
-    if (s.kind === "time") {
-      if (s.period === "daily") return "每天 " + s.time;
-      if (s.period === "weekly") {
-        var ds = s.days.length === 7 ? "每天" : "周" + s.days.map(function (i) { return DAYS[i]; }).join("、");
-        return ds + " " + s.time;
-      }
-      return (s.date || "未选日期") + " " + s.time;
-    }
-    return s.variable + " " + s.condition + " 持续 " + s.duration + s.unit;
-  }
-
-  function nextRunText(s) {
-    if (s.kind !== "time") return "条件成立并持续 " + s.duration + s.unit + " 后触发";
-    var parts = (s.time || "00:00").split(":");
-    var hh = parts[0] || "00", mm = parts[1] || "00";
-    if (s.period === "daily") return "下次：明天 " + hh + ":" + mm;
-    if (s.period === "weekly") {
-      var today = 2; // 演示固定为周三
-      for (var step = 0; step < 7; step++) {
-        var idx = (today + step) % 7;
-        if (s.days.indexOf(idx) >= 0) {
-          return step === 0 ? "下次：今天 " + hh + ":" + mm : "下次：周" + DAYS[idx] + " " + hh + ":" + mm;
-        }
-      }
-      return "下次：未选星期";
-    }
-    return "下次：" + (s.date || "未选日期") + " " + hh + ":" + mm;
-  }
-
-  function renderList() {
-    listEl.innerHTML = schedules.map(function (s) {
-      var cls = "item" + (s.id === selectedId ? " is-selected" : "");
-      return '<div class="' + cls + '" data-id="' + s.id + '">' +
-        '<div class="name">' + esc(s.name || "未命名计划") + '</div>' +
-        '<div class="summary">' + esc(summary(s)) + '</div>' +
-        '<div class="state ' + (s.enabled ? "on" : "off") + '">' + (s.enabled ? "启用" : "停用") + '</div>' +
-        '</div>';
-    }).join("");
-
-    listCountEl.textContent = String(schedules.length);
-    var on = schedules.filter(function (s) { return s.enabled; }).length;
-    metaEl.textContent = schedules.length + " 条 · " + on + " 条启用";
-  }
-
-  function actionRow(a, index, total) {
-    var options = ACTION_TYPES.map(function (t) {
-      return '<option value="' + t[0] + '"' + (a.type === t[0] ? " selected" : "") + '>' + t[1] + '</option>';
-    }).join("");
-    var hint = (ACTION_TYPES.filter(function (t) { return t[0] === a.type; })[0] || ["", "", "参数"])[2];
-
-    return '<div class="action-row" data-index="' + index + '">' +
-      '<span class="order">' + (index + 1) + '</span>' +
-      '<select data-field="type">' + options + '</select>' +
-      '<input type="text" data-field="param" value="' + esc(a.param) + '" placeholder="' + esc(hint) + '">' +
-      '<span class="row tight">' +
-        '<button class="icon-btn" data-act="up"' + (index === 0 ? " disabled" : "") + '>↑</button>' +
-        '<button class="icon-btn" data-act="down"' + (index === total - 1 ? " disabled" : "") + '>↓</button>' +
-        '<button class="icon-btn" data-act="del">✕</button>' +
-      '</span>' +
-      '</div>';
-  }
-
-  function renderForm() {
-    var s = selected();
-    if (!s) {
-      formEl.innerHTML = '<div class="hint" style="margin:auto;text-align:center">还没有计划。<br>点左下「＋ 新建计划」开始。</div>';
-      return;
-    }
-
-    var html = "";
-
-    html += '<div class="section">' +
-      '<div class="row">' +
-        '<input class="grow" type="text" data-field="name" value="' + esc(s.name) + '" placeholder="计划名称，如 白班开班">' +
-        '<label class="switch"><input type="checkbox" data-field="enabled"' + (s.enabled ? " checked" : "") + '> 启用</label>' +
-      '</div>' +
-      '</div>';
-
-    html += '<div class="section">' +
-      '<div class="label">触发</div>' +
-      '<div class="seg" role="group" aria-label="触发类型">' +
-        '<button data-kind="time" aria-pressed="' + (s.kind === "time") + '">时间计划</button>' +
-        '<button data-kind="event" aria-pressed="' + (s.kind === "event") + '">事件计划</button>' +
-      '</div>';
-
-    if (s.kind === "time") {
-      html += '<div class="row">' +
-        '<div class="seg" role="group" aria-label="周期">' +
-          '<button data-period="daily" aria-pressed="' + (s.period === "daily") + '">每天</button>' +
-          '<button data-period="weekly" aria-pressed="' + (s.period === "weekly") + '">每周</button>' +
-          '<button data-period="date" aria-pressed="' + (s.period === "date") + '">指定日期</button>' +
-        '</div>' +
-        '<input type="time" data-field="time" value="' + esc(s.time) + '" aria-label="时刻">' +
-        '<span class="hint" id="nextRun">' + esc(nextRunText(s)) + '</span>' +
-      '</div>';
-
-      if (s.period === "weekly") {
-        html += '<div class="days" role="group" aria-label="星期">' +
-          DAYS.map(function (d, i) {
-            return '<button data-day="' + i + '" aria-pressed="' + (s.days.indexOf(i) >= 0) + '">' + d + '</button>';
-          }).join("") +
-          '</div>';
-      }
-
-      if (s.period === "date") {
-        html += '<div class="row"><input type="date" data-field="date" value="' + esc(s.date) + '" aria-label="日期">' +
-          '<span class="hint">只在这一天触发一次（补跑策略：错过不补）</span></div>';
-      }
-    } else {
-      html += '<div class="row">' +
-        '<select data-field="variable" style="min-width:180px">' +
-          ["T101.液位", "P101.运行", "通信状态", "工位A.结果"].map(function (v) {
-            return '<option' + (s.variable === v ? " selected" : "") + '>' + v + '</option>';
-          }).join("") +
-        '</select>' +
-        '<select data-field="condition">' +
-          CONDITIONS.map(function (c) {
-            return '<option' + (s.condition === c ? " selected" : "") + '>' + c + '</option>';
-          }).join("") +
-        '</select>' +
-        '<span class="hint">持续</span>' +
-        '<input type="text" data-field="duration" value="' + esc(s.duration) + '" style="width:72px" aria-label="持续时长">' +
-        '<select data-field="unit"><option' + (s.unit === "s" ? " selected" : "") + '>s</option><option' + (s.unit === "min" ? " selected" : "") + '>min</option></select>' +
-      '</div>' +
-      '<div class="hint">条件消失即重新计时（不做积分/累计）。</div>';
-    }
-
-    html += '</div>';
-
-    html += '<div class="section">' +
-      '<div class="label">动作（按顺序执行，任一步失败继续下一步并记审计）</div>' +
-      '<div class="actions" id="actions">' +
-        s.actions.map(function (a, i) { return actionRow(a, i, s.actions.length); }).join("") +
-      '</div>' +
-      '<div class="row"><button class="btn ghost" id="addAction">＋ 添加动作</button></div>' +
-      '</div>';
-
-    html += '<div class="runtime-strip">' +
-      '<span>上次执行：<b>今天 08:00 · 成功</b></span>' +
-      '<span>下次触发：<b>' + esc(nextRunText(s).replace("下次：", "")) + '</b></span>' +
-      '<span>触发次数：<b>12</b></span>' +
-      '</div>';
-
-    formEl.innerHTML = html;
-  }
-
-  function render() {
-    renderList();
-    renderForm();
-  }
-
-  // ---- 事件 ----
-
-  listEl.addEventListener("click", function (e) {
-    var item = e.target.closest(".item");
-    if (!item) return;
-    selectedId = Number(item.getAttribute("data-id"));
-    errorEl.textContent = "";
-    render();
-  });
-
-  formEl.addEventListener("click", function (e) {
-    var s = selected();
-    if (!s) return;
-
-    var kindBtn = e.target.closest("[data-kind]");
-    if (kindBtn) {
-      s.kind = kindBtn.getAttribute("data-kind");
-      if (s.kind === "event" && !s.variable) {
-        s.variable = "T101.液位";
-        s.condition = "高于上限";
-        s.duration = 60;
-        s.unit = "s";
-      }
-      render();
-      return;
-    }
-
-    var periodBtn = e.target.closest("[data-period]");
-    if (periodBtn) {
-      s.period = periodBtn.getAttribute("data-period");
-      if (s.period === "date" && !s.date) s.date = "2026-11-01";
-      render();
-      return;
-    }
-
-    var dayBtn = e.target.closest("[data-day]");
-    if (dayBtn) {
-      var day = Number(dayBtn.getAttribute("data-day"));
-      var at = s.days.indexOf(day);
-      if (at >= 0) s.days.splice(at, 1); else s.days.push(day);
-      s.days.sort();
-      render();
-      return;
-    }
-
-    var act = e.target.closest("[data-act]");
-    if (act) {
-      var rowEl = act.closest(".action-row");
-      var index = Number(rowEl.getAttribute("data-index"));
-      var how = act.getAttribute("data-act");
-      if (how === "del") s.actions.splice(index, 1);
-      if (how === "up" && index > 0) {
-        var tmp = s.actions[index - 1]; s.actions[index - 1] = s.actions[index]; s.actions[index] = tmp;
-      }
-      if (how === "down" && index < s.actions.length - 1) {
-        var tmp2 = s.actions[index + 1]; s.actions[index + 1] = s.actions[index]; s.actions[index] = tmp2;
-      }
-      render();
-      return;
-    }
-
-    if (e.target.id === "addAction") {
-      s.actions.push({ type: "Log", param: "" });
-      render();
-    }
-  });
-
-  formEl.addEventListener("input", function (e) {
-    var s = selected();
-    if (!s) return;
-    var field = e.target.getAttribute("data-field");
-    if (!field) return;
-
-    if (field === "enabled") s.enabled = e.target.checked;
-    else if (field === "duration") s.duration = e.target.value;
-    else if (field === "unit") s.unit = e.target.value;
-    else s[field] = e.target.value;
-
-    if (field === "time" || field === "date") {
-      var next = document.getElementById("nextRun");
-      if (next) next.textContent = nextRunText(s);
-    }
-
-    renderList();
-  });
-
-  formEl.addEventListener("change", function (e) {
-    var s = selected();
-    if (!s) return;
-    var field = e.target.getAttribute("data-field");
-    if (field === "enabled") { s.enabled = e.target.checked; render(); }
-    if (field === "unit") { s.unit = e.target.value; renderList(); }
-    if (field === "variable" || field === "condition") { s[field] = e.target.value; renderList(); }
-    if (field === "type") {
-      var rowEl = e.target.closest(".action-row");
-      s.actions[Number(rowEl.getAttribute("data-index"))].type = e.target.value;
-      render();
-    }
-  });
-
-  document.getElementById("addBtn").addEventListener("click", function () {
-    var id = Math.max.apply(null, schedules.map(function (s) { return s.id; })) + 1;
-    schedules.push({
-      id: id, name: "", enabled: true, kind: "time",
-      period: "daily", time: "08:00", days: [0, 1, 2, 3, 4], date: "",
-      actions: [{ type: "Log", param: "" }]
+    chips.forEach(function (c) {
+      c.setAttribute('aria-pressed', String(c.getAttribute('data-state') === state));
     });
-    selectedId = id;
-    errorEl.textContent = "";
-    render();
+
+    if (titleMeta) titleMeta.textContent = TITLE[state];
+    if (listCount) listCount.textContent = COUNT[state];
+
+    var p = PREVIEW[state];
+    if (previewLabel) previewLabel.textContent = p[0];
+    if (preview) preview.textContent = p[1];
+
+    if (nameInput) nameInput.value = state === 'invalid' ? '' : '早班开机';
+    if (timeInput) timeInput.value = state === 'invalid' ? '8:0' : '08:00';
+  }
+
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () { apply(c.getAttribute('data-state')); });
   });
 
-  document.getElementById("deleteBtn").addEventListener("click", function () {
-    schedules = schedules.filter(function (s) { return s.id !== selectedId; });
-    selectedId = schedules.length ? schedules[0].id : 0;
-    errorEl.textContent = "";
-    render();
-  });
-
-  document.getElementById("okBtn").addEventListener("click", function () {
-    var s = selected();
-    if (!s) return;
-
-    var problems = [];
-    if (!s.name.trim()) problems.push("计划名称不能为空");
-    if (s.kind === "time" && !s.time) problems.push("时刻不能为空");
-    if (s.kind === "time" && s.period === "weekly" && s.days.length === 0) problems.push("每周至少要选一天");
-    if (s.kind === "time" && s.period === "date" && !s.date) problems.push("指定日期不能为空");
-    if (!s.actions.length) problems.push("至少要有一个动作");
-
-    var nameInput = formEl.querySelector('[data-field="name"]');
-    if (nameInput) nameInput.classList.toggle("invalid", !s.name.trim());
-    var actionsBox = document.getElementById("actions");
-    if (actionsBox) actionsBox.style.outline = s.actions.length ? "none" : "1px solid var(--red)";
-
-    errorEl.textContent = problems.length ? problems.join("；") : "";
-    if (!problems.length) errorEl.textContent = "校验通过（原型到此为止，真实界面在这里写回方案并记一次撤销）";
-  });
-
-  document.getElementById("permToggle").addEventListener("click", function () {
-    var on = this.getAttribute("aria-pressed") === "true";
-    this.setAttribute("aria-pressed", String(!on));
-    this.textContent = on ? "以「操作员」预览只读态" : "切回「工程师」可编辑";
-    dialog.classList.toggle("is-readonly", !on);
-  });
-
-  render();
+  var shot = new URLSearchParams(location.search).get('shot');
+  if (shot) {
+    body.classList.add('shot');
+    apply(shot);
+  }
 })();
 </script>
 </body>

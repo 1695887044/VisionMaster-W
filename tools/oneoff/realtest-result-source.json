@@ -1,0 +1,10 @@
+{
+  "模板匹配_NCC散焦图": "Ncc_Result",
+  "形状匹配_散焦PCB": "Pcb_Result",
+  "Blob缺陷检测_标签字符": "Label_Result",
+  "码读取_Code128": "Code128_Result",
+  "二维码读取_QR": "Qr_Result",
+  "形变匹配_局部非刚性": "DefLocal_Result",
+  "形变匹配_平面透视": "DefPlanar_Result",
+  "Main": "CurrentResult"
+}

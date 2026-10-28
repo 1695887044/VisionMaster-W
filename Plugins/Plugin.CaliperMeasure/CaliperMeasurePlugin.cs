@@ -197,8 +197,9 @@ namespace Plugin.CaliperMeasure
         /// <summary>判定结果（true = OK 合格）</summary>
         public OutputPort<bool> IsOk { get; } = new("IsOk", "判定结果（true = OK 合格）");
 
-        /// <summary>标注图：原图 + 卡尺小矩形 + 边缘点十字 + 测量连线/拟合几何 + 左上角文字</summary>
-        public OutputPort<HImage> MeasureImage { get; } = new("MeasureImage", "标注图（卡尺 + 边缘点 + 测量连线/拟合几何 + 判定文字）");
+        /// <summary>标注图：原图 + 卡尺小矩形 + 边缘点十字 + 测量连线/拟合几何 + 左上角文字。
+        /// <see cref="KeepAnnotatedImage"/>=false 时本端口为空（几何走 CaliperGeometry / MeasureLine / FittedGeometry / EdgePoints）。</summary>
+        public OutputPort<HImage> MeasureImage { get; } = new("MeasureImage", "标注图（卡尺 + 边缘点 + 测量连线/拟合几何 + 判定文字；KeepAnnotatedImage=false 时为空）");
 
         /// <summary>
         /// 测量几何（XLD）。第二批起语义按类型区分：
@@ -211,6 +212,26 @@ namespace Plugin.CaliperMeasure
 
         /// <summary>检出的原始边缘点（十字 XLD），供下游或叠加显示</summary>
         public OutputPort<HXLD> EdgePoints { get; } = new("EdgePoints", "检出的原始边缘点（十字 XLD）");
+
+        /// <summary>卡尺搜索框轮廓（XLD，标注图里的黄层）：每把卡尺一段。</summary>
+        public OutputPort<HXLD> CaliperGeometry { get; } = new("CaliperGeometry", "卡尺搜索框轮廓（XLD；每把卡尺一段）");
+
+        /// <summary>测量连线（XLD，标注图里的青层）：各卡尺两边缘连线 / 拟合类的测量线。</summary>
+        public OutputPort<HXLD> MeasureLine { get; } = new("MeasureLine", "测量连线（XLD；卡尺边缘连线 / 拟合测量线）");
+
+        #endregion
+
+        #region 输出开关
+
+        /// <summary>
+        /// 是否产出标注图（<see cref="MeasureImage"/>）。**默认 true = 存量方案行为不变**。
+        ///
+        /// 关掉（新流程推荐）= 只输出数值与几何（FittedGeometry / EdgePoints / CaliperGeometry / MeasureLine），
+        /// 文字与颜色交给下游「结果显示」；省一次全幅 dump，也不会两处各烧一遍。
+        /// 配置态预览（RefreshPreview）**不受**本开关影响。
+        /// </summary>
+        [StepConfig]
+        public bool KeepAnnotatedImage { get; set; } = true;
 
         #endregion
 
@@ -853,6 +874,8 @@ namespace Plugin.CaliperMeasure
             if (result.MeasureImage != null) MeasureImage.TypedValue = result.MeasureImage;
             if (result.FittedGeometry != null) FittedGeometry.TypedValue = result.FittedGeometry;
             if (result.EdgePoints != null) EdgePoints.TypedValue = result.EdgePoints;
+            if (result.CaliperGeometry != null) CaliperGeometry.TypedValue = result.CaliperGeometry;
+            if (result.MeasureLine != null) MeasureLine.TypedValue = result.MeasureLine;
 
             MeasureValue.Value = result.MeasureValueMm;
             Deviation.Value = result.Deviation;
@@ -932,6 +955,10 @@ namespace Plugin.CaliperMeasure
             public HXLD? FittedGeometry;
             /// <summary>边缘点 XLD（所有权：调用方）</summary>
             public HXLD? EdgePoints;
+            /// <summary>卡尺搜索框 XLD（所有权：调用方）</summary>
+            public HXLD? CaliperGeometry;
+            /// <summary>测量连线 XLD（所有权：调用方）</summary>
+            public HXLD? MeasureLine;
 
             /// <summary>日志/信息栏摘要</summary>
             public string Summary = string.Empty;
@@ -948,6 +975,8 @@ namespace Plugin.CaliperMeasure
             {
                 FittedGeometry?.Dispose(); FittedGeometry = null;
                 EdgePoints?.Dispose(); EdgePoints = null;
+                CaliperGeometry?.Dispose(); CaliperGeometry = null;
+                MeasureLine?.Dispose(); MeasureLine = null;
             }
         }
 
@@ -1299,6 +1328,16 @@ namespace Plugin.CaliperMeasure
                 //  宽度/两点距（第一批语义不变）= 测量连线 measureXld
                 result.EdgePoints = new HXLDCont(crossXld);
                 result.FittedGeometry = new HXLDCont(fittedXld ?? measureXld);
+                // 卡尺框与测量连线各自独立出口：算法只输出几何，画不画/什么颜色由显示层定
+                result.CaliperGeometry = new HXLDCont(caliperXld);
+                result.MeasureLine = new HXLDCont(measureXld);
+
+                // ── 标注图（KeepAnnotatedImage=false 时整段跳过：只输出数值与几何）──
+                if (!KeepAnnotatedImage)
+                {
+                    result.Summary = BuildSummary(result, p);
+                    return result;
+                }
 
                 // ── 标注图 ──
                 // 渲染只是"给人看"，失败最多丢 MeasureImage，绝不能把一次成功的测量判成失败

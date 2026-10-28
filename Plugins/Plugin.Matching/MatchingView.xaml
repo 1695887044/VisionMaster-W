@@ -674,7 +674,15 @@
                                     Content="载入"
                                     Style="{StaticResource LocalButtonStyle}" />
                             </Grid>
-                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="每个模板各自的示意图；填路径后点「载入」，或点宿主「执行」把上游图带进来。" />
+                            <ComboBox
+                                Margin="0,6,0,0"
+                                Style="{StaticResource DialogCombo}"
+                                ItemsSource="{Binding ImageAssetOptions}"
+                                DisplayMemberPath="Caption"
+                                SelectedValuePath="AssetIdText"
+                                SelectedValue="{Binding EditingEntry.RefImageAssetId, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="从项目资产里选参考图：优先于上面的路径，换台机器不会断；选完点「载入」" />
+                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="每个模板各自的示意图；填路径或选资产后点「载入」，或点宿主「执行」把上游图带进来。" />
                         </StackPanel>
 
                         <Border
@@ -740,7 +748,7 @@
                                 <TextBlock
                                     Margin="0,6,0,0"
                                     Style="{StaticResource HelpTextStyle}"
-                                    Text="这一区决定模型怎么学（角度 / 缩放 / 步长 / 对比度 / 极性）—— 改任何一项都需要重新点「创建模板」，徽标会转橙提醒。" />
+                                    Text="这一区决定模型怎么学（角度 / 缩放 / 各向异性 / 步长 / 对比度 / 极性）—— 改任何一项都需要重新点「创建模板」，徽标会转橙提醒。" />
 
                                 <UniformGrid Margin="0,10,0,0" Columns="2">
                                     <StackPanel Margin="0,0,6,11">
@@ -817,7 +825,7 @@
                                     <TextBlock
                                         Margin="0,4,0,0"
                                         Style="{StaticResource HelpTextStyle}"
-                                        Text="NCC 不支持缩放匹配，也忽略极性与梯度阈值" />
+                                        Text="NCC 不支持缩放匹配（含各向异性），也忽略极性与梯度阈值" />
                                 </StackPanel>
 
                                 <StackPanel Style="{StaticResource FieldStackStyle}">
@@ -835,10 +843,12 @@
                                     FontSize="12"
                                     Foreground="{StaticResource DialogTextSecondaryBrush}"
                                     IsChecked="{Binding EditingEntry.ScaleEnabled, Mode=TwoWay}"
-                                    IsEnabled="{Binding IsShapeAlgorithm}"
+                                    IsEnabled="{Binding IsEqualScaleEnabled}"
+                                    ToolTip="等比缩放：行/列同一个倍率。勾了下面的「各向异性」时这一档被忽略（灰掉但仍保留数值）"
+                                    ToolTipService.ShowOnDisabled="True"
                                     VerticalContentAlignment="Center" />
 
-                                <UniformGrid Columns="2" IsEnabled="{Binding IsShapeAlgorithm}">
+                                <UniformGrid Columns="2" IsEnabled="{Binding IsEqualScaleEnabled}">
                                     <StackPanel Margin="0,0,6,11">
                                         <TextBlock Style="{StaticResource FieldLabelStyle}" Text="最小比例 (倍)" ToolTip="相对模板尺寸的最小倍率（0.5~2）" />
                                         <ui:NumericBox
@@ -871,6 +881,80 @@
                                     </StackPanel>
                                 </UniformGrid>
 
+                                <CheckBox
+                                    Margin="0,0,0,6"
+                                    Content="各向异性（X/Y 分别缩放）"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                    IsChecked="{Binding EditingEntry.AnisoScaleEnabled, Mode=TwoWay}"
+                                    IsEnabled="{Binding IsShapeAlgorithm}"
+                                    ToolTip="行（上下）与列（左右）各自一个缩放范围：镜头俯视斜装、卷材拉伸这类「横向和纵向放大率不同」的场合用。勾上后等比档被忽略。NCC 没有各向异性算子，选 NCC 时整组禁用"
+                                    ToolTipService.ShowOnDisabled="True"
+                                    VerticalContentAlignment="Center" />
+
+                                <UniformGrid Columns="2" IsEnabled="{Binding IsAnisoScaleEnabled}">
+                                    <StackPanel Margin="0,0,6,11">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="行最小 (倍)" ToolTip="行方向（上下）最小缩放，0.1~10，必须 ≤ 行最大" />
+                                        <ui:NumericBox
+                                            Minimum="0.1"
+                                            Maximum="10"
+                                            Style="{StaticResource LocalNumericBoxStyle}">
+                                            <ui:NumericBox.Value>
+                                                <Binding Path="EditingEntry.ScaleRowMin" UpdateSourceTrigger="PropertyChanged">
+                                                    <Binding.ValidationRules>
+                                                        <cv:NumberValidationRule FieldName="行最小" Max="10" Min="0.1" IntegerOnly="False" />
+                                                    </Binding.ValidationRules>
+                                                </Binding>
+                                            </ui:NumericBox.Value>
+                                        </ui:NumericBox>
+                                    </StackPanel>
+                                    <StackPanel Margin="6,0,0,11">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="行最大 (倍)" ToolTip="行方向（上下）最大缩放，0.1~10。范围应包含 1.0，否则参考图自匹配可能失败、原点锚定退回默认" />
+                                        <ui:NumericBox
+                                            Minimum="0.1"
+                                            Maximum="10"
+                                            Style="{StaticResource LocalNumericBoxStyle}">
+                                            <ui:NumericBox.Value>
+                                                <Binding Path="EditingEntry.ScaleRowMax" UpdateSourceTrigger="PropertyChanged">
+                                                    <Binding.ValidationRules>
+                                                        <cv:NumberValidationRule FieldName="行最大" Max="10" Min="0.1" IntegerOnly="False" />
+                                                    </Binding.ValidationRules>
+                                                </Binding>
+                                            </ui:NumericBox.Value>
+                                        </ui:NumericBox>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,6,11">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="列最小 (倍)" ToolTip="列方向（左右）最小缩放，0.1~10，必须 ≤ 列最大" />
+                                        <ui:NumericBox
+                                            Minimum="0.1"
+                                            Maximum="10"
+                                            Style="{StaticResource LocalNumericBoxStyle}">
+                                            <ui:NumericBox.Value>
+                                                <Binding Path="EditingEntry.ScaleColMin" UpdateSourceTrigger="PropertyChanged">
+                                                    <Binding.ValidationRules>
+                                                        <cv:NumberValidationRule FieldName="列最小" Max="10" Min="0.1" IntegerOnly="False" />
+                                                    </Binding.ValidationRules>
+                                                </Binding>
+                                            </ui:NumericBox.Value>
+                                        </ui:NumericBox>
+                                    </StackPanel>
+                                    <StackPanel Margin="6,0,0,11">
+                                        <TextBlock Style="{StaticResource FieldLabelStyle}" Text="列最大 (倍)" ToolTip="列方向（左右）最大缩放，0.1~10。范围越宽模型越大越慢；上下限填反了按大小自动交换" />
+                                        <ui:NumericBox
+                                            Minimum="0.1"
+                                            Maximum="10"
+                                            Style="{StaticResource LocalNumericBoxStyle}">
+                                            <ui:NumericBox.Value>
+                                                <Binding Path="EditingEntry.ScaleColMax" UpdateSourceTrigger="PropertyChanged">
+                                                    <Binding.ValidationRules>
+                                                        <cv:NumberValidationRule FieldName="列最大" Max="10" Min="0.1" IntegerOnly="False" />
+                                                    </Binding.ValidationRules>
+                                                </Binding>
+                                            </ui:NumericBox.Value>
+                                        </ui:NumericBox>
+                                    </StackPanel>
+                                </UniformGrid>
+
                                 <StackPanel Style="{StaticResource FieldStackStyle}">
                                     <TextBlock Style="{StaticResource FieldLabelStyle}" Text="金字塔层数" ToolTip="1~10：层数多找得快，但太粗会丢小目标。一般 4~6" />
                                     <ui:NumericBox
@@ -882,6 +966,23 @@
                                             <Binding Path="EditingEntry.NumLevels" UpdateSourceTrigger="PropertyChanged">
                                                 <Binding.ValidationRules>
                                                     <cv:NumberValidationRule FieldName="金字塔层数" Max="10" Min="1" IntegerOnly="True" />
+                                                </Binding.ValidationRules>
+                                            </Binding>
+                                        </ui:NumericBox.Value>
+                                    </ui:NumericBox>
+                                </StackPanel>
+
+                                <StackPanel Style="{StaticResource FieldStackStyle}">
+                                    <TextBlock Style="{StaticResource FieldLabelStyle}" Text="跟踪层" ToolTip="-1 = 不跟踪到最低层（散焦/高噪声场景更稳，HALCON 例程常用）；1 = 跟踪到最细层（精度最高，旧版默认）" />
+                                    <ui:NumericBox
+                                        DecimalPlaces="0"
+                                        Minimum="-1"
+                                        Maximum="10"
+                                        Style="{StaticResource LocalNumericBoxStyle}">
+                                        <ui:NumericBox.Value>
+                                            <Binding Path="EditingEntry.TrackingLevel" UpdateSourceTrigger="PropertyChanged">
+                                                <Binding.ValidationRules>
+                                                    <cv:NumberValidationRule FieldName="跟踪层" Max="10" Min="-1" IntegerOnly="True" />
                                                 </Binding.ValidationRules>
                                             </Binding>
                                         </ui:NumericBox.Value>

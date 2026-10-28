@@ -21,6 +21,15 @@ namespace Core.Events
         public int ViewIndex { get; init; }
 
         /// <summary>
+        /// 发布方所属的流程名（由 <see cref="Core.Interfaces.PreviewScope"/> 在每轮执行期间提供）。
+        ///
+        /// 为空 = 不在任何流程的一轮里发布（插件自建线程/定时器、非流程宿主）。
+        /// 消费方必须落到"无归属"桶，**不许**回退成"最后开轮的那条流程"——
+        /// 多流程并发时那会把 A 的帧记成 B 的，进而清错 B 的窗口（2026-10-27 现场）。
+        /// </summary>
+        public string? FlowName { get; init; }
+
+        /// <summary>
         /// 要显示的图像（发布方持有并管理原图）
         /// </summary>
         public T Image { get; init; }

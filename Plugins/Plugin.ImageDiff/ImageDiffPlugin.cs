@@ -46,7 +46,7 @@ namespace Plugin.ImageDiff
         /// 不接则全图参与比较。
         /// </summary>
         public InputPort<HRegion> MaskRegion { get; } = new(
-            "MaskRegion", description: "忽略区（可选）：区内差异不计入结果")
+            "MaskRegion", description: "只算区（可选）：只统计该区域内的差异（区域外不计入结果）")
         { IsRequired = false };
 
         // ── 输出端口 ───────────────────────────────────────────────────────────
@@ -237,6 +237,7 @@ namespace Plugin.ImageDiff
                 HImage? refGray = null;
                 HImage? testGray = null;
                 HImage? diff = null;
+                HImage? segmentDiff = null;
                 HObject? diffRegions = null;
                 try
                 {
@@ -246,14 +247,26 @@ namespace Plugin.ImageDiff
                     diff = ImageDiffService.ComputeDifference(
                         refGray, testGray, Algorithm, Polarity, AmbientFloor, SignedDisplay);
 
+                    // Signed 的 DiffImage 是“带零点偏置的显示图”，不能直接拿来阈值：
+                    // 背景会落在 SignedDisplay（默认 128）上，Threshold 会把整幅背景选进去。
+                    // 判定/分割统一用绝对差（与帮助文档“判定用绝对值”一致）。
+                    HImage segmentSource = diff;
+                    if (Algorithm == DiffAlgorithm.Signed)
+                    {
+                        segmentDiff = ImageDiffService.ComputeDifference(
+                            refGray, testGray, DiffAlgorithm.Absolute, DiffPolarity.Both,
+                            AmbientFloor, SignedDisplay);
+                        segmentSource = segmentDiff;
+                    }
+
                     // ④ 分割 + 统计。
                     HRegion? maskPort = MaskRegion.ActualValue;
                     HObject? mask = maskPort is { } m && m.IsInitialized() ? m : null;
 
-                    var seg = ImageDiffService.Segment(diff, Threshold, Aggregation, MinArea, mask);
+                    var seg = ImageDiffService.Segment(segmentSource, Threshold, Aggregation, MinArea, mask);
                     diffRegions = seg.Region;
 
-                    var range = ImageDiffService.Range(diff, null);
+                    var range = ImageDiffService.Range(segmentSource, null);
 
                     DiffImage.Value = diff;
                     DiffCount.Value = seg.Count;
@@ -313,6 +326,7 @@ namespace Plugin.ImageDiff
                     testGray?.Dispose();
                     // diff 已经交给 DiffImage 端口，由 AutoDisposeRoundOutputs 在下一轮释放；
                     // 这里不能再 Dispose，否则端口上的图会变成野指针。
+                    segmentDiff?.Dispose();
                     diffRegions?.Dispose();
                 }
             }

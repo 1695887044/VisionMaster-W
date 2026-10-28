@@ -260,8 +260,8 @@
             <!--  两态共用一个 MultiBinding（见 IsFavoriteConverter），  -->
             <!--  第三路 FavoritesVersion 是刷新信号——没有它，切换收藏后这颗星不会重绘。  -->
             <Style x:Key="StarButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="22" />
-                <Setter Property="Height" Value="22" />
+                <Setter Property="Width" Value="18" />
+                <Setter Property="Height" Value="18" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="Opacity" Value="0" />
                 <Setter Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
@@ -288,7 +288,7 @@
                             </MultiBinding>
                         </DataTrigger.Binding>
                         <Setter Property="Opacity" Value="1" />
-                        <Setter Property="Foreground" Value="{StaticResource ScadaAccentBrush}" />
+                        <Setter Property="Foreground" Value="{StaticResource ScadaFavoriteBrush}" />
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
@@ -296,9 +296,9 @@
             <!--  ============ 列表模式条目（单列行）  ============  -->
             <DataTemplate x:Key="ToolListTemplate">
                 <Border
-                    Height="34"
+                    Height="30"
                     Margin="0,1"
-                    Padding="6,0"
+                    Padding="4,0,6,0"
                     CornerRadius="6"
                     MouseEnter="OnItemMouseEnter"
                     MouseLeave="OnItemMouseLeave">
@@ -324,10 +324,10 @@
                         <!--  拖拽手柄：悬停才显形  -->
                         <TextBlock
                             Grid.Column="0"
-                            Width="12"
+                            Width="10"
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource Icon}"
-                            FontSize="10"
+                            FontSize="9"
                             Text="&#xf142;"
                             TextAlignment="Center">
                             <TextBlock.Style>
@@ -343,25 +343,32 @@
                             </TextBlock.Style>
                         </TextBlock>
 
-                        <!--  算子图标：前景色跟着所属分组的专属色走  -->
-                        <TextBlock
+                        <!--  算子图标：分类色字形 + 12% 分类色浅底徽章（v2）  -->
+                        <Border
                             Grid.Column="1"
                             Width="20"
-                            Margin="6,0,0,0"
+                            Height="20"
+                            Margin="4,0,0,0"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="{Binding DataContext.AccentBrush, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                            Text="{Binding Icon}"
-                            TextAlignment="Center"
-                            TextOptions.TextFormattingMode="Display" />
+                            Background="{Binding Category, Converter={StaticResource CategorySoftBrushConverter}}"
+                            CornerRadius="5">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="11"
+                                Foreground="{Binding Category, Converter={StaticResource CategoryAccentBrushConverter}}"
+                                Text="{Binding Icon}"
+                                TextAlignment="Center"
+                                TextOptions.TextFormattingMode="Display" />
+                        </Border>
 
                         <!--  名称：命中搜索词的片段高亮（源文本走附加属性，见 HighlightTextBlock 注释）  -->
                         <TextBlock
                             Grid.Column="2"
                             Margin="6,0,4,0"
                             VerticalAlignment="Center"
-                            FontSize="12.5"
+                            FontSize="12"
                             Foreground="{StaticResource ScadaTextBrush}"
                             TextTrimming="CharacterEllipsis"
                             local:HighlightTextBlock.Highlight="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -377,7 +384,7 @@
                             Style="{StaticResource StarButtonStyle}">
                             <TextBlock
                                 FontFamily="{StaticResource Icon}"
-                                FontSize="12"
+                                FontSize="11"
                                 Text="&#xf005;" />
                         </Button>
                     </Grid>
@@ -387,9 +394,10 @@
             <!--  ============ 网格模式条目（2 列卡片）  ============  -->
             <DataTemplate x:Key="ToolGridTemplate">
                 <Border
-                    Margin="2"
-                    Padding="8,7"
-                    CornerRadius="8"
+                    MinHeight="38"
+                    Margin="3"
+                    Padding="5,6"
+                    CornerRadius="7"
                     MouseEnter="OnItemMouseEnter"
                     MouseLeave="OnItemMouseLeave">
                     <Border.Style>
@@ -413,22 +421,29 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock
+                        <Border
                             Grid.Column="0"
-                            Width="20"
+                            Width="18"
+                            Height="18"
                             VerticalAlignment="Center"
-                            FontFamily="{StaticResource Icon}"
-                            FontSize="13"
-                            Foreground="{Binding DataContext.AccentBrush, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                            Text="{Binding Icon}"
-                            TextAlignment="Center"
-                            TextOptions.TextFormattingMode="Display" />
+                            Background="{Binding Category, Converter={StaticResource CategorySoftBrushConverter}}"
+                            CornerRadius="5">
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource Icon}"
+                                FontSize="10"
+                                Foreground="{Binding Category, Converter={StaticResource CategoryAccentBrushConverter}}"
+                                Text="{Binding Icon}"
+                                TextAlignment="Center"
+                                TextOptions.TextFormattingMode="Display" />
+                        </Border>
 
                         <TextBlock
                             Grid.Column="1"
                             Margin="6,0,4,0"
                             VerticalAlignment="Center"
-                            FontSize="12.5"
+                            FontSize="11.5"
                             Foreground="{StaticResource ScadaTextBrush}"
                             TextTrimming="CharacterEllipsis"
                             local:HighlightTextBlock.Highlight="{Binding DataContext.SearchText, RelativeSource={RelativeSource AncestorType=UserControl}}"
@@ -444,7 +459,7 @@
                             Style="{StaticResource StarButtonStyle}">
                             <TextBlock
                                 FontFamily="{StaticResource Icon}"
-                                FontSize="12"
+                                FontSize="11"
                                 Text="&#xf005;" />
                         </Button>
                     </Grid>
@@ -498,6 +513,7 @@
                                 <!--  标题行：ToggleButton 驱动 IsExpanded（DataContext 由 Expander 继承 = 分组 VM）  -->
                                 <ToggleButton
                                     Grid.Row="0"
+                                    Height="28"
                                     HorizontalAlignment="Stretch"
                                     VerticalAlignment="Stretch"
                                     Cursor="Hand"
@@ -506,10 +522,10 @@
                                         <ControlTemplate TargetType="ToggleButton">
                                             <Border
                                                 x:Name="Head"
-                                                Margin="0,1"
+                                                Margin="0"
                                                 Background="Transparent"
                                                 CornerRadius="6">
-                                                <Grid Margin="8,7">
+                                                <Grid Margin="7,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="Auto" />
@@ -520,8 +536,8 @@
                                                     <!--  chevron：收起朝右（-90°），展开朝下（0°）  -->
                                                     <Path
                                                         Grid.Column="0"
-                                                        Width="9"
-                                                        Height="9"
+                                                        Width="8"
+                                                        Height="8"
                                                         Margin="0,0,2,0"
                                                         VerticalAlignment="Center"
                                                         Data="M0,0 L4,4 L8,0"
@@ -549,24 +565,31 @@
                                                         </Path.Style>
                                                     </Path>
 
-                                                    <!--  分类专属图标（分类专属色；收藏组是金色星）  -->
-                                                    <TextBlock
+                                                    <!--  分类专属图标（分类专属色 + 12% 浅底徽章；收藏组是暖金星）  -->
+                                                    <Border
                                                         Grid.Column="1"
-                                                        Width="20"
+                                                        Width="18"
+                                                        Height="18"
                                                         Margin="6,0,0,0"
                                                         VerticalAlignment="Center"
-                                                        FontFamily="{StaticResource Icon}"
-                                                        FontSize="12.5"
-                                                        Foreground="{Binding AccentBrush}"
-                                                        Text="{Binding Icon}"
-                                                        TextAlignment="Center"
-                                                        TextOptions.TextFormattingMode="Display" />
+                                                        Background="{Binding SoftBrush}"
+                                                        CornerRadius="5">
+                                                        <TextBlock
+                                                            HorizontalAlignment="Center"
+                                                            VerticalAlignment="Center"
+                                                            FontFamily="{StaticResource Icon}"
+                                                            FontSize="10.5"
+                                                            Foreground="{Binding AccentBrush}"
+                                                            Text="{Binding Icon}"
+                                                            TextAlignment="Center"
+                                                            TextOptions.TextFormattingMode="Display" />
+                                                    </Border>
 
                                                     <TextBlock
                                                         Grid.Column="2"
                                                         Margin="6,0,4,0"
                                                         VerticalAlignment="Center"
-                                                        FontSize="12.5"
+                                                        FontSize="12"
                                                         FontWeight="SemiBold"
                                                         Foreground="{StaticResource ScadaTextBrush}"
                                                         Text="{Binding Name}"
@@ -575,16 +598,18 @@
                                                     <!--  数量胶囊  -->
                                                     <Border
                                                         Grid.Column="3"
-                                                        MinWidth="22"
-                                                        Padding="6,1"
+                                                        MinWidth="18"
+                                                        Height="16"
+                                                        Padding="5,0"
                                                         VerticalAlignment="Center"
-                                                        Background="{StaticResource ScadaPanelBackgroundBrush}"
-                                                        BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                                        Background="{StaticResource ScadaSurfaceBrush}"
+                                                        BorderBrush="{StaticResource ScadaActionCardBorderBrush}"
                                                         BorderThickness="1"
-                                                        CornerRadius="9">
+                                                        CornerRadius="8">
                                                         <TextBlock
                                                             HorizontalAlignment="Center"
-                                                            FontSize="10.5"
+                                                            VerticalAlignment="Center"
+                                                            FontSize="9.5"
                                                             Foreground="{StaticResource ScadaSecondaryTextBrush}"
                                                             Text="{Binding Count}" />
                                                     </Border>
@@ -610,7 +635,7 @@
                                 <ItemsControl
                                     x:Name="ContentSite"
                                     Grid.Row="1"
-                                    Margin="4,0,4,6"
+                                    Margin="4,0,4,4"
                                     dd:DragDrop.DragAdornerTemplate="{StaticResource MyDragAdornerTemplate}"
                                     dd:DragDrop.DragAdornerTranslation="16,12"
                                     dd:DragDrop.IsDragSource="True"
@@ -632,8 +657,8 @@
 
             <!--  ============ 头部：列表/网格 双态切换按钮  ============  -->
             <Style x:Key="ViewToggleButtonStyle" TargetType="Button">
-                <Setter Property="Width" Value="26" />
-                <Setter Property="Height" Value="22" />
+                <Setter Property="Width" Value="20" />
+                <Setter Property="Height" Value="18" />
                 <Setter Property="Cursor" Value="Hand" />
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
@@ -662,49 +687,50 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <!--  ============ 头部：标题 + 总数胶囊 + 视图模式切换  ============  -->
-        <Grid Grid.Row="0" Margin="14,12,14,6">
+        <!--  ============ 工具条：总数 + 视图模式切换（标题由停靠页签承担）  ============  -->
+        <Grid Grid.Row="0" Height="24" Margin="10,6,10,4">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
-            <TextBlock
+            <StackPanel
                 Grid.Column="0"
                 VerticalAlignment="Center"
-                FontSize="14"
-                FontWeight="SemiBold"
-                Foreground="{StaticResource ScadaTextBrush}"
-                Text="工具箱" />
-
-            <!--  总数胶囊徽标  -->
-            <Border
-                Grid.Column="1"
-                MinWidth="20"
-                Margin="8,0,0,0"
-                Padding="7,1"
-                VerticalAlignment="Center"
-                Background="{StaticResource ScadaAccentBrush}"
-                CornerRadius="9">
+                Orientation="Horizontal">
+                <Border
+                    MinWidth="18"
+                    Height="16"
+                    Padding="5,0"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource ScadaAccentSoftBrush}"
+                    CornerRadius="8">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontSize="9.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource ScadaAccentBrush}"
+                        Text="{Binding TotalCount}" />
+                </Border>
                 <TextBlock
-                    HorizontalAlignment="Center"
+                    Margin="5,0,0,0"
+                    VerticalAlignment="Center"
                     FontSize="10.5"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource ScadaOnAccentTextBrush}"
-                    Text="{Binding TotalCount}" />
-            </Border>
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="个算子" />
+            </StackPanel>
 
             <!--  双态切换按钮组  -->
             <Border
-                Grid.Column="3"
-                Padding="2"
+                Grid.Column="2"
+                Padding="1"
                 VerticalAlignment="Center"
                 Background="{StaticResource ScadaSurfaceBrush}"
                 BorderBrush="{StaticResource ScadaPanelBorderBrush}"
                 BorderThickness="1"
-                CornerRadius="7">
+                CornerRadius="6">
                 <StackPanel Orientation="Horizontal">
                     <Button
                         Command="{Binding SetViewModeCommand}"
@@ -721,11 +747,11 @@
                         </Button.Style>
                         <TextBlock
                             FontFamily="{StaticResource Icon}"
-                            FontSize="11.5"
+                            FontSize="10"
                             Text="&#xf03a;" />
                     </Button>
                     <Button
-                        Margin="2,0,0,0"
+                        Margin="1,0,0,0"
                         Command="{Binding SetViewModeCommand}"
                         CommandParameter="Grid">
                         <Button.Style>
@@ -740,73 +766,126 @@
                         </Button.Style>
                         <TextBlock
                             FontFamily="{StaticResource Icon}"
-                            FontSize="11.5"
+                            FontSize="10"
                             Text="&#xf009;" />
                     </Button>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <!--  ============ 搜索框  ============  -->
-        <Border
-            Grid.Row="1"
-            Margin="14,2,14,6"
-            Padding="10,0"
-            Background="{StaticResource ScadaSurfaceBrush}"
-            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="8">
-            <Grid Height="32">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <TextBlock
-                    Grid.Column="0"
-                    Margin="0,0,6,0"
-                    VerticalAlignment="Center"
-                    FontFamily="{StaticResource Icon}"
-                    FontSize="12"
-                    Foreground="{StaticResource ScadaFaintTextBrush}"
-                    Text="&#xf002;" />
-                <TextBox
-                    x:Name="SearchBox"
-                    Grid.Column="1"
-                    VerticalContentAlignment="Center"
-                    Background="Transparent"
-                    BorderThickness="0"
-                    FontSize="12.5"
-                    Foreground="{StaticResource ScadaTextBrush}"
-                    Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
-                <TextBlock
-                    Grid.Column="1"
-                    Margin="2,0,0,0"
-                    VerticalAlignment="Center"
-                    FontSize="12.5"
-                    Foreground="{StaticResource ScadaFaintTextBrush}"
-                    IsHitTestVisible="False"
-                    Text="搜索节点...">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding SearchText}" Value="">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </Grid>
-        </Border>
+        <!--  ============ 搜索框（28px；聚焦主色边 + 2px 浅色外环；有文字才显清空）  ============  -->
+        <Grid Grid.Row="1" Margin="10,0,10,4">
+            <!--  2px 外环：贴在搜索壳外侧，仅聚焦时着色  -->
+            <Border
+                Margin="-2"
+                BorderThickness="2"
+                CornerRadius="9"
+                IsHitTestVisible="False">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderBrush" Value="Transparent" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource ScadaAccentSoftBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
 
-        <!--  ============ 空态提示行（还没有收藏时）  ============  -->
-        <Border Grid.Row="2" Margin="14,0,14,6" Padding="10,7" CornerRadius="8">
+            <Border
+                x:Name="SearchShell"
+                Height="28"
+                Padding="9,0"
+                Background="{StaticResource ScadaSurfaceBrush}"
+                BorderThickness="1"
+                CornerRadius="7">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="BorderBrush" Value="{StaticResource ScadaPanelBorderBrush}" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=SearchBox}" Value="True">
+                                <Setter Property="BorderBrush" Value="{StaticResource ScadaAccentBrush}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Grid.Column="0"
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource Icon}"
+                        FontSize="11"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="&#xf002;" />
+                    <TextBox
+                        x:Name="SearchBox"
+                        Grid.Column="1"
+                        Margin="0,0,4,0"
+                        VerticalContentAlignment="Center"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        FontSize="11.5"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Margin="0,0,4,0"
+                        VerticalAlignment="Center"
+                        FontSize="11.5"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        IsHitTestVisible="False"
+                        Text="搜索节点…">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SearchText}" Value="">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Button
+                        Grid.Column="2"
+                        Width="16"
+                        Height="16"
+                        Padding="0"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Command="{Binding ClearSearchCommand}"
+                        Cursor="Hand"
+                        Focusable="False"
+                        ToolTip="清空搜索"
+                        Visibility="{Binding HasSearchText, Converter={ui:BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            FontFamily="{StaticResource Icon}"
+                            FontSize="9"
+                            Foreground="{StaticResource ScadaFaintTextBrush}"
+                            Text="&#xf00d;" />
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!--  ============ 收藏引导（22px 浅底条；还没有收藏时）  ============  -->
+        <Border
+            Grid.Row="2"
+            Height="22"
+            Margin="10,0,10,4"
+            Padding="8,0"
+            Background="{StaticResource ScadaToolbarHoverBrush}"
+            CornerRadius="6">
             <Border.Style>
                 <Style TargetType="Border">
-                    <Setter Property="Background" Value="{StaticResource ScadaSurfaceBrush}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource ScadaPanelBorderBrush}" />
-                    <Setter Property="BorderThickness" Value="1" />
                     <Setter Property="Visibility" Value="Visible" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding HasFavorites}" Value="True">
@@ -815,17 +894,19 @@
                     </Style.Triggers>
                 </Style>
             </Border.Style>
-            <StackPanel Orientation="Horizontal">
+            <StackPanel
+                VerticalAlignment="Center"
+                Orientation="Horizontal">
                 <TextBlock
                     VerticalAlignment="Center"
                     FontFamily="{StaticResource Icon}"
-                    FontSize="12"
-                    Foreground="{StaticResource ScadaFaintTextBrush}"
+                    FontSize="10"
+                    Foreground="{StaticResource ScadaFavoriteBrush}"
                     Text="&#xf005;" />
                 <TextBlock
-                    Margin="8,0,0,0"
+                    Margin="6,0,0,0"
                     VerticalAlignment="Center"
-                    FontSize="12"
+                    FontSize="10.5"
                     Foreground="{StaticResource ScadaSecondaryTextBrush}"
                     Text="悬停条目点亮星标收藏" />
             </StackPanel>
@@ -834,7 +915,8 @@
         <!--  ============ 分组区：收藏置顶 + 分类手风琴  ============  -->
         <ScrollViewer
             Grid.Row="3"
-            Margin="8,0,8,8"
+            Margin="6,0,0,6"
+            Padding="0,0,10,0"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto">
             <ItemsControl HorizontalContentAlignment="Stretch" ItemsSource="{Binding FilteredToolBarSource}">
@@ -847,6 +929,41 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </ScrollViewer>
+
+        <!--  ============ 搜索无结果空态（与"还没收藏"的引导分开）  ============  -->
+        <StackPanel
+            Grid.Row="3"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Visibility="{Binding HasNoSearchResults, Converter={ui:BooleanToVisibilityConverter}}">
+            <Border
+                Width="34"
+                Height="34"
+                HorizontalAlignment="Center"
+                Background="{StaticResource ScadaToolbarHoverBrush}"
+                CornerRadius="10">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontFamily="{StaticResource Icon}"
+                    FontSize="14"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="&#xf002;" />
+            </Border>
+            <TextBlock
+                Margin="0,6,0,0"
+                HorizontalAlignment="Center"
+                FontSize="12"
+                FontWeight="SemiBold"
+                Foreground="{StaticResource ScadaLabelTextBrush}"
+                Text="没有匹配的节点" />
+            <TextBlock
+                Margin="0,2,0,0"
+                HorizontalAlignment="Center"
+                FontSize="10.5"
+                Foreground="{StaticResource ScadaFaintTextBrush}"
+                Text="换个关键词，或清空搜索" />
+        </StackPanel>
 
         <!--  ============ 悬停预览浮层（视图自管的 Popup）  ============  -->
         <!--  为什么不用 ToolTip：ToolTip 也是 Popup，但它的内容拿不到焦点，

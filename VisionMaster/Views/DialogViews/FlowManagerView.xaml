@@ -5,7 +5,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:prism="http://prismlibrary.com/"
-    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
     xmlns:ui="http://schemas.UI.com/ui"
     MinWidth="820"
     MinHeight="480"
@@ -28,14 +27,13 @@
             <Setter Property="ResizeMode" Value="CanResizeWithGrip" />
             <Setter Property="SizeToContent" Value="Manual" />
             <!--
-                尺寸（2026-10-07 复核）：
-                本表的"调用方式"单元格要横排四个勾选框 + 汇总文本 + 待接通提示，
-                窗口窄到 1100 以下时右侧两列（描述 / 状态）会被挤着裁字，故加宽。
-                Width=1180：实测内容区 1168（无边框窗口仍有 12 的非客户区），
-                  五列 = 名称 248（星号）+ 300 + 200 + 150 + 230，样例行全部不裁。
-                MinWidth=1060：这个数不是拍脑袋——内容区 = 1060-12 = 1048，表格扣掉左右边距 40 = 1008，
-                  刚好 ≥ 名称列下限 120 + 四列固定宽 880 = 1000。再小就会挤着裁列（实测 1000 时
-                  四列各窄 14px，"🔒 已锁定（禁止运行）"尾巴和长描述会被切掉）。
+                尺寸（2026-10-28 复核，随 v1.1 基线重算）：
+                列宽改为 名称 *（下限 180）+ 调用方式 330 + 描述 1.3*（下限 150）+ 状态 120 + 操作 200
+                = 固定 650 + 星号 478（1180 内容区 1168 − 左右边距 40 − 固定列）。
+                MinWidth=1060：内容区 1048，表格可用 1008，星号列退到各自下限 180 / 150 仍放得下
+                （180+330+150+120+200 = 980 ≤ 1008）。再窄才出横向滚动条。
+                高度 620 不变：行高 96→56、说明区 160→62 之后，7 条流程一次看全
+                （36 表头 + 7×56 = 428 ≤ 438），不需要滚动。
             -->
             <Setter Property="Width" Value="1180" />
             <Setter Property="Height" Value="620" />
@@ -46,17 +44,21 @@
 
     <!--
         ============================================================================
-        流程管理
+        流程管理 —— 设计基线 docs/UI设计基线/flow-manager/ v1.1
         ============================================================================
 
-        本次是**整体收编**，不是只换皮：
-        改前这张视图自带四支按钮样式（ActionButton / EncryptButton / DecryptButton /
-        DisableButton）与三支**隐式** DataGrid 皮肤，颜色是硬编码的 Bootstrap 老配色
-        （#34495e 深蓝表头 / #3498db / #27ae60 / #e74c3c / #ecf0f1），
-        和这套界面的青蓝令牌（Dialog*）不是一套；隐式样式还会盖掉全局表格皮肤
-        （见 DialogStyles.xaml 开头的说明）。
-        现在：颜色一律走 Colors.xaml 的 Dialog* 令牌，形状一律取 DialogStyles.xaml，
-        本视图不再定义任何样式，也不再出现颜色字面量。
+        【这一版改的是信息密度，不是换皮】
+        旧版每行 96px：5 个 DialogCheckBox 在 300px 列里折成两排（各约 56px + 间距），
+        再加 InvokeSummary 与 PendingNote 两行 11px 文本。620 高的弹窗只装得下 3.7 行，
+        第 4 行沿行底被裁（用户真机截图）。
+        新版：5 个复选框 → 5 个可点胶囊（单排约 280px），行高 56，7 条一次看全。
+
+        【删掉的「调用关系」列】它的 4 种取值（循环/外部/子/手动）完全由 InvokeType 位集派生
+        （FlowModel.CallBadgeText），是同一份数据的第二个投影；列宽 150 装不下
+        「子程序 · 由主流程调用」（约 142px + 单元格 padding 24），一直被 CharacterEllipsis 截断。
+        信息并入：胶囊颜色（整线=绿 / 外部=青蓝）+ 名称旁角色徽标 + 极少数行的派生小字。
+
+        【颜色】一律走 Colors.xaml 的 Dialog* 与逻辑容器族令牌，本视图零颜色字面量（R140）。
     -->
 
     <Grid>
@@ -87,7 +89,7 @@
 
                 <TextBlock
                     VerticalAlignment="Center"
-                    FontFamily="{StaticResource Icon}"
+                    FontFamily="{StaticResource DialogIconFont}"
                     FontSize="15"
                     Foreground="{StaticResource DialogAccentBrush}"
                     Text="&#xf0e8;" />
@@ -117,7 +119,7 @@
                     Style="{StaticResource DialogIconButton}"
                     ToolTip="关闭">
                     <TextBlock
-                        FontFamily="{StaticResource Icon}"
+                        FontFamily="{StaticResource DialogIconFont}"
                         FontSize="13"
                         Foreground="{StaticResource DialogTextSecondaryBrush}"
                         Text="&#xf00d;" />
@@ -125,7 +127,7 @@
             </Grid>
         </Border>
 
-        <!--  工具栏：左标题 + 右搜索（搜索框三段一体：外框 + 放大镜 + 透明输入框）  -->
+        <!--  工具栏：左标题 + 计数，右搜索（外框 + 放大镜 + 输入 + 清除）  -->
         <Grid Grid.Row="1" Margin="20,16,20,12">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
@@ -142,6 +144,23 @@
                     FontWeight="SemiBold"
                     Foreground="{StaticResource DialogTextPrimaryBrush}"
                     Text="流程列表" />
+                <!--  计数：搜索过滤后是"命中数"，用户才知道自己筛掉了多少  -->
+                <Border
+                    Margin="8,0,0,0"
+                    Padding="6,0"
+                    Height="18"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource DialogSurfaceBrush}"
+                    BorderBrush="{StaticResource DialogBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="5">
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="10.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="{Binding FlowCountText}" />
+                </Border>
             </StackPanel>
 
             <Border
@@ -152,6 +171,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock
                         Grid.Column="0"
@@ -162,6 +182,25 @@
                         Style="{StaticResource DialogSearchInput}"
                         Tag="搜索流程名 / 描述"
                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" />
+                    <!--
+                        清除键：空串时收起。搜索无结果时唯一的出路是"把关键词删掉"，
+                        而输入框里的内容只能一个个退格删——空态里那句提示再清楚，也得多花一次操作。
+                    -->
+                    <Button
+                        Grid.Column="2"
+                        Width="18"
+                        Height="18"
+                        VerticalAlignment="Center"
+                        Command="{Binding ClearSearchCommand}"
+                        Style="{StaticResource DialogIconButton}"
+                        ToolTip="清除搜索"
+                        Visibility="{Binding HasSearchText, Converter={ui:BooleanToVisibilityConverter}}">
+                        <TextBlock
+                            FontFamily="{StaticResource DialogIconFont}"
+                            FontSize="9"
+                            Foreground="{StaticResource DialogTextMutedBrush}"
+                            Text="&#xf00d;" />
+                    </Button>
                 </Grid>
             </Border>
         </Grid>
@@ -169,279 +208,681 @@
         <!--
             流程列表。
             表头/行/单元格皮肤统一走 DialogDataGrid（它内部已串好 CellStyle / RowStyle /
-            ColumnHeaderStyle）—— 不再本地写隐式样式：隐式样式一旦进全局字典会波及全应用每个表格，
-            而留在本地又会与本视图其它部分各说各话。
+            ColumnHeaderStyle）—— 不再本地写隐式样式：隐式样式一旦进全局字典会波及全应用每个表格。
+            本视图只覆盖两处密度：RowHeight=56（皮肤给 46）与 ColumnHeaderStyle=紧凑版（42→36）。
         -->
-        <DataGrid
+        <Border
             Grid.Row="2"
             Margin="20,0"
-            ItemsSource="{Binding Flows}"
-            MinRowHeight="46"
-            RowHeight="{x:Static sys:Double.NaN}"
-            SelectedItem="{Binding SelectedFlow}"
-            Style="{StaticResource DialogDataGrid}">
-            <!--
-                RowHeight = NaN（"按内容自适应"）+ MinRowHeight="46"（2026-10-07 修）：
-                皮肤层（DialogDataGrid）给的是固定 RowHeight=46。本表的"调用方式"单元格是
-                多行块（勾选框 + 汇总文本 + 将来可能出现的"待接通"提示），固定 46 会把最后一行
-                沿着行底裁掉——实测汇总文本底边 205.6 越过单元格底边 203.8（就是"汇总那行被裁成一条线"）。
-                改成自适应后行会跟着内容长；MinRowHeight=46 保住与其它弹窗一致的行密度
-                （勾选框 20 + 间距 4 + 汇总 15 = 39 < 46，正常两行内容时行高仍是 46，外观不变）。
+            Background="{StaticResource DialogSurfaceBrush}"
+            BorderBrush="{StaticResource DialogBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="10">
+            <Grid>
+                <DataGrid
+                    ItemsSource="{Binding Flows}"
+                    RowHeight="56"
+                    SelectedItem="{Binding SelectedFlow}"
+                    Style="{StaticResource DialogDataGrid}"
+                    ColumnHeaderStyle="{StaticResource DialogDataGridColumnHeaderCompact}">
+                    <DataGrid.Columns>
+                        <!--  ① 流程名称：角色徽标 + 名称 + 锁定图标  -->
+                        <DataGridTemplateColumn
+                            Width="*"
+                            MinWidth="180"
+                            Header="流程名称">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                        <!--
+                                            角色徽标：Home/Main/End 三条骨架流程每个方案都必须保留（可改名不可删），
+                                            旧版视图完全没用 FlowModel.Role，用户只能靠记名字。文案来自
+                                            FlowRole 的 [Display(ShortName)]，不在视图里写死中文（R40）。
+                                        -->
+                                        <Border
+                                            x:Name="RoleBadge"
+                                            Margin="0,0,7,0"
+                                            Padding="5,0"
+                                            Height="17"
+                                            VerticalAlignment="Center"
+                                            Background="{StaticResource DialogSurfaceBrush}"
+                                            BorderBrush="{StaticResource DialogBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="4"
+                                            ToolTip="{Binding RoleBadgeToolTip}">
+                                            <TextBlock
+                                                VerticalAlignment="Center"
+                                                FontSize="9.5"
+                                                FontWeight="Bold"
+                                                Text="{Binding RoleBadgeText}" />
+                                        </Border>
 
-                写法必须是 {x:Static sys:Double.NaN}：DataGrid.RowHeight 是 double 属性，
-                XAML 里写 RowHeight="Auto" **能过 BAML 编译**、但构造视图时抛
-                ArgumentException「Auto is not a valid value for Double」（离屏渲染探针实测）。
-            -->
-            <DataGrid.Columns>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="12.5"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextPrimaryBrush}"
+                                            Text="{Binding Flow.FlowName}"
+                                            TextTrimming="CharacterEllipsis" />
+
+                                        <TextBlock
+                                            x:Name="LockIcon"
+                                            Margin="6,0,0,0"
+                                            VerticalAlignment="Center"
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="11"
+                                            Foreground="{StaticResource DialogDangerTextBrush}"
+                                            Text="&#xf023;"
+                                            ToolTip="已锁定：禁止运行（HTTP / 定时 / 变量 / 子程序 / 界面五条入口统一拦）"
+                                            Visibility="Collapsed" />
+                                    </StackPanel>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding RoleBadgeText}" Value="">
+                                            <Setter TargetName="RoleBadge" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RoleBadgeKey}" Value="home">
+                                            <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicCaseSoftBrush}" />
+                                            <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicCaseBorderBrush}" />
+                                            <Setter TargetName="RoleBadge" Property="TextElement.Foreground" Value="{StaticResource LogicCaseTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RoleBadgeKey}" Value="main">
+                                            <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                                            <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicIfBorderBrush}" />
+                                            <Setter TargetName="RoleBadge" Property="TextElement.Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding RoleBadgeKey}" Value="end">
+                                            <Setter TargetName="RoleBadge" Property="Background" Value="{StaticResource LogicWhileSoftBrush}" />
+                                            <Setter TargetName="RoleBadge" Property="BorderBrush" Value="{StaticResource LogicWhileBorderBrush}" />
+                                            <Setter TargetName="RoleBadge" Property="TextElement.Foreground" Value="{StaticResource LogicWhileTextBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                            <Setter TargetName="LockIcon" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!--
+                            ② 调用方式：五个可点胶囊（基线 §1.1）
+                            位集是 FlowInvokeType [Flags]，五位互相独立；同一时刻勾多位是常态
+                            （工位流程常同时勾「子程序」+「整线」）。
+                            多选不会让同一条流程并发跑两遍——所有入口收口到会话锁：
+                            定时/变量在跑就跳过（FlowAutoRunner），HTTP 在跑返回 409。
+                            整线档用成功色：它不是"外部触发"，而是"随工具栏启动整线"。
+                        -->
+                        <DataGridTemplateColumn Width="330">
+                            <DataGridTemplateColumn.Header>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock VerticalAlignment="Center" Text="调用方式" />
+                                    <Border
+                                        Margin="6,0,0,0"
+                                        Padding="5,0"
+                                        Height="16"
+                                        VerticalAlignment="Center"
+                                        Background="{StaticResource DialogRowHoverBrush}"
+                                        CornerRadius="4">
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            FontSize="9.5"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="多选" />
+                                    </Border>
+                                </StackPanel>
+                            </DataGridTemplateColumn.Header>
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox
+                                                Content="定时"
+                                                IsChecked="{Binding IsTimerInvoke}"
+                                                Style="{StaticResource DialogInvokeChip}"
+                                                ToolTip="按「定时间隔」周期自动执行（下限 20ms；拍精度取决于生效的节拍源，启动日志会写明）。间隔为 0 = 未配置，不会触发——点右侧齿轮设置" />
+                                            <CheckBox
+                                                Margin="6,0,0,0"
+                                                Content="变量"
+                                                IsChecked="{Binding IsVariableInvoke}"
+                                                Style="{StaticResource DialogInvokeChip}"
+                                                ToolTip="指定变量由假变真时触发一次。变量名为空 = 未配置，不会触发——点右侧齿轮设置" />
+                                            <CheckBox
+                                                Margin="6,0,0,0"
+                                                Content="子程序"
+                                                IsChecked="{Binding IsSubroutineInvoke}"
+                                                Style="{StaticResource DialogInvokeChip}"
+                                                ToolTip="允许被其它流程的「调用流程」步骤调用（勾了才放行）" />
+                                            <CheckBox
+                                                Margin="6,0,0,0"
+                                                Content="HTTP"
+                                                IsChecked="{Binding IsHttpInvoke}"
+                                                Style="{StaticResource DialogInvokeChip}"
+                                                ToolTip="勾选后才允许经 /flow/{流程名} 接口触发（唯一门禁位）" />
+                                            <CheckBox
+                                                Margin="6,0,0,0"
+                                                Content="整线"
+                                                IsChecked="{Binding IsLineStartInvoke}"
+                                                Style="{StaticResource DialogInvokeChipLine}"
+                                                ToolTip="随整线启动：工具栏「启动整线 / 整线循环」把它与其它勾了本位的流程各起各的会话一起启动；一条出问题只停它自己" />
+
+                                            <!--
+                                                配置入口（A 方案）：勾了定时或变量才出现。
+                                                没有它，这两个位就是"勾了也不生效"——TimerIntervalMs 与
+                                                TriggerVariable 在全仓没有第二个界面入口（基线 §1.8）。
+                                            -->
+                                            <Button
+                                                Width="22"
+                                                Height="22"
+                                                MinWidth="22"
+                                                MinHeight="22"
+                                                Margin="6,0,0,0"
+                                                Padding="0"
+                                                VerticalAlignment="Center"
+                                                Command="{Binding DataContext.ConfigureInvokeCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource DialogIconButton}"
+                                                ToolTip="调用参数：定时间隔 / 触发变量（未配置时勾了也不会触发）"
+                                                Visibility="{Binding NeedsInvokeParams, Converter={ui:BooleanToVisibilityConverter}}">
+                                                <TextBlock
+                                                    FontFamily="{StaticResource DialogIconFont}"
+                                                    FontSize="10"
+                                                    Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                    Text="&#xf013;" />
+                                            </Button>
+                                        </StackPanel>
+
+                                        <!--
+                                            未配齐提示：与运行侧判据同源（ShouldFire 的 TimerIntervalMs<=0、
+                                            EvaluateCore 的 TriggerVariable 空串比较）。与下面的"待接通"分工：
+                                            那个管"这一位有没有接通运行侧"，这个管"这一条流程有没有把参数配齐"。
+                                        -->
+                                        <TextBlock
+                                            x:Name="ConfigNote"
+                                            Margin="0,4,0,0"
+                                            FontSize="10"
+                                            FontWeight="SemiBold"
+                                            Foreground="{StaticResource DialogWarningTextBrush}"
+                                            Text="{Binding InvokeConfigNote}"
+                                            TextWrapping="Wrap" />
+
+                                        <!--  派生小字（中性色）：仅子程序 / 手动——删掉「调用关系」列后它们没有别的表达  -->
+                                        <TextBlock
+                                            x:Name="DerivedNote"
+                                            Margin="0,4,0,0"
+                                            FontSize="10"
+                                            Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                            Text="{Binding DerivedNote}"
+                                            TextWrapping="Wrap" />
+
+                                        <!--  待接通：领域层 PendingReason（当前五位全接通 → 恒为空串，整行收起）  -->
+                                        <TextBlock
+                                            x:Name="PendingNote"
+                                            Margin="0,2,0,0"
+                                            FontSize="10"
+                                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                            Text="{Binding PendingReasonText}"
+                                            TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <!--  仓库实测：DataTemplate.Triggers 里的 DataTrigger 可靠；空串时收起提示行  -->
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding InvokeConfigNote}" Value="">
+                                            <Setter TargetName="ConfigNote" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding DerivedNote}" Value="">
+                                            <Setter TargetName="DerivedNote" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding PendingReasonText}" Value="">
+                                            <Setter TargetName="PendingNote" Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <DataGridTextColumn
+                            Width="1.3*"
+                            MinWidth="150"
+                            Binding="{Binding Flow.Description}"
+                            Header="描述"
+                            IsReadOnly="True" />
+
+                        <!--  ③ 状态：四态，只有异常态（运行中 / 已锁定）给底色（基线 §1.3）  -->
+                        <DataGridTemplateColumn Width="120" Header="状态">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <Grid VerticalAlignment="Center" HorizontalAlignment="Left">
+                                        <StackPanel
+                                            x:Name="DotState"
+                                            VerticalAlignment="Center"
+                                            Orientation="Horizontal">
+                                            <Grid
+                                                Width="12"
+                                                Height="12"
+                                                VerticalAlignment="Center">
+                                                <Ellipse
+                                                    x:Name="Halo"
+                                                    Width="12"
+                                                    Height="12"
+                                                    Fill="{StaticResource DialogSuccessBrush}"
+                                                    Opacity="0" />
+                                                <Ellipse
+                                                    x:Name="Dot"
+                                                    Width="6"
+                                                    Height="6"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Fill="{StaticResource DialogSuccessBrush}" />
+                                            </Grid>
+                                            <TextBlock
+                                                x:Name="DotText"
+                                                Margin="4,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontSize="11.5"
+                                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                                Text="{Binding StatusText}" />
+                                        </StackPanel>
+
+                                        <Border
+                                            x:Name="LockChip"
+                                            Padding="7,2"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Background="{StaticResource DialogDangerSubtleBrush}"
+                                            BorderBrush="{StaticResource DialogDangerBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Visibility="Collapsed">
+                                            <TextBlock
+                                                FontSize="11"
+                                                FontWeight="SemiBold"
+                                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                                Text="{Binding StatusText}" />
+                                        </Border>
+                                    </Grid>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding StatusKind}" Value="off">
+                                            <Setter TargetName="Dot" Property="Fill" Value="{StaticResource DialogBorderStrongBrush}" />
+                                            <Setter TargetName="DotText" Property="Foreground" Value="{StaticResource DialogTextMutedBrush}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StatusKind}" Value="run">
+                                            <Setter TargetName="DotText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                                            <Setter TargetName="DotText" Property="FontWeight" Value="SemiBold" />
+                                            <DataTrigger.EnterActions>
+                                                <BeginStoryboard x:Name="RunPulse">
+                                                    <Storyboard>
+                                                        <DoubleAnimation
+                                                            AutoReverse="True"
+                                                            Duration="0:0:0.7"
+                                                            From="0.28"
+                                                            RepeatBehavior="Forever"
+                                                            Storyboard.TargetName="Halo"
+                                                            Storyboard.TargetProperty="Opacity"
+                                                            To="0.06" />
+                                                    </Storyboard>
+                                                </BeginStoryboard>
+                                            </DataTrigger.EnterActions>
+                                            <DataTrigger.ExitActions>
+                                                <StopStoryboard BeginStoryboardName="RunPulse" />
+                                            </DataTrigger.ExitActions>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding StatusKind}" Value="lock">
+                                            <Setter TargetName="DotState" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="LockChip" Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+
+                        <!--
+                            ④ 操作：按状态收敛（基线 §1.4 + Q1）
+                            旧版「锁定」「解锁」并排常驻，两者各自只判自己的前置条件，点错必报错；
+                            新版合成一个图标键（锁 ↔ 开锁），同一时刻只出现一个。
+                            运行中两个键都置灰：旧版 ExecuteEncryptFlow / ExecuteToggleEnabled 都不判
+                            RunState，运行中照样能改——Q1 裁定要补上，VM 里"按下前判 + 执行前判"各一次。
+                        -->
+                        <DataGridTemplateColumn Width="200" Header="操作">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        ToolTip="{Binding OpsToolTip}">
+
+                                        <Button
+                                            Height="24"
+                                            Padding="9,0"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding EnabledText}"
+                                            FontSize="11.5"
+                                            IsEnabled="{Binding CanToggle}">
+                                            <Button.Style>
+                                                <Style BasedOn="{StaticResource DialogChipButton}" TargetType="Button">
+                                                    <Setter Property="Background" Value="{StaticResource DialogSurfaceBrush}" />
+                                                    <Setter Property="Foreground" Value="{StaticResource DialogTextSecondaryBrush}" />
+                                                    <Style.Triggers>
+                                                        <!--  "启用"是恢复动作，用主色；"禁用"是常规动作，保持中性  -->
+                                                        <DataTrigger Binding="{Binding IsEnableAction}" Value="True">
+                                                            <Setter Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                                                            <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                                                            <Setter Property="FontWeight" Value="SemiBold" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                        <!--  未锁定：显示锁形，点击 = 锁定  -->
+                                        <Button
+                                            Width="24"
+                                            Height="24"
+                                            MinWidth="24"
+                                            MinHeight="24"
+                                            Margin="6,0,0,0"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding DataContext.EncryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            IsEnabled="{Binding CanLock}"
+                                            ToolTip="锁定：该流程禁止运行（HTTP / 定时 / 变量 / 子程序 / 界面五条入口统一拦）。不改变文件内容，不是机密性保护">
+                                            <Button.Style>
+                                                <Style BasedOn="{StaticResource DialogIconButton}" TargetType="Button">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="11"
+                                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                                Text="&#xf023;" />
+                                        </Button>
+
+                                        <!--  已锁定：显示开锁形（danger 语义），点击 = 解锁  -->
+                                        <Button
+                                            Width="24"
+                                            Height="24"
+                                            MinWidth="24"
+                                            MinHeight="24"
+                                            Margin="6,0,0,0"
+                                            Padding="0"
+                                            VerticalAlignment="Center"
+                                            Command="{Binding DataContext.DecryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            IsEnabled="{Binding CanLock}"
+                                            ToolTip="解除锁定，恢复可运行">
+                                            <Button.Style>
+                                                <Style BasedOn="{StaticResource DialogIconButton}" TargetType="Button">
+                                                    <Setter Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsLocked}" Value="True">
+                                                            <Setter Property="Visibility" Value="Visible" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                            <TextBlock
+                                                FontFamily="{StaticResource DialogIconFont}"
+                                                FontSize="11"
+                                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                                Text="&#xf09c;" />
+                                        </Button>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+
                 <!--
-                    MinWidth="120"：窗口拖到最小宽度时，固定列（300+200+150+230=880）会把这列
-                    星号列挤到 64px 以下——"GoHome" 变成 "GoHom" 这种右侧被裁的名字，比多一条横向
-                    滚动条难查得多。给了下限后，宽度不够时表格改为横向滚动，而不是把名字切掉。
+                    空态（基线 §1.6）：FilterFlows() 是 Flows.Clear() 后按关键词回填，
+                    关键词打错就是一张空白表。旧版没有任何反馈，用户会以为列表加载失败。
+                    无流程态不可达（SolutionModel 预置 Home/Main/End 且 MandatoryFlows 加载时补齐），
+                    这里的标题分支只是兜底，见基线 §6。
                 -->
-                <DataGridTextColumn
-                    Width="*"
-                    MinWidth="120"
-                    Binding="{Binding Flow.FlowName}"
-                    Header="流程名称"
-                    IsReadOnly="True" />
-
-                <!--
-                    调用方式 = 多选位集（FlowInvokeType [Flags]），四位全部接通：
-                    「HTTP」= 允许 /flow/{流程名} 触发（会话获取前门禁）；
-                    「定时」= FlowTimerScheduler 按 TimerIntervalMs 周期跑（下限 100ms）；
-                    「变量」= 指定变量由假变真时跑（上升沿）；「子程序」= 允许被「调用流程」步骤调用。
-                    行尾的"待接通"提示来自领域层（FlowInvokeTypeExtensions.PendingReason）：
-                    现在四位都返回 null → 该行自动收起；将来加位没接通时它会把原因显示出来。
-
-                    【勾选框必须显式挂 DialogCheckBox（2026-10-07 修）】不写 Style 的 CheckBox 会接上
-                    App.xaml 最后合并的 Fluent 隐式样式，那支样式带 MinWidth=120 / MinHeight=32
-                    （触摸目标尺寸）。四个勾选框 = 4×130 = 520px，而本列可视区只有 288px：
-                    实测「子程序」右边界 552 越过单元格右边界 480 只露出方框、「HTTP」右边界 682
-                    整只落在单元格之外——HTTP 位（唯一带门禁的调用位）用户根本点不到。
-                    DialogCheckBox 是这套弹窗自己的复选框令牌（15px 方框 + FontSize 12，无最小尺寸），
-                    四个合计约 242px，本列放得下。
-                -->
-                <DataGridTemplateColumn Width="300" Header="调用方式（多选）">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <StackPanel VerticalAlignment="Center">
-                                <!--
-                                    WrapPanel 而不是横向 StackPanel：窗口拖到 MinWidth、或将来再加调用位时，
-                                    勾选框折行而不是被单元格右边界裁掉——裁掉的勾选框等于点不到，开关就不存在。
-                                    上下各留 2：折行时两排之间才有 4px 缝（单排时这 4px 落在行内容里，不影响 46 行高）。
-                                -->
-                                <WrapPanel Orientation="Horizontal">
-                                    <CheckBox
-                                        Margin="0,2,10,2"
-                                        Content="定时"
-                                        IsChecked="{Binding IsTimerInvoke}"
-                                        Style="{StaticResource DialogCheckBox}"
-                                        ToolTip="按「定时间隔」周期自动执行（下限 20ms；拍精度取决于生效的节拍源，启动日志会写明）" />
-                                    <CheckBox
-                                        Margin="0,2,10,2"
-                                        Content="变量"
-                                        IsChecked="{Binding IsVariableInvoke}"
-                                        Style="{StaticResource DialogCheckBox}"
-                                        ToolTip="指定变量由假变真时触发一次（变量名见流程模型 TriggerVariable）" />
-                                    <CheckBox
-                                        Margin="0,2,10,2"
-                                        Content="子程序"
-                                        IsChecked="{Binding IsSubroutineInvoke}"
-                                        Style="{StaticResource DialogCheckBox}"
-                                        ToolTip="允许被其它流程的「调用流程」步骤调用（勾了才放行）" />
-                                    <CheckBox
-                                        Margin="0,2,10,2"
-                                        Content="HTTP"
-                                        IsChecked="{Binding IsHttpInvoke}"
-                                        Style="{StaticResource DialogCheckBox}"
-                                        ToolTip="勾选后才允许经 /flow/{流程名} 接口触发（唯一门禁位）" />
-                                </WrapPanel>
-                                <!--  TextWrapping：列宽被拖窄时汇总文本折行，而不是被单元格右边界裁断  -->
-                                <TextBlock
-                                    x:Name="InvokeSummary"
-                                    Margin="0,4,0,0"
-                                    FontSize="11"
-                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                    Text="{Binding InvokeTypeText}"
-                                    TextWrapping="Wrap" />
-                                <TextBlock
-                                    x:Name="PendingNote"
-                                    Margin="0,2,0,0"
-                                    FontSize="11"
-                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    Text="{Binding PendingReasonText}"
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                            <!--  仓库实测：DataTemplate.Triggers 里的 DataTrigger 可靠；空串时收起"待接通"行  -->
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding PendingReasonText}" Value="">
-                                    <Setter TargetName="PendingNote" Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-                <!--
-                    描述 200 / 状态 150（2026-10-07 加宽）：实测"回原点（开机与换产的安全位姿）"
-                    单行要 180px、状态列"🔒 已锁定（禁止运行）"单行要 128px，原来 160 / 110 都会
-                    在单元格右边界被裁（状态列实测越界 32px）。两列都是单行文本、不会折行，
-                    所以宽度必须按最长文案给够。
-                -->
-                <DataGridTextColumn
-                    Width="200"
-                    Binding="{Binding Flow.Description}"
-                    Header="描述"
-                    IsReadOnly="True" />
-
-                <DataGridTextColumn
-                    Width="150"
-                    Binding="{Binding StatusText}"
-                    Header="状态"
-                    IsReadOnly="True" />
-
-                <!--
-                    调用关系：把“能不能直接拉起”放在表格里一眼可见。
-                    循环 = 主流程（工具栏循环）；外部 = 定时/变量/HTTP；子 = 仅子程序，由主流程调用。
-                    颜色复用弹窗现有令牌，不新增全局资源。
-                -->
-                <DataGridTemplateColumn Width="150" Header="调用关系">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Border
-                                x:Name="CallKindChip"
-                                Padding="6,2"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center"
-                                Background="{StaticResource DialogSurfaceBrush}"
-                                CornerRadius="3"
-                                ToolTip="{Binding Flow.CallBadgeToolTip}">
-                                <TextBlock
-                                    x:Name="CallKindText"
-                                    FontSize="11"
-                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    Text="{Binding Flow.CallSummaryText}"
-                                    TextTrimming="CharacterEllipsis" />
-                            </Border>
-                            <DataTemplate.Triggers>
-                                <DataTrigger Binding="{Binding Flow.CallBadgeText}" Value="循环">
-                                    <Setter TargetName="CallKindChip" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
-                                    <Setter TargetName="CallKindChip" Property="BorderBrush" Value="{StaticResource DialogSuccessBorderBrush}" />
-                                    <Setter TargetName="CallKindChip" Property="BorderThickness" Value="1" />
-                                    <Setter TargetName="CallKindText" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Flow.CallBadgeText}" Value="外部">
-                                    <Setter TargetName="CallKindChip" Property="Background" Value="{StaticResource DialogAccentLightBrush}" />
-                                    <Setter TargetName="CallKindChip" Property="BorderBrush" Value="{StaticResource DialogAccentBorderBrush}" />
-                                    <Setter TargetName="CallKindChip" Property="BorderThickness" Value="1" />
-                                    <Setter TargetName="CallKindText" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Flow.CallBadgeText}" Value="子">
-                                    <Setter TargetName="CallKindChip" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
-                                    <Setter TargetName="CallKindChip" Property="BorderBrush" Value="{StaticResource DialogWarningBorderBrush}" />
-                                    <Setter TargetName="CallKindChip" Property="BorderThickness" Value="1" />
-                                    <Setter TargetName="CallKindText" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-
-                <DataGridTemplateColumn Width="230" Header="操作">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <!--
-                                行内动作做成胶囊软色块（DialogChipButton）：
-                                文字留着（纯图标分不清加密与解密），但不像普通按钮那样抢视线。
-                                底色与字色按语义成对给 —— 危险动作（解密）走浅红底 + 红字。
-                            -->
-                            <StackPanel
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center"
-                                Orientation="Horizontal">
-                                <Button
-                                    Command="{Binding DataContext.EncryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                    CommandParameter="{Binding}"
-                                    Content="锁定"
-                                    Style="{StaticResource DialogChipButton}"
-                                    Background="{StaticResource DialogAccentLightBrush}"
-                                    Foreground="{StaticResource DialogAccentTextBrush}"
-                                    ToolTip="锁定后该流程禁止运行（任何触发源都拦）；注意：不改变文件内容，不提供机密性保护" />
-
-                                <Button
-                                    Margin="8,0,0,0"
-                                    Command="{Binding DataContext.DecryptFlowCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                    CommandParameter="{Binding}"
-                                    Content="解锁"
-                                    Style="{StaticResource DialogChipButton}"
-                                    Background="{StaticResource DialogDangerSubtleBrush}"
-                                    Foreground="{StaticResource DialogDangerBrush}"
-                                    ToolTip="解除锁定，恢复可运行" />
-
-                                <Button
-                                    Margin="8,0,0,0"
-                                    Command="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                    CommandParameter="{Binding}"
-                                    Content="{Binding EnabledText}"
-                                    Style="{StaticResource DialogChipButton}"
-                                    Background="{StaticResource DialogRowHoverBrush}"
-                                    Foreground="{StaticResource DialogTextSecondaryBrush}"
-                                    ToolTip="启用/禁用：控制流程是否参与自动调用" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-            </DataGrid.Columns>
-        </DataGrid>
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Visibility="{Binding IsEmpty, Converter={ui:BooleanToVisibilityConverter}}">
+                    <TextBlock Style="{StaticResource DialogEmptyStateIcon}" Text="&#xf002;" />
+                    <TextBlock
+                        FontSize="12.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        HorizontalAlignment="Center"
+                        Margin="0,12,0,0"
+                        Text="{Binding EmptyStateTitle}" />
+                    <TextBlock
+                        Margin="0,6,0,0"
+                        FontSize="11.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        HorizontalAlignment="Center"
+                        Text="搜索范围是流程名与描述；清空关键词即恢复全部流程" />
+                    <Button
+                        Margin="0,10,0,0"
+                        Padding="11,0"
+                        Height="26"
+                        HorizontalAlignment="Center"
+                        Command="{Binding ClearSearchCommand}"
+                        Content="清除搜索"
+                        FontSize="11.5"
+                        FontWeight="SemiBold"
+                        Background="{StaticResource DialogAccentSoftBrush}"
+                        Foreground="{StaticResource DialogAccentTextBrush}"
+                        Style="{StaticResource DialogChipButton}" />
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <!--
-            底部说明：四条口径写清楚，省得使用者去翻文档。
-
-            【四条都显式写 TextWrapping="Wrap"（2026-10-07 修）】看着与
-            DialogHintText 重复，其实不是：本仓 App.xaml 最后合并的 Fluent 主题里，
-            FluentAliases 又把 DialogHintText 覆盖成了 BasedOn FluentTextCaptionStyle 的版本
-            （资源字典后合并者优先），那一版**没有** TextWrapping。于是第 3 行（单行自然宽 950px）
-            既不回行、又把说明面板顶宽到 978px，越过弹窗右边界被裁掉尾巴
-            （"子程序 = 允许被其它流程的「调用流程」步骤调用"只剩前半句）。
-            在视图里显式给 Wrap 是唯一不动公共令牌就能让长句回行的写法；
-            DialogHintText 令牌本身补 Wrap 会波及全仓所有弹窗，另行评估。
+            说明面板（基线 §1.5，Q2 裁定"默认收起"）
+            旧版 5 条常驻 = 130px，占弹窗高度 21%，其中第 3 条就是在逐字复述表格里的 5 个勾选框。
+            新版默认收起成 32px 一行目录，展开是两列三行（128px，仍比旧版少 32px）——信息一条没丢。
         -->
         <Border
             Grid.Row="3"
             Margin="20,14,20,16"
-            Style="{StaticResource DialogInfoPanel}">
-            <StackPanel>
-                <TextBlock
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    Foreground="{StaticResource DialogTextSecondaryBrush}"
-                    Text="说明" />
-                <TextBlock
-                    Margin="0,6,0,0"
-                    Style="{StaticResource DialogHintText}"
-                    Text="· 启用/禁用：控制流程是否参与自动调用"
-                    TextWrapping="Wrap" />
-                <TextBlock
-                    Margin="0,3,0,0"
-                    Style="{StaticResource DialogHintText}"
-                    Text="· 锁定/解锁：锁定后该流程禁止运行（HTTP / 定时 / 变量 / 子程序 / 界面五条入口统一拦）；锁定不改变文件内容，不是机密性保护"
-                    TextWrapping="Wrap" />
-                <TextBlock
-                    Margin="0,3,0,0"
-                    Style="{StaticResource DialogHintText}"
-                    Text="· 调用方式（多选）：HTTP = 允许经 /flow/{流程名} 触发；定时 = 按间隔周期跑（下限 20ms）；变量 = 指定变量由假变真时跑；子程序 = 允许被其它流程的「调用流程」步骤调用"
-                    TextWrapping="Wrap" />
-                <TextBlock
-                    Margin="0,3,0,0"
-                    Style="{StaticResource DialogHintText}"
-                    Text="· 调用关系：绿色=主流程（工具栏循环运行）；蓝色=外部触发（定时/变量/HTTP）；琥珀=仅子程序（由主流程调用）；灰色=手动"
-                    TextWrapping="Wrap" />
-                <TextBlock
-                    Margin="0,3,0,0"
-                    Style="{StaticResource DialogHintText}"
-                    Text="· 强制流程：Home / Main / End 三条骨架流程每个方案都必须保留，不允许删除（可改名）"
-                    TextWrapping="Wrap" />
-            </StackPanel>
+            Background="{StaticResource DialogRowAlternateBrush}"
+            BorderBrush="{StaticResource DialogBorderLightBrush}"
+            BorderThickness="1"
+            CornerRadius="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="32" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="{StaticResource DialogIconFont}"
+                        FontSize="11"
+                        Foreground="{StaticResource DialogAccentBrush}"
+                        Text="&#xf05a;" />
+
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="调用方式 5 位含义" />
+                        <TextBlock
+                            Margin="8,0"
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogBorderStrongBrush}"
+                            Text="·" />
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="锁定与启用的区别" />
+                        <TextBlock
+                            Margin="8,0"
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogBorderStrongBrush}"
+                            Text="·" />
+                        <TextBlock
+                            FontSize="11.5"
+                            Foreground="{StaticResource DialogTextSecondaryBrush}"
+                            Text="骨架流程约束" />
+                    </StackPanel>
+
+                    <Button
+                        Grid.Column="2"
+                        Height="22"
+                        Padding="8,0"
+                        VerticalAlignment="Center"
+                        Command="{Binding ToggleLegendCommand}"
+                        FontSize="11">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock VerticalAlignment="Center" Text="{Binding LegendToggleText}" />
+                            <TextBlock
+                                Margin="4,0,0,0"
+                                VerticalAlignment="Center"
+                                FontFamily="{StaticResource DialogIconFont}"
+                                FontSize="9"
+                                Text="&#xf078;" />
+                        </StackPanel>
+                        <Button.Style>
+                            <Style BasedOn="{StaticResource DialogChipButton}" TargetType="Button">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+
+                <Grid
+                    Grid.Row="1"
+                    Margin="12,0,12,10"
+                    Visibility="{Binding IsLegendExpanded, Converter={ui:BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="76" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" MinWidth="76" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Margin="0,0,8,5"
+                        FontSize="10.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="启用 / 禁用" />
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Margin="0,0,22,5"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="控制流程是否参与自动调用；禁用后界面手动运行同样被拦。"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="2"
+                        Margin="0,0,8,5"
+                        FontSize="10.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="锁定 / 解锁" />
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="3"
+                        Margin="0,0,0,5"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="锁定后 HTTP / 定时 / 变量 / 子程序 / 界面五条入口统一拦；不改变文件内容，不是机密性保护。"
+                        TextWrapping="Wrap" />
+
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Margin="0,0,8,5"
+                        FontSize="10.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="调用方式" />
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="1"
+                        Margin="0,0,22,5"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="HTTP = 允许经 /flow/{流程名} 触发；定时 = 按间隔周期跑（下限 20ms）；变量 = 指定变量由假变真时跑一次。"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="2"
+                        Margin="0,0,8,5"
+                        FontSize="10.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="子程序 / 整线" />
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="3"
+                        Margin="0,0,0,5"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="子程序 = 允许被其它流程的「调用流程」步骤调用；整线 = 随工具栏「启动整线」与其它勾选本位的流程各起各的会话，一条出问题只停它自己。"
+                        TextWrapping="Wrap" />
+
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="0"
+                        Margin="0,0,8,0"
+                        FontSize="10.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="状态色" />
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="1"
+                        Margin="0,0,22,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="绿点 = 已启用；灰点 = 已禁用；脉冲绿点 = 运行中；红锁 = 已锁定（禁止运行）。"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="2"
+                        Margin="0,0,8,0"
+                        FontSize="10.5"
+                        FontWeight="Bold"
+                        Foreground="{StaticResource DialogTextSecondaryBrush}"
+                        Text="骨架流程" />
+                    <TextBlock
+                        Grid.Row="2"
+                        Grid.Column="3"
+                        Margin="0,0,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextTertiaryBrush}"
+                        Text="Home / Main / End 三条每个方案都必须保留，不允许删除（可改名）。"
+                        TextWrapping="Wrap" />
+                </Grid>
+            </Grid>
         </Border>
     </Grid>
 

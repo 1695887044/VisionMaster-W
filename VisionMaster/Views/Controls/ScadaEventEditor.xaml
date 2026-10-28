@@ -29,6 +29,36 @@
 
             <BooleanToVisibilityConverter x:Key="BoolVis" />
 
+            <!--  v2 工具提示：与属性面板同一份视觉（墨黑底白字、最大宽 240、12px/1.45）。
+                  本控件是独立 UserControl，属性面板的隐式样式管不到这里，所以自带一份；
+                  作用域仅本控件，不影响别的面板。  -->
+            <Style TargetType="ToolTip">
+                <Setter Property="OverridesDefaultStyle" Value="True" />
+                <Setter Property="HasDropShadow" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ToolTip">
+                            <Border
+                                MaxWidth="240"
+                                Padding="8,7"
+                                Background="{StaticResource ScadaTooltipBackgroundBrush}"
+                                CornerRadius="8">
+                                <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}">
+                                    <ContentPresenter.Resources>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{StaticResource ScadaTooltipTextBrush}" />
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Setter Property="LineHeight" Value="17.4" />
+                                            <Setter Property="TextWrapping" Value="Wrap" />
+                                        </Style>
+                                    </ContentPresenter.Resources>
+                                </ContentPresenter>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!--  动作行里那三个小按钮共用：正方形、无边框感，密集排布不抢视线  -->
             <Style x:Key="ActionIconButton" TargetType="Button">
                 <Setter Property="Width" Value="20" />
@@ -54,11 +84,11 @@
             <DataTemplate x:Key="ActionItem">
                 <Border
                     Margin="0,2,0,0"
-                    Padding="4,3"
+                    Padding="5,4"
                     Background="{StaticResource ScadaSurfaceBrush}"
                     BorderBrush="{StaticResource ScadaActionCardBorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="2">
+                    CornerRadius="6">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -933,90 +963,182 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <!--  事件本体：勾选框 + （勾上才出现的）动作表。
-          这份内容独占整行宽度、不排标签列——82px 的标签列留给动作表就只剩一条缝了。  -->
-    <StackPanel Margin="0,2,0,2" ToolTip="{Binding Description}">
-        <CheckBox
-            Content="{Binding DisplayName}"
-            FontSize="12"
-            IsChecked="{Binding IsConfigured, Mode=TwoWay}" />
-
-        <!--  没配钩子时 HasActions=false，整块收掉；配了才展开  -->
-        <StackPanel
-            Margin="16,3,0,0"
-            Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}">
-            <!--  P0：执行前确认。默认关闭；勾上后运行态命中该事件先弹确认框，取消则整串动作都不执行。  -->
-            <StackPanel Orientation="Horizontal">
-                <CheckBox
-                    Content="执行前确认"
-                    FontSize="12"
-                    IsChecked="{Binding RequireConfirmation, Mode=TwoWay}" />
-                <Border
-                    Margin="8,0,0,0"
-                    Padding="5,1"
-                    BorderThickness="1"
-                    BorderBrush="{StaticResource ScadaDangerBrush}"
-                    CornerRadius="4"
-                    Visibility="{Binding IsDangerous, Converter={StaticResource BoolVis}}">
-                    <TextBlock
-                        FontSize="10"
-                        FontWeight="SemiBold"
-                        Foreground="{StaticResource ScadaDangerBrush}"
-                        Text="危险动作" />
-                </Border>
-            </StackPanel>
-
-            <TextBox
-                Margin="0,4,0,0"
-                Padding="6,3"
-                FontSize="11"
-                Text="{Binding ConfirmationMessage, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                ToolTip="留空则使用默认提示：将执行：动作摘要。"
-                Visibility="{Binding RequireConfirmation, Converter={StaticResource BoolVis}}" />
-
-            <TextBlock
-                Margin="0,2,0,0"
-                FontSize="11"
-                Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                Text="运行态命中该事件时先弹确认框；取消则整串动作都不执行。"
-                TextWrapping="Wrap"
-                Visibility="{Binding RequireConfirmation, Converter={StaticResource BoolVis}}" />
-
-            <TextBlock
-                FontSize="11"
-                Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                Text="动作（自上而下依次执行）：" />
-
-            <ItemsControl ItemTemplate="{StaticResource ActionItem}" ItemsSource="{Binding Actions}" />
-
-            <!--  配了钩子却把动作删光了：执行侧当"没配"处理，必须说出来，
-                  否则用户会以为"我明明勾上了"  -->
-            <TextBlock
-                Margin="0,2,0,0"
-                FontSize="11"
-                Foreground="{StaticResource ScadaWarningBrush}"
-                Text="还没有动作，运行态命中该事件时不会有任何反应，也不会弹确认框。请先添加动作。"
-                TextWrapping="Wrap">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Collapsed" />
+    <!--  v2 事件折叠卡（2026-10-28）：勾选管「配没配」，箭头管展开，摘要常显。
+          卡头在配置中时用主色柔底；动作表有边界，不再悬浮在面板底色上。  -->
+    <Border
+        Margin="0,2,0,2"
+        Padding="6,4"
+        Background="{StaticResource ScadaSurfaceBrush}"
+        BorderBrush="{StaticResource ScadaActionCardBorderBrush}"
+        BorderThickness="1"
+        CornerRadius="8"
+        ToolTip="{Binding Description}">
+        <StackPanel>
+            <Border Padding="5,3" CornerRadius="6">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding Actions.Count}" Value="0">
-                                <Setter Property="Visibility" Value="Visible" />
+                            <DataTrigger Binding="{Binding IsConfigured}" Value="True">
+                                <Setter Property="Background" Value="{StaticResource ScadaAccentSoftBrush}" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-            <Button
-                Margin="0,4,0,0"
-                Padding="6,2"
-                HorizontalAlignment="Left"
-                Command="{Binding AddActionCommand}"
-                Content="+ 添加动作"
-                FontSize="11"
-                ToolTip="新动作默认是「记录日志」，改文案即可用" />
+                    <CheckBox
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        Content="{Binding DisplayName}"
+                        FontSize="12"
+                        IsChecked="{Binding IsConfigured, Mode=TwoWay}" />
+
+                    <TextBlock
+                        Grid.Column="1"
+                        Margin="8,0,0,0"
+                        VerticalAlignment="Center"
+                        FontSize="10.5"
+                        Text="{Binding Summary}"
+                        Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource ScadaAccentBrush}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding SummaryIsWarning}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource ScadaWarningBrush}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <ToggleButton
+                        Grid.Column="2"
+                        Width="20"
+                        Height="20"
+                        Margin="6,0,0,0"
+                        VerticalAlignment="Center"
+                        Cursor="Hand"
+                        Focusable="False"
+                        IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                        ToolTip="展开 / 收起动作表"
+                        Visibility="{Binding HasActions, Converter={StaticResource BoolVis}}">
+                        <ToggleButton.Template>
+                            <ControlTemplate TargetType="ToggleButton">
+                                <Border Background="Transparent">
+                                    <Path
+                                        x:Name="Chevron"
+                                        Width="9"
+                                        Height="5"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Data="M 0 0 L 4.5 4.5 L 9 0"
+                                        RenderTransformOrigin="0.5,0.5"
+                                        Stroke="{StaticResource ScadaSecondaryTextBrush}"
+                                        StrokeEndLineCap="Round"
+                                        StrokeLineJoin="Round"
+                                        StrokeStartLineCap="Round"
+                                        StrokeThickness="1.4" />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsChecked" Value="True">
+                                        <Setter TargetName="Chevron" Property="RenderTransform">
+                                            <Setter.Value>
+                                                <RotateTransform Angle="180" />
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </ToggleButton.Template>
+                    </ToggleButton>
+                </Grid>
+            </Border>
+
+            <!--  动作区：配了 + 展开才出现  -->
+            <StackPanel
+                Margin="16,4,0,2"
+                Visibility="{Binding IsBodyVisible, Converter={StaticResource BoolVis}}">
+                <!--  P0：执行前确认。默认关闭；勾上后运行态命中该事件先弹确认框，取消则整串动作都不执行。  -->
+                <StackPanel Orientation="Horizontal">
+                    <CheckBox
+                        Content="执行前确认"
+                        FontSize="12"
+                        IsChecked="{Binding RequireConfirmation, Mode=TwoWay}" />
+                    <Border
+                        Margin="8,0,0,0"
+                        Padding="5,1"
+                        BorderThickness="1"
+                        BorderBrush="{StaticResource ScadaDangerBrush}"
+                        CornerRadius="4"
+                        Visibility="{Binding IsDangerous, Converter={StaticResource BoolVis}}">
+                        <TextBlock
+                            FontSize="10"
+                            FontWeight="SemiBold"
+                            Foreground="{StaticResource ScadaDangerBrush}"
+                            Text="危险动作" />
+                    </Border>
+                </StackPanel>
+
+                <TextBox
+                    Margin="0,4,0,0"
+                    Padding="6,3"
+                    FontSize="11"
+                    Text="{Binding ConfirmationMessage, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                    ToolTip="留空则使用默认提示：将执行：动作摘要。"
+                    Visibility="{Binding RequireConfirmation, Converter={StaticResource BoolVis}}" />
+
+                <TextBlock
+                    Margin="0,2,0,0"
+                    FontSize="11"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="运行态命中该事件时先弹确认框；取消则整串动作都不执行。"
+                    TextWrapping="Wrap"
+                    Visibility="{Binding RequireConfirmation, Converter={StaticResource BoolVis}}" />
+
+                <TextBlock
+                    Margin="0,2,0,0"
+                    FontSize="11"
+                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                    Text="动作（自上而下依次执行）：" />
+
+                <ItemsControl ItemTemplate="{StaticResource ActionItem}" ItemsSource="{Binding Actions}" />
+
+                <!--  配了钩子却把动作删光了：执行侧当"没配"处理，必须说出来，
+                      否则用户会以为"我明明勾上了"  -->
+                <TextBlock
+                    Margin="0,2,0,0"
+                    FontSize="11"
+                    Foreground="{StaticResource ScadaWarningBrush}"
+                    Text="还没有动作，运行态命中该事件时不会有任何反应，也不会弹确认框。请先添加动作。"
+                    TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Actions.Count}" Value="0">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <Button
+                    Margin="0,4,0,0"
+                    Padding="6,2"
+                    HorizontalAlignment="Left"
+                    Command="{Binding AddActionCommand}"
+                    Content="+ 添加动作"
+                    FontSize="11"
+                    ToolTip="新动作默认是「记录日志」，改文案即可用" />
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </Border>
 </UserControl>

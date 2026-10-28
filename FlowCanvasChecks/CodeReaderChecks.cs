@@ -65,6 +65,9 @@ namespace FlowCanvasChecks
         {
             Section("[码读取] 条码/二维码识别（官方样张验证）");
 
+            RunHalconSampleFlow();
+            RunHalconQrSampleFlow();
+
             string? root = ResolveImagesRoot();
             if (root == null)
             {
@@ -99,6 +102,240 @@ namespace FlowCanvasChecks
         /// 为什么算法跑通了还要单独测壳：算法对不等于插件可用 —— 端口能不能承载数组、
         /// 配置能不能灌进去、用户选的那条失败语义有没有真的实现、句柄有没有释放，这些全在壳上。
         /// </summary>
+        // ==================================================================
+        //  HALCON 样例流程：视觉样例对拍.vms / 码读取_Code128
+        // ==================================================================
+
+        /// <summary>
+        /// 用 HALCON 例程 Identification/Bar-Code/code128.hdev 的图片与参数，走
+        /// "生产加载器 → 编译 → 真插件 Execute"这条完整链路，再与本进程内的 HALCON
+        /// `find_bar_code` 结果逐字符比对（含控制字符）。
+        ///
+        /// 为什么要在已有"≥1 个码"断言之外再比一次内容：读码器把内容读错时 Count 仍是 1，
+        /// 只有和 HALCON 自己的结果比字符串才能发现。样例里 code12803 的解码结果含
+        /// SOH/TAB/CR 控制字符，正好把"转义/截断"这类问题也钉住。
+        /// </summary>
+        private static void RunHalconSampleFlow()
+        {
+            Section("[码读取] HALCON 样例流程：视觉样例对拍.vms / 码读取_Code128");
+
+            string repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            string vmsPath = Path.Combine(repoRoot, "解决方案", "视觉样例对拍", "视觉样例对拍.vms");
+            Check("样例方案存在（解决方案\\视觉样例对拍\\视觉样例对拍.vms）", File.Exists(vmsPath), vmsPath);
+            if (!File.Exists(vmsPath)) return;
+
+            var loaded = new SolutionService().LoadAsync(vmsPath).GetAwaiter().GetResult();
+            Check("样例方案可被生产加载器打开", loaded.Success && loaded.Data != null, loaded.Message);
+            if (!loaded.Success || loaded.Data == null) return;
+
+            var flow = loaded.Data.Flows.FirstOrDefault(f => f.FlowName == "码读取_Code128");
+            Check("流程名 = 码读取_Code128", flow != null,
+                $"流程={string.Join(",", loaded.Data.Flows.Select(f => f.FlowName))}");
+            if (flow == null) return;
+
+            CheckBatchFlow(flow, 3);
+
+            var sampleSteps = FlattenActionSteps(flow.Steps).ToList();
+            var acq = sampleSteps.FirstOrDefault(s => s.StepName == "读取条码图像");
+            var code = sampleSteps.FirstOrDefault(s => s.StepName == "Code128读码");
+            Check("采集/算法两个步骤存在（读取条码图像 / Code128读码）", acq != null && code != null,
+                $"步骤={string.Join(" → ", sampleSteps.Select(s => s.StepName))}");
+            if (acq == null || code == null) return;
+            CheckResultDisplay(flow, "Code128");
+
+            string imagePath = acq.InputValues.TryGetValue("FilePath", out var p) ? p as string : null;
+            // 文件夹化方案：ImageAcquisition 的 FilePath 是方案内相对路径，按 .vms 所在目录解析
+            if (imagePath != null && !Path.IsPathRooted(imagePath))
+                imagePath = Path.Combine(Path.GetDirectoryName(vmsPath)!, imagePath);
+            Check("图像路径指向方案内样例图且存在", imagePath != null && File.Exists(imagePath), imagePath ?? "(null)");
+            if (imagePath == null || !File.Exists(imagePath)) return;
+
+            var workspace = new WorkspaceContext();
+            workspace.SwitchSolution(loaded.Data);
+            var compiled = new FlowCompiler(workspace).Compile(flow.Steps.ToArray(), flow.FlowName);
+            Check("样例流程编译通过（端口名/连线类型）", compiled.Success,
+                compiled.Success ? "" : string.Join(" | ", compiled.Errors.Select(e => e.Message)));
+            if (!compiled.Success) return;
+
+            HImage? image = ReadImageOrNull(imagePath);
+            if (image == null) { Check("样例图可读", false, imagePath); return; }
+
+            var plugin = new CodeReaderPlugin { InstanceName = "样例_Code128" };
+            try
+            {
+                plugin.Initialize(code);
+                plugin.Image.LinkedSource = null;   // 直接喂图，不让它去解析上游步骤
+                plugin.Image.Value = image;
+                plugin.Execute(MakeContext(new StubLog()));
+                CheckSymbolContours(plugin, plugin.InstanceName);
+
+                var vmCodes = plugin.Codes.Value as string[] ?? Array.Empty<string>();
+
+                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out HTuple handle);
+                HOperatorSet.FindBarCode(image, out HObject regions, handle, "Code 128", out HTuple data);
+                regions.Dispose();
+                HOperatorSet.ClearBarCodeModel(handle);
+
+                var refCodes = new List<string>();
+                for (int i = 0; i < data.Length; i++)
+                {
+                    string text = data[i].S ?? "";
+                    if (!string.IsNullOrWhiteSpace(text)) refCodes.Add(text);
+                }
+
+                bool same = plugin.Success.Value is true
+                            && vmCodes.Length == refCodes.Count
+                            && string.Join("\u0001", vmCodes) == string.Join("\u0001", refCodes);
+                Check("Code 128 解出内容与 HALCON find_bar_code 逐字符一致（含控制字符）",
+                    same,
+                    $"ref={refCodes.Count} vm={vmCodes.Length} "
+                    + $"ref='{Escape(refCodes)}' vm='{Escape(vmCodes)}' "
+                    + $"Success={plugin.Success.Value} Err='{plugin.ErrorMessage.Value}'");
+            }
+            finally
+            {
+                plugin.Dispose();
+                image.Dispose();
+            }
+        }
+
+        private static string Escape(IEnumerable<string> codes) =>
+            string.Join(" | ", codes.Select(v => v.Replace("\r", "<CR>").Replace("\n", "<LF>")
+                .Replace("\t", "<TAB>").Replace("\u0001", "<SOH>")));
+
+        private static void CheckResultDisplay(FlowModel flow, string label)
+        {
+            var display = FlattenActionSteps(flow.Steps).FirstOrDefault(s => s.PluginName == "结果显示");
+            bool ok = display != null
+                      && display.InputValues.TryGetValue("DisplayViewIndex", out var dv)
+                      && Convert.ToInt32(dv) >= 1
+                      && display.LinkedSources.TryGetValue("SrcImage", out var srcLink)
+                      && srcLink.TargetPortName == "Image"
+                      && display.LinkedSources.TryGetValue("OverlayContours", out var overlayLink)
+                      && overlayLink.TargetPortName == "SymbolContours"
+                      && display.LinkedSources.TryGetValue("OverlayLabels", out var labelLink)
+                      && labelLink.TargetPortName == "Codes"
+                      && display.InputValues.TryGetValue("OverlayLineWidth", out var lw)
+                      && Convert.ToInt32(lw) >= 1;
+            Check($"{label} 结果显示：底图接采集原图、码轮廓+逐码标签走覆盖层、线宽/窗口 1", ok,
+                display == null
+                    ? "缺少「结果显示」步骤"
+                    : $"View={display.InputValues.GetValueOrDefault("DisplayViewIndex")} "
+                      + $"SrcImage→{display.LinkedSources.GetValueOrDefault("SrcImage")?.TargetPortName} "
+                      + $"OverlayContours→{display.LinkedSources.GetValueOrDefault("OverlayContours")?.TargetPortName} "
+                      + $"OverlayLabels→{display.LinkedSources.GetValueOrDefault("OverlayLabels")?.TargetPortName} "
+                      + $"LineWidth={display.InputValues.GetValueOrDefault("OverlayLineWidth")}");
+        }
+
+        /// <summary>
+        /// 算法插件只输出几何：SymbolContours 必须非空且至少一条轮廓。
+        /// 显示由「结果显示」的 OverlayContours 覆盖层负责，插件不再自己烧图。
+        /// </summary>
+        private static void CheckSymbolContours(CodeReaderPlugin plugin, string label)
+        {
+            var contours = plugin.SymbolContours.Value as HXLD;
+            bool exists = contours != null && contours.IsInitialized();
+            int count = 0;
+            if (exists)
+            {
+                HOperatorSet.CountObj(contours!, out HTuple n);
+                count = n.I;
+            }
+            Check($"{label} SymbolContours 已输出（码轮廓，供结果显示画覆盖层）",
+                exists && count > 0, $"count={count}");
+        }
+
+        /// <summary>
+        /// 二维码样例流程：HALCON `2d_data_codes_default_settings.hdev` 的 QR Code 分支
+        /// （`qr_workpiece_01..09.png`，`standard_recognition`）。
+        /// 与 Code128 那条同一套路：走生产加载器 → 编译 → 真插件 Execute，
+        /// 再与同进程 `find_data_code_2d` 的结果逐字符比对。
+        /// </summary>
+        private static void RunHalconQrSampleFlow()
+        {
+            Section("[码读取] HALCON 样例流程：视觉样例对拍.vms / 二维码读取_QR");
+
+            string repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+            string vmsPath = Path.Combine(repoRoot, "解决方案", "视觉样例对拍", "视觉样例对拍.vms");
+            Check("样例方案存在（解决方案\\视觉样例对拍\\视觉样例对拍.vms）", File.Exists(vmsPath), vmsPath);
+            if (!File.Exists(vmsPath)) return;
+
+            var loaded = new SolutionService().LoadAsync(vmsPath).GetAwaiter().GetResult();
+            Check("样例方案可被生产加载器打开", loaded.Success && loaded.Data != null, loaded.Message);
+            if (!loaded.Success || loaded.Data == null) return;
+
+            var flow = loaded.Data.Flows.FirstOrDefault(f => f.FlowName == "二维码读取_QR");
+            Check("流程名 = 二维码读取_QR", flow != null,
+                $"流程={string.Join(",", loaded.Data.Flows.Select(f => f.FlowName))}");
+            if (flow == null) return;
+
+            CheckBatchFlow(flow, 9);
+
+            var sampleSteps = FlattenActionSteps(flow.Steps).ToList();
+            var acq = sampleSteps.FirstOrDefault(s => s.StepName == "读取二维码图像");
+            var code = sampleSteps.FirstOrDefault(s => s.StepName == "QR码读取");
+            Check("采集/算法两个步骤存在（读取二维码图像 / QR码读取）", acq != null && code != null,
+                $"步骤={string.Join(" → ", sampleSteps.Select(s => s.StepName))}");
+            if (acq == null || code == null) return;
+            CheckResultDisplay(flow, "QR");
+
+            string imagePath = acq.InputValues.TryGetValue("FilePath", out var p) ? p as string : null;
+            // 文件夹化方案：ImageAcquisition 的 FilePath 是方案内相对路径，按 .vms 所在目录解析
+            if (imagePath != null && !Path.IsPathRooted(imagePath))
+                imagePath = Path.Combine(Path.GetDirectoryName(vmsPath)!, imagePath);
+            Check("图像路径指向方案内样例图且存在", imagePath != null && File.Exists(imagePath), imagePath ?? "(null)");
+            if (imagePath == null || !File.Exists(imagePath)) return;
+
+            var workspace = new WorkspaceContext();
+            workspace.SwitchSolution(loaded.Data);
+            var compiled = new FlowCompiler(workspace).Compile(flow.Steps.ToArray(), flow.FlowName);
+            Check("样例流程编译通过（端口名/连线类型）", compiled.Success,
+                compiled.Success ? "" : string.Join(" | ", compiled.Errors.Select(e => e.Message)));
+            if (!compiled.Success) return;
+
+            HImage? image = ReadImageOrNull(imagePath);
+            if (image == null) { Check("样例图可读", false, imagePath); return; }
+
+            var plugin = new CodeReaderPlugin { InstanceName = "样例_QR" };
+            try
+            {
+                plugin.Initialize(code);
+                plugin.Image.LinkedSource = null;   // 直接喂图，不让它去解析上游步骤
+                plugin.Image.Value = image;
+                plugin.Execute(MakeContext(new StubLog()));
+                CheckSymbolContours(plugin, plugin.InstanceName);
+
+                var vmCodes = plugin.Codes.Value as string[] ?? Array.Empty<string>();
+
+                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "standard_recognition", out HTuple handle);
+                HOperatorSet.FindDataCode2d(image, out HObject symbols, handle,
+                    new HTuple(), new HTuple(), out HTuple resultHandles, out HTuple dataStrings);
+                symbols.Dispose();
+                HOperatorSet.ClearDataCode2dModel(handle);
+
+                var refCodes = new List<string>();
+                for (int i = 0; i < dataStrings.Length; i++)
+                {
+                    string text = dataStrings[i].S ?? "";
+                    if (!string.IsNullOrWhiteSpace(text)) refCodes.Add(text);
+                }
+
+                bool same = plugin.Success.Value is true
+                            && vmCodes.Length == refCodes.Count
+                            && string.Join("\u0001", vmCodes) == string.Join("\u0001", refCodes);
+                Check("QR 码解出内容与 HALCON find_data_code_2d 逐字符一致",
+                    same,
+                    $"ref={refCodes.Count} vm={vmCodes.Length} "
+                    + $"ref='{Escape(refCodes)}' vm='{Escape(vmCodes)}' "
+                    + $"Success={plugin.Success.Value} Err='{plugin.ErrorMessage.Value}'");
+            }
+            finally
+            {
+                plugin.Dispose();
+                image.Dispose();
+            }
+        }
+
         private static void RunPluginLevel(string root)
         {
             // ---- ① 完整运行路径 + 数组输出形态 ----

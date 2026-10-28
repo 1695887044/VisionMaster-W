@@ -98,20 +98,67 @@ namespace VisionMaster.Models
         /// <summary>
         /// 流程集合
         /// Newtonsoft.ObjectCreationHandling.Replace：反序列化时整体替换集合（而非向默认集合追加），
-        /// 否则字段初始化器预置的 Home/Main/End 会与 JSON 里的流程叠加导致重复。
+        /// 否则字段初始化器预置的 Home/End 会与 JSON 里的流程叠加导致重复。
         ///
-        /// 预置的 Home / Main / End 是**强制骨架**（用户决策：所有程序都要有这三个流程）：
+        /// 预置的 Home / End 是**强制骨架**（用户决策：所有程序都要有回零与收尾）：
         /// 新建方案即自带、老方案打开时由 <see cref="MandatoryFlows.Ensure"/> 补齐、带角色的流程不许删。
         /// 角色落在 <see cref="FlowModel.Role"/> 上，名字可自由改。
+        ///
+        /// 中间那条 <c>Main</c> **不是角色**：它只是"新建即可按整线启动"的默认落点
+        /// （<see cref="FlowInvokeType.LineStart"/>，可删可改名）。2026-10-28 起
+        /// 「主流程」这个角色已退役，生产主任务由任意勾了整线的流程承担（可多条、平级）。
         /// </summary>
         [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
         public ObservableCollection<FlowModel> Flows { get; set; } =
             new()
             {
                 new FlowModel() { FlowName = "Home", Description = "回原 / 回零", Role = FlowRole.Home },
-                new FlowModel() { FlowName = "Main", Description = "主任务", Role = FlowRole.Main },
+                new FlowModel()
+                {
+                    FlowName = "Main",
+                    Description = "主任务（随整线启动）",
+                    InvokeType = FlowInvokeType.LineStart,
+                },
                 new FlowModel() { FlowName = "End", Description = "收尾", Role = FlowRole.End }
             };
+
+        /// <summary>
+        /// 线级 OK/NG 的来源流程 Id（<see cref="FlowModel.FlowID"/>）；空 = 未显式指定。
+        ///
+        /// 【为什么需要它】底栏「全部」口径的 OK/NG 只取一条流程的线级汇总
+        /// （串联线不跨站求和）。2026-10-28「主流程」角色退役后，这个"取哪条"必须显式落盘，
+        /// 否则多条整线流程同时跑时无法确定谁是线级来源。
+        ///
+        /// 【解析顺序】见 <see cref="ResolveLineVerdictFlow"/>：显式配置（且启用）→
+        /// 第一条勾「整线」的启用流程 → null（底栏显示「—」）。空值不写盘时就是自动口径。
+        /// </summary>
+        public string LineVerdictFlowId
+        {
+            get => field;
+            set => SetProperty(ref field, value ?? string.Empty);
+        } = string.Empty;
+
+        /// <summary>
+        /// 解析"线级 OK/NG 取哪条流程"：显式配置优先（该流程必须存在且启用），
+        /// 否则回落到第一条勾了「随整线启动」的启用流程；都没有返回 null。
+        ///
+        /// 刻意**不**回落到"第一条流程"：没有整线成员时按流程顺序挑一条，会让底栏
+        /// 显示一个没人认领的数字，比显示「—」更难排查。
+        /// </summary>
+        public FlowModel? ResolveLineVerdictFlow()
+        {
+            var enabled = Flows?.Where(f => f != null && f.IsEnabled).ToList();
+            if (enabled == null || enabled.Count == 0) return null;
+
+            if (!string.IsNullOrEmpty(LineVerdictFlowId))
+            {
+                var explicitFlow = enabled.FirstOrDefault(
+                    f => string.Equals(f.FlowID, LineVerdictFlowId, StringComparison.Ordinal));
+                if (explicitFlow != null) return explicitFlow;
+            }
+
+            return enabled.FirstOrDefault(f => f.IsLineStartMember);
+        }
 
         /// <summary>
         /// 方案稳定身份：用于 IO 变量的确定性 Id，避免跨方案碰撞。

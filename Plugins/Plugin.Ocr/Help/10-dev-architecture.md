@@ -55,6 +55,11 @@
 ## 六 运行链路与告警
 
 `RunAlgorithm` 上游空图 → `Fail("上游没有图像")`；成功走 `TryRecognize` 后写 Info 日志。
+**开轮先清零八个输出端口**（`Text`/`Count`/`Confidence`/`Detail` + `Classes`/`Confidences`/`RejectedCount`/`CharBoxes`）：
+基类 `AutoDisposeRoundOutputs` 只回收 `IDisposable`（`HImage`/`HRegion`），`string`/`int`/`double`/`HTuple`
+端口的上一轮值会原样留下 —— 不清零的话，失败轮下游会读到上一帧的字符。
 两条 Warn 的原文（一字一句照源码）：出现拒识字时写一条、均值置信低于 `private const double LowConfidenceThreshold = 0.9;` 时写一条"结果不可信"。
 **Warn 而不是 Fail**：判定权在流程侧，但错字符串若不留痕就会被当成成功结果放行——这两条是现场唯一能追溯"这一轮其实不可信"的证据。
 试算结果文本口径：`识别结果：'{Text}'` 换行接字符数、拒识数、均值置信、实际阈值，再接逐字符明细。
+逐字符外接框**在插件壳里算**（`TryBuildCharBoxes`：`SelectObj(i+1)` → `SmallestRectangle1` → `col2-col1+1`），
+不在 `OcrEngine` 里算：引擎的职责是"认清每个字"，几何口径属于"这一帧的框怎么给下游"，两件事改起来不该互相牵动。

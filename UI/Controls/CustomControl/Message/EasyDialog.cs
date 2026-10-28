@@ -371,7 +371,9 @@ namespace UI.CustomControl
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 MinWidth = 350,
-                MaxWidth = 700,
+                // 2026-10-27：700 会把"计划表"这类宽表单压到 652，动作表的操作列被裁成一条缝。
+                // MaxWidth 只是上限（内容窄的弹窗不会跟着变宽），故放宽到 1040 = 980 内容 + 两侧 24 内边距 + 余量。
+                MaxWidth = 1040,
                 Effect = cardShadow,
             };
 
@@ -476,7 +478,15 @@ namespace UI.CustomControl
             });
             confirmContent.Children.Add(new TextBlock { Text = "确 定" });
             btnConfirm.Content = confirmContent;
-            btnConfirm.Click += (s, e) => tcs.TrySetResult(MessageResult.Primary);
+            btnConfirm.Click += (s, e) =>
+            {
+                // 自定义内容可以实现 IDialogValidator 拦下「确定」：
+                // 校验不过就留在弹窗里显示错误，不把 Primary 交回去（否则调用方会当成保存成功）。
+                if (customContent is IDialogValidator validator && !validator.ValidateAndShow())
+                    return;
+
+                tcs.TrySetResult(MessageResult.Primary);
+            };
             btnPanel.Children.Add(btnConfirm);
 
             // 默认焦点给「确定」：键盘用户打开即可回车，不必先 Tab 过去

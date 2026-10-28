@@ -388,3 +388,8 @@ FodyWeavers.xsd
 /tools/probes/*/obj/
 # AgentTeams 团队会话状态（本地协作产物，不入库）
 /.agent-teams/
+# ZCode 本机作用域配置：MCP 注册含本机绝对路径，且 R186 禁止注册 vm-tools
+# （.zcode/agents/*.md 是项目级角色定义，属于约束层，必须入库，不要整目录忽略）
+/.zcode/config.json
+# 探针散落截图（R166：渲染产物应落 artifacts\render\<yyyyMMdd>\，不许落 tools\ 根）
+/tools/_probe_*.png

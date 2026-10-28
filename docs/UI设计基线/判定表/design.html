@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>判定表 · UI 设计稿 v1</title>
+<style>
+  :root{
+    --surface:#FFFFFF;
+    --surface-2:#F8FAFC;
+    --surface-3:#F1F5F9;
+    --border:#E2E8F0;
+    --border-soft:#EEF2F7;
+    --border-strong:#CBD5E1;
+    --text:#0F172A;
+    --text-2:#475569;
+    --text-3:#94A3B8;
+    --primary:#0EA5E9;
+    --primary-strong:#0284C7;
+    --primary-soft:#F0F9FF;
+    --primary-light:#E0F2FE;
+    --success:#15803D;
+    --success-chip:#F0FDF4;
+    --success-line:#22C55E;
+    --danger:#B91C1C;
+    --danger-chip:#FEF2F2;
+    --danger-line:#EF4444;
+    --warning:#B45309;
+    --warning-chip:#FFF4E5;
+    --warning-line:#F59E0B;
+    --radius-sm:6px;
+    --radius-md:8px;
+    --radius-pill:999px;
+    --titlebar-h:40px;
+    --statusbar-h:28px;
+    --runbar-h:48px;
+    --shadow-1:0 1px 2px rgba(15,23,42,.05);
+    --shadow-pop:0 8px 24px rgba(15,23,42,.14), 0 2px 6px rgba(15,23,42,.06);
+    --font:"Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"Cascadia Mono","Consolas","Courier New",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:#EEF2F7;
+    color:var(--text);
+    font-family:var(--font);
+    font-size:13px;
+    line-height:1.45;
+  }
+  button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+  input,select{font:inherit;color:inherit}
+  .page{min-width:1330px;padding:22px 24px 40px}
+  .doc-head{max-width:1280px;margin:0 auto 12px;display:flex;align-items:flex-end;justify-content:space-between;gap:24px}
+  .doc-head h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em}
+  .doc-head p{margin:5px 0 0;color:var(--text-2);font-size:12px}
+  .doc-tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .doc-tags span{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-pill);padding:3px 9px;color:var(--text-2);font-size:11px}
+  .doc-tags .warn{background:var(--warning-chip);border-color:#FDE68A;color:var(--warning)}
+  .frame{width:1280px;margin:0 auto}
+  .app{
+    position:relative;
+    width:1280px;height:853px;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--surface-2);border:1px solid var(--border-strong);border-radius:10px;
+    box-shadow:var(--shadow-pop);
+  }
+  /* ---------------- 顶栏 ---------------- */
+  .titlebar{
+    height:var(--titlebar-h);flex:none;display:flex;align-items:center;gap:4px;
+    padding:0 0 0 8px;background:var(--surface);border-bottom:1px solid var(--border);
+    position:relative;z-index:5;
+  }
+  .tb-left,.tb-right{display:flex;align-items:center;gap:4px}
+  .tb-center{flex:1;display:flex;justify-content:center;min-width:0}
+  .logo{
+    width:24px;height:24px;border-radius:6px;display:grid;place-items:center;
+    background:linear-gradient(135deg,#0EA5E9,#2563EB);color:#FFF;font-size:10px;font-weight:700;
+    margin-right:4px;flex:none;
+  }
+  .tb-file,.tb-text,.tb-icon{
+    height:26px;display:flex;align-items:center;gap:6px;padding:0 9px;border-radius:var(--radius-sm);
+    font-size:12.5px;color:var(--text-2);white-space:nowrap;
+  }
+  .tb-file:hover,.tb-text:hover,.tb-icon:hover{background:var(--surface-3);color:var(--text)}
+  .tb-icon{width:28px;justify-content:center;padding:0;font-size:14px;color:var(--text-2)}
+  .tb-sep{width:1px;height:18px;background:var(--border);margin:0 6px;flex:none}
+  .modes{display:flex;align-items:center;gap:2px;background:var(--surface-3);border-radius:var(--radius-md);padding:3px;margin-left:2px}
+  .mode{height:24px;display:flex;align-items:center;gap:5px;padding:0 10px;border-radius:var(--radius-sm);font-size:12px;color:var(--text-2)}
+  .mode .k{font-size:10px;color:var(--text-3);font-variant-numeric:tabular-nums}
+  .mode.on{background:var(--surface);color:var(--text);font-weight:600;box-shadow:var(--shadow-1)}
+  .identity{
+    height:28px;display:flex;align-items:center;gap:7px;padding:0 10px;border-radius:var(--radius-sm);
+    border:1px solid var(--border);background:var(--surface-2);font-size:12px;color:var(--text);
+    max-width:520px;min-width:0;
+  }
+  .identity .dot{width:7px;height:7px;border-radius:50%;background:var(--success-line);flex:none}
+  .identity .path{color:var(--text-3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .identity .saved{margin-left:2px;padding:1px 7px;border-radius:var(--radius-pill);background:var(--success-chip);color:var(--success);font-size:10.5px;flex:none}
+  .win{width:32px;height:28px;display:grid;place-items:center;border-radius:var(--radius-sm);color:var(--text-2);font-size:13px}
+  .win:hover{background:var(--surface-3);color:var(--text)}
+  .win.close:hover{background:var(--danger-chip);color:var(--danger)}
+  /* ---------------- 运行条 ---------------- */
+  .runbar{
+    height:var(--runbar-h);flex:none;display:flex;align-items:center;gap:6px;
+    padding:0 12px;background:var(--surface);border-bottom:1px solid var(--border);
+  }
+  .rb{
+    height:28px;padding:0 11px;border-radius:var(--radius-sm);border:1px solid var(--border);
+    background:var(--surface-2);color:var(--text-2);font-size:12px;white-space:nowrap;
+  }
+  .rb:hover{background:var(--surface-3);color:var(--text)}
+  .rb.run{color:var(--success);border-color:#BBF7D0;background:var(--success-chip);font-weight:600}
+  .rb.stop{color:var(--danger);border-color:#FECACA;background:var(--danger-chip);font-weight:600}
+  .rb:disabled{color:var(--text-3);background:var(--surface);border-color:var(--border-soft)}
+  .run-spacer{flex:1}
+  .run-step{color:var(--text-2);font-size:11.5px}
+  .run-progress{color:var(--text-3);font-size:11.5px;margin-left:10px}
+  /* ---------------- 工作区 ---------------- */
+  .workspace{flex:1;display:flex;min-height:0}
+  .dock{
+    width:240px;flex:0 0 240px;display:flex;flex-direction:column;min-height:0;
+    background:var(--surface);border-right:1px solid var(--border);
+  }
+  .dock-head{height:36px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
+  .dock-head span:last-child{color:var(--text-3);font-weight:400;font-size:11px}
+  .flows{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px}
+  .flow{
+    height:30px;display:flex;align-items:center;padding:0 8px;border-radius:var(--radius-sm);
+    background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);font-size:11px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .flow.on{background:var(--primary-light);border-color:#BAE6FD;color:var(--primary-strong);font-weight:600}
+  .tree{padding:8px 10px;border-top:1px solid var(--border-soft);flex:1;min-height:0}
+  .tree-row{height:28px;display:flex;align-items:center;gap:6px;padding:0 6px;border-radius:var(--radius-sm);color:var(--text-2);font-size:11.5px}
+  .tree-row.on{background:var(--primary-light);color:var(--primary-strong);font-weight:600}
+  .tree-row .for{padding:1px 5px;border-radius:3px;background:#DCFCE7;color:#166534;font-size:10px;font-weight:600}
+  .tree-row .muted{margin-left:auto;color:var(--text-3);font-size:10.5px;font-weight:400}
+  .tree-child{padding-left:20px}
+  .tree-dot{width:5px;height:5px;border-radius:50%;background:var(--border-strong);flex:none}
+  .dock-foot{height:30px;flex:none;display:flex;align-items:center;padding:0 12px;border-top:1px solid var(--border);color:var(--text-3);font-size:10.5px}
+  .main{flex:1;display:flex;flex-direction:column;position:relative;min-width:0}
+  .tabs{height:36px;flex:none;display:flex;align-items:flex-end;gap:2px;padding:0 10px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .tab{height:28px;display:flex;align-items:center;padding:0 12px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;color:var(--text-3);font-size:11.5px}
+  .tab.on{background:var(--surface-2);color:var(--text);font-weight:600;border:1px solid var(--border);border-bottom-color:var(--surface-2)}
+  .canvas{
+    flex:1;position:relative;min-height:0;background-color:var(--surface-2);
+    background-image:linear-gradient(#E8EEF5 1px,transparent 1px),linear-gradient(90deg,#E8EEF5 1px,transparent 1px);
+    background-size:24px 24px;
+  }
+  .node{
+    position:absolute;width:150px;padding:8px 10px;border-radius:var(--radius-sm);
+    background:var(--surface);border:1px solid var(--border-strong);color:var(--text-2);font-size:11px;
+    box-shadow:var(--shadow-1);
+  }
+  .node b{display:block;color:var(--text);font-size:11.5px;font-weight:600;margin-bottom:2px}
+  .line{position:absolute;width:1px;background:var(--border-strong)}
+  .overlay{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.28);padding:14px}
+  /* ---------------- 弹窗 ---------------- */
+  .dialog{
+    width:1120px;max-height:100%;display:flex;flex-direction:column;overflow:hidden;
+    background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-md);
+    box-shadow:var(--shadow-pop);
+  }
+  .dialog-head{height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border)}
+  .dialog-title{font-size:15px;font-weight:600}
+  .dialog-title .muted{color:var(--text-3);font-weight:400}
+  .dialog-sub{margin-top:2px;color:var(--text-3);font-size:10.5px}
+  .close{width:28px;height:28px;border-radius:var(--radius-sm);display:grid;place-items:center;color:var(--text-3);font-size:18px}
+  .close:hover{background:var(--surface-3);color:var(--text)}
+  .summary{height:36px;flex:none;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--border);font-size:11.5px}
+  .summary strong{font-weight:600}
+  .summary .spacer{flex:1}
+  .summary .muted{color:var(--text-3)}
+  .summary .table-bind{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:var(--radius-pill);background:var(--primary-soft);border:1px solid var(--primary-light);color:var(--primary-strong);font-size:10.5px}
+  .toolbar{height:36px;flex:none;display:flex;align-items:center;gap:6px;padding:0 16px;border-bottom:1px solid var(--border)}
+  .tb{
+    height:26px;padding:0 9px;border-radius:var(--radius-sm);border:1px solid var(--border);
+    background:var(--surface);color:var(--text-2);font-size:11.5px;white-space:nowrap;
+  }
+  .tb:hover{background:var(--surface-3);color:var(--text)}
+  .tb.primary{background:var(--primary);border-color:var(--primary);color:#FFF}
+  .tb.primary:hover{background:var(--primary-strong);border-color:var(--primary-strong)}
+  .tb.danger{color:var(--danger);border-color:#FECACA}
+  .tb:disabled{color:var(--text-3);background:var(--surface);border-color:var(--border-soft)}
+  .vsep{width:1px;height:18px;background:var(--border);margin:0 4px}
+  .table-wrap{flex:1;min-height:0;overflow:auto}
+  .rules{width:100%;border-collapse:collapse;font-size:11.5px}
+  .rules th{
+    position:sticky;top:0;z-index:1;text-align:left;padding:7px 8px;
+    background:var(--surface-2);color:var(--text-3);font-weight:500;
+    border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  .rules td{padding:5px 8px;border-bottom:1px solid var(--border-soft);vertical-align:middle}
+  .rules tbody tr.rule:hover td{background:var(--surface-2)}
+  .rules tbody tr.rule.is-open td{background:var(--primary-soft)}
+  .rules tbody tr.rule.is-open td:first-child{box-shadow:inset 2px 0 0 var(--primary)}
+  .rules tbody tr.rule.is-disabled td{color:var(--text-3)}
+  .c-caret{width:28px}
+  .c-on{width:46px}
+  .c-act{width:64px;white-space:nowrap;text-align:right}
+  .caret{width:22px;height:22px;border-radius:4px;display:grid;place-items:center;color:var(--text-3);font-size:11px}
+  .caret:hover{background:var(--surface-3);color:var(--text)}
+  .switch{
+    width:28px;height:16px;border-radius:var(--radius-pill);background:var(--border-strong);
+    position:relative;display:inline-block;flex:none;transition:background .15s ease;
+  }
+  .switch::after{
+    content:"";position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;
+    background:#FFF;box-shadow:0 1px 2px rgba(15,23,42,.2);transition:left .15s ease;
+  }
+  .switch.on{background:var(--primary)}
+  .switch.on::after{left:14px}
+  .rule-name{color:var(--text);font-weight:600}
+  .rule-sub{color:var(--text-3);font-size:10.5px;margin-top:1px}
+  .src{color:var(--text-2);font-size:10.5px}
+  .spec{color:var(--text-2);font-size:11px}
+  .actual{font-family:var(--mono);color:var(--text);font-size:11px}
+  .mode-chip{display:inline-block;padding:1px 7px;border-radius:var(--radius-pill);background:var(--surface-3);color:var(--text-2);font-size:10.5px;white-space:nowrap}
+  .chip{display:inline-block;padding:1px 8px;border-radius:var(--radius-pill);font-size:10.5px;font-weight:600;white-space:nowrap}
+  .chip.ok{background:var(--success-chip);color:var(--success)}
+  .chip.ng{background:var(--danger-chip);color:var(--danger)}
+  .chip.skip{background:var(--surface-3);color:var(--text-3)}
+  .bind{
+    display:inline-flex;align-items:center;gap:3px;margin-top:3px;padding:1px 6px;
+    border-radius:var(--radius-pill);background:var(--primary-soft);border:1px solid var(--primary-light);
+    color:var(--primary-strong);font-size:10px;white-space:nowrap;max-width:100%;
+  }
+  .bind.off{background:transparent;border:1px dashed var(--border-strong);color:var(--text-3)}
+  .reason{color:var(--text-2);font-size:10.5px}
+  .reason.ng{color:var(--danger)}
+  .row-act{color:var(--text-3);font-size:11px;padding:0 2px}
+  .row-act:hover{color:var(--text)}
+  tr.expand td{padding:0;background:var(--surface-2);border-bottom:1px solid var(--border)}
+  tr.expand[hidden]{display:none}
+  .expand-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.9fr);gap:14px;padding:10px 14px 12px}
+  .expand-title{font-size:12px;font-weight:600;margin-bottom:8px}
+  .field-row{display:grid;grid-template-columns:86px minmax(0,1fr) auto;align-items:center;gap:8px;margin-bottom:6px}
+  .field-row label{color:var(--text-3);font-size:10.5px}
+  .readonly{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:5px 8px;font-size:11.5px;color:var(--text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mono{font-family:var(--mono)}
+  .hint{color:var(--text-3);font-size:10px;white-space:nowrap}
+  .input{
+    width:100%;height:28px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);
+    background:var(--surface);color:var(--text);padding:0 8px;font-size:11.5px;outline:none;
+  }
+  .input:focus{border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light)}
+  .input:disabled{background:var(--surface-3);color:var(--text-3)}
+  .formula{margin-top:6px;padding:5px 8px;border-radius:var(--radius-sm);background:var(--surface-3);color:var(--text-2);font-family:var(--mono);font-size:11px}
+  .formula.ng{background:var(--danger-chip);color:var(--danger)}
+  .formula.ok{background:var(--success-chip);color:var(--success)}
+  .bind-card{border:1px solid var(--primary-light);background:var(--primary-soft);border-radius:var(--radius-md);padding:10px;align-self:start}
+  .bind-head{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:600}
+  .bind-row{margin-top:10px}
+  .bind-row label{display:block;color:var(--text-3);font-size:10.5px;margin-bottom:4px}
+  .bind-actions{margin-top:10px}
+  .bind-inline{display:flex;align-items:center;gap:6px}
+  .bind-inline select{flex:1;min-width:0}
+  .bind-inline .bind-index{width:70px;flex:none;text-align:center;font-family:var(--mono)}
+  .check{display:flex;align-items:center;gap:6px;margin-top:10px;color:var(--text-2);font-size:11.5px}
+  .check input{accent-color:var(--primary)}
+  .bind-hint{margin-top:8px;color:var(--text-3);font-size:10px;line-height:1.5}
+  .bind-preview{margin-top:10px;padding:6px 8px;border-radius:var(--radius-sm);background:var(--surface);border:1px solid var(--border);color:var(--text-2);font-size:11px}
+  .dialog-foot{height:44px;flex:none;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid var(--border)}
+  .dialog-foot .hint{color:var(--text-3);font-size:10.5px;white-space:normal}
+  .foot-actions{margin-left:auto;display:flex;gap:8px}
+  /* ---------------- 状态栏 ---------------- */
+  .statusbar{
+    height:var(--statusbar-h);flex:none;display:flex;align-items:center;gap:14px;
+    padding:0 12px;background:var(--surface-2);border-top:1px solid var(--border);color:var(--text-3);font-size:10.5px;
+  }
+  .statusbar .spacer{flex:1}
+  .doc-foot{max-width:1280px;margin:12px auto 0;color:var(--text-3);font-size:11px;line-height:1.7}
+  .doc-foot code{font-family:var(--mono);font-size:10.5px;color:var(--text-2)}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="doc-head">
+    <div>
+      <h1>判定表 · 插件配置</h1>
+      <p>Plugin.JudgeTable · UI 设计稿 v1 · 令牌参考 <code>app-shell-chrome v2</code>（40 / 48 / 28，白底 + 天蓝主色）</p>
+    </div>
+    <div class="doc-tags">
+      <span>1280 × 853</span>
+      <span>浅色</span>
+      <span>可展开行</span>
+      <span>运行时变量 + 动态结果端口</span>
+      <span class="warn">待用户确认</span>
+    </div>
+  </header>
+
+  <div class="frame">
+    <div class="app">
+      <header class="titlebar">
+        <div class="tb-left">
+          <span class="logo">VM</span>
+          <button class="tb-file">☰ 文件</button>
+          <span class="tb-sep"></span>
+          <button class="tb-icon" title="新建方案">＋</button>
+          <button class="tb-icon" title="打开方案">▣</button>
+          <button class="tb-icon" title="保存方案">⤓</button>
+          <span class="tb-sep"></span>
+          <div class="modes" role="group" aria-label="界面模式">
+            <button class="mode on">调试 <span class="k">^1</span></button>
+            <button class="mode">运行 <span class="k">^2</span></button>
+            <button class="mode">组态 <span class="k">^3</span></button>
+            <button class="mode">自由 <span class="k">^4</span></button>
+          </div>
+        </div>
+        <div class="tb-center">
+          <span class="identity">
+            <span class="dot"></span>
+            <span>视觉样例对拍</span>
+            <span class="path">· 解决方案\视觉样例对拍</span>
+            <span class="saved">已保存</span>
+          </span>
+        </div>
+        <div class="tb-right">
+          <button class="tb-text">搜索</button>
+          <button class="tb-text">全局变量</button>
+          <button class="tb-text">硬件管理</button>
+          <span class="tb-sep"></span>
+          <button class="win">—</button>
+          <button class="win">□</button>
+          <button class="win close">×</button>
+        </div>
+      </header>
+
+      <div class="runbar">
+        <button class="rb">编译</button>
+        <button class="rb run">运行主流程</button>
+        <button class="rb run">循环主流程</button>
+        <button class="rb" disabled>暂停</button>
+        <button class="rb" disabled>继续</button>
+        <button class="rb" disabled>单步</button>
+        <button class="rb stop">停止</button>
+        <span class="run-spacer"></span>
+        <span class="run-step">当前：判定表</span>
+        <span class="run-progress">第 3 / 11 件</span>
+      </div>
+
+      <div class="workspace">
+        <aside class="dock">
+          <div class="dock-head"><span>流程导航</span><span>10 条流程</span></div>
+          <div class="flows">
+            <div class="flow on">模板匹配_NCC散焦图</div>
+            <div class="flow">形状匹配_散焦PCB</div>
+            <div class="flow">Blob缺陷检测_标签字符</div>
+            <div class="flow">码读取_Code128</div>
+            <div class="flow">二维码读取_QR</div>
+          </div>
+          <div class="tree">
+            <div class="tree-row"><span>▾</span><span class="for">FOR</span>遍历样例图<span class="muted">11 次</span></div>
+            <div class="tree-row tree-child"><span class="tree-dot"></span>图像采集</div>
+            <div class="tree-row tree-child on"><span class="tree-dot"></span>判定表<span class="muted">9 条规则</span></div>
+            <div class="tree-row tree-child"><span class="tree-dot"></span>结果显示</div>
+          </div>
+          <div class="dock-foot">流程 10 · 步骤 37</div>
+        </aside>
+
+        <main class="main">
+          <div class="tabs">
+            <span class="tab on">流程画布</span>
+            <span class="tab">视觉图像</span>
+            <span class="tab">运行驾驶舱</span>
+          </div>
+          <div class="canvas">
+            <div class="node" style="left:40px;top:70px"><b>图像采集</b>文件夹 · 第 3/11 件</div>
+            <div class="node" style="left:40px;top:180px"><b>判定表</b>9 条规则 · NG 3</div>
+            <div class="node" style="left:40px;top:290px"><b>结果显示</b>窗口 1 · 覆盖层</div>
+            <div class="line" style="left:115px;top:110px;height:70px"></div>
+            <div class="line" style="left:115px;top:220px;height:70px"></div>
+          </div>
+
+
+        </main>
+      </div>
+
+          <div class="overlay">
+            <section class="dialog" aria-label="判定表配置">
+              <div class="dialog-head">
+                <div>
+                  <div class="dialog-title">判定表 <span class="muted">· 工位 A</span></div>
+                  <div class="dialog-sub">Plugin.JudgeTable · 9 条规则 · 每行结果生成运行时变量 / 动态输出端口</div>
+                </div>
+                <button class="close" aria-label="关闭">×</button>
+              </div>
+
+              <div class="summary">
+                <span class="chip ng">NG</span>
+                <span>通过 <strong>5</strong> / 8</span>
+                <span>失败 <strong style="color:var(--danger)">3</strong></span>
+                <span class="muted">停用 1</span>
+                <span class="muted">·</span>
+                <span id="bind-count">结果输出 7 条</span>
+                <span class="spacer"></span>
+                <span class="table-bind">表级端口 → 工位A判定.判定 / 失败数</span>
+              </div>
+
+              <div class="toolbar">
+                <button class="tb">＋ 新增规则</button>
+                <button class="tb">从流程导入</button>
+                <span class="vsep"></span>
+                <button class="tb">上移</button>
+                <button class="tb">下移</button>
+                <button class="tb danger">删除</button>
+                <span class="vsep"></span>
+                <button class="tb" data-expand-all>展开全部</button>
+                <button class="tb" data-collapse-all>收起全部</button>
+                <span class="spacer" style="flex:1"></span>
+                <button class="tb">导出 CSV</button>
+              </div>
+
+              <div class="table-wrap">
+                <table class="rules">
+                  <thead>
+                    <tr>
+                      <th class="c-caret"></th>
+                      <th class="c-on">启用</th>
+                      <th>规则</th>
+                      <th>数据源</th>
+                      <th>模式</th>
+                      <th>期望 / 规格</th>
+                      <th>Actual</th>
+                      <th>结果</th>
+                      <th>原因</th>
+                      <th class="c-act"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="rules-body">
+                    <tr class="rule" data-row="r1" data-name="外径" data-source="卡尺_外径 · Value" data-mode="数值" data-spec="12.00 ± 0.05" data-actual="12.07" data-result="NG" data-reason="超出上限 0.02" data-formula="|12.07 − 12.00| = 0.07 &gt; 0.05 → NG" data-port="外径.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 外径">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 外径"></span></td>
+                      <td><div class="rule-name">外径</div><div class="rule-sub">尺寸 / 卡尺</div></td>
+                      <td class="src">卡尺_外径 · Value</td>
+                      <td><span class="mode-chip">数值</span></td>
+                      <td class="spec">12.00 ± 0.05</td>
+                      <td class="actual">12.07</td>
+                      <td><span class="chip ng">NG</span><div class="bind" data-bind-chip>→ 外径.结果</div></td>
+                      <td class="reason ng">超出上限 0.02</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r2" data-name="高度" data-source="卡尺_高度 · Value" data-mode="数值" data-spec="8.00 ± 0.10" data-actual="8.03" data-result="OK" data-reason="在 [7.90, 8.10] 内" data-formula="|8.03 − 8.00| = 0.03 ≤ 0.10 → OK" data-port="高度.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 高度">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 高度"></span></td>
+                      <td><div class="rule-name">高度</div><div class="rule-sub">尺寸 / 卡尺</div></td>
+                      <td class="src">卡尺_高度 · Value</td>
+                      <td><span class="mode-chip">数值</span></td>
+                      <td class="spec">8.00 ± 0.10</td>
+                      <td class="actual">8.03</td>
+                      <td><span class="chip ok">OK</span><div class="bind" data-bind-chip>→ 高度.结果</div></td>
+                      <td class="reason">在 [7.90, 8.10] 内</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r3" data-name="主码" data-source="读码 · Codes" data-mode="集合" data-spec="CODE-A, CODE-B, CODE-C" data-actual="CODE-A, CODE-B, CODE-D" data-result="NG" data-reason="缺少 CODE-C" data-formula="期望 3 项 / 实测 3 项 / 命中 2 项 → NG" data-port="主码.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 主码">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 主码"></span></td>
+                      <td><div class="rule-name">主码</div><div class="rule-sub">字符与码 / 读码</div></td>
+                      <td class="src">读码 · Codes</td>
+                      <td><span class="mode-chip">集合</span></td>
+                      <td class="spec">CODE-A, CODE-B, CODE-C</td>
+                      <td class="actual">CODE-A, CODE-B, CODE-D</td>
+                      <td><span class="chip ng">NG</span><div class="bind" data-bind-chip>→ 主码.结果</div></td>
+                      <td class="reason ng">缺少 CODE-C</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r4" data-name="批号 OCR" data-source="Ocr · Text + Confidences" data-mode="文本" data-spec="LOT-2026-1027（区分 O/0）" data-actual="LOT-2026-1O27" data-result="NG" data-reason="第 11 位期望 0 实际 O；第 13 位置信 0.41" data-formula="编辑距离 1 &gt; 允许 0；最低置信度 0.41 &lt; 0.60 → NG" data-port="" data-port-on="false" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 批号 OCR">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 批号 OCR"></span></td>
+                      <td><div class="rule-name">批号 OCR</div><div class="rule-sub">字符与码 / Ocr</div></td>
+                      <td class="src">Ocr · Text + Confidences</td>
+                      <td><span class="mode-chip">文本</span></td>
+                      <td class="spec">LOT-2026-1027（区分 O/0）</td>
+                      <td class="actual">LOT-2026-1O27</td>
+                      <td><span class="chip ng">NG</span><div class="bind off" data-bind-chip>未生成</div></td>
+                      <td class="reason ng">第 11 位期望 0 实际 O；第 13 位置信 0.41</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r5" data-name="缺陷数" data-source="Blob · DefectCount" data-mode="计数" data-spec="18 ~ 24" data-actual="21" data-result="OK" data-reason="数量在范围内" data-formula="21 ∈ [18, 24] → OK" data-port="缺陷数.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 缺陷数">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 缺陷数"></span></td>
+                      <td><div class="rule-name">缺陷数</div><div class="rule-sub">外观 / Blob</div></td>
+                      <td class="src">Blob · DefectCount</td>
+                      <td><span class="mode-chip">计数</span></td>
+                      <td class="spec">18 ~ 24</td>
+                      <td class="actual">21</td>
+                      <td><span class="chip ok">OK</span><div class="bind" data-bind-chip>→ 缺陷数.结果</div></td>
+                      <td class="reason">数量在范围内</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r6" data-name="主色" data-source="颜色检查 · Dominant" data-mode="集合" data-spec="只能是 红 / 蓝" data-actual="红" data-result="OK" data-reason="没有多余项" data-formula="实测 1 项，全部属于期望集合 → OK" data-port="主色.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 主色">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 主色"></span></td>
+                      <td><div class="rule-name">主色</div><div class="rule-sub">外观 / 颜色检查</div></td>
+                      <td class="src">颜色检查 · Dominant</td>
+                      <td><span class="mode-chip">集合</span></td>
+                      <td class="spec">只能是 红 / 蓝</td>
+                      <td class="actual">红</td>
+                      <td><span class="chip ok">OK</span><div class="bind" data-bind-chip>→ 主色.结果</div></td>
+                      <td class="reason">没有多余项</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r7" data-name="匹配分数" data-source="匹配 · Score" data-mode="数值" data-spec="0.85 ~ 1.00" data-actual="0.92" data-result="OK" data-reason="在 [0.85, 1.00] 内" data-formula="0.85 ≤ 0.92 ≤ 1.00 → OK" data-port="匹配分数.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 匹配分数">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 匹配分数"></span></td>
+                      <td><div class="rule-name">匹配分数</div><div class="rule-sub">尺寸 / 匹配</div></td>
+                      <td class="src">匹配 · Score</td>
+                      <td><span class="mode-chip">数值</span></td>
+                      <td class="spec">0.85 ~ 1.00</td>
+                      <td class="actual">0.92</td>
+                      <td><span class="chip ok">OK</span><div class="bind" data-bind-chip>→ 匹配分数.结果</div></td>
+                      <td class="reason">在 [0.85, 1.00] 内</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule" data-row="r8" data-name="标签存在" data-source="有无检测 · IsOk" data-mode="布尔" data-spec="true" data-actual="true" data-result="OK" data-reason="布尔一致" data-formula="true = true → OK" data-port="标签存在.结果" data-port-on="true" data-enabled="true">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 标签存在">▸</button></td>
+                      <td class="c-on"><span class="switch on" role="switch" aria-checked="true" aria-label="启用 标签存在"></span></td>
+                      <td><div class="rule-name">标签存在</div><div class="rule-sub">逻辑 / 有无检测</div></td>
+                      <td class="src">有无检测 · IsOk</td>
+                      <td><span class="mode-chip">布尔</span></td>
+                      <td class="spec">true</td>
+                      <td class="actual">true</td>
+                      <td><span class="chip ok">OK</span><div class="bind" data-bind-chip>→ 标签存在.结果</div></td>
+                      <td class="reason">布尔一致</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                    <tr class="rule is-disabled" data-row="r9" data-name="码等级" data-source="码质量 · Grade" data-mode="数值" data-spec="≥ 2.5" data-actual="3.2" data-result="跳过" data-reason="未启用，不参与总判定" data-formula="未启用" data-port="" data-port-on="false" data-enabled="false">
+                      <td class="c-caret"><button class="caret" aria-expanded="false" aria-label="展开 码等级">▸</button></td>
+                      <td class="c-on"><span class="switch" role="switch" aria-checked="false" aria-label="启用 码等级"></span></td>
+                      <td><div class="rule-name">码等级</div><div class="rule-sub">字符与码 / 码质量</div></td>
+                      <td class="src">码质量 · Grade</td>
+                      <td><span class="mode-chip">数值</span></td>
+                      <td class="spec">≥ 2.5</td>
+                      <td class="actual">3.2</td>
+                      <td><span class="chip skip">跳过</span><div class="bind off" data-bind-chip>未生成</div></td>
+                      <td class="reason">未启用，不参与总判定</td>
+                      <td class="c-act"><button class="row-act">↑</button><button class="row-act">↓</button><button class="row-act">⋯</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div class="dialog-foot">
+                <span class="hint">展开行配置模式 / 期望 / 结果输出；结果输出为运行时变量（可关），全局映射交给下游「变量赋值」。</span>
+                <span class="foot-actions">
+                  <button class="tb">取消</button>
+                  <button class="tb primary">确定</button>
+                </span>
+              </div>
+            </section>
+          </div>
+
+      <footer class="statusbar">
+        <span>就绪</span>
+        <span>方案：视觉样例对拍</span>
+        <span>工程师</span>
+        <span>10:42:18</span>
+        <span class="spacer"></span>
+        <span>HALCON 23.05</span>
+        <span>插件 63</span>
+        <span>CPU 0.1%</span>
+        <span>MEM 391 MB</span>
+      </footer>
+    </div>
+  </div>
+
+  <p class="doc-foot">
+    设计媒介，不参与构建、不部署；确认后按 <code>AGENTS.md §30.1</code> 四步流程复刻。
+    令牌映射见 <code>docs/UI设计基线/判定表/README.md</code>；已知偏差（字体度量 / 滚动条 / DPI / 动效 / 焦点 / 无障碍）同基线约定。
+  </p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var body = document.getElementById('rules-body');
+  if (!body) return;
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function isOn(el) { return el && el.classList.contains('on'); }
+  function fullPort(row) { return row.dataset.port ? '工位A判定.' + row.dataset.port : ''; }
+
+  function updateChip(row, panel) {
+    var chip = row.querySelector('[data-bind-chip]');
+    var toggle = panel.querySelector('[data-port-toggle]');
+    var enabled = row.dataset.enabled !== 'false';
+    var on = isOn(toggle) && enabled;
+    if (!chip) return;
+    if (!on) {
+      chip.textContent = '未生成';
+      chip.className = 'bind off';
+    } else {
+      chip.textContent = '→ ' + row.dataset.port;
+      chip.className = 'bind';
+    }
+    updateCount();
+  }
+
+  function updateCount() {
+    var n = 0;
+    var rows = body.querySelectorAll('tr.rule');
+    for (var i = 0; i < rows.length; i++) {
+      var p = rows[i].nextElementSibling;
+      if (!p || !p.classList.contains('expand')) continue;
+      if (isOn(p.querySelector('[data-port-toggle]')) && rows[i].dataset.enabled !== 'false') n++;
+    }
+    var el = document.getElementById('bind-count');
+    if (el) el.textContent = '结果输出 ' + n + ' 条';
+  }
+
+  function makePanel(row) {
+    var d = row.dataset;
+    var enabled = d.enabled !== 'false';
+    var on = d.portOn === 'true' && enabled;
+    var port = d.port || '';
+    var full = port ? '工位A判定.' + port : '';
+    var mode = d.mode || '数值';
+    var modes = ['数值', '文本', '集合', '正则', '布尔', '计数', '非空'];
+    var tr = document.createElement('tr');
+    tr.className = 'expand';
+    tr.hidden = true;
+    tr.innerHTML =
+      '<td colspan="10">' +
+        '<div class="expand-grid">' +
+          '<div>' +
+            '<div class="expand-title">判定规则</div>' +
+            '<div class="field-row"><label>数据源</label><div class="readonly mono">' + esc(d.source) + '</div><span class="hint">端口值</span></div>' +
+            '<div class="field-row"><label>模式</label><select class="input" data-mode-select' + (enabled ? '' : ' disabled') + '>' +
+              modes.map(function (m) { return '<option' + (m === mode ? ' selected' : '') + '>' + m + '</option>'; }).join('') +
+            '</select><span class="hint">判定语义</span></div>' +
+            '<div class="field-row"><label>期望 / 规格</label><input class="input" value="' + esc(d.spec) + '"' + (enabled ? '' : ' disabled') + '><span class="hint">按模式解析</span></div>' +
+            '<div class="field-row"><label>Actual</label><div class="readonly mono">' + esc(d.actual) + '</div><span class="hint">来自上游</span></div>' +
+            '<div class="formula ' + (d.result === 'NG' ? 'ng' : d.result === 'OK' ? 'ok' : '') + '">' + esc(d.formula) + '</div>' +
+          '</div>' +
+          '<div class="bind-card">' +
+            '<div class="bind-head"><span>结果输出</span><span class="switch ' + (on ? 'on' : '') + '" role="switch" aria-checked="' + (on ? 'true' : 'false') + '" data-port-toggle></span></div>' +
+            '<div class="bind-row"><label>运行时变量 / 输出端口</label><div class="readonly mono" data-port-name>' + (on ? esc(full) : '—') + '</div></div>' +
+            '<div class="bind-row"><label>类型</label><span class="mode-chip">bool</span></div>' +
+            '<div class="bind-actions"><button class="tb" data-port-copy>复制端口名</button></div>' +
+            '<div class="bind-hint">每轮写运行时变量；要全局用下游「变量赋值」Scope=Global 映射；判定表不写全局变量。</div>' +
+            '<div class="bind-preview">写入：<span class="mono" data-port-preview>' + (on ? esc(full) + ' = ' + (d.result === 'OK' ? 'true' : 'false') : '未生成（不写入）') + '</span></div>' +
+          '</div>' +
+        '</div>' +
+      '</td>';
+    row.parentNode.insertBefore(tr, row.nextSibling);
+
+    var toggle = tr.querySelector('[data-port-toggle]');
+    var nameEl = tr.querySelector('[data-port-name]');
+    var preview = tr.querySelector('[data-port-preview]');
+    var copy = tr.querySelector('[data-port-copy]');
+
+    function refresh() {
+      var nowOn = isOn(toggle) && enabled;
+      if (!nowOn) {
+        nameEl.textContent = '—';
+        preview.textContent = '未生成（不写入）';
+      } else {
+        nameEl.textContent = full;
+        preview.textContent = full + ' = ' + (d.result === 'OK' ? 'true' : 'false');
+      }
+      updateChip(row, tr);
+    }
+
+    toggle.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (!enabled) return;
+      toggle.classList.toggle('on');
+      toggle.setAttribute('aria-checked', isOn(toggle) ? 'true' : 'false');
+      refresh();
+    });
+    if (copy) {
+      copy.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (navigator.clipboard && full) navigator.clipboard.writeText(full).catch(function () {});
+      });
+    }
+    refresh();
+    return tr;
+  }
+
+  var rows = Array.prototype.slice.call(body.querySelectorAll('tr.rule'));
+  rows.forEach(makePanel);
+
+  function toggleRow(row, force) {
+    var panel = row.nextElementSibling;
+    if (!panel || !panel.classList.contains('expand')) return;
+    var open = (typeof force === 'boolean') ? force : panel.hidden;
+    panel.hidden = !open;
+    row.classList.toggle('is-open', open);
+    var caret = row.querySelector('.caret');
+    if (caret) {
+      caret.textContent = open ? '▾' : '▸';
+      caret.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+  }
+
+  body.addEventListener('click', function (e) {
+    var caret = e.target.closest ? e.target.closest('.caret') : null;
+    if (caret) {
+      var r = caret.closest('tr.rule');
+      if (r) toggleRow(r);
+      return;
+    }
+    if (e.target.closest && e.target.closest('input,select,button,a,label')) return;
+    var row = e.target.closest ? e.target.closest('tr.rule') : null;
+    if (row) toggleRow(row);
+  });
+
+  var expandAll = document.querySelector('[data-expand-all]');
+  var collapseAll = document.querySelector('[data-collapse-all]');
+  if (expandAll) expandAll.addEventListener('click', function () { rows.forEach(function (r) { toggleRow(r, true); }); });
+  if (collapseAll) collapseAll.addEventListener('click', function () { rows.forEach(function (r) { toggleRow(r, false); }); });
+
+  toggleRow(rows[0], true);
+  updateCount();
+})();
+</script>
+</body>
+</html>

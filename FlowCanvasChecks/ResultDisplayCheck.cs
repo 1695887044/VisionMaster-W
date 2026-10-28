@@ -372,6 +372,94 @@ namespace FlowCanvasChecks
                     p.Dispose();
                 }
 
+                // ---- A1b：OverlayContours → 覆盖层 annotations（BakeOverlay=false：几何只上屏）----
+                {
+                    events.Clear();
+                    using var img = BlackCanvas(320, 240);
+                    HOperatorSet.GenRectangle2(out HObject rect, 120, 160, 0, 40, 25);
+                    HOperatorSet.GenContourRegionXld(rect, out HObject contour, "border");
+                    using var overlay = new HXLD(contour);
+                    var p = NewPlugin(1, img, It("r1", 12.34));
+                    p.OverlayContours.Value = overlay;
+                    p.OverlayLabels.Value = new[] { "CODE-1" };
+                    p.OverlayPalette = "green,red";
+                    p.OverlayLineWidth = 3;
+                    p.BakeOverlay = false;      // 只上屏：几何不进像素（默认 true 见 A1c）
+                    var (ctx, log) = NewContext();
+                    p.Execute(ctx);
+                    var marks = events.Count == 1 ? events[0].Annotations : null;
+                    var poly = marks?.FirstOrDefault(m => m.Type == MeasureType.Polyline);
+                    var text = marks?.FirstOrDefault(m => m.Type == MeasureType.Text);
+                    Check("A1b BakeOverlay=false：OverlayContours → Polyline + 逐条 Text 标签，线宽/颜色生效",
+                        poly != null && text != null
+                        && poly.LineWidth == 3 && poly.Color == "green"
+                        && text.Text == "CODE-1",
+                        events.Count == 0
+                            ? "(零事件) warns=[" + string.Join(" | ", log.Warns) + "]"
+                            : $"annotations={marks?.Count ?? -1} "
+                              + $"poly={(poly == null ? "null" : $"{poly.Color}/{poly.LineWidth}")} "
+                              + $"text='{text?.Text}'");
+                    p.Dispose();
+                    contour.Dispose();
+                    rect.Dispose();
+                }
+
+                // ---- A1c：BakeOverlay=true（默认）→ 几何烧进 AnnotatedImage，覆盖层不再重复发布 ----
+                {
+                    events.Clear();
+                    using var img = BlackCanvas(320, 240);
+                    HOperatorSet.GenRectangle2(out HObject rect, 120, 160, 0, 40, 25);
+                    HOperatorSet.GenContourRegionXld(rect, out HObject contour, "border");
+                    using var overlay = new HXLD(contour);
+                    var p = NewPlugin(1, img, It("r1", 12.34));
+                    p.OverlayContours.Value = overlay;
+                    p.OverlayPalette = "green";
+                    p.OverlayLineWidth = 3;
+                    var (ctx, log) = NewContext();
+                    p.Execute(ctx);
+                    var annotated = p.AnnotatedImage.TypedValue;
+                    // 矩形 top 边在 row≈95、col 120..200（rectangle2 的 length1 沿列轴，见 R54）
+                    long drawn = annotated != null && annotated.IsInitialized()
+                        ? DiffAreaInBand(annotated, img, 93, 130, 98, 190)
+                        : -1;
+                    int overlayCount = events.Count == 0 ? -1 : (events[0].Annotations?.Count ?? 0);
+                    Check("A1c BakeOverlay=true：几何烧进 AnnotatedImage（画布与存档一致），且覆盖层不再重复发布",
+                        annotated != null && drawn > 0 && overlayCount == 0,
+                        $"annotated={(annotated != null)} bandChanged={drawn} annotations={overlayCount} "
+                        + $"warns=[" + string.Join(" | ", log.Warns) + "]");
+                    p.Dispose();
+                    contour.Dispose();
+                    rect.Dispose();
+                }
+
+                // ---- A1d：HRegion 覆盖层 + 逐对象编号（Blob 的 Defects 直接接得进来）----
+                {
+                    events.Clear();
+                    using var img = BlackCanvas(320, 240);
+                    HOperatorSet.GenRectangle1(out HObject r1, 40, 40, 70, 90);
+                    HOperatorSet.GenRectangle1(out HObject r2, 140, 180, 170, 230);
+                    HOperatorSet.ConcatObj(r1, r2, out HObject two);
+                    using var regions = new HRegion(two);
+                    var p = NewPlugin(1, img, It("r1", 1.0));
+                    p.OverlayContours.Value = regions;      // HObject 口：HRegion 与 HXLD 都收
+                    p.OverlayNumbering = true;              // 无显式标签时用 1 基序号
+                    p.BakeOverlay = false;
+                    var (ctx, log) = NewContext();
+                    p.Execute(ctx);
+                    var marks = events.Count == 1 ? events[0].Annotations : null;
+                    int polys = marks?.Count(m => m.Type == MeasureType.Polyline) ?? -1;
+                    var texts = marks?.Where(m => m.Type == MeasureType.Text).Select(m => m.Text).ToList();
+                    Check("A1d HRegion 覆盖层：每个区域一条 Polyline + 1 基编号（1,2）",
+                        polys == 2 && texts != null && texts.Count == 2 && texts[0] == "1" && texts[1] == "2",
+                        $"polys={polys} texts=[{(texts == null ? "null" : string.Join(",", texts))}] "
+                        + $"warns=[" + string.Join(" | ", log.Warns) + "]");
+                    p.Dispose();
+                    r1.Dispose();
+                    r2.Dispose();
+                    two.Dispose();
+                }
+
+
                 // ---- A2：DisplayViewIndex=0 → 零事件但产物照算；=12 → 夹到 9 ----
                 {
                     events.Clear();

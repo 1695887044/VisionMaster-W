@@ -18,7 +18,7 @@
 | 端口 | 类型 | 单位 | 说明 |
 | --- | --- | --- | --- |
 | `DiffImage` | `HImage` | — | 差异强度图，单通道 byte：0 = 一样，越大越不一样。可直接接「预处理」继续做形态学、「Blob」再做一次区域筛选。 |
-| `OverlayImage` | `HImage` | — | 标注图：基准图打底 + 差异区青色涂色。已被 `Reference` 链接透传保护排除，可安全上屏。 |
+| `OverlayImage` | `HImage` | — | 标注图：基准图打底 + 差异区蓝色涂色。已被 `Reference` 链接透传保护排除，可安全上屏。 |
 | `DiffCount` | `int` | 片 | 差异片数（8 连通域个数）。`Aggregation=Total` 时退化成 0 或 1。 |
 | `DiffArea` | `double` | 像素 | 差异总面积（筛过 `MinArea`、也交过 `MaskRegion` 之后的面积和）。 |
 | `MaxDiffComponentArea` | `double` | 像素 | 最大单片的面积；无差异时为 0。 |

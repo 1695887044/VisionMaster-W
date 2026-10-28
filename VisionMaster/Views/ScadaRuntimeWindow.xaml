@@ -232,12 +232,39 @@
             页面菜单的深色外观：显式 key，只作用于页面菜单，不污染窗口里其它右键菜单。
             为什么不用隐式样式：隐式 MenuItem 样式会整条顶掉应用级模板，悬停项会落回
             浅底浅字的默认模板（2026-10-21 评审实测）。这里给一份完整的深色模板。
+            为什么 ContextMenu 这一侧也必须有 Template：只给 Setter 的显式 Style 会同时顶掉
+            应用级隐式样式，控件回落到 Aero2 主题默认模板；那份模板在左侧画了一条 28 DIP 的
+            #FFF1F1F1 图标栏（浅色主题下与底色同色看不出来），配上深色 Background 就是一条白带
+            （2026-10-28 实测，见交接报告《运行态页面菜单白条诊断》）。
         -->
         <Style x:Key="PageMenuContextStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="{StaticResource ScadaRunBarBrush}" />
             <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
             <Setter Property="BorderBrush" Value="{StaticResource ScadaRunBarLineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="4" />
+            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="3"
+                            SnapsToDevicePixels="True">
+                            <ScrollViewer
+                                HorizontalScrollBarVisibility="Disabled"
+                                VerticalScrollBarVisibility="Auto">
+                                <ItemsPresenter
+                                    Margin="{TemplateBinding Padding}"
+                                    KeyboardNavigation.DirectionalNavigation="Cycle" />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="PageMenuItemStyle" TargetType="MenuItem">
             <Setter Property="Foreground" Value="{StaticResource ScadaRunTextBrush}" />
@@ -446,7 +473,11 @@
         <!--  图元自己的交互（按钮按下、值变化）照常工作。运行态不复写一套交互状态机，  -->
         <!--  否则"设计时看到的"和"运行时跑出来的"迟早对不上。  -->
         <!--  网格与吸附都是"设计辅助"，运行态一律关掉：操作员不该看见画格子。  -->
-        <Grid Grid.Row="1" Margin="16">
+        <!--  画面区底色由 code-behind 按页面底色刷（Background 是 string，绑到 Brush 会静默失败）。
+              Margin 必须为 0：Margin 区域属于**父容器**（根 Grid，深色窗口底），
+              留 16px 边距就会在画面四周露出一圈深灰缝——浅色主题下非常显眼。
+              画面自身的内边距由页面内容（标题/卡片的 40px）提供，不需要窗口再补。 -->
+        <Grid x:Name="PageHost" Grid.Row="1" Margin="0">
             <controls:ScadaCanvas
                 x:Name="Canvas"
                 BasePages="{Binding CurrentBasePages}"

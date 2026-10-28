@@ -210,6 +210,196 @@
         </Setter>
     </Style>
 
+    <!--  ==========================================================  -->
+    <!--  流程列表右键菜单（设计基线 docs/UI设计基线/flow-context-menu v1）  -->
+    <!--  与步骤菜单同族（同一外框/阴影/页脚），但更紧凑：320 宽、32 行、   -->
+    <!--  20px 图标底片、分组标题、行尾状态徽标。                          -->
+    <!--  【为什么不改 StepMenuItemStyle 直接复用】步骤菜单是 44px 双行说明式，  -->
+    <!--  流程菜单 12 项需要一屏放下（约 537px），改共用样式会让步骤右键跟着变形。  -->
+    <!--  ==========================================================  -->
+    <Style
+        x:Key="FlowContextMenuStyle"
+        TargetType="ContextMenu"
+        BasedOn="{StaticResource StepContextMenuStyle}">
+        <Setter Property="Width" Value="320" />
+    </Style>
+
+    <Style x:Key="FlowMenuItemStyle" TargetType="MenuItem">
+        <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="MenuItem">
+                    <Border
+                        x:Name="Row"
+                        MinHeight="32"
+                        Margin="0,1"
+                        Padding="{TemplateBinding Padding}"
+                        Background="Transparent"
+                        CornerRadius="8"
+                        SnapsToDevicePixels="True">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="20" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Border
+                                x:Name="Chip"
+                                Width="20"
+                                Height="20"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource ScadaBadgeBackgroundBrush}"
+                                CornerRadius="7">
+                                <TextBlock
+                                    x:Name="Glyph"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="{TemplateBinding Icon}" />
+                            </Border>
+                            <TextBlock
+                                Grid.Column="1"
+                                Margin="9,0,9,0"
+                                VerticalAlignment="Center"
+                                FontSize="12.5"
+                                Text="{TemplateBinding Header}"
+                                TextTrimming="CharacterEllipsis" />
+                            <!--  行尾状态徽标：Badge 为空 / null 时整块收起  -->
+                            <Border
+                                x:Name="Badge"
+                                Grid.Column="2"
+                                Padding="6,0"
+                                VerticalAlignment="Center"
+                                Background="{StaticResource ScadaToolbarHoverBrush}"
+                                BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                BorderThickness="1"
+                                CornerRadius="8">
+                                <TextBlock
+                                    FontSize="9.5"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="{Binding Path=(ui:MenuItemEx.Badge), RelativeSource={RelativeSource TemplatedParent}}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="ui:MenuItemEx.Badge" Value="{x:Null}">
+                            <Setter TargetName="Badge" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="ui:MenuItemEx.Badge" Value="">
+                            <Setter TargetName="Badge" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource ScadaToolbarHoverBrush}" />
+                        </Trigger>
+
+                        <!--  语气色：图标底片 + 同族悬停底（与设计基线 §4 一一对应）  -->
+                        <Trigger Property="ui:MenuItemEx.Tone" Value="Accent">
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogAccentTextBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="ui:MenuItemEx.Tone" Value="Accent" />
+                                <Condition Property="IsHighlighted" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource DialogAccentSoftBrush}" />
+                        </MultiTrigger>
+
+                        <Trigger Property="ui:MenuItemEx.Tone" Value="Indigo">
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource LogicIfTextBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="ui:MenuItemEx.Tone" Value="Indigo" />
+                                <Condition Property="IsHighlighted" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource LogicIfSoftBrush}" />
+                        </MultiTrigger>
+
+                        <Trigger Property="ui:MenuItemEx.Tone" Value="Green">
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogSuccessTextBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="ui:MenuItemEx.Tone" Value="Green" />
+                                <Condition Property="IsHighlighted" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource DialogSuccessSubtleBrush}" />
+                        </MultiTrigger>
+
+                        <Trigger Property="ui:MenuItemEx.Tone" Value="Amber">
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogWarningTextBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="ui:MenuItemEx.Tone" Value="Amber" />
+                                <Condition Property="IsHighlighted" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource DialogWarningSubtleBrush}" />
+                        </MultiTrigger>
+
+                        <Trigger Property="ui:MenuItemEx.Tone" Value="Danger">
+                            <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                            <Setter TargetName="Chip" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                            <Setter TargetName="Glyph" Property="Foreground" Value="{StaticResource DialogDangerBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="ui:MenuItemEx.Tone" Value="Danger" />
+                                <Condition Property="IsHighlighted" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Row" Property="Background" Value="{StaticResource DialogDangerSubtleBrush}" />
+                        </MultiTrigger>
+
+                        <!--  禁用态放最后：压掉语气色，且不响应悬停（WPF 禁用项本就不高亮）  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
+                            <Setter TargetName="Chip" Property="Opacity" Value="0.5" />
+                            <Setter TargetName="Badge" Property="Opacity" Value="0.6" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  分组标题：不可聚焦、不参与命中（用 Separator 而不是禁用 MenuItem——后者仍会被键盘导航命中）  -->
+    <Style x:Key="FlowMenuGroupHeaderStyle" TargetType="Separator">
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Margin" Value="0,2,0,0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Separator">
+                    <Grid Height="20" Margin="8,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontSize="10"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{TemplateBinding Tag}" />
+                        <Border
+                            Grid.Column="1"
+                            Height="1"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource DialogBorderLightBrush}" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="StepMenuSeparatorStyle" TargetType="Separator">
         <Setter Property="Height" Value="1" />
         <Setter Property="Margin" Value="8,4" />

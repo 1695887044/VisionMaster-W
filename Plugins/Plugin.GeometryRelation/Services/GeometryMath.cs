@@ -59,13 +59,13 @@ namespace Plugin.GeometryRelation.Services
         public static bool ArePerpendicular(GeometryParam l1, GeometryParam l2, double angleToleranceDeg)
             => Math.Abs(AngleBetweenLines(l1, l2) - 90.0) <= angleToleranceDeg;
 
-        /// <summary>线-线求交；近平行（|det| 过小）返回 false（明确失败，不硬算）</summary>
+        /// <summary>线-线求交；只有真正退化（|det|≈0，方向完全共线）才失败，近平行按 HALCON 返回远交点</summary>
         public static bool TryIntersectLines(GeometryParam l1, GeometryParam l2, out double row, out double col)
         {
             var (d1r, d1c) = Direction(l1.Phi);
             var (d2r, d2c) = Direction(l2.Phi);
             var det = d1r * d2c - d1c * d2r;
-            if (Math.Abs(det) < 1e-9) { row = col = 0; return false; }
+            if (Math.Abs(det) < 1e-15) { row = col = 0; return false; }
 
             var pr = l2.Row - l1.Row;
             var pc = l2.Col - l1.Col;
@@ -111,8 +111,9 @@ namespace Plugin.GeometryRelation.Services
             row = col = 0;
             count = 0;
             if (d < 1e-9) return false;                                   // 同心
-            if (d > c1.Radius + c2.Radius + 1e-9) return false;           // 相离
-            if (d < Math.Abs(c1.Radius - c2.Radius) - 1e-9) return false; // 内含
+            // 与 HALCON 对齐：真正相离/内含返回 0 点；只有数值级（≤1e-12）才当相切。
+            if (d > c1.Radius + c2.Radius + 1e-12) return false;          // 相离
+            if (d < Math.Abs(c1.Radius - c2.Radius) - 1e-12) return false; // 内含
 
             var a = (c1.Radius * c1.Radius - c2.Radius * c2.Radius + d * d) / (2 * d);
             var h2 = c1.Radius * c1.Radius - a * a;
@@ -185,15 +186,57 @@ namespace Plugin.GeometryRelation.Services
                     var vc = col - geometry.Col;
                     var u = vr * dr + vc * dc;      // 长轴分量
                     var v = vr * pr + vc * pc;      // 短轴分量
-                    var major = Math.Max(geometry.Radius, 1e-9);
-                    var minor = Math.Max(geometry.Radius2, 1e-9);
-                    var norm = Math.Sqrt((u / major) * (u / major) + (v / minor) * (v / minor));
-                    return Math.Abs(norm - 1.0) * minor;
+                    var major = Math.Max(geometry.Radius, 1e-12);
+                    var minor = Math.Max(geometry.Radius2, 1e-12);
+                    // 用"最近点"的欧氏距离，而不是代数残差×短半轴：
+                    // 后者在长轴方向会按扁率低估（100×50 椭圆外移 10px 会算成 5px），
+                    // 与 HALCON distance_pc 的口径不一致。
+                    return EllipseDistance(u, v, major, minor);
                 }
 
                 default:
                     return double.NaN;
             }
+        }
+
+        /// <summary>
+        /// 点到轴对齐椭圆 (u/a)²+(v/b)²=1 的最短欧氏距离（HALCON distance_pc 口径）。
+        /// 先按参数角给初值做 Newton，再用少量采样兜底，避免中心/近奇异点不收敛。
+        /// </summary>
+        private static double EllipseDistance(double u, double v, double a, double b)
+        {
+            if (Math.Abs(a - b) < 1e-12)
+                return Math.Abs(Math.Sqrt(u * u + v * v) - a);
+            if (Math.Abs(u) < 1e-12 && Math.Abs(v) < 1e-12)
+                return Math.Min(a, b);   // 圆心：最近点沿短轴
+
+            double t = Math.Atan2(v / b, u / a);
+            for (int i = 0; i < 24; i++)
+            {
+                double ct = Math.Cos(t), st = Math.Sin(t);
+                double f = (a * ct - u) * (-a * st) + (b * st - v) * (b * ct);
+                double fp = (b * b - a * a) * (ct * ct - st * st) + a * u * ct + b * v * st;
+                if (Math.Abs(fp) < 1e-14) break;
+                double step = f / fp;
+                t -= step;
+                if (Math.Abs(step) < 1e-13) break;
+            }
+
+            double du = a * Math.Cos(t) - u;
+            double dv = b * Math.Sin(t) - v;
+            double best = Math.Sqrt(du * du + dv * dv);
+
+            // 兜底采样：Newton 落到局部极大/奇异点时取更小的距离
+            for (int i = 0; i < 16; i++)
+            {
+                double ts = i * Math.PI * 2.0 / 16.0;
+                double su = a * Math.Cos(ts) - u;
+                double sv = b * Math.Sin(ts) - v;
+                double d = Math.Sqrt(su * su + sv * sv);
+                if (d < best) best = d;
+            }
+
+            return double.IsFinite(best) ? best : double.NaN;
         }
 
         /// <summary>

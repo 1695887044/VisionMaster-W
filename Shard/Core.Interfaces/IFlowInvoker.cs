@@ -20,11 +20,27 @@ namespace Core.Interfaces
         /// <summary>从开始调用到返回的毫秒数（超时也照实记录）</summary>
         public int ElapsedMs { get; }
 
-        public FlowInvokeResult(bool success, string message, int elapsedMs)
+        /// <summary>
+        /// 目标流程的轮次结果（L2）。null = 没跑完/没拿到记录（门禁失败、超时、取消等）。
+        /// 调用方可用它区分"跑完了但产品 NG"与"根本没跑完"。
+        /// </summary>
+        public FlowRoundOutcome? Outcome { get; }
+
+        /// <summary>业务判定：true=OK，false=NG；null=未判定/没跑完。</summary>
+        public bool? IsOk { get; }
+
+        public FlowInvokeResult(bool success, string message, int elapsedMs, FlowRoundOutcome? outcome = null)
         {
             Success = success;
             Message = message ?? string.Empty;
             ElapsedMs = elapsedMs;
+            Outcome = outcome;
+            IsOk = outcome switch
+            {
+                FlowRoundOutcome.Ok => true,
+                FlowRoundOutcome.Ng => false,
+                _ => null,
+            };
         }
 
         public static FlowInvokeResult Ok(string message, int elapsedMs)
@@ -32,6 +48,10 @@ namespace Core.Interfaces
 
         public static FlowInvokeResult Fail(string message, int elapsedMs = 0)
             => new(false, message, elapsedMs);
+
+        /// <summary>目标流程跑完并产出了轮次记录（OK/NG/未判定都算"跑完"）。</summary>
+        public static FlowInvokeResult Completed(string message, int elapsedMs, FlowRoundOutcome outcome)
+            => new(true, message, elapsedMs, outcome);
     }
 
     /// <summary>

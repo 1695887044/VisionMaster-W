@@ -2,6 +2,8 @@ using Core.Interfaces;
 using Core.Interfaces.Database;
 using Core.Interfaces.Io;
 using System;
+using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -38,6 +40,12 @@ namespace VisionMaster.Services
         private readonly IPerformanceMonitor _performanceMonitor;
 
         /// <summary>
+        /// 判定解析器（宿主实现；null = 未注册，轮次记 Unknown）。
+        /// 引擎不依赖工作区/变量注册表，只依赖这个接口。
+        /// </summary>
+        private readonly IFlowVerdictResolver _verdictResolver;
+
+        /// <summary>
         /// 资源锁服务：会话启动靠它做原子互斥（A3）
         /// </summary>
         private readonly IResourceLockService _resourceLocks;
@@ -61,7 +69,6 @@ namespace VisionMaster.Services
         /// 触发点包了 try/catch：订阅者（图像采集）出问题绝不能影响流程执行本身。
         /// </summary>
         public event Action<FlowSession> FlowRunCompleted;
-
         /// <summary>
         /// 即将开始执行一轮流程（<c>ExecutionEngine.Run</c> 之前触发）。
         ///
@@ -73,6 +80,15 @@ namespace VisionMaster.Services
         /// 并且订阅者异常就地隔离，绝不影响流程执行。
         /// </summary>
         public event Action<FlowSession> FlowRunStarted;
+
+        /// <summary>
+        /// 一轮流程产出了不可变记录（L2）。连续运行每轮一次、单次运行一次；
+        /// 被停止/取消的半轮不触发。订阅者异常就地隔离，不影响流程执行。
+        ///
+        /// 与 <see cref="FlowRunCompleted"/> 的分工：后者给图像集（要拿 session 枚举输出端口）；
+        /// 本事件给统计/下钻/子流程调用（只读一条不可变记录）。
+        /// </summary>
+        public event Action<FlowRoundResult> FlowRoundCompleted;
 
         /// <summary>
         /// 一轮流程**即将被停止**（<see cref="StopSession"/> 里、取消令牌 Cancel **之前**触发）。
@@ -155,12 +171,14 @@ namespace VisionMaster.Services
             IMotionProvider motions = null,   // 夹具可省略：插件侧拿 NullMotionProvider（取卡即失败并说明原因）
             WriteLeaseRegistry writeLeases = null, // 夹具可省略：无租约时流程写入不互斥
             ICommVariableAccess comms = null, // 夹具可省略：插件侧拿 NullCommVariableAccess（立刻读写即失败并说明原因）
-            IDatabaseAccess database = null) // 夹具可省略：插件侧拿 NullDatabaseAccess（数据库步骤即失败并说明原因）
+            IDatabaseAccess database = null, // 夹具可省略：插件侧拿 NullDatabaseAccess（数据库步骤即失败并说明原因）
+            IFlowVerdictResolver verdictResolver = null) // 夹具可省略：未注册时轮次记 Unknown
         {
             _runtimeManager = runtimeManager ?? throw new ArgumentNullException(nameof(runtimeManager));
             _logService = logService ?? throw new ArgumentNullException(nameof(logService));
             _workspaceManager = workspaceManager ?? throw new ArgumentNullException(nameof(workspaceManager));
             _performanceMonitor = performanceMonitor;
+            _verdictResolver = verdictResolver;
             _resourceLocks = resourceLocks ?? throw new ArgumentNullException(nameof(resourceLocks));
             // 允许为 null：检查/测试夹具直接 new 本类时给 null，插件侧会拿到 NullCameraProvider
             //（"取相机即失败并说明原因"），不必在每个夹具里都造一个假的相机仓库。
@@ -355,6 +373,78 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
+        /// 构建一轮的不可变记录（L2）。判定由宿主解析器给；没有解析器/解析失败记 Unknown。
+        /// 调试轮也产出记录（IsDebug=true），但 Outcome 固定 Unknown——消费者据此过滤。
+        /// </summary>
+        private FlowRoundResult BuildRoundResult(FlowSession session, DateTime startedAtUtc, long startTimestamp)
+        {
+            DateTime completedAtUtc = DateTime.UtcNow;
+            FlowVerdict verdict;
+
+            if (session.DebugEnabled)
+            {
+                verdict = new FlowVerdict(FlowRoundOutcome.Unknown, FlowVerdictSource.None, "调试轮");
+            }
+            else
+            {
+                try
+                {
+                    verdict = _verdictResolver?.Resolve(session)
+                        ?? new FlowVerdict(FlowRoundOutcome.Unknown, FlowVerdictSource.None, string.Empty);
+                }
+                catch (Exception ex)
+                {
+                    _logService.Warn($"流程 {session.FlowName} 判定解析失败（按未判定处理）：{ex.Message}");
+                    verdict = new FlowVerdict(FlowRoundOutcome.Unknown, FlowVerdictSource.None, string.Empty);
+                }
+            }
+
+            StepModel failed = session.Blueprints.FirstOrDefault(s => s != null && s.State == StepState.Failed);
+
+            return new FlowRoundResult
+            {
+                FlowId = Guid.TryParse(session.CompiledFlowId, out var flowId) ? flowId : Guid.Empty,
+                FlowName = session.FlowName ?? string.Empty,
+                SessionId = session.SessionID ?? string.Empty,
+                RoundIndex = session.RoundIndex,
+                StartedAtUtc = startedAtUtc,
+                CompletedAtUtc = completedAtUtc,
+                CycleTimeMs = Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds,
+                Outcome = verdict.Outcome,
+                VerdictSource = verdict.Source,
+                Reason = verdict.Reason ?? string.Empty,
+                FailedStepId = failed?.StepID,
+                FailedStepName = failed?.StepName ?? string.Empty,
+                StepCount = session.Blueprints.Count,
+                CompletedStepCount = session.Blueprints.Count(s => s != null && s.State == StepState.Success),
+                Steps = session.Blueprints
+                    .Where(s => s != null)
+                    .Select(s => new FlowStepRecord(
+                        s.StepID,
+                        s.StepName ?? string.Empty,
+                        s.State.ToString(),
+                        s.LastRunTimeMs))
+                    .ToList(),
+                IsDebug = session.DebugEnabled,
+            };
+        }
+
+        /// <summary>广播一轮记录。订阅者异常就地隔离，不影响流程执行。</summary>
+        private void NotifyFlowRoundCompleted(FlowRoundResult result)
+        {
+            try
+            {
+                FlowRoundCompleted?.Invoke(result);
+            }
+            catch (Exception ex)
+            {
+                _logService.Error(
+                    $"流程 {result.FlowName} 的轮次记录订阅者抛出异常（已隔离，不影响流程执行）: {ex.Message}"
+                );
+            }
+        }
+
+        /// <summary>
         /// 调试门命中（断点 / 单步）处理：把会话状态归到 Paused，并让暂停原因随消息送达
         /// （SessionStateChangedEventArgs.Message 的首次启用，评审结论 4）。
         /// 由运行前订阅、收尾退订（成对，见 RunSessionAsync / RunSessionOnceAsync）——
@@ -458,16 +548,30 @@ namespace VisionMaster.Services
                         // 上下文装配走 CreateExecutionContext 单点——连续/单次/并行分支三处同一份清单，
                         // 不再各自手写对象初始化器（2026-10-24 评审团 C1：单次路径曾漏 Database）。
                         var context = CreateExecutionContext(session, token);
+                        var roundStartedAtUtc = DateTime.UtcNow;
+                        var roundStartTimestamp = Stopwatch.GetTimestamp();
+                        session.RoundIndex++;
                         // 这一轮开始即广播（画布据此清空/覆盖上一轮的图，见 FlowRunStarted 的注释）
                         NotifyFlowRunStarted(session);
 
-                        session.ExecutionEngine.Run(context);
+                        // 流程身份随执行作用域交给发布链路：插件发布预览时事件要自带"我是哪条流程"，
+                        // 宿主不能靠"最后开轮的那条"去猜（多流程并发时会清错别人的窗口）。
+                        // 作用域必须开在**执行线程**上（本 lambda 内），并行分支的 Task.Run 会自动继承。
+                        using (PreviewScope.Begin(session.FlowName))
+                        {
+                            session.ExecutionEngine.Run(context);
+                        }
 
                         // 容器状态上浮（理由见单次执行路径的同名调用）
                         session.EscalateContainerFailures();
 
+                        // L2：每轮产出一条不可变记录，所有消费者（宿主统计/子流程调用/下钻）读它。
+                        var roundResult = BuildRoundResult(session, roundStartedAtUtc, roundStartTimestamp);
+                        session.LastRound = roundResult;
+
                         // 这一轮跑完即广播（图像集按"每轮"采集，见 FlowRunCompleted 的注释）
                         NotifyFlowRunCompleted(session);
+                        NotifyFlowRoundCompleted(roundResult);
 
                         // 用令牌等待替代 Thread.Sleep：空闲节流 10ms，但停止请求会立即唤醒退出
                         token.WaitHandle.WaitOne(10);
@@ -636,17 +740,29 @@ namespace VisionMaster.Services
                     // 上下文装配单点（同一份清单）：本路径此前漏了 Database，
                     // 「数据库查询/执行/写行」三步在单次执行下必然报"没有接入数据库服务"（评审团 C1）。
                     var context = CreateExecutionContext(session, token);
+                    var roundStartedAtUtc = DateTime.UtcNow;
+                    var roundStartTimestamp = Stopwatch.GetTimestamp();
+                    session.RoundIndex++;
                     // 与连续运行同一语义：一轮开始/结束各广播一次
                     NotifyFlowRunStarted(session);
 
-                    session.ExecutionEngine.Run(context);
+                    // 与连续运行同点位：流程身份随执行作用域交给发布链路（见 RunSessionAsync 的注释）
+                    using (PreviewScope.Begin(session.FlowName))
+                    {
+                        session.ExecutionEngine.Run(context);
+                    }
 
                     // 容器状态上浮：子步骤有失败 → 容器如实标 Failed（只改状态报告，不动控制流）。
                     // 放在广播之前：UI / 图像集 / HTTP 收集到的状态才是自洽的
                     session.EscalateContainerFailures();
 
+                    // L2：单次运行同样产出一条轮次记录（与连续运行同一口径）
+                    var roundResult = BuildRoundResult(session, roundStartedAtUtc, roundStartTimestamp);
+                    session.LastRound = roundResult;
+
                     // 单次运行跑完即广播（与连续运行同一语义：一轮结束）
                     NotifyFlowRunCompleted(session);
+                    NotifyFlowRoundCompleted(roundResult);
                 }, token);
             }
             catch (ObjectDisposedException)

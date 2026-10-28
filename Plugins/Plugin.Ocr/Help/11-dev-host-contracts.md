@@ -42,13 +42,23 @@ public class OcrPlugin : VisionPluginBase, IPluginCustomViewProvider
 | 端口 | CLR 类型 | 口径 |
 | --- | --- | --- |
 | `Image` | `InputPort<HImage>` | `IsRequired = false`（先摆节点再接线），空判定在 `RunAlgorithm` |
-| `Text` | `OutputPort<string>` | 拒识字符显示为 `?` |
-| `Count` | `OutputPort<int>` | 切分并识别到的字符个数 |
+| `Text` | `OutputPort<string>` | `Classes` 直接拼接；**拒识位是 U+001A（SUB），不是 `?`** |
+| `Count` | `OutputPort<int>` | 切分并识别到的字符个数（含拒识），= `Classes.Length` |
 | `Confidence` | `OutputPort<double>` | 逐字符均值 |
-| `Detail` | `OutputPort<string>` | 序号加字符加置信度，`?` 表示拒识 |
+| `Detail` | `OutputPort<string>` | 序号加字符加置信度，`?` 表示拒识（`Display()` 负责把 U+001A 换成 `?`） |
+| `Classes` | `OutputPort<string[]>` | 逐字符原始类别名，拒识保留 U+001A |
+| `Confidences` | `OutputPort<HTuple>` | 逐字符置信度 0~1，与 `Classes` 同下标 |
+| `RejectedCount` | `OutputPort<int>` | `Classes` 里 U+001A 的个数 |
+| `CharBoxes` | `OutputPort<HTuple>` | 逐字符外接框，扁平 stride 4：`[row1,col1,width,height, …]`（像素含端点） |
 
-没有数组端口——这是它和 YOLO 最大的接口差别：OCR 的"逐字符"信息全部塞在 `Detail` 这一个文本端口里，
-下游要结构化数据得自己解析（现场建议接 `Text` 做判定，别解析 `Detail`）。
+`Classes` / `Confidences` / `CharBoxes` 三者按下标逐项对齐、顺序 = 阅读顺序（`segment.Chars` 经
+`sort_region` 排过序），长度分别是 `Count` / `Count` / `Count×4`。
+`CharBoxes` 由 `TryBuildCharBoxes` 逐对象 `SelectObj(i+1)` + `SmallestRectangle1` 算出——
+**逐对象取而不是一次算整元组**，是为了把"第 i 个框 ↔ 第 i 个类别"写死在代码里，不靠 HALCON 的输出顺序契约。
+
+口径提醒：`HTuple` 不是 `IDisposable`，基类 `AutoDisposeRoundOutputs` 管不到它，所以 `RunAlgorithm` 开轮
+必须显式把八个输出端口清零（`Text` 空串 / `Count` 0 / `Confidence` 0 / `Detail` 空串 / `Classes` 空数组 /
+`Confidences`、`CharBoxes` 空元组 / `RejectedCount` 0），否则失败轮下游会读到上一帧的值。
 
 ## 四 白拿的基类行为与界面绑定
 

@@ -57,7 +57,7 @@
       "dir": "_ScadaUiProbe",
       "project": "_ScadaUiProbe.csproj",
       "runMode": "dotnet",
-      "description": "组态 UI 出图探针（--all / --toolbox / --editor / --glyphs / --solution / --flow-manager / --flow-list）；出图落 docs/UI设计基线/app-shell/evidence/"
+      "description": "组态 UI 出图探针（--all / --toolbox / --editor / --glyphs / --solution / --flow-manager / --flow-list / --runtime-window <方案.vms> [画面名]）；出图落 docs/UI设计基线/app-shell/evidence/"
     },
     {
       "name": "RecipeUiProbe",
@@ -123,6 +123,13 @@
       "project": "_ProjectAssetsUiProbe.csproj",
       "runMode": "dotnet",
       "description": "项目资产管理页离线出图与断言：真实五类数量、徽标 22px/居中、模板/模型/图像导入/重复/AssetId 解析/序列化；不启动主窗口，出图落 artifacts/render/<yyyyMMdd>/project-assets-ui/"
+    },
+    {
+      "name": "ZoomProbe",
+      "dir": "_ZoomProbe",
+      "project": "ZoomProbe.csproj",
+      "runMode": "dotnet",
+      "description": "画布滚轮缩放探针（2026-10-27）：真窗口 + 真 ImageDisplay，逐步打印 part 跨度与窗口非黑像素占比；场景 D 验证缩放下限（铺满即止 / 缩过头弹回 / 放大上限）。输出走 stdout，退出码恒 0，结论看日志行"
     }
   ]
 }

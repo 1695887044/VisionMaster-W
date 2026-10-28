@@ -93,6 +93,27 @@ namespace Plugin.Matching
             set { if (_refImagePath != value) { _refImagePath = value; OnChanged(nameof(RefImagePath)); } }
         }
 
+        private string _refImageAssetId = string.Empty;
+
+        /// <summary>
+        /// 参考图来自哪份**图像资产**（留空 = 用 <see cref="RefImagePath"/>）。
+        ///
+        /// 路径是本机绝对路径：换台机器、或参考图被挪走，"重学"就断了。资产 Id 跨机器稳定，
+        /// 路径由宿主按方案目录解析。**只在配置态用**（预览与重学）；运行期匹配读的是
+        /// <see cref="Model"/> 里的 base64 载荷，不碰这两个字段。
+        /// </summary>
+        public string RefImageAssetId
+        {
+            get => _refImageAssetId;
+            set
+            {
+                var next = value ?? string.Empty;
+                if (_refImageAssetId == next) return;
+                _refImageAssetId = next;
+                OnChanged(nameof(RefImageAssetId));
+            }
+        }
+
         private MatchingAlgorithm _algorithm = MatchingAlgorithm.Shape;
 
         /// <summary>
@@ -115,6 +136,24 @@ namespace Plugin.Matching
         {
             get => _numLevels;
             set { if (_numLevels != value) { _numLevels = value; OnChanged(nameof(NumLevels)); } }
+        }
+
+        private int _trackingLevel = 1;
+
+        /// <summary>
+        /// 运行期搜索参数：HALCON `find_shape_model` / `find_scaled_shape_model` 的
+        /// `NumLevels` 第二个值（最低跟踪层）。
+        ///
+        /// · 1 = 跟踪到最细层（默认，精度最高，与旧版单值 NumLevels 行为一致）；
+        /// · -1 = 不跟踪到最低层（HALCON 例程 `[0,-1]` 的用法；散焦/高噪声场景更稳，
+        ///   本仓 `matching_defocused_pcb` 对拍里 121 张散焦图只有 -1 能全部找到）。
+        ///
+        /// 只影响搜索，不影响模型创建；改它不需要重新学习模板，也不进 LearnedSignature。
+        /// </summary>
+        public int TrackingLevel
+        {
+            get => _trackingLevel;
+            set { if (_trackingLevel != value) { _trackingLevel = value; OnChanged(nameof(TrackingLevel)); } }
         }
 
         private double _minAngleDeg = -180;
@@ -188,6 +227,71 @@ namespace Plugin.Matching
             get => _scaleMax;
             set { if (_scaleMax != value) { _scaleMax = value; OnChanged(nameof(ScaleMax)); } }
         }
+
+        // ── 各向异性缩放（行/列分别缩放）：与上面的等比档互斥 ──
+
+        private bool _anisoScaleEnabled;
+
+        /// <summary>
+        /// 提取参数：各向异性缩放（行/列分别缩放，HALCON `create_aniso_shape_model`）。
+        ///
+        /// 打开后**忽略**等比档的 <see cref="ScaleEnabled"/>/<see cref="ScaleMin"/>/<see cref="ScaleMax"/>
+        /// （界面把等比那两个框灰掉），改用下面四个范围。只对形状算法有效：
+        /// NCC 没有对应算子，学习时明确告警并忽略（不静默当已启用）。
+        /// 老方案 JSON 没有该字段 → 反序列化后 false，行为与升级前完全一致。
+        /// </summary>
+        public bool AnisoScaleEnabled
+        {
+            get => _anisoScaleEnabled;
+            set { if (_anisoScaleEnabled != value) { _anisoScaleEnabled = value; OnChanged(nameof(AnisoScaleEnabled)); } }
+        }
+
+        private double _scaleRowMin = 0.9;
+
+        /// <summary>提取参数：行方向最小缩放（各向异性档；HALCON 限制 &gt; 0，本仓夹 0.1~10）</summary>
+        public double ScaleRowMin
+        {
+            get => _scaleRowMin;
+            set { if (_scaleRowMin != value) { _scaleRowMin = value; OnChanged(nameof(ScaleRowMin)); } }
+        }
+
+        private double _scaleRowMax = 1.1;
+
+        /// <summary>提取参数：行方向最大缩放（各向异性档；必须 ≥ 行最小）</summary>
+        public double ScaleRowMax
+        {
+            get => _scaleRowMax;
+            set { if (_scaleRowMax != value) { _scaleRowMax = value; OnChanged(nameof(ScaleRowMax)); } }
+        }
+
+        private double _scaleColMin = 0.9;
+
+        /// <summary>提取参数：列方向最小缩放（各向异性档；HALCON 限制 &gt; 0，本仓夹 0.1~10）</summary>
+        public double ScaleColMin
+        {
+            get => _scaleColMin;
+            set { if (_scaleColMin != value) { _scaleColMin = value; OnChanged(nameof(ScaleColMin)); } }
+        }
+
+        private double _scaleColMax = 1.1;
+
+        /// <summary>提取参数：列方向最大缩放（各向异性档；必须 ≥ 列最小）</summary>
+        public double ScaleColMax
+        {
+            get => _scaleColMax;
+            set { if (_scaleColMax != value) { _scaleColMax = value; OnChanged(nameof(ScaleColMax)); } }
+        }
+
+        /// <summary>
+        /// 学习那一刻"各向异性是否生效"的快照（运行期口径守卫用，随方案落盘）。
+        ///
+        /// 为什么需要：HALCON 对"模型类型与查找算子不匹配"**不报错**（实测 23.05：
+        /// `find_aniso_shape_model` 查等比模型 = 行/列永远相等；`find_scaled_shape_model` 查各向异性模型
+        /// = 一个都找不到），所以"改了开关没重学"在运行期是静默错结果。
+        /// 运行期拿它与当前开关比对，不一致就落一行 Warn 提醒重学。
+        /// 老方案没有该字段 → false（升级前的模型都是等比/未缩放），语义正确。
+        /// </summary>
+        public bool LearnedAnisoScaleEnabled { get; set; }
 
         private string _learnedSignature = string.Empty;
 

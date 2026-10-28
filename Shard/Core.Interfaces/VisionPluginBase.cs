@@ -46,9 +46,25 @@ namespace Core.Interfaces
 
         private readonly Dictionary<string, IInputPort> _inputs = new();
         private readonly Dictionary<string, IOutputPort> _outputs = new();
+
+        /// <summary>标了 [PortDefaultOnCreate] 的输入端口名（按属性声明顺序，去重）</summary>
+        private readonly List<string> _autoDefaultInputNames = new();
+
         public IReadOnlyDictionary<string, IInputPort> Inputs
         {
             get { EnsurePortsDiscovered(); return _inputs; }
+        }
+
+        /// <summary>
+        /// 标了 <see cref="PortDefaultOnCreateAttribute"/> 的输入端口名。
+        ///
+        /// 用途只有一个：步骤创建方（StepFactory）据此把这些端口的默认值写进
+        /// <c>StepModel.InputValues</c>，等价于用户点过一次「确定」。
+        /// 不落盘的话，默认值只活在插件实例上，编译期必填检查会判"未配置"。
+        /// </summary>
+        public IReadOnlyList<string> AutoDefaultInputNames
+        {
+            get { EnsurePortsDiscovered(); return _autoDefaultInputNames; }
         }
 
         public IReadOnlyDictionary<string, IOutputPort> Outputs
@@ -432,7 +448,11 @@ namespace Core.Interfaces
                             settable.Name = prop.Name;
 
                         // 注意这里用 TryAdd，防止属性和动态添加的重名
-                        _inputs.TryAdd(inputPort.Name, inputPort);
+                        if (_inputs.TryAdd(inputPort.Name, inputPort)
+                            && prop.GetCustomAttribute<PortDefaultOnCreateAttribute>() != null)
+                        {
+                            _autoDefaultInputNames.Add(inputPort.Name);
+                        }
                     }
                 }
                 else if (typeof(IOutputPort).IsAssignableFrom(prop.PropertyType))

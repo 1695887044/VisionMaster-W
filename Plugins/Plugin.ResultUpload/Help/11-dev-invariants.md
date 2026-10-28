@@ -55,7 +55,23 @@ HTTP 重试与幂等 ID、断网续传、业务关键字与阻断、自定义头
 症状：老方案的连线打不开/接不上，字段口在画布上不出现。
 机理：`ApplyConfigValues` 是 virtual，本插件 override 成"先 `base`（灌 `[StepConfig]`，含 `Fields`）再 `RebuildDynamicInputs()`"，
 必须在 `LinkPorts` 之前把端口建出来。顺序写反 = 端口还没生成就去找它连线。
+**构造器里也必须补一次 `RebuildDynamicInputs()`**：`PluginService` 扫描插件时拿的是"空配置实例"的 `Inputs`
+当 `InputDefinitions` 快照，构造期那三行 `Fields.Add` 发生在 `HookFields` 之前（集合通知一次都不触发），
+漏补的表现是**扫描期快照里没有 `sn`/`result`**——画布拖线打开的完整绑定弹窗左侧只剩「上报触发」。
 守门：无断言，靠人工核对（`ResultUploadPlugin.ApplyConfigValues` 只有两行，改它时对照本页第二节第 8 步）。
+
+**A6b 字段端口只能从行内 🔗 进，画布上没有字段级锚点**
+症状：用户按"画布上连线"的直觉去画布找 `sn`/`result` 端口，只看到每节点一根流程连接脚。
+机理：画布连线是**模块级**的（一根线 = 两个步骤有数据依赖，端口在绑定弹窗里选，见 `FlowCanvasViewModel`
+类注释）；而完整绑定弹窗的左侧端口表读 `ToolItemModel.InputDefinitions`（扫描期空配置快照），
+**用户新加的字段一条都不在里面**。所以字段行必须自带绑定入口——**一律用公共控件
+`Core.Controls.LinkableValueEditor`（R189）**，它自带 🔗→单绑定弹窗→`SetLink`、✕→`RemoveLink`、
+`LinkAddress` 回显与类型驱动渲染，不许自己 `Publish(new LinkPathEvent{...})` 手搓。
+动态端口的 `Port` 用 `MultiBinding` + `InputPortConverter`（字段名 + 宿主插件 + `PortsVersion` 三路），
+每次 `RebuildDynamicInputs` 后推一格 `PortsVersion` 让编辑器重取新端口对象；
+`Port` 可能为 null 的行用 `ContentControl` + `FieldPortEditorTemplate` 按需实例化，不许常驻 + `Visibility`。
+删掉这个入口 = 新字段的端口永远绑不上（用户只会看到"当前步骤没有可绑定的输入端口"）。
+守门：无断言，靠人工核对。
 
 **A7 字段表变动必须同时驱动端口重建与候选刷新**
 症状：勾掉「启用」后端口还在画布上、改完字段名"判定字段"下拉不更新、重开方案端口数量翻倍。

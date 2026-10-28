@@ -545,6 +545,35 @@ namespace ScadaChecks
                 && !menuItems[1].IsChecked,
                 $"items={menuItems.Count} headers={string.Join("/", menuItems.Select(i => (i.Header as TextBlock)?.Text ?? "?"))}");
 
+            // 白带回归（2026-10-28）：只给 Setter 的显式 ContextMenu Style 会顶掉应用级隐式样式，
+            // 让控件回落到 Aero2 主题默认模板——那份模板在左侧画一条 28 DIP 的 #FFF1F1F1 图标栏，
+            // 浅色主题下与底色同色看不出来，配上深色 Background 就是一条白带。
+            // 判据落在"量出来的浅色底块"，不落在"样式里有没有 Template 这个写法"上：
+            // 写法对但模板里又塞回浅色块，这里照样红。
+            var menuContextStyle = runtimeWindow.FindResource("PageMenuContextStyle") as Style;
+            var styleMenu = new ContextMenu { Style = menuContextStyle };
+            styleMenu.Items.Add(new MenuItem { Header = "主页", IsCheckable = true, IsChecked = true });
+            styleMenu.Items.Add(new MenuItem { Header = "图像显示" });
+            styleMenu.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            styleMenu.Arrange(new Rect(0, 0,
+                Math.Max(1, styleMenu.DesiredSize.Width), Math.Max(1, styleMenu.DesiredSize.Height)));
+            styleMenu.UpdateLayout();
+
+            var menuNodes = CollectVisual<FrameworkElement>(styleMenu, _ => true);
+            var sizedNodes = menuNodes.Where(el => el.ActualWidth > 0 && el.ActualHeight > 0).ToList();
+            var lightSurfaces = sizedNodes.Where(el => IsLightSurface(el, out _)).ToList();
+
+            Check("P0-3 顶栏页面菜单：弹层里没有浅色底块（Aero2 图标栏白带不回归）",
+                menuContextStyle != null
+                && ReferenceEquals(pageMenu?.Style, menuContextStyle)
+                && sizedNodes.Count >= 5
+                && lightSurfaces.Count == 0,
+                $"style={(menuContextStyle != null)} applied={ReferenceEquals(pageMenu?.Style, menuContextStyle)}"
+                + $" sized={sizedNodes.Count} light={lightSurfaces.Count}"
+                + (lightSurfaces.Count > 0
+                    ? " → " + string.Join("、", lightSurfaces.Select(el => IsLightSurface(el, out var d) ? d : el.GetType().Name))
+                    : string.Empty));
+
             menuItems[1].RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             PumpDispatcher(30);
             Check("P0-3 真窗口：点菜单项切到目标页、页栈压一层、返回按钮从置灰变可点",
@@ -849,6 +878,34 @@ namespace ScadaChecks
             combo.Refresh();
             Host(combo, 200, 36);
             return combo;
+        }
+
+        /// <summary>
+        /// 元素自己画出来的底（<c>Shape.Fill</c> / <c>Border</c>、<c>Panel</c>、<c>Control</c> 的
+        /// <c>Background</c>）是不是浅色。<c>Shape.Fill</c> 必须算进来：深色菜单里那条白带就是
+        /// Aero2 模板的一个 <c>Rectangle</c>，只查 Background 会把它当成透明放过。
+        /// </summary>
+        private static bool IsLightSurface(FrameworkElement element, out string detail)
+        {
+            detail = string.Empty;
+
+            Brush? brush = element switch
+            {
+                System.Windows.Shapes.Shape shape => shape.Fill,
+                Border border => border.Background,
+                Panel panel => panel.Background,
+                Control control => control.Background,
+                _ => null,
+            };
+
+            if (brush is not SolidColorBrush solid || solid.Color.A < 0xD0)
+                return false;
+
+            bool light = solid.Color.R > 200 && solid.Color.G > 200 && solid.Color.B > 200;
+            if (light)
+                detail = $"{element.GetType().Name}={solid.Color}";
+
+            return light;
         }
     }
 }

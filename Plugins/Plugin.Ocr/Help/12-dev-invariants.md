@@ -2,7 +2,7 @@
 
 > 分类：图像处理 ｜ 来源：插件 Plugin.Ocr ｜ 读者：开发
 
-守门文件：`FlowCanvasChecks\OcrChecks.cs`（19 条）。逐条"症状 → 机理 → 断言名"。
+守门文件：`FlowCanvasChecks\OcrChecks.cs`（29 条）。逐条"症状 → 机理 → 断言名"。
 
 ## A 组：违反就报错或结果明显不对
 
@@ -49,6 +49,29 @@
     **机理** 兜底 catch 把原因写进错误文本（`字符分割失败：… （若为坐标越界，请把识别区画在图像范围内）`）。
     **守门断言名** `dot_print_01.png 不抛异常并给出结果或可读原因…`。
 
+## C 组：结构化输出端口（`Classes` / `Confidences` / `RejectedCount` / `CharBoxes`）
+
+这组端口只给数据、不判 OK/NG；下面钉的是"交给下游的数据自不自洽"。
+
+15. **症状** 下游按 `HTuple` 取值，插件却把类型改成了 `double[]`（或反之），编译期全绿、运行期取值抛。
+    **机理** 端口类型就是下游的取值契约：类别名用 `string[]`（同 `CodeReader.Codes`），数值数组用 `HTuple`（同 `BlobDetect`）。
+    **守门断言名** `端口契约：Classes=string[] / Confidences=HTuple / RejectedCount=int / CharBoxes=HTuple`。
+16. **症状** 四个端口长度各说各话（`CharBoxes` 少一组、`Confidences` 比 `Classes` 短），下游按下标取越界或错位。
+    **机理** 三者由同一次 `do_ocr_multi_class_mlp` 与同一份 `segment.Chars` 产出，长度必须 `Count` / `Count` / `Count×4`。
+    **守门断言名** `结构化端口与 Count 对齐：Classes/Confidences 长度 = Count，CharBoxes 长度 = Count×4`、`Confidences 逐项落在 0~1（长度由对齐那条钉住）`。
+17. **症状** `Text` 与 `Classes` 不同源（有人给 `Text` 单独拼一遍），下游按位比对与整串比对得出不同结论。
+    **机理** `Text` 就是 `Classes` 直接拼接，不另算一遍。
+    **守门断言名** `Classes 直接拼接 == Text（逐字符与整串同源，不是两份数据）`、`11240B 零拒识：RejectedCount = 0 且 Classes 里没有 U+001A`。
+18. **症状** 字符框宽或高为 0（单像素宽的字被下游当"没有框"丢掉）、框跑到图像外、框顺序与 `Classes` 不一致。
+    **机理** 宽高按像素**含端点**（`col2-col1+1`）；坐标是图像绝对坐标；顺序 = 阅读顺序。
+    **守门断言名** `每个字符框宽高 > 0 且落在图像范围内（像素含端点，单像素宽的字也是 1）`、`字符框按阅读顺序排列（横排：框中心列严格递增）`。
+19. **症状** `RejectedCount` 与 `Classes` 里的拒识位对不上（漏算、把空白当拒识），或 `Detail` 的 `?` 出现在非拒识位。
+    **机理** 拒识位 = `Classes` 里含 U+001A 的项；`Detail` 的 `?` 必须与它逐位一致（反向：非拒识位不许是 `?`）。
+    **守门断言名** `【核心】拒识数 == Classes 里 U+001A 的个数（低对比点阵图确有拒识）`、`拒识位在 Detail 里是 '?'，非拒识位不是 '?'（逐位对照 Classes）`。
+20. **症状** 失败轮下游读到上一帧的字符（比"没有值"更危险）。
+    **机理** 基类 `AutoDisposeRoundOutputs` 只回收 `IDisposable`（`HImage`/`HRegion`），`string`/`int`/`double`/`HTuple` 端口会原样留下 → 必须在 `RunAlgorithm` 开轮显式清零。
+    **守门断言名** `【反向】失败轮四个新端口全空、Count = 0（下游读不到上一轮残留）`。
+
 ## 并行安全声明
 
 带 `[ParallelSafe]`，注释理由是"纯视觉计算"。成立前提是**切分与识别都不写画布状态**：
@@ -58,8 +81,10 @@
 ## 改后必做动作
 
 ```
-1) 改 CharSegmenter 任一档参数：跑 FlowCanvasChecks，OcrChecks 19 条必须全绿
+1) 改 CharSegmenter 任一档参数：跑 FlowCanvasChecks，OcrChecks 29 条必须全绿
 2) 改拒识判据（IsRejected）：必须能反证——故意造一个既无字母也无数字的输出，看是否仍被判为拒识（AGENTS.md R38）
 3) 改模型解析顺序：两台机器对照（一台有 Assets\ocr、一台只有 HALCON 安装）各跑一次
 4) 改 Help\ 页面：HM5 HM6 HM7 HM8 HM9 HM12b HM13（M 档开发章节 ≥150 行）
+5) 改字符框口径（宽高是否含端点、stride 是否仍为 4）：必须同时改 02-端口与参数 的端口表与 C 组断言——
+   下游按 stride 4 取坐标，口径一改就是静默错位
 ```

@@ -48,6 +48,15 @@ namespace Core.Halcon.Controls
             // 在鼠标悬停时按**另一张图**取灰度/RGB（HSmart_HMouseMove 读的就是它）
             DisplayImageInfo = new ImageInfo();
             Unloaded += OnControlUnloaded;
+            // 切回标签/重新可见时补一次被跳过的重绘（不可见期间 RenderAll 只标脏，见 RenderAll）
+            IsVisibleChanged += (_, __) =>
+            {
+                if (IsVisible && _renderDirty)
+                {
+                    _renderDirty = false;
+                    ScheduleRender();
+                }
+            };
         }
 
         /// <summary>
@@ -67,6 +76,15 @@ namespace Core.Halcon.Controls
             ClearSampleChannelCache();
             // 缩放状态保持：窗口销毁前把当前 part 记入同尺寸缓存（重开后 TryRestoreViewPart 恢复）
             SaveViewPartForResume();
+
+            // 窗口随控件卸载一起销毁：字段必须置空。被静态事件/集合钉住的旧实例（布局重建、
+            // 切标签后丢弃的那份 ImageView）否则还会拿失效窗口调 RenderAll——那会把**进程级**
+            // flush_graphic 设成 false 后抛异常，连累其它窗口不再刷新。
+            hWindow = null;
+            hSmart = null;
+            _hasLastImageSize = false;
+            _renderQueued = false;
+            _renderDirty = false;
         }
 
         /// <summary>
@@ -194,6 +212,75 @@ namespace Core.Halcon.Controls
 
         private bool _pendingFitOnLoad; // 图像先于控件 Loaded 到达时，Loaded 后补一次"铺满"
 
+        // ── 重绘合并（2026-10-27）──────────────────────────────────────────────
+        // 一次"选中帧变化"会同时改 HImage 与 Annotations 两个 DP，旧实现各触发一次 RenderAll；
+        // 图集清空后旧图已 Dispose 时还会再多一次（判成尺寸变化）。循环运行时每帧 2~3 次整幅
+        // ClearWindow+DispObj，是界面卡顿的主要来源。现在统一走 ScheduleRender：一帧只刷一次。
+
+        /// <summary>已排队的重绘（合并标志：置位期间不再重复投递）</summary>
+        private bool _renderQueued;
+
+        /// <summary>不可见时被跳过的重绘（可见后补一次，保证切回标签时画面不是旧的）</summary>
+        private bool _renderDirty;
+
+        /// <summary>本控件上次画过的图像尺寸（判定"要不要重新铺满"的唯一依据，见 HImageChangedCallBack）</summary>
+        private int _lastImageW, _lastImageH;
+        private bool _hasLastImageSize;
+
+        // 断言用计数器（internal + InternalsVisibleTo FlowCanvasChecks）：
+        // 重绘合并与"同尺寸不重铺"只有计数能钉住（像素级验收要真窗口，见 R53）。
+        private int _renderRequestCount, _renderFlushCount, _sizeChangeCount;
+        internal int RenderRequestCountForTest => _renderRequestCount;
+        internal int RenderFlushCountForTest => _renderFlushCount;
+        internal int SizeChangeCountForTest => _sizeChangeCount;
+
+        /// <summary>
+        /// 记录本控件画到的图像尺寸，返回"尺寸是否变了"。
+        /// 判据是**本控件上一次的尺寸**，不是"旧图是否还有效"——后者在清空/替换场景恒为 false
+        /// （旧图已被 Dispose），会把同尺寸换图误判成尺寸变化。
+        /// </summary>
+        internal bool UpdateImageSize(int width, int height)
+        {
+            bool changed = !_hasLastImageSize || _lastImageW != width || _lastImageH != height;
+            _lastImageW = width;
+            _lastImageH = height;
+            _hasLastImageSize = true;
+            if (changed) _sizeChangeCount++;
+            return changed;
+        }
+
+        /// <summary>
+        /// 请求一次全量重绘（合并同一轮内的多次请求）。
+        ///
+        /// 为什么用 <see cref="System.Windows.Threading.DispatcherPriority.Render"/>：
+        /// 它低于 Normal/DataBind、高于 Input，既能让输入先被处理，又不会像 Background 那样
+        /// 在"持续有新帧"时被 Normal 队列饿死（图集重算就踩过 Background 饿死的坑）。
+        ///
+        /// 没有消息循环（断言宿主）时同步执行——行为与合并前一致，断言不必额外泵消息。
+        /// </summary>
+        protected void ScheduleRender()
+        {
+            _renderRequestCount++;
+            if (_renderQueued) return;
+            _renderQueued = true;
+
+            var dispatcher = Dispatcher;
+            if (dispatcher == null || dispatcher.HasShutdownStarted)
+            {
+                _renderQueued = false;
+                _renderFlushCount++;
+                RenderAll();
+                return;
+            }
+
+            dispatcher.BeginInvoke(new Action(() =>
+            {
+                _renderQueued = false;
+                _renderFlushCount++;
+                RenderAll();
+            }), System.Windows.Threading.DispatcherPriority.Render);
+        }
+
         // 通道取样缓存：MouseMove 高频触发，避免每次移动都 AccessChannel 生成 3 个临时图像
         private HImage _cacheSource; // 缓存对应的源图实例引用，换图即失效
         private HImage _sampleRed;
@@ -258,20 +345,28 @@ namespace Core.Halcon.Controls
             {
                 view.hWindow?.ClearWindow();
                 view.hSmart?.InvalidateVisual();
+                // 下一张按"新尺寸"处理（重新铺满）：空图之后不存在"沿用当前缩放"的语义
+                view._hasLastImageSize = false;
                 return;
             }
             // 只在图像尺寸变化时重置视图（fit 显示）；
             // 涂抹预览/掩膜刷新生成同尺寸新图时不重置，保持用户缩放/平移状态
+            //
+            // 尺寸判定改用"本控件上次画过的尺寸"，不再靠"旧图是否还活着"推断：
+            // 图集清空后旧图已被 Dispose（IsInitialized()==false），旧写法会把**同尺寸**的新图
+            // 判成"尺寸变了" → SetFullImagePart + 额外一次全幅绘制，每帧白烧一次。
+            int newW = 0, newH = 0;
             bool sizeChanged = true;
-            if (e.OldValue is HImage oldImg && oldImg.IsInitialized())
+            try
             {
-                try
-                {
-                    var oldSize = oldImg.GetImageSize();
-                    var newSize = newImg.GetImageSize();
-                    sizeChanged = oldSize[0]!= newSize[0] || oldSize[1] != newSize[1];
-                }
-                catch { }
+                var newSize = newImg.GetImageSize();
+                newW = newSize[0];
+                newH = newSize[1];
+                sizeChanged = view.UpdateImageSize(newW, newH);
+            }
+            catch
+            {
+                // 取不到尺寸：按"尺寸变了"处理（铺满兜底），与旧行为一致
             }
             if (sizeChanged)
             {
@@ -292,21 +387,21 @@ namespace Core.Halcon.Controls
                     // 见上面注释——所以恢复也要走 hSmart 的公开通道而不是裸 HWindow.SetPart）。
                     if (!view.TryRestoreViewPart(newImg))
                         view.hSmart.SetFullImagePart();
-                    view.RenderAll();
+                    view.ScheduleRender();
                 }
                 else
                 {
                     view._pendingFitOnLoad = true;
-                    view.RenderAll();
+                    view.ScheduleRender();
                 }
             }
             else
             {
-                view.RenderAll();
+                view.ScheduleRender();
             }
-            var size = newImg.GetImageSize(); // 仅调用一次，避免重复查询
-            view.DisplayImageInfo.Width = size[0];
-            view.DisplayImageInfo.Height = size[1];
+            // 尺寸/通道信息用上面已取到的值，避免同一帧第三次调 GetImageSize
+            view.DisplayImageInfo.Width = newW;
+            view.DisplayImageInfo.Height = newH;
             view.DisplayImageInfo.Image = newImg;
             HOperatorSet.CountChannels(newImg, out HTuple channel_count);
             view.DisplayImageInfo.ChannelCount = channel_count;
@@ -339,7 +434,15 @@ namespace Core.Halcon.Controls
                 hSmart = obj1;
                 this.hSmart.Loaded += (s, e) =>
                 {
-                    hWindow = hSmart.HalconWindow;
+                    // 窗口句柄必须**重新取**：OnControlUnloaded 会把 hSmart/hWindow 置空（防幽灵格子
+                    // 拿失效窗口调 RenderAll），而"切布局/点工具箱"这类动作是 Unloaded → Loaded 重挂，
+                    // 同一个 HSmartWindowControlWPF 会再发一次 Loaded —— 此时字段 hSmart 已经是 null。
+                    // 旧写法（直接读字段）在这里抛 NullReferenceException，且异常从 BroadcastLoadedEvent
+                    // 抛出去会**跳过这次广播剩下的元素**，同一页其它画布的 Loaded 也跑不到 →
+                    // 整页永久不刷新（2026-10-27 真机，日志两次同栈 HalconBase.cs:437）。
+                    var smart = s as HSmartWindowControlWPF ?? obj1;
+                    hSmart = smart;
+                    hWindow = smart.HalconWindow;
                     HWindow = hWindow;
                     // 图像先于窗口就绪到达过的：渲染前补一次"铺满"，
                     // 否则首帧按默认 part 显示 = 小图 + 黑边，用户得手动适应
@@ -349,13 +452,13 @@ namespace Core.Halcon.Controls
                         try
                         {
                             if (HImage != null && HImage.IsInitialized())
-                                hSmart.SetFullImagePart(HImage);
+                                smart.SetFullImagePart(HImage);
                         }
                         catch { /* 铺满失败退回默认 part，不阻断渲染 */ }
                     }
                     RenderAll();
                     // Loaded 前设置的 ActiveRoi 当时挂接被跳过（hWindow 未就绪），此处补挂
-                    if (ActiveRoi?.DrawObject != null)
+                    if (ActiveRoi?.DrawObject != null && hWindow != null)
                     {
                         try { hWindow.AttachDrawingObjectToWindow(ActiveRoi.DrawObject); }
                         catch { }
@@ -376,6 +479,11 @@ namespace Core.Halcon.Controls
                 // Focusable=false，不点一下焦点进不来——"按 F 没反应"的差评来源）。
                 hSmart.HMouseDown += HSmart_MouseDownForFocus;
                 hSmart.HMouseDown += HSmart_MouseDownForDoubleClick;
+
+                // 滚轮缩放的上下限（下限 = 整幅铺满）：必须在 Preview（隧道）阶段拦，
+                // 控件自己的 HWPFWindow_MouseWheel 挂在 MouseWheel（冒泡）上，
+                // 这里 Handled 掉之后它就不会再缩。见 HSmart_PreviewMouseWheelForZoomLimit。
+                hSmart.PreviewMouseWheel += HSmart_PreviewMouseWheelForZoomLimit;
 
                 // 快捷键（焦点在本控件时生效；全仓无占用，实测核查过）：
                 // F=适应窗口（铺满）、1=1:1。裸字母键的 KeyGesture 构造非法（"None+F" 抛
@@ -1130,18 +1238,42 @@ namespace Core.Halcon.Controls
         {
             if (hWindow == null)
                 return;
+
+            // 不可见（切到别的文档标签 / 被折叠）就不画：Shell 与运行驾驶舱各挂一份 ImageView，
+            // 每帧两边都全幅重绘等于白烧一半 UI 时间。标脏，可见时由 IsVisibleChanged 补一次。
+            if (!IsVisible)
+            {
+                _renderDirty = true;
+                return;
+            }
+
+            _renderDirty = false;
+
+            bool flushDisabled = false;
             try
             {
                 HSystem.SetSystem("flush_graphic", "false");
+                flushDisabled = true;
                 // 伪彩 LUT 每帧设置（状态纪律与十字线一致：不是设一次就完，缩放/换图后的
                 // 每次全量重绘都带上它；HALCON SetLut 便宜，重复设置无感知）
                 hWindow.SetLut(_useColorLut ? "temperature" : "default");
                 hWindow.ClearWindow();
                 hWindow.SetDraw("margin");
-                if (HImage != null && HImage.IsInitialized())
+
+                // 没有"活的"图像就什么都不画（2026-10-27）：ROI 轮廓 / 涂抹层 / 测量标注 / 十字
+                // 全是**图像坐标**的叠加层，画在空画布上只会误导——宿主换帧时旧图已被 Dispose、
+                // 而 DP 还指着它（ImageFrame.Image 不通知绑定），画面就会永久停在
+                // "黑底 + 一行绿色标注"，看起来正是"图像丢了、只剩字"。
+                // 清屏后直接收尾：flush_graphic 由 finally 还原，InvalidateVisual 必须自己补
+                // （否则 WPF 侧还显示上一帧的 dump）。
+                if (HImage == null || !HImage.IsInitialized())
                 {
-                    hWindow.DispObj(HImage);
+                    hWindow.SetColor("black");
+                    hSmart?.InvalidateVisual();
+                    return;
                 }
+
+                hWindow.DispObj(HImage);
                 foreach (var info in DrawObjectList)
                 {
                     if (info == ActiveRoi && info.DrawObject != null)
@@ -1206,13 +1338,23 @@ namespace Core.Halcon.Controls
                 if (_showCross)
                     PaintCross();
                 HSystem.SetSystem("flush_graphic", "true");
+                flushDisabled = false;
                 hWindow.SetColor("black");
-                hSmart.InvalidateVisual();
+                hSmart?.InvalidateVisual();
                // hWindow.DispLine(-100.0, -100, -101, -101); // 触发刷新
             }
             catch
             {
                 // 窗口未就绪时静默跳过（Loaded 前的属性变化）
+            }
+            finally
+            {
+                // flush_graphic 是**进程级**状态：中途抛异常若不还原，其它窗口（包括流程线程里
+                // 的离屏烘焙窗口）的绘制会一直停在"缓冲未刷新"——表现为图像不再更新。
+                if (flushDisabled)
+                {
+                    try { HSystem.SetSystem("flush_graphic", "true"); } catch { /* 引擎已卸载 */ }
+                }
             }
         }
 
@@ -1464,6 +1606,21 @@ namespace Core.Halcon.Controls
         private const double DoubleClickTolerancePx = 6.0;
 
         /// <summary>
+        /// 画布上检测到"有效双击"（已排除涂抹/取点/拖拽——那三种模式下双击 = 两次单击）。
+        /// 订阅者据此接管双击语义，例如多格画布"双击放大本格"。
+        /// 与 <see cref="SuppressDoubleClickZoom"/> 配合：不抑制时本事件照样发，但基类的
+        /// 「适应窗口/1:1」切换也照做；要独占双击就把抑制置 true。
+        /// </summary>
+        public event EventHandler? CanvasDoubleClicked;
+
+        /// <summary>
+        /// true = 双击只发 <see cref="CanvasDoubleClicked"/>，不再切换「适应窗口/1:1」。
+        /// 由需要接管双击的宿主设置（多格画布放大本格）；F/1 快捷键与右键菜单里的
+        /// 「适应窗口」「按 1:1 显示」不受影响，缩放能力不会丢。
+        /// </summary>
+        public bool SuppressDoubleClickZoom { get; set; }
+
+        /// <summary>
         /// 点击画布时把键盘焦点给控件（F/1 快捷键可达的前提）。
         /// 2026-10-08 复盘修正：HSmartWindowControlWPF 是 HwndHost 系，在【预览频繁换图】的
         /// 配置弹窗里对它调 Focus() 会走 Win32 SetFocus/HwndSource 焦点仲裁——句柄重建窗口期
@@ -1499,6 +1656,13 @@ namespace Core.Halcon.Controls
                 return;
 
             _lastLeftDownUtc = DateTime.MinValue; // 三连击只当一次双击
+
+            // 先广播：宿主可能借此重摆布局（放大本格），那会让本窗口换尺寸
+            CanvasDoubleClicked?.Invoke(this, EventArgs.Empty);
+
+            if (SuppressDoubleClickZoom)
+                return;
+
             // 当前是 1:1 → 切铺满；否则（含任意中间缩放）→ 切 1:1
             ResetWindow(fitImage: !IsViewingOneToOne());
         }
@@ -1535,6 +1699,95 @@ namespace Core.Halcon.Controls
 
         #endregion
 
+        // ==================================================================
+        //  滚轮缩放的上下限（2026-10-27）：缩到「整幅铺满」为止
+        //
+        //  现场：跑完流程后滚轮往外缩，图像连同几何标注一起缩到亚像素，画布只剩
+        //  一行绿色标注文字 —— 看起来就是"图像没了"，只能靠右键「适应窗口」救回。
+        //  机制：HSmartWindowControlWPF 每格把 part 跨度乘 HZoomFactor（√2），**没有下界**；
+        //  缩 17 格 ≈ 500 倍，771px 的图只剩 1px。而标注文字是按窗口像素定长画的
+        //  （HALCON 的 set_tposition 只换算位置、不换算字号），于是"图没了、字还在"。
+        //
+        //  做法：在 hSmart 的 PreviewMouseWheel 里先判，越界就 Handled 掉：
+        //   · 缩到铺满（整幅可见）即下限，再缩不生效；
+        //   · 若当前 part 已经比铺满还大（旧视图缓存 / 外部 SetPart），一把拉回铺满；
+        //   · 放大也留一个极限，否则 part 退化成几个像素时同样"什么都看不见"。
+        //  没越界时一律放行，仍由 HSmartWindowControlWPF 自己处理，行为不变。
+        // ==================================================================
+
+        /// <summary>放大极限：part 行跨度小于该值（图像像素）就不再放大（再放大 part 会退化成一个点）</summary>
+        private const double MinZoomPartSpanPx = 8.0;
+
+        private void HSmart_PreviewMouseWheelForZoomLimit(object sender, MouseWheelEventArgs e)
+        {
+            if (e.Delta == 0 || hWindow == null || hSmart == null)
+                return;
+            // 绘制模式（IsDrawing）下控件本来就不缩放，这里也不拦
+            if (hSmart.HZoomContent == HSmartWindowControlWPF.ZoomContent.Off)
+                return;
+
+            bool zoomIn = hSmart.HZoomContent == HSmartWindowControlWPF.ZoomContent.WheelForwardZoomsIn
+                ? e.Delta > 0
+                : e.Delta < 0;
+
+            try
+            {
+                HOperatorSet.GetPart(hWindow, out HTuple r1, out HTuple _, out HTuple r2, out HTuple _);
+                double span = r2.D - r1.D;
+                if (span <= 0)
+                    return;
+
+                if (zoomIn)
+                {
+                    if (span <= MinZoomPartSpanPx)
+                        e.Handled = true;
+                    return;
+                }
+
+                double fit = FitPartRowSpan();
+                if (fit <= 0 || span < fit * 0.99)
+                    return; // 还没缩到铺满：放行，交给控件自己缩
+
+                // 已经铺满或更小：不再缩小。缩过头（缓存里的旧视图 / 外部设过 part）→ 拉回铺满。
+                // 这里不重画：SetPart 会让 HALCON 按显示栈重放，图与标注都在。
+                if (span > fit * 1.01)
+                    hSmart.SetFullImagePart();
+                e.Handled = true;
+            }
+            catch
+            {
+                // 窗口未就绪：不拦，保持控件默认行为
+            }
+        }
+
+        /// <summary>
+        /// 「整幅铺满窗口」时 part 的行跨度（图像像素，口径与 GetPart 一致：r2 - r1）。
+        ///
+        /// 与 HALCON <c>set_part(0,0,-1,-1)</c> 同一条算法：part 的宽高比等于窗口宽高比、
+        /// 整幅图可见 → 行跨度 = max(图高, 图宽 × 窗口高 / 窗口宽)；
+        /// 减 1 是因为 part 两端点都算在内（0..h-1 的跨度是 h-1）。
+        /// </summary>
+        private double FitPartRowSpan()
+        {
+            if (hSmart == null || HImage == null || !HImage.IsInitialized())
+                return 0;
+            double winW = hSmart.ActualWidth, winH = hSmart.ActualHeight;
+            if (winW <= 0 || winH <= 0)
+                return 0;
+            try
+            {
+                HImage.GetImageSize(out int imgW, out int imgH);
+                if (imgW <= 0 || imgH <= 0)
+                    return 0;
+                double fitPixels = Math.Max(imgH, imgW * winH / winW);
+                return Math.Max(1.0, fitPixels - 1.0);
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
         /// <summary>
         /// 测量标注层（线段/角度/文本）：随 RenderAll 渲染，每帧整体覆盖设置。
         ///
@@ -1546,7 +1799,7 @@ namespace Core.Halcon.Controls
         /// </summary>
         public static readonly DependencyProperty AnnotationsProperty = DependencyProperty.Register(
             nameof(Annotations), typeof(List<MeasureAnnotation>), typeof(HalconBase),
-            new PropertyMetadata(null, (d, _) => ((HalconBase)d).RenderAll()));
+            new PropertyMetadata(null, (d, _) => ((HalconBase)d).ScheduleRender()));
 
         /// <summary>空标注占位（只读；调用方请整体赋值，不要就地修改它）</summary>
         private static readonly List<MeasureAnnotation> EmptyAnnotations = new();
@@ -1562,11 +1815,18 @@ namespace Core.Halcon.Controls
         /// </summary>
         private void RenderAnnotations()
         {
-            foreach (var a in Annotations)
+            double previousWidth = 1;
+            try { previousWidth = hWindow.GetLineWidth(); } catch { /* 取不到就按 1 还原 */ }
+
+            try
             {
-                if (a?.Points == null)
-                    continue;
-                hWindow.SetColor(a.Color ?? "green");
+                foreach (var a in Annotations)
+                {
+                    if (a?.Points == null)
+                        continue;
+                    if (a.LineWidth > 0)
+                        hWindow.SetLineWidth(a.LineWidth);
+                    hWindow.SetColor(a.Color ?? "green");
                 switch (a.Type)
                 {
                     case MeasureType.Line when a.Points.Length >= 4:
@@ -1626,6 +1886,11 @@ namespace Core.Halcon.Controls
                         }
                         break;
                 }
+                }
+            }
+            finally
+            {
+                try { hWindow.SetLineWidth(previousWidth); } catch { /* 窗口未就绪 */ }
             }
         }
 
@@ -1705,6 +1970,11 @@ namespace Core.Halcon.Controls
                     return false;
                 // part 有效期自检：跨度非正或退化（比图像还小一格的极端值）时不恢复
                 if (part.Row2 - part.Row1 <= 0 || part.Col2 - part.Col1 <= 0)
+                    return false;
+                // 缩过头的记录不恢复：跨度比"整幅铺满"还大 = 上次是缩到图看不见的状态，
+                // 恢复它等于把"空白画布"再演一遍（滚轮下限已拦新产生的，这里挡历史缓存）。
+                double fitSpan = FitPartRowSpan();
+                if (fitSpan > 0 && part.Row2 - part.Row1 > fitSpan * 1.01)
                     return false;
                 hWindow.SetPart(part.Row1, part.Col1, part.Row2, part.Col2);
                 hSmart.InvalidateVisual();

@@ -51,7 +51,7 @@ namespace VisionMaster.Plugins.RunFlow
         public InputPort<int> TimeoutPort { get; } =
             new InputPort<int>("TimeoutMs", 60000, "等待超时(ms)");
 
-        /// <summary>是否成功执行（含"跑完但有失败步骤" = false）</summary>
+        /// <summary>是否成功执行（跑完即 true；产品 NG 也算跑完，判定看 IsOk/Outcome）</summary>
         public OutputPort<bool> Invoked { get; } = new OutputPort<bool>("Invoked", "是否成功执行");
 
         /// <summary>从开始调用到返回的耗时（毫秒）</summary>
@@ -60,11 +60,19 @@ namespace VisionMaster.Plugins.RunFlow
         /// <summary>调用结果说明（失败时是可直接展示的中文原因）</summary>
         public OutputPort<string> InvokeMessage { get; } = new OutputPort<string>("Message", "调用结果说明");
 
+        /// <summary>子流程的业务判定：true=OK / false=NG 或未判定（未判定时看 Outcome）</summary>
+        public OutputPort<bool> IsOk { get; } = new OutputPort<bool>("IsOk", "业务判定：true=OK / false=NG（未判定也为 false）");
+
+        /// <summary>子流程轮次结果：OK / NG / Unknown / Aborted / Faulted；空 = 没跑完</summary>
+        public OutputPort<string> Outcome { get; } = new OutputPort<string>("Outcome", "轮次结果（OK/NG/Unknown/Aborted/Faulted）");
+
         public override void RunAlgorithm(IExecutionContext context)
         {
             Invoked.Value = false;
             ElapsedMs.Value = 0;
             InvokeMessage.Value = string.Empty;
+            IsOk.Value = false;
+            Outcome.Value = string.Empty;
             // 框架契约：VisionPluginBase.Execute 以 Success.Value is true 判定业务成功
             Success.Value = false;
 
@@ -81,10 +89,12 @@ namespace VisionMaster.Plugins.RunFlow
             Invoked.Value = result.Success;
             ElapsedMs.Value = result.ElapsedMs;
             InvokeMessage.Value = result.Message;
+            IsOk.Value = result.IsOk ?? false;
+            Outcome.Value = result.Outcome?.ToString() ?? string.Empty;
             Success.Value = result.Success;
 
             if (result.Success)
-                context.Logger.Info($"{InstanceName} {result.Message}（{result.ElapsedMs}ms）");
+                context.Logger.Info($"{InstanceName} {result.Message}（{result.ElapsedMs}ms，判定={Outcome.Value}）");
             else
                 context.Logger.Error($"{InstanceName} 调用流程「{target}」失败：{result.Message}");
         }

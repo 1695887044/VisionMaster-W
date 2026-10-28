@@ -277,6 +277,27 @@ namespace Plugin.HandEye
         public partial bool RequireRecommendedPairs { get; set; }
 
         /// <summary>
+        /// 求解成功后把结果写入方案标定资产目录（与「标定」插件同一出口 <see cref="ICalibrationCatalog"/>）。
+        ///
+        /// 为什么默认开：4×4 是**方案级结论**，只活在端口连线里的话资产页看不到它，
+        /// 也就没有版本、回滚、引用索引 —— 而手眼恰恰是"标一次用一年、换站位要重标"的东西。
+        /// </summary>
+        [StepConfig, DefaultValue(true)]
+        public partial bool SaveToCatalog { get; set; }
+
+        /// <summary>写入方案资产时用的名字（留空 = 「步骤名 手眼标定」）</summary>
+        [StepConfig, DefaultValue("")]
+        public partial string CatalogAssetName { get; set; }
+
+        /// <summary>
+        /// 写入方案资产时用的稳定 Id（留空 = 由步骤名确定性生成）。
+        /// 必须稳定：每次运行都新建一个资产的话，资产页会堆出一串同名标定，
+        /// 而引用方（PoseTransform 等）认的是 Id，改一次就断一次。
+        /// </summary>
+        [StepConfig, DefaultValue("")]
+        public partial string CatalogAssetId { get; set; }
+
+        /// <summary>
         /// 上一次**已确认**的标定结果（序列化后的 JSON，含数据指纹）。
         ///
         /// 为什么要存结果：现场不是每次都标定——标定一次、存档、之后只跑生产。
@@ -888,7 +909,7 @@ namespace Plugin.HandEye
                 return;
             }
 
-            Transform.Value = new CalibrationTransform
+            var transform = new CalibrationTransform
             {
                 Kind = CalibrationKind.HandEye,
                 HandEyePose = PoseKind,
@@ -899,6 +920,57 @@ namespace Plugin.HandEye
                 CreatedAtUtc = DateTime.UtcNow,
                 SourceTag = "成对数据表"
             };
+
+            Transform.Value = transform;
+            TrySaveCalibrationAsset(context, transform);
+        }
+
+        /// <summary>
+        /// 求解成功后把结果写入方案标定资产。锁定资产不会被覆盖（保存失败只记警告，
+        /// 不影响本次输出 —— 计算本身仍然有效）。
+        ///
+        /// 与「标定」插件走同一出口（<see cref="ICalibrationCatalog.Save"/>）：版本递增、
+        /// 锁保护、回滚快照的判据只有一份，两个插件各写一套的话迟早分叉。
+        /// </summary>
+        private void TrySaveCalibrationAsset(IExecutionContext context, CalibrationTransform transform)
+        {
+            if (!SaveToCatalog) return;
+
+            var stepName = string.IsNullOrWhiteSpace(InstanceName) ? "手眼标定" : InstanceName.Trim();
+            var name = string.IsNullOrWhiteSpace(CatalogAssetName)
+                ? stepName + " 手眼标定"
+                : CatalogAssetName.Trim();
+
+            var id = Guid.TryParse((CatalogAssetId ?? string.Empty).Trim(), out var parsed) && parsed != Guid.Empty
+                ? parsed
+                : DeterministicGuid("handeye:" + stepName);
+
+            // 资产锁只由资产自己的管理入口控制：不拿步骤锁去写它（Calibration 踩过：
+            // 步骤锁一次 → 资产永久锁定，解锁步骤也救不回来）。
+            context.Calibrations.TryGet(id, out var existingAsset);
+            var asset = new CalibrationAsset
+            {
+                CalibrationId = id,
+                Name = name,
+                Description = string.Empty,
+                IsLocked = existingAsset?.IsLocked ?? false,
+                Transform = transform,
+            };
+
+            if (!context.Calibrations.Save(asset, out var error))
+                context.Logger?.Warn($"{InstanceName} 手眼标定资产「{name}」未写入方案：{error}");
+            else
+                context.Logger?.Info($"{InstanceName} 手眼标定资产已写入方案目录：「{name}」v{asset.Version}");
+        }
+
+        /// <summary>由种子串生成稳定 Guid（同一步骤重跑命中同一个资产，不堆同名记录）</summary>
+        private static Guid DeterministicGuid(string seed)
+        {
+            using var sha1 = SHA1.Create();
+            var hash = sha1.ComputeHash(Encoding.UTF8.GetBytes(seed));
+            var bytes = new byte[16];
+            Array.Copy(hash, bytes, 16);
+            return new Guid(bytes);
         }
 
         /// <summary>

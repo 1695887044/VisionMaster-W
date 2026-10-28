@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VisionMaster · 流程管理 · Web 设计基线 v1</title>
+<style>
+  :root{
+    /* Dialog* 令牌（UI/Controls/Themes/Colors.xaml）——本稿 0 新增 */
+    --accent:#0EA5E9; --accent-dark:#0284C7; --accent-light:#E0F2FE; --accent-soft:#F0F9FF;
+    --accent-border:#BAE6FD; --accent-text:#0369A1;
+    --surface:#FFFFFF; --surface-2:#F8FAFC; --bg:#EEF2F7;
+    --border:#E2E8F0; --border-light:#EEF2F7; --border-strong:#CBD5E1;
+    --text-1:#0F172A; --text-2:#475569; --text-3:#64748B; --text-4:#94A3B8;
+    --success:#22C55E; --success-text:#15803D; --success-soft:#F0FDF4; --success-border:#BBF7D0;
+    --danger:#EF4444; --danger-text:#B91C1C; --danger-soft:#FEF2F2; --danger-border:#FECACA;
+    --warn-text:#B45309; --warn-soft:#FFF4E5; --warn-border:#FDE68A;
+    --row-hover:#F1F5F9;
+    /* 角色徽标复用逻辑容器族（LogicCase / LogicIf / LogicWhile），不新增键 */
+    --r-home-t:#6D28D9; --r-home-s:#F5F3FF; --r-home-b:#DDD6FE;
+    --r-main-t:#4338CA; --r-main-s:#EEF2FF; --r-main-b:#C7D2FE;
+    --r-end-t:#B45309;  --r-end-s:#FFFBEB;  --r-end-b:#FDE68A;
+    --font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(1200px 620px at 50% -12%, #F8FAFC 0%, rgba(248,250,252,0) 62%),
+      radial-gradient(circle at 1px 1px, rgba(148,163,184,.16) 1px, transparent 0) 0 0/24px 24px,
+      #E9EEF5;
+    color:var(--text-1); font-family:var(--font); font-size:13px; line-height:1.5;
+    padding:26px 26px 70px; -webkit-font-smoothing:antialiased;
+  }
+  button{ font-family:inherit; color:inherit; border:0; background:none; padding:0; cursor:pointer; }
+  .page{ max-width:1240px; margin:0 auto 14px; }
+  .page h1{ margin:0; font-size:20px; font-weight:600; display:flex; align-items:center; gap:10px; letter-spacing:-.01em; }
+  .ver{ display:inline-flex; align-items:center; height:22px; padding:0 8px; border-radius:6px; background:var(--accent-light); color:var(--accent-dark); font-size:11px; font-weight:700; }
+  .page .meta{ margin:7px 0 0; color:var(--text-2); font-size:12.5px; max-width:1180px; }
+  .page .meta b{ color:var(--text-1); }
+  .legend{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .tag{ display:inline-flex; align-items:center; gap:6px; height:24px; padding:0 9px; border-radius:6px; background:#FFF; border:1px solid var(--border); color:var(--text-2); font-size:11.5px; }
+  .tag i{ width:8px; height:8px; border-radius:50%; display:inline-block; }
+
+  /* 评审模式切换（不属于应用界面） */
+  .modes{ display:flex; align-items:center; gap:8px; max-width:1240px; margin:0 auto 10px; padding:9px 12px; background:#FFF; border:1px solid var(--border-strong); border-radius:12px; box-shadow:0 2px 8px rgba(15,23,42,.05); }
+  .modes .lbl{ font-size:11px; font-weight:700; color:var(--text-3); letter-spacing:.04em; }
+  .modes .seg{ display:flex; gap:2px; background:var(--row-hover); border-radius:8px; padding:3px; }
+  .modes .seg button{ height:28px; padding:0 12px; border-radius:6px; font-size:12px; color:var(--text-2); }
+  .modes .seg button:hover{ background:var(--border); color:var(--text-1); }
+  .modes .seg button.on{ background:#FFF; color:var(--text-1); font-weight:600; box-shadow:0 1px 2px rgba(15,23,42,.08); }
+  .modes .dim{ margin-left:auto; font-size:11.5px; color:var(--text-3); }
+  .modes .dim b{ color:var(--text-1); font-family:Consolas,monospace; }
+
+  .sizelbl{ max-width:1240px; margin:0 auto 6px; padding-left:2px; font-size:11px; color:var(--text-3); }
+  .sizelbl b{ color:var(--text-1); }
+
+  /* ── 弹窗本体 1:1 ───────────────────────────────────────── */
+  .stage{ max-width:1240px; margin:0 auto; padding:18px; border-radius:14px; background:#DCE3EC; border:1px solid var(--border-strong); box-shadow:0 12px 32px rgba(15,23,42,.12),0 2px 8px rgba(15,23,42,.05); overflow-x:auto; }
+  .win{
+    width:1180px; height:620px; margin:0 auto; display:flex; flex-direction:column;
+    background:var(--bg); border:1px solid var(--border-strong); border-radius:10px; overflow:hidden;
+    box-shadow:0 20px 48px rgba(15,23,42,.22),0 4px 12px rgba(15,23,42,.10);
+    transition:width .18s ease;
+  }
+  body[data-view="d"] .win{ width:1060px; }
+
+  /* 标题栏 52 */
+  .titlebar{ height:52px; flex:none; display:flex; align-items:center; gap:10px; padding:0 20px; background:var(--surface-2); border-bottom:1px solid var(--border-light); }
+  .titlebar .ic{ width:18px; height:18px; color:var(--accent); flex:none; }
+  .titlebar .t{ font-size:15px; font-weight:700; }
+  .titlebar .s{ font-size:11.5px; color:var(--text-4); }
+  .titlebar .x{ margin-left:auto; width:30px; height:30px; display:grid; place-items:center; border-radius:6px; color:var(--text-2); }
+  .titlebar .x:hover{ background:var(--row-hover); color:var(--text-1); }
+  .titlebar .x svg{ width:13px; height:13px; }
+
+  /* 工具栏 56 */
+  .toolbar{ height:56px; flex:none; display:flex; align-items:center; padding:16px 20px 12px; }
+  .toolbar .lt{ display:flex; align-items:center; gap:8px; }
+  .toolbar .lt svg{ width:14px; height:14px; color:var(--accent); }
+  .toolbar .lt .tt{ font-size:13.5px; font-weight:600; }
+  .cnt{ height:18px; padding:0 6px; border-radius:5px; background:var(--surface); border:1px solid var(--border); color:var(--text-3); font-size:10.5px; font-weight:600; display:inline-flex; align-items:center; }
+  .search{ margin-left:auto; width:240px; height:32px; display:flex; align-items:center; gap:7px; padding:0 9px; background:var(--surface); border:1px solid var(--border); border-radius:8px; }
+  .search:focus-within{ border-color:var(--accent-border); box-shadow:0 0 0 3px rgba(14,165,233,.12); }
+  .search svg{ width:12px; height:12px; color:var(--text-4); flex:none; }
+  .search input{ flex:1; min-width:0; border:0; outline:0; background:none; font-family:inherit; font-size:12px; color:var(--text-1); }
+  .search input::placeholder{ color:var(--text-4); }
+  .search .clr{ width:16px; height:16px; border-radius:50%; display:none; place-items:center; background:var(--border); color:var(--text-2); }
+  .search .clr svg{ width:7px; height:7px; }
+  .search.has .clr{ display:grid; }
+
+  /* 表格区 */
+  .tablewrap{ flex:1; min-height:0; margin:0 20px; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; display:flex; flex-direction:column; }
+  .gcols{ display:grid; grid-template-columns:minmax(180px,1fr) 320px minmax(150px,1.3fr) 120px 200px; align-items:center; }
+  .thead{ height:36px; flex:none; background:var(--surface-2); border-bottom:1px solid var(--border); font-size:11.5px; font-weight:600; color:var(--text-2); }
+  .thead > div{ padding:0 12px; display:flex; align-items:center; gap:6px; }
+  .thead .hint{ height:16px; padding:0 5px; border-radius:4px; background:var(--row-hover); color:var(--text-4); font-size:9.5px; font-weight:600; letter-spacing:.02em; }
+  .tbody{ flex:1; min-height:0; overflow-y:auto; }
+  .tbody::-webkit-scrollbar{ width:10px; }
+  .tbody::-webkit-scrollbar-thumb{ background:var(--border-strong); border-radius:5px; border:2px solid #FFF; }
+
+  .row{ height:56px; border-bottom:1px solid var(--border-light); cursor:default; position:relative; }
+  .row:last-child{ border-bottom:0; }
+  .row.alt{ background:#FCFDFE; }
+  .row:hover{ background:var(--row-hover); }
+  .row.sel{ background:var(--accent-soft); box-shadow:inset 3px 0 0 var(--accent); }
+  .row.sel:hover{ background:#EAF6FE; }
+  .row > div{ padding:0 12px; min-width:0; }
+
+  /* 名称 */
+  .c-name{ display:flex; align-items:center; gap:7px; }
+  .role{ height:17px; padding:0 5px; border-radius:4px; font-size:9.5px; font-weight:700; letter-spacing:.02em; display:inline-flex; align-items:center; flex:none; border:1px solid transparent; }
+  .role.home{ color:var(--r-home-t); background:var(--r-home-s); border-color:var(--r-home-b); }
+  .role.main{ color:var(--r-main-t); background:var(--r-main-s); border-color:var(--r-main-b); }
+  .role.end{ color:var(--r-end-t); background:var(--r-end-s); border-color:var(--r-end-b); }
+  .c-name .nm{ font-size:12.5px; font-weight:600; color:var(--text-1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row.off .c-name .nm{ color:var(--text-3); text-decoration:line-through; text-decoration-color:var(--text-4); }
+  .c-name .lk{ width:12px; height:12px; color:var(--danger-text); flex:none; }
+
+  /* 调用方式 chips */
+  .c-invoke{ display:flex; flex-direction:column; gap:4px; justify-content:center; }
+  .chips{ display:flex; gap:6px; }
+  .chip{ height:22px; padding:0 9px; border-radius:11px; border:1px solid var(--border); background:var(--surface); color:var(--text-3); font-size:11px; line-height:1; display:inline-flex; align-items:center; transition:background .12s,border-color .12s,color .12s; white-space:nowrap; }
+  .chip:hover{ border-color:var(--accent-border); color:var(--accent-text); background:var(--accent-soft); }
+  .chip.on{ background:var(--accent-light); border-color:var(--accent-border); color:var(--accent-text); font-weight:600; }
+  .chip.on:hover{ background:#D6ECFD; }
+  .chip.line.on{ background:var(--success-soft); border-color:var(--success-border); color:var(--success-text); }
+  .chip.line.on:hover{ background:#E4F9EA; }
+  .chip:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .c-invoke .note{ font-size:10px; line-height:13px; color:var(--text-3); }
+  .c-invoke .note.muted{ color:var(--text-4); }
+  .c-invoke .note.warn{ color:var(--warn-text); font-weight:600; }
+
+  /* 描述 */
+  .c-desc{ font-size:11.5px; color:var(--text-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row.off .c-desc{ color:var(--text-4); }
+
+  /* 状态 */
+  .c-status{ display:flex; align-items:center; }
+  .st{ display:inline-flex; align-items:center; gap:6px; font-size:11.5px; }
+  .st .d{ width:6px; height:6px; border-radius:50%; flex:none; }
+  .st.ok{ color:var(--text-2); } .st.ok .d{ background:var(--success); }
+  .st.off{ color:var(--text-4); } .st.off .d{ background:var(--border-strong); }
+  .st.run{ color:var(--success-text); font-weight:600; }
+  .st.run .d{ background:var(--success); box-shadow:0 0 0 3px rgba(34,197,94,.18); animation:pulse 1.4s ease-in-out infinite; }
+  .st.lock{ height:20px; padding:0 7px; border-radius:5px; background:var(--danger-soft); border:1px solid var(--danger-border); color:var(--danger-text); font-weight:600; }
+  .st.lock svg{ width:10px; height:10px; }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+  /* 操作 */
+  .c-ops{ display:flex; align-items:center; gap:6px; }
+  .b{ height:24px; padding:0 9px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--text-2); font-size:11.5px; display:inline-flex; align-items:center; gap:5px; }
+  .b:hover{ background:var(--row-hover); border-color:var(--border-strong); color:var(--text-1); }
+  .b.pri{ border-color:var(--accent-border); background:var(--accent-soft); color:var(--accent-text); font-weight:600; }
+  .b.pri:hover{ background:var(--accent-light); }
+  .b.ico{ width:24px; padding:0; justify-content:center; }
+  .b.ico svg{ width:12px; height:12px; }
+  .b.ico.warn{ border-color:var(--danger-border); background:var(--danger-soft); color:var(--danger-text); }
+  .b.ico.warn:hover{ background:#FDE7E7; }
+  .b[disabled]{ opacity:.4; cursor:not-allowed; background:var(--surface-2); border-color:var(--border); color:var(--text-4); }
+  .b:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  /* 空态 */
+  .empty{ flex:1; display:none; flex-direction:column; align-items:center; justify-content:center; gap:8px; padding-bottom:20px; }
+  .empty .ei{ width:40px; height:40px; border-radius:50%; background:var(--surface-2); border:1px solid var(--border); display:grid; place-items:center; color:var(--text-4); }
+  .empty .ei svg{ width:17px; height:17px; }
+  .empty .et{ font-size:12.5px; font-weight:600; color:var(--text-2); }
+  .empty .ed{ font-size:11.5px; color:var(--text-4); }
+  .empty .eb{ margin-top:2px; height:26px; padding:0 11px; border-radius:6px; border:1px solid var(--accent-border); background:var(--accent-soft); color:var(--accent-text); font-size:11.5px; font-weight:600; }
+
+  /* 说明折叠条 */
+  .legendbar{ flex:none; margin:14px 20px 16px; background:var(--surface-2); border:1px solid var(--border-light); border-radius:8px; }
+  .lb-head{ height:32px; display:flex; align-items:center; gap:8px; padding:0 12px; }
+  .lb-head svg{ width:12px; height:12px; color:var(--accent); flex:none; }
+  .lb-head .lt{ font-size:11.5px; color:var(--text-2); }
+  .lb-head .lt b{ color:var(--text-1); font-weight:600; }
+  .lb-head .sep{ color:var(--border-strong); }
+  .lb-head .tg{ margin-left:auto; height:22px; padding:0 8px; border-radius:5px; font-size:11px; color:var(--accent-text); display:inline-flex; align-items:center; gap:4px; }
+  .lb-head .tg:hover{ background:var(--accent-light); }
+  .lb-head .tg svg{ width:9px; height:9px; color:currentColor; transition:transform .18s ease; }
+  body[data-view="b"] .lb-head .tg svg{ transform:rotate(180deg); }
+  .lb-body{ display:none; padding:0 12px 10px; }
+  body[data-view="b"] .lb-body{ display:grid; }
+  .lb-body{ grid-template-columns:1fr 1fr; gap:7px 22px; }
+  .lb-item{ min-width:0; display:grid; grid-template-columns:78px minmax(0,1fr); gap:0 8px; }
+  .lb-item .k{ font-size:10.5px; font-weight:700; color:var(--text-2); letter-spacing:.02em; white-space:nowrap; }
+  .lb-item .v{ font-size:10.5px; line-height:1.45; color:var(--text-3); }
+  .lb-item .v code{ font-family:Consolas,monospace; font-size:10px; color:var(--accent-text); }
+
+  /* 评审笔记 */
+  .notes{ max-width:1240px; margin:18px auto 0; display:grid; grid-template-columns:1.35fr 1fr; gap:14px; align-items:start; }
+  .note-card{ background:#FFF; border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .note-card h3{ margin:0 0 9px; font-size:12px; display:flex; align-items:center; gap:7px; }
+  .note-card h3 .n{ height:17px; min-width:17px; padding:0 5px; border-radius:4px; background:var(--danger-soft); color:var(--danger-text); font-size:10px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; }
+  .note-card ol{ margin:0; padding-left:18px; color:var(--text-2); font-size:11.5px; line-height:1.85; }
+  .note-card ol li{ margin-bottom:3px; }
+  .note-card b{ color:var(--text-1); }
+  .note-card code{ font-family:Consolas,monospace; font-size:10.5px; background:var(--row-hover); padding:1px 4px; border-radius:3px; color:var(--accent-text); }
+  .note-card ul{ margin:0; padding-left:18px; color:var(--text-2); font-size:11.5px; line-height:1.85; }
+  table.acc{ width:100%; border-collapse:collapse; font-size:11px; }
+  table.acc th{ text-align:left; font-weight:600; color:var(--text-3); padding:5px 6px; border-bottom:1px solid var(--border); font-size:10.5px; }
+  table.acc td{ padding:5px 6px; border-bottom:1px solid var(--border-light); color:var(--text-2); }
+  table.acc td.num{ font-family:Consolas,monospace; text-align:right; white-space:nowrap; }
+  table.acc tr:last-child td{ border-bottom:0; }
+  table.acc tr.sum td{ font-weight:700; color:var(--text-1); background:var(--surface-2); }
+  .q{ margin:0; padding-left:18px; color:var(--text-2); font-size:11.5px; line-height:1.8; }
+  .q li{ margin-bottom:5px; }
+  .q b{ color:var(--text-1); }
+  @media (max-width:1280px){ .notes{ grid-template-columns:1fr; } }
+  @media (prefers-reduced-motion:reduce){ *{ transition:none !important; animation:none !important; } }
+
+  /* ?shot=1：只留弹窗本体，供 evidence 截图 */
+  body.shot{ padding:0; background:#DCE3EC; }
+  body.shot .page, body.shot .modes, body.shot .sizelbl, body.shot .notes{ display:none; }
+  body.shot .stage{ max-width:none; margin:0; border:0; border-radius:0; box-shadow:none; padding:20px; }
+</style>
+</head>
+<body data-view="a">
+
+<div class="page">
+  <h1>流程管理 <span class="ver">v1 草案</span></h1>
+  <p class="meta">
+    覆盖 <b>VisionMaster\Views\DialogViews\FlowManagerView.xaml</b>（1180×620 弹窗，MinWidth 1060）。
+    本稿只改<b>信息密度与状态表达</b>，不改数据契约：<b>5 个调用位仍是 5 个独立 bool</b>，只是从复选框换成可点 chip；
+    三条命令（<code>EncryptFlowCommand</code> / <code>DecryptFlowCommand</code> / <code>ToggleEnabledCommand</code>）与搜索绑定全部保留。
+  </p>
+  <div class="legend">
+    <span class="tag"><i style="background:var(--accent)"></i>外部触发（定时 / 变量 / 子程序 / HTTP）</span>
+    <span class="tag"><i style="background:var(--success)"></i>随整线启动</span>
+    <span class="tag"><i style="background:var(--danger)"></i>已锁定</span>
+    <span class="tag"><i style="background:var(--r-home-t)"></i>回零</span>
+    <span class="tag"><i style="background:var(--r-main-t)"></i>主流程</span>
+    <span class="tag"><i style="background:var(--r-end-t)"></i>收尾</span>
+  </div>
+</div>
+
+<div class="modes">
+  <span class="lbl">评审视图</span>
+  <div class="seg" id="seg">
+    <button data-v="a" class="on">A 默认（7 行）</button>
+    <button data-v="b">B 说明展开</button>
+    <button data-v="c">C 搜索无结果</button>
+    <button data-v="d">D 最小宽度 1060</button>
+  </div>
+  <div class="dim">chip 可直接点，行可选中</div>
+</div>
+
+<div class="sizelbl" id="sizelbl">画布 <b>1180 × 620</b>（与现状同尺寸，不改 <code>WindowStyle</code>）</div>
+
+<div class="stage">
+  <div class="win" id="win">
+
+    <!-- 标题栏 52 -->
+    <div class="titlebar">
+      <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+      <span class="t">流程管理</span>
+      <span class="s">流程的锁定、解锁、启停与调用方式</span>
+      <button class="x" title="关闭">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>
+      </button>
+    </div>
+
+    <!-- 工具栏 -->
+    <div class="toolbar">
+      <div class="lt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+        <span class="tt">流程列表</span>
+        <span class="cnt" id="cnt">6 条</span>
+      </div>
+      <div class="search" id="searchBox">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        <input id="q" type="text" placeholder="搜索流程名 / 描述" autocomplete="off">
+        <button class="clr" id="clr" title="清除">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- 表格 -->
+    <div class="tablewrap">
+      <div class="thead gcols">
+        <div>流程名称</div>
+        <div>调用方式 <span class="hint">多选</span></div>
+        <div>描述</div>
+        <div>状态</div>
+        <div>操作</div>
+      </div>
+      <div class="tbody" id="tbody"></div>
+      <div class="empty">
+        <div class="ei">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        </div>
+        <div class="et" id="et">没有匹配「—」的流程</div>
+        <div class="ed">搜索范围是流程名与描述；清空关键词即恢复全部流程</div>
+        <button class="eb" id="eb">清除搜索</button>
+      </div>
+    </div>
+
+    <!-- 说明折叠条 -->
+    <div class="legendbar">
+      <div class="lb-head">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+        <span class="lt"><b>调用方式</b> 5 位含义</span><span class="sep">·</span>
+        <span class="lt"><b>锁定</b>与<b>启用</b>的区别</span><span class="sep">·</span>
+        <span class="lt"><b>骨架流程</b>约束</span>
+        <button class="tg" id="tg">展开
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M5 9l7 7 7-7"/></svg>
+        </button>
+      </div>
+      <div class="lb-body">
+        <div class="lb-item">
+          <div class="k">启用 / 禁用</div>
+          <div class="v">控制流程是否参与自动调用；禁用后界面手动运行同样被拦。</div>
+        </div>
+        <div class="lb-item">
+          <div class="k">锁定 / 解锁</div>
+          <div class="v">锁定后 HTTP / 定时 / 变量 / 子程序 / 界面五条入口统一拦。<b>不改变文件内容，不是机密性保护。</b></div>
+        </div>
+        <div class="lb-item">
+          <div class="k">调用方式</div>
+          <div class="v"><code>HTTP</code> 允许经 <code>/flow/{流程名}</code> 触发；<code>定时</code> 按间隔周期跑（下限 20ms）；<code>变量</code> 指定变量由假变真时跑一次。</div>
+        </div>
+        <div class="lb-item">
+          <div class="k">子程序 / 整线</div>
+          <div class="v"><code>子程序</code> 允许被「调用流程」步骤调用；<code>整线</code> 随「启动整线」与其它勾选本位的流程各起各的会话，一条出问题只停它自己。</div>
+        </div>
+        <div class="lb-item">
+          <div class="k">状态色</div>
+          <div class="v">绿点=已启用；灰点=已禁用；脉冲绿点=运行中；红锁=已锁定（禁止运行）。</div>
+        </div>
+        <div class="lb-item">
+          <div class="k">骨架流程</div>
+          <div class="v">Home / Main / End 三条每个方案都必须保留，<b>不允许删除</b>（可改名）。</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="notes">
+  <div class="note-card">
+    <h3>改前 9 个问题 <span class="n">9</span></h3>
+    <ol>
+      <li><b>行高被撑到 96px。</b>5 个复选框在 300px 列里折成两排（<code>FlowManagerView.xaml:239</code> 的 <code>WrapPanel</code>），再加汇总文本与待接通行；620 高的弹窗只装得下 3.5 行，最后一行沿行底被裁。</li>
+      <li><b>5 个复选框同权重。</b>未选与已选只差一个小勾，扫一列看不出"这条流程靠什么触发"。</li>
+      <li><b>「调用关系」列被截断。</b>列宽 150，单元格可用 126px，而 <code>CallSummaryText</code> 的「子程序 · 由主流程调用」约 142px → <code>CharacterEllipsis</code> 截成「子程序·由主流程...」。</li>
+      <li><b>互斥动作同时可点。</b>「锁定」与「解锁」并排常驻；VM 里两者各自只判自己的前置条件（<code>FlowManagerViewModel.cs:186 / 216</code>），点错了才弹「该流程已锁定 / 未锁定」。</li>
+      <li><b>状态与操作重复表达同一件事。</b>状态列「✓ 已启用」、操作列「禁用」——用户要跨两列拼出"当前是什么、点了会变什么"。</li>
+      <li><b>说明面板 5 行 ≈ 130px</b>，第 3 行在复述表格里的 5 个勾选框；表格与说明互相重复，还挤掉了 2 行数据。</li>
+      <li><b>骨架流程无标识。</b><code>FlowModel.Role</code> 已存在（Home/Main/End），视图完全没用——"哪三条不能删"只能靠记名字。</li>
+      <li><b>搜索无空态。</b><code>FilterFlows()</code> 直接 <code>Flows.Clear()</code>，搜不到就是一张空白表，没有任何"没匹配到"的反馈。</li>
+      <li><b>选中行整行浅蓝</b>（<code>DialogAccentLightBrush</code> #E0F2FE）与「锁定」红字、「子程序」琥珀章抢视线；截图里第一行选中色和第三行交替色几乎分不清。</li>
+    </ol>
+  </div>
+
+  <div class="note-card">
+    <h3>高度账（620 不变）</h3>
+    <table class="acc">
+      <tr><th>区段</th><th style="text-align:right">改前</th><th style="text-align:right">改后</th></tr>
+      <tr><td>标题栏</td><td class="num">52</td><td class="num">52</td></tr>
+      <tr><td>工具栏</td><td class="num">56</td><td class="num">56</td></tr>
+      <tr><td>说明区</td><td class="num">160</td><td class="num">62</td></tr>
+      <tr><td>表格可用</td><td class="num">400</td><td class="num">438</td></tr>
+      <tr><td>表头</td><td class="num">42</td><td class="num">36</td></tr>
+      <tr><td>单行</td><td class="num">96</td><td class="num">56</td></tr>
+      <tr class="sum"><td>可见行数</td><td class="num">3.7 / 5</td><td class="num">7 / 7</td></tr>
+    </table>
+    <p style="margin:9px 0 0;font-size:11px;color:var(--text-3);line-height:1.6">
+      改前 5 条流程需要 <code>42 + 5×96 = 522 &gt; 400</code>，必然滚动（截图里第 4 行被裁就是这个）；
+      改后 <code>36 + 7×56 = 428 ≤ 438</code>，7 条一次看全（真实方案是 10 条，只多 1 行滚动）。
+    </p>
+  </div>
+
+  <div class="note-card">
+    <h3>改了什么（一句话版）</h3>
+    <ul>
+      <li><b>调用方式</b>：5 个复选框 → 5 个可点 chip，单排 265px；未选是空心灰、已选是实心浅底加粗。<b>绑定不变</b>（仍是 <code>IsTimerInvoke</code> … <code>IsLineStartInvoke</code> 五个 bool）。</li>
+      <li><b>删「调用关系」列</b>：它的 4 种取值（循环 / 外部 / 子 / 手动）本来就完全由 <code>InvokeType</code> 位集派生。绿色 <code>整线</code> chip 表达"可整线启动"，蓝色 chip 表达"外部触发"，名称旁角色徽标表达主流程；只有"仅子程序"与"手动"两种情况在 chips 下补一行小字。</li>
+      <li><b>状态列 4 态</b>：运行中 / 已启用 / 已禁用 / 已锁定，只有异常态（运行中、已锁定）给底色，正常态只用圆点。</li>
+      <li><b>操作列按状态收敛</b>：启用/禁用是文字键，锁定/解锁合并成一个图标键（锁 ↔ 开锁），不再并排出现两个互斥按钮。</li>
+      <li><b>说明折叠</b>：默认 32px 一行目录，点「展开」变两列分组（128px，仍比现状 160px 少）。</li>
+      <li><b>空态</b>：搜索无结果时给图标 + 关键词 + 「清除搜索」。</li>
+      <li><b>选中态</b>：整行浅蓝 → 3px 左侧强调条 + 更浅的 <code>DialogAccentSoftBrush</code>，与语义色不再打架。</li>
+      <li><b>未配齐提示（新增）</b>：勾了「定时」但间隔为 0、勾了「变量」但触发源为空 → 琥珀加粗一行「定时未设间隔 · 变量未选触发源，不会触发」。这两种组合现在<b>静默不触发</b>，见右栏 Q6。</li>
+    </ul>
+  </div>
+
+  <div class="note-card">
+    <h3>已裁定（2026-10-28）</h3>
+    <ul>
+      <li><b>Q1 运行中禁用锁定/禁用 → 要，补上行为。</b>复刻时两条命令的 <code>CanExecute</code> 加 <code>RunState != Running</code>；<code>ExecuteEncryptFlow</code> / <code>ExecuteToggleEnabled</code> 执行体内再判一次（按下前判 + 执行前判，同 R136 权限闸门口径）。</li>
+      <li><b>Q2 说明默认收起 → 采用。</b></li>
+      <li><b>Q3 删「调用关系」列 → 采用。</b></li>
+      <li><b>Q4 chip 用 <code>CheckBox</code> 换模板</b>（<code>IsChecked</code> 保持两态，不引入 <code>null</code>）。</li>
+      <li><b>Q5 角色徽标 <code>回零 / 主 / 收尾</code> → 可以。</b>落 <code>FlowRole</code> 的 <code>[Display(Name=…)]</code>。</li>
+    </ul>
+  </div>
+
+  <div class="note-card">
+    <h3>新增 Q6：定时 / 变量 勾了也不会触发</h3>
+    <ol class="q">
+      <li><b>「定时」的时间没有配置入口。</b><code>TimerIntervalMs</code> 只在 <code>FlowModel.cs:386</code>，全仓 XAML 无任何绑定，流程右键菜单 11 项里也没有「定时设置」（<code>FlowListViewModel.cs:292-453</code>）。真实方案 10 条流程该值<b>全是 0</b>。</li>
+      <li><b>而 <code>ShouldFire</code> 把 0 判成"没配间隔"</b>（<code>FlowTimerScheduler.cs:173</code>：<code>if (flow.TimerIntervalMs &lt;= 0) return false;</code>）——<b>0 = 永不触发</b>，不是"每 100ms 跑"。</li>
+      <li><b>「变量」同理。</b><code>TriggerVariable</code>（<code>:377</code>）无 UI，全仓只有 <code>FlowVariableTriggerService</code> 与 <code>RecipeService</code> <b>读</b>它，没有生产代码写它；真实方案全为空串，<code>EvaluateCore:160</code> 的空串永不匹配变量名。</li>
+      <li><b><code>PendingReason</code> 帮不上忙。</b>它回答的是"这一位有没有接通运行侧"（5 位全返回 null = 都接通了），不回答"这一条流程有没有配齐参数"。所以界面现在<b>既不触发、也不提示</b>——正是这套机制想防的"勾了没反应 = 软件坏了"。</li>
+    </ol>
+    <p style="margin:8px 0 0;font-size:11px;color:var(--text-3);line-height:1.6">
+      <b>本稿取法（第 4 行「点胶检测_工位」即证据行）：</b>新增一个派生属性（暂名 <code>InvokeConfigNote</code>），
+      勾了定时且间隔 ≤0 →「定时未设间隔」；勾了变量且触发源为空 →「变量未选触发源」；两行都缺则合并成一句，
+      以琥珀加粗挂在 chips 下方。<b>不改 <code>PendingReason</code> 语义</b>（它管"接通"，这个管"配齐"）。
+    </p>
+    <p style="margin:6px 0 0;font-size:11px;color:var(--text-3);line-height:1.6">
+      <b>仍待你选的是配置入口：</b>A 点 chip 旁的齿轮开小窗就地配（改动最小）；B 整行双击开「流程属性」把 5 位 + 两个参数 + 描述一起改；C 本版只做提示、配置入口另开一期。
+    </p>
+  </div>
+</div>
+
+<script>
+(function(){
+  var FLOWS = [
+    { id:'home',  name:'回原点',            role:'home', desc:'开机与换产时的安全位姿',                f:{line:1},                 en:true,  run:false, locked:false },
+    { id:'main',  name:'主检测',            role:'main', desc:'产线主任务：上料 → 定位 → 检测 → 下料',  f:{line:1,sub:1},           en:true,  run:true,  locked:false },
+    { id:'tpl',   name:'模板匹配_NCC散',    role:'',     desc:'散乱件 NCC 模板匹配定位',                f:{sub:1},                  en:true,  run:false, locked:false },
+    { id:'shape', name:'形状匹配_散集PC',   role:'',     desc:'散集 PC 形状匹配，输出位姿与角度',       f:{sub:1,timer:1},          en:false, run:false, locked:false },
+    { id:'blob',  name:'Blob缺陷检测_标',   role:'',     desc:'标定后 Blob 缺陷判定与计数',             f:{sub:1,http:1},           en:true,  run:false, locked:true  },
+    { id:'disp',  name:'点胶检测_工位',     role:'',     desc:'点胶轨迹检测，按节拍周期采样',           f:{timer:1,var:1,sub:1},    en:true,  run:false, locked:false, unset:1 },
+    { id:'end',   name:'收尾',              role:'end',  desc:'停机 / 换产前把机构与状态收干净',        f:{line:1},                 en:true,  run:false, locked:false }
+  ];
+  var ROLE = { home:'回零', main:'主', end:'收尾' };
+  var CHIPS = [
+    { k:'timer', t:'定时' },
+    { k:'var',   t:'变量' },
+    { k:'sub',   t:'子程序' },
+    { k:'http',  t:'HTTP' },
+    { k:'line',  t:'整线' }
+  ];
+  var ICON_LOCK   = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>';
+  var ICON_UNLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 7.5-2"/></svg>';
+
+  var tbody = document.getElementById('tbody');
+  var cnt   = document.getElementById('cnt');
+  var q     = document.getElementById('q');
+  var box   = document.getElementById('searchBox');
+  var et    = document.getElementById('et');
+  var selId = 'home';
+
+  function statusOf(r){
+    if (r.locked) return 'lock';
+    if (r.run)    return 'run';
+    return r.en ? 'ok' : 'off';
+  }
+  function noteOf(r){
+    var f = r.f, ext = f.timer || f.var || f.http;
+    // 勾了但缺参数 = 永不触发（ShouldFire: TimerIntervalMs<=0 → false；
+    // EvaluateCore: TriggerVariable 空串永不匹配变量名）。这行提示是本稿唯一新增的语义。
+    if (r.unset) {
+      var miss = [];
+      if (f.timer) miss.push('定时未设间隔');
+      if (f.var)   miss.push('变量未选触发源');
+      return { t: miss.join(' · ') + '，不会触发', cls:'warn' };
+    }
+    if (r.role === 'main') return null;
+    if (f.line) return null;
+    if (ext) return null;
+    if (f.sub) return { t:'仅子程序', cls:'' };
+    return { t:'手动', cls:'muted' };
+  }
+  function statusHTML(r){
+    var s = statusOf(r);
+    if (s === 'lock') return '<span class="st lock">' + ICON_LOCK + '已锁定</span>';
+    if (s === 'run')  return '<span class="st run"><i class="d"></i>运行中</span>';
+    if (s === 'ok')   return '<span class="st ok"><i class="d"></i>已启用</span>';
+    return '<span class="st off"><i class="d"></i>已禁用</span>';
+  }
+
+  function render(){
+    var kw = q.value.trim().toLowerCase();
+    box.classList.toggle('has', !!q.value);
+    var list = FLOWS.filter(function(r){
+      if (!kw) return true;
+      return r.name.toLowerCase().indexOf(kw) >= 0 || r.desc.toLowerCase().indexOf(kw) >= 0;
+    });
+    cnt.textContent = list.length + ' 条';
+    et.textContent  = '没有匹配「' + q.value.trim() + '」的流程';
+    var isEmpty = list.length === 0;
+    tbody.style.display = isEmpty ? 'none' : '';
+    document.querySelector('.empty').style.display = isEmpty ? 'flex' : 'none';
+
+    var html = '';
+    list.forEach(function(r, i){
+      var cls = ['row','gcols'];
+      if (i % 2 === 1) cls.push('alt');
+      if (!r.en) cls.push('off');
+      if (r.id === selId) cls.push('sel');
+
+      var roleHTML = r.role ? '<span class="role ' + r.role + '">' + ROLE[r.role] + '</span>' : '';
+      var lockHTML = r.locked ? '<span class="lk">' + ICON_LOCK + '</span>' : '';
+
+      var chips = CHIPS.map(function(c){
+        var on = !!r.f[c.k];
+        return '<button class="chip ' + c.k + (on ? ' on' : '') + '" data-flag="' + c.k + '" aria-pressed="' + on + '">' + c.t + '</button>';
+      }).join('');
+
+      var n = noteOf(r);
+      var noteHTML = n ? '<div class="note ' + n.cls + '">' + n.t + '</div>' : '';
+
+      var dis = r.run ? ' disabled' : '';
+      var toggleTxt = r.en ? '禁用' : '启用';
+      var toggleCls = r.en ? 'b' : 'b pri';
+      var lockBtn = r.locked
+        ? '<button class="b ico warn" data-act="lock" title="解除锁定，恢复可运行"' + dis + '>' + ICON_UNLOCK + '</button>'
+        : '<button class="b ico" data-act="lock" title="锁定后该流程禁止运行（不改变文件内容，不是机密性保护）"' + dis + '>' + ICON_LOCK + '</button>';
+      var toggleBtn = '<button class="' + toggleCls + '" data-act="toggle" title="启用/禁用：控制流程是否参与自动调用"' + dis + '>' + toggleTxt + '</button>';
+
+      html += '<div class="' + cls.join(' ') + '" data-id="' + r.id + '">'
+            +   '<div class="c-name">' + roleHTML + '<span class="nm">' + r.name + '</span>' + lockHTML + '</div>'
+            +   '<div class="c-invoke"><div class="chips">' + chips + '</div>' + noteHTML + '</div>'
+            +   '<div class="c-desc" title="' + r.desc + '">' + r.desc + '</div>'
+            +   '<div class="c-status">' + statusHTML(r) + '</div>'
+            +   '<div class="c-ops">' + toggleBtn + lockBtn + '</div>'
+            + '</div>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function find(id){ for (var i=0;i<FLOWS.length;i++) if (FLOWS[i].id===id) return FLOWS[i]; return null; }
+
+  tbody.addEventListener('click', function(e){
+    var chip = e.target.closest('.chip');
+    var act  = e.target.closest('[data-act]');
+    var row  = e.target.closest('.row');
+    if (!row) return;
+    var r = find(row.dataset.id);
+    if (!r) return;
+
+    if (chip){
+      var k = chip.dataset.flag;
+      r.f[k] = r.f[k] ? 0 : 1;
+      selId = r.id;
+      render();
+      return;
+    }
+    if (act && !act.disabled){
+      if (act.dataset.act === 'toggle') r.en = !r.en;
+      if (act.dataset.act === 'lock')   r.locked = !r.locked;
+      render();
+      return;
+    }
+    selId = r.id;
+    render();
+  });
+
+  q.addEventListener('input', render);
+  document.getElementById('clr').addEventListener('click', function(){ q.value=''; q.focus(); render(); });
+  document.getElementById('eb').addEventListener('click', function(){ q.value=''; q.focus(); render(); });
+
+  var tg = document.getElementById('tg');
+  tg.addEventListener('click', function(){
+    var b = document.body;
+    var next = b.dataset.view === 'b' ? 'a' : 'b';
+    setView(next);
+  });
+
+  var seg = document.getElementById('seg');
+  var sizelbl = document.getElementById('sizelbl');
+  function setView(v){
+    document.body.dataset.view = v;
+    Array.prototype.forEach.call(seg.children, function(b){
+      b.classList.toggle('on', b.dataset.v === v);
+    });
+    tg.firstChild.textContent = (v === 'b' ? '收起' : '展开');
+    sizelbl.innerHTML = v === 'd'
+      ? '画布 <b>1060 × 620</b>（MinWidth 档：名称列吃下限 200，描述列 168，chip 不折行）'
+      : '画布 <b>1180 × 620</b>（与现状同尺寸，不改 <code>WindowStyle</code>）';
+    if (v === 'c' && !q.value.trim()) { q.value = '码垛'; render(); }
+    if (v !== 'c' && q.value === '码垛') { q.value = ''; render(); }
+  }
+  seg.addEventListener('click', function(e){
+    var b = e.target.closest('button');
+    if (!b) return;
+    setView(b.dataset.v);
+  });
+
+  // 截图 / 单帧评审：?view=a|b|c|d 定帧，?shot=1 隐去评审壳（只留弹窗本体）
+  var params = new URLSearchParams(location.search);
+  if (params.get('shot') === '1') document.body.classList.add('shot');
+  render();
+  setView(params.get('view') || 'a');
+})();
+</script>
+</body>
+</html>

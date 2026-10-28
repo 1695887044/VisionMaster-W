@@ -49,6 +49,12 @@ namespace Core.Halcon.Models
         public string Color { get; init; } = "green";
 
         /// <summary>
+        /// 线宽（HALCON SetLineWidth 口径）；0 = 沿用窗口当前线宽（默认行为）。
+        /// 只影响线条类标注，文本不受影响。
+        /// </summary>
+        public double LineWidth { get; init; }
+
+        /// <summary>
         /// Polyline 专用：是否在每个顶点画小十字并标序号（默认否——长路径标号会糊成一片）。
         /// </summary>
         public bool ShowVertices { get; init; }

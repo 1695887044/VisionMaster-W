@@ -41,7 +41,9 @@
 | `MeasureValue` | double | 测量值（已乘像素当量）。长度类单位是当量后的单位（mm），角度类是度 |
 | `Deviation` | double | 与标准值的偏差（带符号）：测量值 − 标准值，测大为正、测小为负，与测量值同单位 |
 | `IsOk` | bool | 判定结果（true = OK 合格）。**NG 不算执行失败**，`Success` 仍是 true |
-| `MeasureImage` | HImage | 标注图（卡尺 + 边缘点 + 测量连线/拟合几何 + 判定文字）。渲染失败时它是**空**，测量结果照样有效 |
+| `MeasureImage` | HImage | 标注图（卡尺 + 边缘点 + 测量连线/拟合几何 + 判定文字）。渲染失败时它是**空**，测量结果照样有效。**`KeepAnnotatedImage=false` 时恒为空** |
+| `CaliperGeometry` | HXLD | 卡尺搜索框轮廓（标注图里的黄层；每把卡尺一段）。接「结果显示」统一画 |
+| `MeasureLine` | HXLD | 测量连线（标注图里的青层；各卡尺两边缘连线 / 拟合类的测量线） |
 | `FittedGeometry` | HXLD | 拟合几何（直线/圆/角度两线；宽度与两点距=测量连线） |
 | `EdgePoints` | HXLD | 检出的原始边缘点（十字 XLD），给下游复核或存档 |
 

@@ -135,15 +135,15 @@ namespace Plugin.PreProcessing.Operators
             int height = ClampToInt(BoxHeight, 1, imageHeight);
 
             // 中心 → 左上角：向外取整，保证框不会比用户看到的更靠内一格
-            int row = (int)System.Math.Round(CenterRow - height / 2.0);
-            int col = (int)System.Math.Round(CenterCol - width / 2.0);
+            int row = RoundHalfUp(CenterRow - height / 2.0);
+            int col = RoundHalfUp(CenterCol - width / 2.0);
 
             row = ClampInt(row, 0, imageHeight - height);
             col = ClampInt(col, 0, imageWidth - width);
 
             WasBoxClamped = width != (int)BoxWidth || height != (int)BoxHeight
-                            || row != (int)(CenterRow - height / 2.0)
-                            || col != (int)(CenterCol - width / 2.0);
+                            || row != RoundHalfUp(CenterRow - height / 2.0)
+                            || col != RoundHalfUp(CenterCol - width / 2.0);
 
             EffectRow = row;
             EffectCol = col;
@@ -152,10 +152,13 @@ namespace Plugin.PreProcessing.Operators
         }
 
         private static int ClampToInt(double value, int min, int max) =>
-            (int)Clamp(Math.Round(value), min, max);
+            (int)Clamp(RoundHalfUp(value), min, max);
 
         private static int ClampInt(int value, int min, int max) =>
             value < min ? min : value > max ? max : value;
+
+        private static int RoundHalfUp(double value) =>
+            (int)Math.Round(value, MidpointRounding.AwayFromZero);
 
         #endregion
 

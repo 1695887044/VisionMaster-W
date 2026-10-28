@@ -38,6 +38,18 @@
 **怎么发现**：喂一张"左侧变亮 40、右侧变暗 40"的对半图，
 `Brighter` 与 `Darker` 两种极性下的 `DiffArea` 必须**相等且各约为一半**。
 
+### A3b `Signed` 的方向由符号表达，不是"把幅度加到零点上方"
+
+**判据**：`Signed` 的显示图 = `pos − neg + SignedDisplay`。`Both` 保留双向符号；
+`Brighter` 只留正差（中灰以上）；`Darker` 只留负差并**带负号**（中灰以下）。
+**不许**在 `Darker` 分支里把 `neg` 当正幅度直接加零点——那会让变暗区显示成变亮。
+
+**违反后的症状**：选了「只算变暗」，画面上却是中灰以上的亮块；`DiffImage` 与 Help 的
+`pos − neg + 零点` 算式对不上，人工看图会判反方向。
+
+**怎么发现**：基准 100、被测 90（暗 10）时，`Signed+Darker` 的像素必须是 118（不是 138）；
+被测 110 时 `Signed+Brighter` 必须是 138。`FlowCanvasChecks` 的 A5a~A5d 已钉住这四条。
+
 ### A4 面积筛选用 `select_shape`，不用形态学开运算
 
 **判据**：`Segment` 里是 `connection → select_shape('area','and',MinArea,∞)`。
@@ -218,15 +230,16 @@
 
 **怎么发现**：见 11 页第 9 节的两条命令，两个数必须相等。
 
-## E. 断言建议（若日后加 `ImageDiffChecks`）
+## E. 断言建议（`FlowCanvasChecks/ImageDiffCheck.cs`）
 
-本插件当前**没有**独立断言宿主（`FlowCanvasChecks` 里没有 `ImageDiffCheck.cs`）。
-要加的话，`ImageDiffService` 的纯函数形态让这件事很便宜——不需要真窗口、不需要流程：
+本插件已有独立断言宿主：`FlowCanvasChecks/ImageDiffCheck.cs`（合成确定性图像，不依赖样图）。
+下表是它覆盖的口径；新增能力时按同样方式补行：
 
 | 断言 | 做法 | 反向判据 |
 | --- | --- | --- |
 | A1 real 域 | 基准 30 灰 / 被测 0 灰 + `Darker` → 最大强度 ≈ 30 | 改成 byte 域后必须变红 |
 | A3 极性对称 | 左半变亮 40 / 右半变暗 40 → `Brighter` 与 `Darker` 面积相等 | 去掉分量逻辑后必须变红 |
+| A3b Signed 方向 | 基准 100 / 被测 90 → `Signed+Darker` 像素 118；被测 110 → `Signed+Brighter` 138 | 把负差当正幅度加零点 → 变 138/148 |
 | A4 细线存活 | 1×200 细线 + `MinArea=20` → 检出面积 200 | 换成 `opening` 后必须变红 |
 | A5 连通域计数 | 两块不相连方块 → `Components` 口径 `DiffCount == 2` | 不 `connection` 时得 1 |
 | A6 全图极值 | `MinArea` 调到极大 → `MaxDiffValue` 不变 | 把区域传进 `Range` 后必须变红 |

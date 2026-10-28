@@ -1,4 +1,4 @@
-﻿using HalconDotNet;
+using HalconDotNet;
 using Plugin.PreProcessing.Models;
 using Plugin.PreProcessing.Services;
 using UI.Attributes;
@@ -15,8 +15,7 @@ namespace Plugin.PreProcessing.Operators
         private bool _reverse;
 
         [SuperDisplay(Name = "灰度下限", Group = new string[] { "参数" }, Order = 1, ColSpan = 4,
-            Description = "参与判决的灰度区间起点")]
-        [RangeValidation(0, 255, "灰度下限需要在 0~255 之间")]
+            Description = "参与判决的灰度区间起点（按图像位深填，uint2 可到 65535）")]
         public double Low
         {
             get => _low;
@@ -24,8 +23,7 @@ namespace Plugin.PreProcessing.Operators
         }
 
         [SuperDisplay(Name = "灰度上限", Group = new string[] { "参数" }, Order = 2, ColSpan = 4,
-            Description = "参与判决的灰度区间终点")]
-        [RangeValidation(0, 255, "灰度上限需要在 0~255 之间")]
+            Description = "参与判决的灰度区间终点（按图像位深填，uint2 可到 65535）")]
         public double High
         {
             get => _high;
@@ -42,9 +40,8 @@ namespace Plugin.PreProcessing.Operators
 
         protected override void Normalize()
         {
-            Low = Clamp(Low, 0, 255);
-            High = Clamp(High, 0, 255);
-            // 上下限填反了会得到一张全黑图（旧版就是这么原样丢给 Halcon 的），这里直接纠正
+            // 不按 0~255 夹：uint2/real 图的合法灰度可以超过 255，夹了会静默改写用户阈值
+            // （实测 uint2 1000~16300 被夹成 255 后只选到恰为 255 的像素）。
             if (Low > High)
             {
                 var t = Low;
@@ -98,8 +95,7 @@ namespace Plugin.PreProcessing.Operators
         }
 
         [SuperDisplay(Name = "绝对阈值", Group = new string[] { "参数" }, Order = 4, ColSpan = 4,
-            Description = "偏移量下限：局部平坦处至少差这么多才算前景")]
-        [RangeValidation(0, 255, "绝对阈值需要在 0~255 之间")]
+            Description = "偏移量下限：局部平坦处至少差这么多才算前景（按图像位深填）")]
         public double AbsThreshold
         {
             get => _absThreshold;
@@ -116,10 +112,10 @@ namespace Plugin.PreProcessing.Operators
 
         protected override void Normalize()
         {
-            MaskWidth = AtLeast(MaskWidth, 3);
-            MaskHeight = AtLeast(MaskHeight, 3);
+            MaskWidth = Clamp(MaskWidth, 3, 999);
+            MaskHeight = Clamp(MaskHeight, 3, 999);
             StdDevScale = Clamp(StdDevScale, 0, 10);
-            AbsThreshold = Clamp(AbsThreshold, 0, 255);
+            // AbsThreshold 不按 0~255 夹：uint2/real 的局部差值可以超过 255
         }
 
         protected override HImage Process(HImage input)

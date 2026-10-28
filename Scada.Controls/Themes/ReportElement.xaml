@@ -22,7 +22,7 @@
             Margin="0,0,6,0"
             VerticalAlignment="Center"
             FontSize="11.5"
-            Foreground="{StaticResource HmiTextSecondaryBrush}"
+            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiTextSecondaryBrush}}"
             Text="{Binding Text}"
             TextTrimming="CharacterEllipsis">
             <TextBlock.Style>
@@ -32,7 +32,7 @@
                         <DataTrigger Binding="{Binding AlignRight}" Value="True">
                             <Setter Property="TextAlignment" Value="Right" />
                             <Setter Property="FontFamily" Value="Consolas, Microsoft YaHei UI" />
-                            <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+                            <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiTextBrush}}" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -47,7 +47,7 @@
             VerticalAlignment="Center"
             FontSize="10.5"
             FontWeight="SemiBold"
-            Foreground="{StaticResource HmiTextMutedBrush}"
+            Foreground="{Binding HeaderForeground, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiTextMutedBrush}}"
             Text="{Binding Text}"
             TextAlignment="{Binding Alignment}"
             TextTrimming="CharacterEllipsis" />
@@ -73,7 +73,7 @@
                         Binding="{Binding Zebra, RelativeSource={RelativeSource AncestorType=local:ReportElement}}"
                         Value="True" />
                 </MultiDataTrigger.Conditions>
-                <Setter TargetName="RowBorder" Property="Background" Value="{StaticResource HmiZebraBrush}" />
+                <Setter TargetName="RowBorder" Property="Background" Value="{Binding ZebraBackground, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiZebraBrush}}" />
             </MultiDataTrigger>
         </DataTemplate.Triggers>
     </DataTemplate>
@@ -84,9 +84,11 @@
         <Setter Property="Padding" Value="9,0" />
         <Setter Property="Margin" Value="6,0,0,0" />
         <Setter Property="FontSize" Value="10.5" />
-        <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
-        <Setter Property="Background" Value="{StaticResource HmiSurfaceBrush}" />
-        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderStrongBrush}" />
+        <!--  三个颜色都从外层图元取（浅色主题下由属性包/Header* 覆盖），
+              没配时回落令牌色 = 深色主题原样。此样式只在本文件内使用。  -->
+        <Setter Property="Foreground" Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiTextSecondaryBrush}}" />
+        <Setter Property="Background" Value="{Binding HeaderBackground, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiSurfaceBrush}}" />
+        <Setter Property="BorderBrush" Value="{Binding Stroke, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiBorderStrongBrush}}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
@@ -106,10 +108,50 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{Binding Stroke, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiSurfaceRaisedBrush}}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+                            <Setter TargetName="Bd" Property="Background" Value="{Binding Stroke, RelativeSource={RelativeSource AncestorType=local:ReportElement}, TargetNullValue={StaticResource HmiSurfaceRaisedBrush}}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        主操作按钮（报表页的「导出 Excel」）：一屏只许一个实心主色按钮。
+        报表页默认自动查询（AutoQuery），所以"取数"不是主操作，"出纸/导出"才是。
+        基于 ReportToolButton 派生，只换颜色（R120：不复制模板）。
+    -->
+    <Style x:Key="ReportPrimaryButton" TargetType="Button" BasedOn="{StaticResource ReportToolButton}">
+        <Setter Property="Foreground" Value="{StaticResource HmiPrimaryTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiPrimaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="Bd"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="3"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiPrimaryHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiPrimaryHoverBrush}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45" />
@@ -143,10 +185,11 @@
 
                             <!--  标题条：标题 + 范围/行数摘要  -->
                             <Border
+                                x:Name="PART_HeaderBar"
                                 Grid.Row="0"
                                 Height="30"
                                 Background="{StaticResource HmiSurfaceRaisedBrush}"
-                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderBrush="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
                                 BorderThickness="0,0,0,1">
                                 <Grid Margin="10,0">
                                     <Grid.ColumnDefinitions>
@@ -155,11 +198,12 @@
                                     </Grid.ColumnDefinitions>
 
                                     <TextBlock
+                                        x:Name="PART_HeaderText"
                                         Grid.Column="0"
                                         VerticalAlignment="Center"
                                         FontSize="11.5"
                                         FontWeight="SemiBold"
-                                        Foreground="{TemplateBinding Foreground}"
+                                        Foreground="{Binding HeaderForeground, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue={StaticResource HmiTextBrush}}"
                                         Text="{TemplateBinding Text}"
                                         TextTrimming="CharacterEllipsis" />
 
@@ -169,7 +213,7 @@
                                         VerticalAlignment="Center"
                                         FontFamily="Consolas, Microsoft YaHei UI"
                                         FontSize="10.5"
-                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Foreground="{Binding HeaderForeground, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue={StaticResource HmiTextMutedBrush}}"
                                         Text="{Binding TitleMeta, RelativeSource={RelativeSource TemplatedParent}}"
                                         TextTrimming="CharacterEllipsis" />
                                 </Grid>
@@ -177,10 +221,11 @@
 
                             <!--  列头  -->
                             <Border
+                                x:Name="PART_ColumnHeader"
                                 Grid.Row="1"
                                 Height="26"
                                 Background="{StaticResource HmiSurfaceRaisedBrush}"
-                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderBrush="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
                                 BorderThickness="0,0,0,1"
                                 Visibility="{Binding HeaderVisibility, RelativeSource={RelativeSource TemplatedParent}}">
                                 <ItemsControl
@@ -209,33 +254,33 @@
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
                                     FontSize="11"
-                                    Foreground="{StaticResource HmiTextMutedBrush}"
+                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}, TargetNullValue={StaticResource HmiTextMutedBrush}}"
                                     Text="{Binding StatusText, RelativeSource={RelativeSource TemplatedParent}}"
                                     TextAlignment="Center"
                                     TextWrapping="Wrap"
                                     Visibility="{Binding StatusVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
 
                                 <Border
-                                    Background="{StaticResource HmiSurfaceBrush}"
+                                    Background="{TemplateBinding Fill}"
                                     IsHitTestVisible="False"
                                     Visibility="{Binding BusyVisibility, RelativeSource={RelativeSource TemplatedParent}}">
                                     <StackPanel Margin="14,12" VerticalAlignment="Top">
                                         <Border
                                             Height="10"
                                             Margin="0,0,60,12"
-                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            Background="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
                                             CornerRadius="3"
                                             Opacity="0.45" />
                                         <Border
                                             Height="10"
                                             Margin="0,0,30,12"
-                                            Background="{StaticResource HmiBorderStrongBrush}"
+                                            Background="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
                                             CornerRadius="3"
                                             Opacity="0.35" />
                                         <TextBlock
                                             Margin="0,6,0,0"
                                             FontSize="10"
-                                            Foreground="{StaticResource HmiTextMutedBrush}"
+                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"
                                             Text="正在生成报表…" />
                                     </StackPanel>
                                 </Border>
@@ -243,10 +288,11 @@
 
                             <!--  工具条  -->
                             <Border
+                                x:Name="PART_Toolbar"
                                 Grid.Row="3"
                                 Height="34"
                                 Background="{StaticResource HmiSurfaceRaisedBrush}"
-                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderBrush="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
                                 BorderThickness="0,1,0,0"
                                 Visibility="{Binding ToolbarVisibility, RelativeSource={RelativeSource TemplatedParent}}">
                                 <Grid Margin="8,0">
@@ -269,7 +315,8 @@
                                             VerticalAlignment="Center"
                                             FontFamily="Consolas, Microsoft YaHei UI"
                                             FontSize="10"
-                                            Foreground="{StaticResource HmiTextMutedBrush}"
+                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Opacity="0.75"
                                             Text="{Binding PageText, RelativeSource={RelativeSource TemplatedParent}}" />
 
                                         <Button
@@ -287,7 +334,7 @@
                                             Margin="0"
                                             Command="{Binding ExportXlsxCommand, RelativeSource={RelativeSource TemplatedParent}}"
                                             Content="导出 Excel"
-                                            Style="{StaticResource ReportToolButton}"
+                                            Style="{StaticResource ReportPrimaryButton}"
                                             ToolTip="导出整份结果（不是当前页）到 xlsx" />
 
                                         <Button
@@ -309,13 +356,14 @@
                             <Border
                                 Grid.Row="4"
                                 MinHeight="22"
-                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderBrush="{Binding Stroke, RelativeSource={RelativeSource TemplatedParent}}"
                                 BorderThickness="0,1,0,0">
                                 <TextBlock
                                     Margin="10,3"
                                     FontFamily="Consolas, Microsoft YaHei UI"
                                     FontSize="9.5"
-                                    Foreground="{StaticResource HmiTextMutedBrush}"
+                                    Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Opacity="0.75"
                                     Text="{Binding FooterText, RelativeSource={RelativeSource TemplatedParent}}"
                                     TextTrimming="CharacterEllipsis" />
                             </Border>

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using VisionMaster.Scada;
@@ -296,6 +297,76 @@ namespace VisionMaster.Scada.Controls
             DefaultStyleKeyProperty.OverrideMetadata(
                 typeof(DataGridElement),
                 new FrameworkPropertyMetadata(typeof(DataGridElement)));
+        }
+
+        /// <summary>
+        /// 表头 / 工具栏 / 底栏的底色。null = 用模板默认的深色令牌（保持既有观感）。
+        ///
+        /// 【为什么需要它】模板里这三条用的是 <c>HmiSurfaceRaisedBrush</c> 深色令牌，
+        /// 在浅色主题（白卡）里会变成一条突兀的黑带。控件库不引用主题配置，
+        /// 所以把"要不要覆盖"做成可选属性：浅色方案显式给白/浅灰，深色方案不写即维持原样。
+        /// 应用时机在 OnApplyTemplate（模板部件此时才存在）。
+        /// </summary>
+        public static readonly DependencyProperty HeaderBackgroundProperty = DependencyProperty.Register(
+            nameof(HeaderBackground), typeof(Brush), typeof(DataGridElement),
+            new PropertyMetadata(null, OnHeaderBrushChanged));
+
+        /// <summary>表头 / 工具栏文字颜色。null = 用模板默认令牌色。</summary>
+        public static readonly DependencyProperty HeaderForegroundProperty = DependencyProperty.Register(
+            nameof(HeaderForeground), typeof(Brush), typeof(DataGridElement),
+            new PropertyMetadata(null, OnHeaderBrushChanged));
+
+        /// <summary>
+        /// 斑马纹底色。null = 模板默认 <c>HmiZebraBrush</c>（8% 白，深色底上才看得见）。
+        /// 浅色主题要显式给一个淡灰，否则斑马纹在白底上等于没有。
+        /// </summary>
+        public static readonly DependencyProperty ZebraBackgroundProperty = DependencyProperty.Register(
+            nameof(ZebraBackground), typeof(Brush), typeof(DataGridElement),
+            new PropertyMetadata(null));
+
+        public Brush? HeaderBackground
+        {
+            get => (Brush?)GetValue(HeaderBackgroundProperty);
+            set => SetValue(HeaderBackgroundProperty, value);
+        }
+
+        public Brush? HeaderForeground
+        {
+            get => (Brush?)GetValue(HeaderForegroundProperty);
+            set => SetValue(HeaderForegroundProperty, value);
+        }
+
+        public Brush? ZebraBackground
+        {
+            get => (Brush?)GetValue(ZebraBackgroundProperty);
+            set => SetValue(ZebraBackgroundProperty, value);
+        }
+
+        private static void OnHeaderBrushChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+            => ((DataGridElement)d).ApplyHeaderBrushes();
+
+        /// <summary>把可选配色写到命名模板部件上；属性为 null 时不碰（保留模板里的令牌色）。</summary>
+        private void ApplyHeaderBrushes()
+        {
+            if (HeaderBackground is { } bg)
+            {
+                if (GetTemplateChild("PART_HeaderBar") is Border header) header.Background = bg;
+                if (GetTemplateChild("PART_ColumnHeader") is Border columns) columns.Background = bg;
+                if (GetTemplateChild("PART_HistoryToolbar") is Border toolbar) toolbar.Background = bg;
+                if (GetTemplateChild("PART_FooterBar") is Border footer) footer.Background = bg;
+            }
+
+            if (HeaderForeground is { } fg)
+            {
+                if (GetTemplateChild("PART_HeaderText") is TextBlock title) title.Foreground = fg;
+                if (GetTemplateChild("PART_HeaderCount") is TextBlock count) count.Foreground = fg;
+            }
+        }
+
+        public override void OnApplyTemplate()
+        {
+            base.OnApplyTemplate();
+            ApplyHeaderBrushes();
         }
 
         public DataGridElement()

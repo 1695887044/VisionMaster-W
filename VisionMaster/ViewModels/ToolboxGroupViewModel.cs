@@ -28,6 +28,9 @@ namespace VisionMaster.ViewModels
         /// <summary>分组专属色（已冻结的画刷；本仓先例 ShellViewModel.RunStateBrush）</summary>
         public Brush AccentBrush { get; init; } = Brushes.Gray;
 
+        /// <summary>分组专属浅底（18px 图标徽章底；与 AccentBrush 成对，v2 起使用）</summary>
+        public Brush SoftBrush { get; init; } = Brushes.Transparent;
+
         /// <summary>是不是置顶的「收藏」分组（面板据此决定分组头要不要显示成星形）</summary>
         public bool IsFavorites { get; init; }
 

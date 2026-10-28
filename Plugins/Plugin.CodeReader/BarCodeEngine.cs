@@ -51,7 +51,26 @@ namespace Plugin.CodeReader
             out string error
         )
         {
+            bool ok = TryDecode(image, halconCodeType, timeoutMs, out codes, out HObject? symbols, out error);
+            symbols?.Dispose();
+            return ok;
+        }
+
+        /// <summary>
+        /// 识别并返回码轮廓（XLD，供调用方画框/发布标注图）。
+        /// 返回的 <paramref name="symbolContours"/> 所有权归调用方，调用方负责 Dispose。
+        /// </summary>
+        public bool TryDecode(
+            HObject? image,
+            string halconCodeType,
+            int timeoutMs,
+            out List<string> codes,
+            out HObject? symbolContours,
+            out string error
+        )
+        {
             codes = new List<string>();
+            symbolContours = null;
             error = string.Empty;
 
             if (image == null)
@@ -72,6 +91,7 @@ namespace Plugin.CodeReader
             }
 
             HObject? symbolRegions = null;
+            HObject? contours = null;
             try
             {
                 ApplyParams(handle, timeoutMs);
@@ -83,6 +103,14 @@ namespace Plugin.CodeReader
                     new HTuple(halconCodeType),
                     out HTuple dataStrings
                 );
+
+                // find_bar_code 回的是 Region；统一转成 XLD，调用方按同一种对象画框。
+                if (symbolRegions != null && symbolRegions.IsInitialized())
+                {
+                    HOperatorSet.GenContourRegionXld(symbolRegions, out contours, "border");
+                    symbolContours = contours;
+                    contours = null; // 所有权交给调用方
+                }
 
                 for (int i = 0; i < dataStrings.Length; i++)
                 {
@@ -102,6 +130,7 @@ namespace Plugin.CodeReader
             }
             finally
             {
+                contours?.Dispose();
                 symbolRegions?.Dispose();
             }
         }
