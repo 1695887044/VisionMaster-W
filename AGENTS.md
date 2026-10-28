@@ -3,13 +3,13 @@
 > 自动注入每个会话，硬上限 65536 字节；超了静默截断，截断点之后的规则等于不存在（2026-10-22 实测：原文 177,585 → 截到 65,140，§18 之后 115 条从未生效）。
 > 只留**判据 + 守门人 + 触发条件**；起因、异常栈、取证过程见 `docs/工程纪律/2026-10-22-工程纪律全集（原文归档）.md`（下称"归档"，各节复盘见归档同名 §N）。
 > 新增规则：追加末尾、编号顺延、必须带判据与守门人（无自动闸写"人工评审"）；加完 `(Get-Item AGENTS.md).Length` 必须 **< 56000**。
-> **满了就下沉，不压缩既有判据**：低频单域规则搬进 `docs/工程纪律/分册-*.md`，注入层只留"最易踩 + 指针"。现有分册：`分册-SCADA与图元`（§23/§27/§28/§31/§32）、`分册-通讯与设备`（§34/§35）。
+> **满了就下沉，不压缩既有判据**：低频单域规则搬进 `docs/工程纪律/分册-*.md`，注入层只留"最易踩 + 指针"。**下沉判据：违反会被自动闸红的规则（行内或整节有守门）可下沉——漏看也会被红灯拉回；静默且无闸的必须留在本层。** 规则归属与编号并集由 `tools\audit_rules.ps1` 守门（进 run_gates）。现有分册：`分册-SCADA与图元`（§23/§27/§28/§31/§32）、`分册-通讯与设备`（§34/§35）、`分册-WPF模板与样式`（§6/§9/§22/§33）、`分册-启动与插件加载`（§15/§17/§24/§25）、`分册-帮助手册`（§13/§19）、`分册-停靠与面板`（§18）、`分册-流程栏与画布`（§21/§37）、`分册-属性面板与刷新`（§29）、`分册-HALCON画布交互`（§16）、`分册-AI操作与exe测试踩坑`（§41）。
 
 ## 0. 编号冲突（引用时带章节号）
 
 | 编号 | A | B |
 |---|---|---|
-| R108 | §29 轴面板操作按钮 | —（§30 范围说明；R109/R110 保留） |
+| R108 | §29 轴面板操作按钮（正文在分册《属性面板与刷新》） | —（§30 范围说明；R109/R110 保留） |
 | R139 | §30.4 派生只读属性标 `[RuntimeState]` | §31 树行 `ContentPresenter` 必须 `Stretch` |
 | R140 | §30.5 禁 `#RRGGBB` | §31 `ObservableCollection` 不替容器发聚合通知 |
 | R141 | §30.5 可复用 UI 下沉 | §31 RenderProbe 豆腐块不是缺陷 |
@@ -66,20 +66,13 @@
 | R17 | 生成器工程与产物不得进 `Plugins\`/`Modules\`：`OutputItemType=Analyzer` + `ReferenceOutputAssembly=false`（`Plugins\Directory.Build.props`）。 |
 | R18 | `[StepConfig]` 三选一（自动属性 / partial + 钩子 / 手写）；partial 类必须 `partial`，钩子只写实现；违规报 CPG0001~CPG0005。 |
 
-> 速查 `docs\新插件端口速查.md`。
+> 速查 `docs\工程纪律\新插件端口速查.md`（§6 动态端口：按配置生成端口必须用 `IDynamicOutputProvider` + `AddDynamicOutput`，并回写 `StepModel.OutputPortDefinitions`；范式 `Plugin.CreateRoi`。**禁止另造变量声明接口**）。
 
-## 6. WPF 表格视图（R19-R22）
+## 6. WPF 表格视图（R19-R22）→ 分册《WPF模板与样式》
 
-根因：`App.xaml` 把 .NET 9 Fluent 并进**应用级**资源，其隐式 `ListView` 样式顶掉框架那份 → **凡 GridView 必坏**。
+**最易踩**：根因是 `App.xaml` 把 .NET 9 Fluent 并进**应用级**资源，隐式 `ListView` 样式顶掉框架那份——**凡 GridView 必坏**；`ListView+GridView` 必须挂 `GridListViewStyle` 并**就地合并** `GridView.xaml`，行模板必须是 `GridViewRowPresenter`、行容器内边距取 **4**。
 
-| # | 判据 |
-|---|---|
-| R19 | `ListView+GridView` 必须挂 `Style="{StaticResource GridListViewStyle}"`（`UI\Controls\Themes\Controls\GridView.xaml`）。不挂 = 列头消失；**不要**改成隐式样式。 |
-| R20 | 视图必须自带 `ItemContainerStyle`，行模板必须是 `GridViewRowPresenter`（`Columns="{TemplateBinding GridView.ColumnCollection}"`），不能用裸 `ContentPresenter`。 |
-| R21 | 行容器内边距取 **4**（与列头元素 x4 + Padding 8、`GridViewRowPresenter` 内置 6 同一竖线）。范式 `SolutionListView.xaml`。 |
-| R22 | 引用了 `GridListViewStyle` 的视图必须**就地合并** `GridView.xaml`（`/UI;component/...`）；不合并会在无 `Application` 的断言宿主里 XAML 解析期抛异常。 |
-
-守门人：`UIThemeSmokeTest` 静态扫描（出现 `GridView` 就必须挂样式 + 带 `GridViewRowPresenter`）。
+> 完整判据（R19-R22 与守门）见 `docs/工程纪律/分册-WPF模板与样式.md`。
 
 ## 7. 流程栏步骤树（R23-R27）
 
@@ -95,20 +88,14 @@
 
 | # | 判据 |
 |---|---|
-| R28 | **大改动后重建索引**（触发条件同 R12）。**本会话无 CodeGraph 工具** → 交付里必须写明"影响面为 grep/read 结论，非索引结论"，**不许含糊成"影响面已核"**。有工具时跑 `codegraph_reindex_workspace`。 |
+| R28 | **大改动后重建索引**（触发条件同 R12）。**CodeGraph 有无按客户端判**：ZCode 端已挂 → 跑 `codegraph_reindex_workspace`；未挂的会话交付必须写明"影响面为 grep/read 结论，非索引结论"，**不许含糊成"影响面已核"**。 |
 | R29 | **影响面查询：先 `grep` 具体类型名/接口名，再 `read` 命中处**；XAML、源生成器、脚本、清单、文档一律 grep/Read。查询词带项目前缀，别用泛词。有 CodeGraph 时再补 `analyze_impact`/`get_callers`。 |
 
-## 9. 资源字典作用域（R30-R32）
+## 9. 资源字典作用域（R30-R32）→ 分册《WPF模板与样式》
 
-分册之间**互相看不见**。`BasedOn`/模板内容/`Freezable` 内 → 抛 `XamlParseException`（编译期全绿）；普通 `Setter.Value` → 不抛、值静默不生效。
+**最易踩**：分册之间**互相看不见**——`BasedOn`/模板内容/`Freezable` 内抛 `XamlParseException`（编译期全绿），普通 `Setter.Value` 静默不生效；跨册只有"同文件"或"令牌进 `Colors.xaml`"两条路，**禁止改 `DynamicResource` 绕过**；"同文件后置键"在**元素自身属性**上照样查不到，属性要挪到子元素。
 
-| # | 判据 |
-|---|---|
-| R30 | 全局分册里的 `{StaticResource K}`，K 必须能在「本分册 + 本分册 merge 的子树」解析。 |
-| R31 | 跨册只有两条出路：能同文件就同文件；共用令牌搬到 `UI\Controls\Themes\Colors.xaml`。**禁止改 `DynamicResource` 绕过，禁止新增分册 merge 兄弟分册的边。** |
-| R32 | 守门：`FlowCanvasChecks` 的【资源断链】两条契约（`VariableBindingCheck.RunDictionaryScopeContract`，进常规 gate）；不构建时 `tools\audit_resource_scope.ps1`（两处必须同步）；运行期 `_ResProbe` 出 `RESULT: ALL_OK`。 |
-
-> **"同文件后置键"已不是零实例（2026-10-22 实测）**：元素**自身属性**（`<Window Background="{StaticResource K}">`）在解析期**先于**该元素的 `Resources` 求值，K 即便就定义在同一元素的 Resources 里也查不到 → `XamlParseException: 无法找到名为 K 的资源`，在无 `Application` 的断言宿主里连带崩掉 5 段断言。**修法：把该属性挪到子元素（根 Grid）上**；**不要**改成 `DynamicResource`（R31）。静态扫描的 SILENT 桶仍不覆盖这一格。
+> 完整判据（R30-R32、后置键实例与守门）见 `docs/工程纪律/分册-WPF模板与样式.md`。
 
 ## 10. 端口语义（R33-R35）
 
@@ -133,12 +120,11 @@
 |---|---|
 | R40 | 候选一律 `StepConfigOption.ForEnum(类型, 成员名)`，不许 `new StepConfigOption(Enum.GetNames(...))`。① 显示中文、**值仍是成员名**（拿"圆"当值 = 改显示名打断已配流程）；② 回退成员名，绝不空白；③ HALCON/SDK 字面量不进界面；④ 新增成员必须补 `[Display(Name="中文")]`。守门：`MotionZMotionChecks` 6 条（含"选完写回仍是 `Circle`"与两处生成点共用 `ForEnum` 的扫描）。 |
 
-## 13. 帮助手册打包（R41-R42）
+## 13. 帮助手册打包（R41-R42）→ 分册《帮助手册》
 
-| # | 判据 |
-|---|---|
-| R41 | 新增插件类必须同时交手册：① 放本工程 `Help\`、csproj 挂 `<EmbeddedResource Include="Help\**\*" />`（**无全局 props 规则**）；② 一程序集多插件时各放 `Help\{插件类名}\`（逐字等于类名）；③ 文件名 `NN-` 前缀、**首行必须是 `# 一级标题`**；④ 无 BOM UTF-8、正文 ≥70 行、禁 `TODO/待补充/待完善/（略）/(略)/TBD`。**计数口径（2026-10-22 实测 44 类 / 32 程序集）**：按"带 `[Display(GroupName=…)]` 的类"算——含 4 个设备驱动（不实现 `IVisionPlugin`、不进算子工具箱），它们同样要交手册。守门：`HelpManualCheck` HM0~HM17（进常规 gate）。**失败模式全是静默的**；事实来源只有源码。 |
-| R42 | **加完手册必须验证 DLL 真带了资源**（增量构建静默漏打包）：`tr '\0' '\n' < Modules\Plugin.X.dll \| grep -a "\.Help\."` 数出的资源名 = 该工程 `Help\` 下 .md 数。收尾全量重建用 `--no-incremental`。 |
+**最易踩**：新增插件类必须同时交手册（`Help\{插件类名}\`、`NN-` 前缀、首行 `# 一级标题`、无 BOM、正文 ≥70 行、禁 TODO）；**计数口径按"带 `[Display(GroupName=…)]` 的类"算（含 4 个设备驱动）**；R42 加完必须验证 DLL 真带了资源（增量构建静默漏打包）。**失败模式全是静默的。**
+
+> 完整判据（R41/R42 与守门 HM0~HM17）见 `docs/工程纪律/分册-帮助手册.md`。
 
 ## 14. 停靠布局（R43-R47、R56）
 
@@ -151,49 +137,35 @@
 | R47 | **活动栏已整条下线**；组态三面板由"是否处于组态设计"自动收敛，不给手工开关；全局变量/通讯设置在顶部横条。**没有面板落点的命令不许进活动栏。** 改顶栏/活动栏**不升**结构版本。守门：`RunShellLayoutChecks()` 三条（主体 Grid 一列 / 无 `Panel_*` 开关 / 两命令在停靠区之前顶栏）。**改 `Shell.xaml` 前先看 mtime。** |
 | R56 | **判"是否处于组态设计"只认文档的 `LayoutDocument.IsSelected`，不许用 `IsActive`**（`IsActive` 是 DockingManager 当前活动内容，点右侧面板就翻转 → 自毁循环）。收敛走 `LayoutHelper.ApplyScadaPanelMode(manager, scadaDesign)`，**先 Show 目标再 Hide 对方**。触发三处：启动 `OnContentRendered`、`LayoutHelper.LayoutLoaded`（走 `OnLayoutLoaded`）、中央文档区切标签（**只认 `Panel_ScadaEditorView` 的 `IsSelected`**）。磁盘 `Layout.xml` 会恢复旧可见性 → 每次必须重收敛（故不升版本）。**已知边界**：「视图」菜单三项只 Show 不 Hide，是刻意的手工覆盖入口。守门：`RunPanelModeChecks()` 5 条。 |
 
-## 15. 启动自检超时（R48-R50）
+## 15. 启动自检超时（R48-R50）→ 分册《启动与插件加载》
 
-| # | 判据 |
-|---|---|
-| R48 | 超时走 `IStartupCheck.TimeoutMs`（逐项声明，默认 30s），**不许写死在 `AppLifetimeService`**；级别同样逐项（`TimeoutLevel`，默认 `Error`）。"缺失也不影响主界面"的项必须声明 `Warning`（范例：插件扫描 `120_000` + `Warning`）。`SingleInstanceCheck`/`ConfigCheck` 必须保持 `Error`。`TimeoutMs` 必须为正。文案走 `FormatTimeout`。 |
-| R49 | **超时判定不许只看 `Task.WhenAny` 赢家**：取消后实现"以已取消收尾"，赢家仍是 `execTask` 但没跑完，取 `.Result` 抛 `AggregateException`（不是 `OperationCanceledException`）→ 被记成 `Error「检查异常」`，把 `TimeoutLevel` 架空。必须同时判"已取消且没跑完"（写法见 `AppLifetimeService.cs:115-117`）。探针 300 轮命中 98~138 轮。 |
-| R50 | 守门：`StartupChainTimeoutIsNotFatal()` 5 条（进常规 gate）：慢项 Warning 不阻断 / 进 `Warnings` / 后续照跑 / 链 < 5s / **反向**：未声明级别仍按 Error 阻断。放宽只在项内声明，别改默认值。 |
+**最易踩**：超时与级别逐项声明（`TimeoutMs`/`TimeoutLevel`），不许写死在 `AppLifetimeService`；**超时判定不许只看 `Task.WhenAny` 赢家**——必须同时判"已取消且没跑完"，否则 `TimeoutLevel` 被架空（探针 300 轮命中 98~138 轮）。
 
-## 16. HALCON 画布交互（R51-R55）
+> 完整判据（R48-R50 与守门）见 `docs/工程纪律/分册-启动与插件加载.md`。
 
-| # | 判据 |
-|---|---|
-| R51 | **"未选中对象一次手势就拖得动"靠换绑后补发 down**：`HalconBase.HSmart_MouseDownForRoi` 换绑 `ActiveRoi` 后调 `ReplayMouseDownForFreshHandle`（`SendMouseDownEvent(row,col,1)`），**只在换绑分支**；失败静默退化为旧行为。**必然行为变更**：未选中对象内部拖 = 移动，必须用断言钉住。 |
-| R52 | **摘除容差必须盖住手柄尺寸**：`RoiHitToleranceScreenPx = 14.0` **只作用于"是否摘除已选中对象"**；挑选其它对象保持无容差（否则相邻误选）。代价是"遮蔽带"，写进注释。 |
-| R53 | **画布交互断言只能用可见窗口**：`buffer` 窗口上只有"点中对象内部"能命中，手柄与拖拽全失效。用**屏幕外** WPF 窗口（`Left=-4000`）+ STA + `Dispatcher.PushFrame` + **窗口级**主题字典。⚠ 与 R37① 方向相反。 |
-| R54 | `rectangle2` 的 length1 沿 **column** 轴（phi=0），不是 row；`ellipse` 是 radius1 沿 column。记反会得"手柄命中失败"假结论。 |
-| R55 | **改 `Services\Core.Halcon` 必须 Debug 与 Release 都重建**（`pack.ps1` 打 Release）；核 DLL 里有没有新符号，不看退出码。 |
+## 16. HALCON 画布交互（R51-R55）→ 分册《HALCON画布交互》
 
-守门：`RoiInteractionChecks` 8 条（进常规 gate）。
+**最易踩**：R53 画布交互断言只能用**屏幕外可见窗口**——`buffer` 窗口上只有"点中对象内部"能命中，手柄与拖拽全失效（⚠ 与 §11 R37① 方向相反）；R54 `rectangle2` 的 length1 沿 **column** 轴，记反会得"手柄命中失败"假结论；R55 改 `Services\Core.Halcon` 必须 Debug 与 Release 都重建（红线③家族）。
 
-## 17. 启动关键路径（R57）
+> 完整判据（R51/R52 与守门）见 `docs/工程纪律/分册-HALCON画布交互.md`。
 
-| # | 判据 |
-|---|---|
-| R57 | **"全部出口都是 Warning"的自检项不许进启动链**——改由 `App.OnInitialized` 后台跑（`RunCommunicationCheckInBackground`）。三条不变形：日志口径不变（`[启动自检] {名称}: …`）、开关留在检测类首行、只挪全 Warning 项。**四件事同时到位**：链里删注册 / `OnInitialized` 补后台调用 / `OnExit` 里 `_postStartupCts.Cancel()` / 其它异常只落一行 Warn。守门：`[E18]` 五条（含反向：`CommunicationCheck` 里 `CheckLevel.Error` 必须 0 次；链上 `RegisterCheck(` 恰好 **4** 次——单实例/配置日志/HALCON/插件扫描，通讯与帮助手册已在 `OnInitialized` 后台）。 |
+## 17. 启动关键路径（R57）→ 分册《启动与插件加载》
 
-## 18. 停靠面板恢复可见（R58-R59）
+**最易踩**："全部出口都是 Warning"的自检项不许进启动链，改由 `App.OnInitialized` 后台跑；**四件事同时到位**（链里删注册 / `OnInitialized` 补后台调用 / `OnExit` 里 `Cancel()` / 异常只落一行 Warn），守门数 `RegisterCheck(` 恰好 **4** 次。
 
-| # | 判据 |
-|---|---|
-| R58 | **恢复可见一律走 `LayoutHelper.ShowPanel`/`ShowAnchorable`，别处不许写 `anchorable.IsVisible = true`**。四条判据：① `!IsHidden` 先 return；② `PreviousContainerIndex < 0` 判废（库只判上界，`-1` 塞进 `Insert` 抛 `ArgumentOutOfRangeException`，坏记忆永久留着）；③ 记忆列仍挂在当前 `LayoutRoot`；④ **Show 后再看一次 `IsVisible`**（`PreviousContainer==null` 时库不抛也不显示）。判废走 `AnchorToHomePane`，落点四档顺序不改；必须 `InsertChildAt(ChildrenCount, …)`；挂回进门先判 `IsVisible`；**反射只读，绝不写库私有状态**。守门：`RunPanelModeChecks` 后 5 条（⑥a/⑦a 是库行为反证）+ `LayoutVisibilityCheck` LV0~LV7（10 条，进常规 gate）。 |
-| R59 | **读隐藏记忆只有一条口径：`LayoutContent` 同名属性走 `GetProperty`**（`PreviousContainer`/`PreviousContainerId` 是 protected，`PreviousContainerIndex` 是 public，底层字段不同名）。取不到时返回 `int?`，**null 算"不知道"不是 0**；断言取不到就**故意判红不判跳过**。静态扫描只扫第一方目录并排除 `bin\obj`；判据收在"去注释后仍含 `AvalonDock` 的文件"，**不开豁免清单**。 |
+> 完整判据（R57 与守门 [E18]）见 `docs/工程纪律/分册-启动与插件加载.md`。
 
-## 19. 手册分层与厚度（R60-R63）
+## 18. 停靠面板恢复可见（R58-R59）→ 分册《停靠与面板》
 
-| # | 判据 |
-|---|---|
-| R60 | **一页手册的身份只有「最后一个点之后」那段文件名**（`HelpCatalogService.GetPageFileName`）；必须先剥分册目录段（MSBuild 用**点**表达目录）再判 `IsDeveloperPage`，否则开发页混进用户目录。**前提由 HM6 钉住：文件名里除扩展名那点外不许再出现点。** |
-| R61 | **厚度按档位下限判**（HM17）：L 档 用户页≥5/开发页≥3/开发页行≥300；M 档 4/2/150；S 档 3/1/100；**未登记按 M 档**。**派工单必须抄三个数字。** |
-| R62 | **改过任何一页 `.md` 内容，产物就算脏**（R42 从"新增"扩到"改文案"）。**同族坑（2026-10-22 已闭环）**：`Plugin.Camera.Network`、`Plugin.ImageAssign`、`Plugin.DlClassify` 曾不在 `VisionMaster.sln`——前两个无任何工程引用 → **永不刷新**，第三个只靠 `FlowCanvasChecks.csproj:31` 顺带重建；**VS「生成解决方案」三个都不编**。现 sln 已登记 **32/32** 插件工程。**判据：新增插件工程必须同时登记 sln**，否则 `Modules\` 里的 DLL 永久停在旧版且无任何报错（历史遗留项收尾仍要 `--no-incremental` 刷一次）。 |
-| R63 | **排版前提只有渲染级对照守得住**：① 渲染后残留字面 `**` 即红，额度只从代码上下文扣；② 代码块字体族必须显示得了代码上下文每个字符（判据"与无字形的 U+E000 位图逐像素相同"）。**跨行 `**…**` 是支持的，别修**；**测字形按 `Rune` 不按 `char`**；诊断带 `U+XXXX`。 |
+**最易踩**：恢复可见一律走 `LayoutHelper.ShowPanel`/`ShowAnchorable`，别处不许写 `anchorable.IsVisible = true`；`PreviousContainerIndex < 0` 判废、Show 后**再看一次 `IsVisible`**；读隐藏记忆只有一条口径：`LayoutContent` 同名属性走 `GetProperty`，**反射只读，绝不写库私有状态**。
 
-守门：`HelpProbe`。
+> 完整判据（R58/R59 四条判据与守门）见 `docs/工程纪律/分册-停靠与面板.md`。
+
+## 19. 手册分层与厚度（R60-R63）→ 分册《帮助手册》
+
+**最易踩**：一页手册的身份只有「最后一个点之后」那段文件名（先剥分册目录段再判 `IsDeveloperPage`）；厚度按档位下限判（HM17），**派工单必须抄三个数字**；**R62：新增插件工程必须同时登记 sln**，否则 `Modules\` 里的 DLL 永久停在旧版且无任何报错（红线③家族）。
+
+> 完整判据（R60-R63 与守门）见 `docs/工程纪律/分册-帮助手册.md`。
 
 ## 20. 图标资产与验证工具陈旧（R64-R65）
 
@@ -202,22 +174,17 @@
 | R64 | **`.ico` 只许 `tools\bake_icons.ps1` 烘焙（STA）**；条目全部 PNG 压缩、256 在宽高字节写 0。两条 WPF 实测：`.otf` 绝对 URI 不是 `FontFamily` 键（要拼 `"<文件 uri>#<家族名>"`，别手拼）；字形几何用 `FormattedText.BuildGeometry` 且**居中墨迹盒**。接线两处：`ApplicationIcon` 与帮助弹窗的 `Icon` Setter（走 `<Resource>`）。**资源名查找不区分大小写**，闸拦不住大小写。守门：`HelpProbe` §3c。 |
 | R65 | **改过断言宿主源码，验证命令里不许 `--no-build`；"全部通过"不等于覆盖**。① 加/改 `Check()` 后必须先 build 再 run；② 判据落在**条数 + 明细原文**；③ 新闸必须做变异反证（改坏→红→还原→绿）。**绿灯是真的，只是少了一条。** |
 
-## 21. 流程栏命令靶（R66-R67）
+## 21. 流程栏命令靶（R66-R67）→ 分册《流程栏与画布》
 
-| # | 判据 |
-|---|---|
-| R66 | **结构变更（删/移）后不许无条件清空命令靶**，判据"这次变更有没有把选中交给别人"：先把靶存局部变量，删完只在 `ReferenceEquals(CurrentSelectedStepModel, target)` 时清空。**清空走公开属性 `SelectStep = null`，不写私有字段。** 只在"命令靶与界面选中态是两份状态"处存在。 |
-| R67 | **"树的自动改选会回写 VM"必须在真 `TreeView` 上跑**（纯 VM 直调 = 假绿）：建真树 + `BindingOperations.SetBinding` 复刻两条绑定，`Measure`/`Arrange`/`UpdateLayout` 后容器生成，**不需要窗口/Application/主题资源**；⚠ **不 `new Application`**；STA + `Dispatcher.PushFrame`；**五条判据里必须有一条反向**。 |
+**最易踩**：结构变更（删/移）后不许无条件清空命令靶——只在 `ReferenceEquals(CurrentSelectedStepModel, target)` 时清，**清空走公开属性 `SelectStep = null`**；**"树的自动改选会回写 VM"必须在真 `TreeView` 上跑**（纯 VM 直调 = 假绿），五条判据里必须有一条反向。
 
-守门：`ProcessTreeInteractionChecks` V10 五条（进常规 gate）。
+> 完整判据（R66/R67 与守门）见 `docs/工程纪律/分册-流程栏与画布.md`。
 
-## 22. 图标字符按钮（R68-R70）
+## 22. 图标字符按钮（R68-R70）→ 分册《WPF模板与样式》
 
-| # | 判据 |
-|---|---|
-| R68 | **写了 `Width`/`Height` 的图标字符按钮（✕ × ＋ ↑、FA 私有区码点）必须挂 `Style` 或显式 `Padding`**——否则吃 Fluent 的 `11,5,11,6`（30×30 只剩 6×17，24×24 内容区归零）。不定宽不算违规。守门：`GlyphButtonClipCheck` GB0~GB5（进常规 gate；GB4 把"Padding 写大了"也过账；GB2 反向钉住解析器）。算术前提由 `HelpProbe.RunGlyphClipChecks` 四档钉住。 |
-| R69 | **量"文字被切"不许看内层 `TextBlock.ActualWidth`**：需求宽用**不受约束的参照 `TextBlock`**（`Measure(infinite)`）；判据用算式"内容区 = 实得尺寸 − 生效 `Padding` − `BorderThickness`"。`Application.Current.Resources[typeof(Button)]` 读不到 Padding Setter，必须取按钮自己的生效值。 |
-| R70 | **标题栏按钮 `Path` 几何不许有零长度线段**（`M x y L x y` 起=终 = 那笔不画）。改 `Shell.xaml` 必须同步 `ShellCopy.xaml`。守门：`RunShellLayoutChecks()` 末尾两条（同一判据跑原件 + 副本）。数据级扫描，与资源级闸正交。 |
+**最易踩**：写了 `Width`/`Height` 的图标字符按钮必须挂 `Style` 或显式 `Padding`——否则吃 Fluent 的 `11,5,11,6`，内容区归零；量"文字被切"不许看内层 `TextBlock.ActualWidth`，要用**不受约束的参照 `TextBlock`** + 算式；改 `Shell.xaml` 必须同步 `ShellCopy.xaml`。
+
+> 完整判据（R68-R70 与守门）见 `docs/工程纪律/分册-WPF模板与样式.md`。
 
 ## 23. SCADA 图元（R71-R77）→ 分册《SCADA与图元》
 
@@ -225,21 +192,17 @@
 
 > 完整判据（R74-R77 与各条守门）见 `docs/工程纪律/分册-SCADA与图元.md`。
 
-## 24. 启动插桩与提速（R78-R80）
+## 24. 启动插桩与提速（R78-R80）→ 分册《启动与插件加载》
 
-| # | 判据 |
-|---|---|
-| R78 | **启动插桩必须落 `ILogService`，不许走 `IUserNotifier`**（弹泡 3 秒就消）。 |
-| R79 | **全 Warning 自检项不许站在启动关键路径**（先例 R57）。四条：链上删注册 / `OnInitialized` 补后台调用 / `OnExit` 里 `Cancel()` / 异常只落一行 Warn。**挪动前确认懒构建兜底在位**（`HelpViewModel.OnDialogOpened` 的 `!IsBuilt → Build()`）。守门：`[E19]` 三条，`E18` 第 ⑤ 条计数改 4。 |
-| R80 | **扫插件程序集必须带名字过滤 `GetFiles(dir, "Plugin*.dll")`，反射元数据只物化一次**（`GetTypes()` 一次、三处各写过滤器）。 |
+**最易踩**：启动插桩必须落 `ILogService`，不许走 `IUserNotifier`（弹泡 3 秒就消）；全 Warning 自检项不许站在启动关键路径（先例 R57，挪动前确认懒构建兜底在位）；扫插件程序集必须带名字过滤 `Plugin*.dll`，反射元数据只物化一次。
 
-## 25. 插件清单缓存（R81-R83）
+> 完整判据（R78-R80 与守门）见 `docs/工程纪律/分册-启动与插件加载.md`。
 
-| # | 判据 |
-|---|---|
-| R81 | **正确性全押在指纹失效判据上，且必须是断言**。四道全满足才命中（SchemaVersion / 每 DLL 大小+mtime / 无未登记 `Plugin*.dll` / 宿主契约版本），任一不满足即**全量重扫并重写**，不做部分缓存；失效原因写日志。守门：`PluginCacheChecks` PC1~PC8（进常规 gate）。 |
-| R82 | **缓存跳过实例化的前提是"构造器无副作用"，必须静态扫描钉住**；判据收窄到**构造器体**（运行期 `Process.Start`/`HttpClient` 是合法业务）。守门：PC8。 |
-| R83 | **缓存产物与全量扫描必须逐项一致，比对剔除内置节点**；抽查端口表的对象必须是**插件**。 |
+## 25. 插件清单缓存（R81-R83）→ 分册《插件加载与缓存》
+
+**最易踩**：R81 四道指纹（SchemaVersion / 每 DLL 大小+mtime / 无未登记 `Plugin*.dll` / 宿主契约版本）**全满足才命中，任一不满足即全量重扫并重写**，不做部分缓存；R82 缓存跳过实例化的前提是"构造器无副作用"，必须静态扫描钉住。
+
+> 完整判据（R83 与守门）见 `docs/工程纪律/分册-启动与插件加载.md`。
 
 ## 26. 枚举显示名上屏路径（R84-R86）
 
@@ -261,15 +224,11 @@
 
 > 完整判据见分册。
 
-## 29. `RequireRefresh` = 整表重建（R104-R108）
+## 29. `RequireRefresh` = 整表重建（R104-R108）→ 分册《属性面板与刷新》
 
-| # | 判据 |
-|---|---|
-| R104 | **`RequireRefresh = true` 的消费动作必须是整表重建 `UpdatePropertyGrid(preserveSelectedTab: true)`**，不许只重建触发者页签（判据："被驱动对象会不会在别的页签"）。`RebuildTabForProperty`/`_tabByKey` 一并删除。普通属性仍不触发重建；50ms 防抖/异步投递/跨线程封送不动。守门：`PropertyGridRefreshCheck` PG0~PG8（进常规 gate；PG4 反向）。 |
-| R105 | **"只在特定操作顺序下坏"的刷新缺陷静态闸挡不住，必须按真实操作顺序各跑一遍**；"我手动试是好的"不构成证据。范式：临时探针引 `UI`+`Core`，真配置 + 真 `FlatPropertyGrid` 挂屏幕外真窗口 + 手动 Dispatcher 泵；用完即删。 |
-| R106 | **多态配置不许搭窗口**：切换字段 `RequireRefresh=true` + 被切换对象 `[PropertyItem(Type=typeof(Control))]` + **换新实例**。用法见 `docs/AI协作/skills/vm-property-grid/SKILL.md`（Priority 表、两条枚举路、草稿语义、"何时该手写视图"）。 |
-| R107 | **互斥字段集不许平铺在同一 `[SuperDisplay]` 类上，必须"切换字段 + 嵌套子对象"**：① 切换字段 `RequireRefresh=true` 且**走 `SetProperty`**（自动属性不发通知 = 等于没写）；② 被切换对象 `[PropertyItem]` 且**每次换新实例**；③ 每种取值独立成类。配套：保留另一种取值的草稿实例、写回描述符时两种都保留。守门：`IoChecks` 的 `TestBusLinkSwitching`/`TestDriverConfigSwitching`（18 条，进常规 gate）——**断言必须查可见属性集，不能只查对象类型**。 |
-| R108 | **轴面板操作按钮与组态动作表必须走同一执行器**：① 出口 `IScadaAxisCommandSink` 由宿主注入；② **权限在按下前判**（`CanOperate` 绑 `IsEnabled`，每拍重算）；③ **点动按住才动**（Down 起、Up/`MouseLeave`/`LostMouseCapture` 停，要 `CaptureMouse`），**回零长按 0.5s**。`ShowCommands=false` 整块收起。**六个命名件由断言钉住。** **不要在 `Control` 子类声明名为 `IsEnabled` 的 DP**（遮蔽 `UIElement.IsEnabled`）。守门：AX9 + AX3。 |
+**最易踩**：`RequireRefresh = true` 的消费动作必须是**整表重建** `UpdatePropertyGrid(preserveSelectedTab: true)`；多态配置不许搭窗口（切换字段 + `[PropertyItem]` + **换新实例**）；互斥字段集必须"切换字段 + 嵌套子对象"；"只在特定操作顺序下坏"的缺陷必须按真实操作顺序各跑一遍——**"我手动试是好的"不构成证据**。
+
+> 完整判据（R104-R108 与守门）见 `docs/工程纪律/分册-属性面板与刷新.md`。
 
 ## 30. UI 工作流：Web 基准 → WPF 复刻 → 通用入库（R111-R125）
 
@@ -343,11 +302,11 @@
 
 **判据**：组名只能来自 `ScadaPropertyGroups`；**新增分组 = 先登记**（常量 + 进 `Order`），否则 `ElementDescriptor.Validate` 判失败、图元进不了工具箱。
 
-## 33. 模板里的 ToggleButton 对齐（R148）
+## 33. 模板里的 ToggleButton 对齐（R148）→ 分册《WPF模板与样式》
 
-| # | 判据 |
-|---|---|
-| R148 | **自定义模板里的 `ToggleButton` 必须自己声明 `HorizontalAlignment`（外壳类还要 `VerticalAlignment`）**——应用级 Fluent 把它设成 `Left/Center`，显式模板元素照样吃。三条豁免：显式 `Style=`、自己写了对齐、同时写了 `Width`+`Height`。守门：`ScadaChecks` 的 `[AI]` 静态扫描 + 属性面板探针「**合并 Fluent 再渲染一次**」两条。**凡涉及应用级隐式样式的断言，必须在合并 Fluent 的条件下渲染一次。** |
+**最易踩**：自定义模板里的 `ToggleButton` 必须自己声明 `HorizontalAlignment`（外壳类还要 `VerticalAlignment`）——应用级 Fluent 把它设成 Left/Center，显式模板元素照样吃；**凡涉及应用级隐式样式的断言，必须在合并 Fluent 的条件下渲染一次**。
+
+> 完整判据（R148、三条豁免与守门）见 `docs/工程纪律/分册-WPF模板与样式.md`。
 
 ## 34. 通讯数组与地址偏移（R149-R155）→ 分册《通讯与设备》
 
@@ -371,16 +330,11 @@
 | R169 | **`packages\` 不许删**：`tools\DeviceSimulator\DeviceSimulator.csproj` 用 HintPath 直引 `..\..\packages\Newtonsoft.Json.13.0.4\...`（非 PackageReference）。删根目录前先 `findstr /s /i "..\..\packages\" *.csproj`，命中必须保留。 |
 | R170 | **迁移验收（不看退出码）**：① 根文件恰好 8 个、`audit_root.ps1` 退出 0；② 全部登记探针 `-BuildOnly` 通过；③ `ResProbe` 出 `RESULT: ALL_OK`；④ 解决方案 `--no-incremental` 重建通过；⑤ 断言宿主跑完记条数（无基线要求 0 FAIL 且条数非 0）。**清 bin/obj 后必须重建**（否则 `Modules\` 与 `bin` 是空的，红线③）。 |
 
-> **已闭环（2026-10-22）**：`audit_root.ps1` 已接进 `tools\run_gates.ps1`（R182）。当次清出 **145 条**：142 个根日志/`.out`/`commit_msg.txt` → `artifacts\logs\2026-10-22-root-sweep\`；`_help_preview`（5 张 PNG）→ `artifacts\render\20261022\help_preview\`，同时把 `HelpProbe` 默认输出目录改到 `artifacts\render\<yyyyMMdd>\{help_preview,p0_preview}`（否则每次跑完又落回根目录）；`_ScadaUiProbe` 按 R167 三步迁移到 `tools\probes\_ScadaUiProbe\` 并登记 `probes.json`；空目录 `--nologo` 删除。现输出 `ROOT LAYOUT OK: 8 files / 41 dirs`。
+## 37. 工具箱拖放与循环控制（R171-R174）→ 分册《流程栏与画布》
 
-## 37. 工具箱拖放与循环控制（R171-R174）
+**最易踩**：gong 拖拽源必须配 gong 放置端（裸 `Drop` 会让拖影胶囊永久残留，**不许反射写其私有静态字段**）；Break/Continue"只能在循环里"只收在落点（判据 `StepFactory.AllowsLoopControl`），拒绝要写状态栏不许静默空跑；`DataTemplate` 里的 `{StaticResource K}` 必须定义在同一字典该模板**之前**；`Popup.IsOpen` 等 `BindsTwoWayByDefault` 的 DP 绑只读属性必须显式 `Mode=OneWay`。
 
-| # | 判据 |
-|---|---|
-| R171 | **gong-wpf-dragdrop 作拖拽源时，放置端必须也是 gong 的放置端**（`dd:DragDrop.IsDropTarget="True"` + `DropHandler`），不许只挂裸 `DragOver`/`Drop`——拖影 `DragDropPreview : Popup` 由 gong 私有静态字段持有，**只有**它自己的放置端会关；裸 Drop 返回 `Copy` 时胶囊永久停在落点。**不许反射写其私有静态字段**（R59）。`IDropInfo.DropPosition` 是相对目标的屏幕坐标，图坐标 `ViewportLocation + pos / zoom`。守门：`CanvasDesignChecks` FLC-23（只钉接线，升级 gong 后需真机复验）。 |
-| R172 | **Break/Continue 的"只能在循环里"只收在落点，不许改编译期硬错误**（运行期是 `Warn + 忽略`，改硬错误会打红 31 条）。判据 `StepFactory.AllowsLoopControl`：由近及远看容器链，先撞 For/While 放行、先撞 Parallel 拒绝、到顶拒绝，If/Case 只透传。三条入口共用同一组纯函数与文案（画布 `DropToolAt`、流程栏 `Drop` 的 Copy 分支、画布粘贴）。**拒绝要写状态栏/回执，不许静默空跑。** **已知边界**：把已有 Break 拖出循环不拦。守门：X7 共 15 条。 |
-| R173 | **`DataTemplate` 里的 `{StaticResource K}`，K 必须定义在同一字典中该模板之前**（不是"文件里存在就行"）——模板延迟物化，排在后面的键在"模板被独立实例化"的宿主里（gong 拖拽预览 Popup、`DataTemplate.LoadContent()`）直接抛 `XamlParseException`，真机就是**一拖就崩**（启动冒烟查不出）。守门：`_ToolboxProbe` 的「拖拽预览模板两个绑定都出值」。 |
-| R174 | **`Popup.IsOpen` 绑定必须显式 `Mode=OneWay`**（`IsOpenProperty` 带 `BindsTwoWayByDefault`，绑只读属性 XAML 加载期抛，外层只报"设置属性时引发异常"）。**同族**：任何 `BindsTwoWayByDefault` 的 DP（`TextBox.Text`、`Selector.SelectedValue`…）绑只读属性同理。守门：`FlowCanvasChecks --measure-canvas` 出 `[measure] ok`。 |
+> 完整判据（R171-R174 与守门）见 `docs/工程纪律/分册-流程栏与画布.md`。
 
 ## 38. 验证手段与会话边界（2026-10-22）
 
@@ -398,7 +352,7 @@
 | R179 | **本机 `dotnet build`/`restore` 默认多进程会静默失败**（报"生成失败 / 0 个错误"、退出码 1）。**一律加 `-m:1 -nodeReuse:false`**。判据：`0 个错误` **且退出码 0** 才算构建通过。 |
 | R180 | **`File.Replace` 在受限环境一律被拒**（Move/Copy/Delete 正常）。`AppSettingsService.WriteReplacing` 只 `catch (IOException)` → `UnauthorizedAccessException` **带崩断言宿主**（ScadaChecks/FlowCanvasChecks 各崩一次）。替换式写文件必须同时 catch `IOException` + `UnauthorizedAccessException`。 |
 | R181 | **AgentTeams 成员可能写不了子目录**（沙箱只在仓库根授权、子目录不继承）→ **构建与跑测归主会话**，成员只做读/编辑/静态分析。成员报 `MSB3491 … is denied` 时**不要重试、不要换路径绕过**，直接交回主会话。 |
-| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
+| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ `audit_rules.ps1`（规则归属与编号并集）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
 | R183 | **"没跑"和"跑绿了"必须能分开**。① 捕获子进程输出**不要走管道**：`& $exe 2>&1 \| Out-String` 按控制台代码页（本机 936）解码 .NET 宿主的 UTF-8 → 日志成了"合法 UTF-8 的乱码"，统计正则永不命中，每个宿主回落打印"全部通过"（**没人能验证的汇总行比没有汇总行更坏**）。回读**严格 UTF-8 优先、失败回落 936**（`powershell.exe` 子进程确实吐 936）。② **子进程零输出 = 判红**。`Start-Process -ArgumentList ''` 抛参数绑定异常，而 `$ErrorActionPreference='Continue'` 会把它变成 `Exit=0` —— 2026-10-22 实测整个 gate 报 `8 steps green` 而六个宿主**一个都没跑**。③ **别用 `Start-Process` 跑被测进程**（2026-10-22 又踩两次）：`-Wait` 等的是**整棵进程树**，一个残留后代就把 gate 挂死（实测空转 11 分钟、无子进程、无日志）；去掉 `-Wait` 后 `-PassThru` 的 **`ExitCode` 恒为 `$null`**（`WaitForExit` 后、`Refresh()` 后都还是空），`$null -ne 0` 判真 → 走进失败分支，`[int]$null` → 0 → **印出 exit=0 报全绿**。正解：`[Diagnostics.Process]::Start(ProcessStartInfo)` + 有界 `WaitForExit(ms)` + `StandardOutput.BaseStream.CopyToAsync` 把**原始字节**直接落盘；`Add-Row` 的退出码参数**不许做强类型**，`$null` 一律判红。守门：`run_gates.ps1` 的 `NO OUTPUT` 分支、`exit 124`（超时）、`exit 127`（启动失败）、`exit code unknown` 判红。 |
 
 ---
@@ -416,6 +370,15 @@
 | # | 判据 |
 |---|---|
 | R185 | **凡操作电脑（GUI/进程/键鼠）或调用 exe 做测试：开工前先查、收工前必须补** `docs\工程纪律\分册-AI操作与exe测试踩坑.md`。每条五段：现象 / 复现 / 原因 / 解法 / 规避（带命令参数）；重复问题合并更新，不新增重复条目；状态 ✅ 已解决 / ⚠️ 仍存在 / 🗑️ 已失效。**收工汇报必须写「台账已更新：新增 N 条 / 合并 M 条」**。守门人：人工评审。 |
+| R186 | **本项目不注册、不调用 `vm-tools` MCP**（源码留 `tools\vm-mcp\`）；测试走 §39。守门：`register-vm-mcp.mjs` 默认拒绝。 |
+
+---
+
+## 42. AI 生成 `.vms` 方案文件（R187）
+
+| # | 判据 |
+|---|---|
+| R187 | **生成/改 `.vms` 前先读 `docs\方案设计\AI生成VMS文件指南.md`**（字段、ID 与引用、生成顺序、自检清单）。三条硬判据：① 方案是**文件夹**（`<方案名>\<方案名>.vms` + `Image\`/`Assets\`/`Alarms\`/`History\`/`Logs\`，文件夹名=文件名）；② `.vms` 只写**方案内相对路径**：`[A-Za-z]:\\` 与 `..\` 命中数 = 0，图片匹配 `^Image\\[^\\]+$` 且文件存在；③ `AssetId` 稳定 Guid。守门：`tools\vms-generator` 的 `WriteFolderSolution`/`AssertNoExternalPath`；生成后 `SolutionService.LoadAsync` + `FlowCompiler` 逐流程验证。 |
 
 ---
 

@@ -230,6 +230,7 @@ $audits = @(
     @{ N = 'audit_root';        P = 'tools\audit_root.ps1' }
     @{ N = 'audit_artifacts';   P = 'tools\audit_artifacts.ps1' }
     @{ N = 'audit_docs';        P = 'tools\audit_docs.ps1' }
+    @{ N = 'audit_rules';       P = 'tools\audit_rules.ps1' }
     @{ N = 'sync_constraints';  P = 'tools\sync_constraints.ps1'; Args = '-Check' }
 )
 
