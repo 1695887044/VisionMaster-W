@@ -52,14 +52,30 @@
 相对目录按宿主进程当前目录解析，没有方案根锚点；要让账本严格落进方案自己的 `History\`，
 需把宿主工作目录设到方案根，或用绝对路径覆盖模板。生成器保证的是"配置文件里不含绝对路径、可整包搬迁"。
 
-自检判据（生成器落盘前必须过）：
+自检判据（生成器落盘前必须过；存量方案用 `GenSolution --verify <目录>` 复核，同一套判据）：
 
-- 全文正则 `"[^"]*[A-Za-z]:\\` 命中数 = 0；
 - 全文正则 `\.\.[\\/]` 命中数 = 0；
 - 每个 `SourcePath` / `SourceImagePath` 值都匹配 `^Image\\[^\\]+$`，且该文件确实存在于方案 `Image\`；
 - 每个 `TemplateAssets[].RelativePath` 都匹配 `^Assets\\Templates\\[^\\]+$`，`ModelAssets[].RelativePath` 都匹配 `^Assets\\Models\\[^\\]+$`，且文件存在；
 - 每个 `TemplateAssets[].AssetId` / `ModelAssets[].AssetId` / `ImageAssets[].AssetId` 都是稳定 Guid；插件 `TemplateAssetId` / `ModelAssetId` 能反查到对应集合；
 - 把整个方案文件夹复制到另一个目录后，**两个探针仍然全绿**（这是唯一的搬迁证据）。
+
+### 1.1.1 判据分两级：资产引用是硬判据，步骤级路径是已知边界
+
+"全文不许有盘符路径"这句话**过严**，会把生成器自己的样例判红。真实能力边界是这样：
+
+| 字段 | 解析方 | 判据 | 违反后果 |
+|---|---|---|---|
+| `SourcePath` / `SourceImagePath` / `ImageAssets[].RelativePath` | 宿主 `SolutionAssetService.TryResolve`（按方案根） | **ERROR**：必须 `Image\<文件名>` 平铺、文件存在 | 方案搬走就断图 |
+| `TemplateAssets[]` / `ModelAssets[].RelativePath` | 同上 | **ERROR**：必须 `Assets\Templates\<文件名>` / `Assets\Models\<文件名>` | 同上 |
+| `InputValues.FilePath` / `FolderPath` / `DirectoryTemplate`（步骤级） | **无人解析** | **WARN（已知边界）**：盘符路径合法但不可搬迁 | 换机器/搬目录后采集步骤找不到图 |
+
+原因：`IExecutionContext` 上**没有方案根成员**；`ImageAcquisitionPlugin` 只在 `ImageAssetId` 非空时才走 `ProjectAssetPathResolver`，Id 为空时原样使用传入路径。所以文件夹式采集今天**只能**用绝对路径（`--pair` 生成器头部也记着这条边界）。
+
+**关闭这条边界 = 改公共契约**：`IExecutionContext` 加方案根（或等价能力）→ 宿主实现 → 采集插件对原始 `FilePath`/`FolderPath` 做锚定 → 全插件重建。属 `AGENTS.md` R12 的大改动，不能顺手做。
+
+在那之前，`--verify` 对步骤级盘符路径只报 WARN 并计数，**不判红**——判红会让闸红在自己的验收语料上，最后只能被"标已知"绕过。
+
 
 `tools\vms-generator\Program.CcgSolutionFolder.cs` 是这套纪律的可复制实现：
 `WriteFolderSolution`（建目录 + 收图 + 复制 + 自检）、`SourceImageMap`（样图库子目录 → 方案内平铺文件名）、

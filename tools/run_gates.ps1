@@ -252,6 +252,54 @@ foreach ($a in $audits) {
     Add-Row -Name $a.N -Exit $r.Exit -Note $note
 }
 
+# --- Step 1.5: solution layout verification (R187) ---------------------------
+# The generator lives under tools\ and is NOT in VisionMaster.sln, so it has to
+# be built here (R182: a registered gate whose tool vanished is RED, not
+# skipped). The --verify mode is read-only: it never rewrites a .vms.
+# Judgement is field-scoped, not "no drive letter anywhere": asset references
+# are resolved against the solution root by SolutionAssetService.TryResolve, so
+# an absolute path there breaks the moment the folder is moved (ERROR). Step
+# level FilePath/FolderPath have no root anchor in IExecutionContext at all -
+# that is a documented boundary (WARN) until the contract gains one.
+if (-not ($Only.Count -gt 0 -and $Only -notcontains 'vms_verify')) {
+    $genProj = Join-Path $RepoRoot 'tools\vms-generator\GenSolution.csproj'
+    $cnSol = [string][char]0x89E3 + [string][char]0x51B3 + [string][char]0x65B9 + [string][char]0x6848
+    $solDir = Join-Path $RepoRoot $cnSol
+    $genExe = Join-Path $RepoRoot 'tools\vms-generator\bin\Debug\net9.0\GenSolution.exe'
+
+    if (-not (Test-Path -LiteralPath $genProj)) {
+        Add-Row -Name 'vms_verify' -Exit 1 -Note ('MISSING ' + $genProj)
+    }
+    elseif (-not (Test-Path -LiteralPath $solDir)) {
+        Add-Row -Name 'vms_verify' -Exit 1 -Note ('MISSING ' + $solDir)
+    }
+    else {
+        $vb = Invoke-Captured -FilePath 'dotnet' -Tag 'build-vms_verify' `
+            -Arguments ('build "' + $genProj + '" -m:1 -nodeReuse:false')
+        Write-GateLog -Path (Join-Path $logDir 'build-vms_verify.log') -Text $vb.Text
+        if ($vb.Exit -ne 0) {
+            Add-Row -Name 'vms_verify' -Exit $vb.Exit -Note 'BUILD FAILED, see build-vms_verify.log'
+        }
+        elseif (-not (Test-Path -LiteralPath $genExe)) {
+            Add-Row -Name 'vms_verify' -Exit 1 -Note ('EXE MISSING ' + $genExe)
+        }
+        else {
+            $v = Invoke-Captured -FilePath $genExe -Tag 'vms_verify' `
+                -Arguments ('--verify "' + $solDir + '"')
+            Write-GateLog -Path (Join-Path $logDir 'gate-vms_verify.log') -Text $v.Text
+            if ([string]::IsNullOrWhiteSpace($v.Text)) {
+                Add-Row -Name 'vms_verify' -Exit 1 -Note 'NO OUTPUT (did not run)'
+            }
+            elseif ($v.Exit -ne 0) {
+                Add-Row -Name 'vms_verify' -Exit $v.Exit -Note 'see gate-vms_verify.log'
+            }
+            else {
+                Add-Row -Name 'vms_verify' -Exit 0 -Note 'clean'
+            }
+        }
+    }
+}
+
 # --- Step 2: assertion hosts --------------------------------------------------
 
 $hosts = @(

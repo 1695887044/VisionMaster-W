@@ -70,6 +70,20 @@ internal static partial class Program
 
     static void Main(string[] args)
     {
+        // 存量方案校验（--verify <目录>）：只读，不写盘；按字段作用域判 ERROR/WARN
+        if (args.Length > 0 && string.Equals(args[0], "--verify", StringComparison.OrdinalIgnoreCase))
+        {
+            Environment.ExitCode = RunVerify(args.Length > 1 ? args[1] : null);
+            return;
+        }
+
+        // 视觉样例对拍（--pair）：在既有 .vms 上增量改造（判定/输出/Main编排/五页组态）
+        if (args.Length > 0 && string.Equals(args[0], "--pair", StringComparison.OrdinalIgnoreCase))
+        {
+            RunPair();
+            return;
+        }
+
         // 智能装配检测线（多工位 / 全图元 / 全插件 / 追溯报表）
         if (args.Length > 0 && string.Equals(args[0], "--smart-line", StringComparison.OrdinalIgnoreCase))
         {
@@ -102,6 +116,19 @@ internal static partial class Program
         if (args.Length > 0 && string.Equals(args[0], "--ccg-measure", StringComparison.OrdinalIgnoreCase))
         {
             WriteFolderSolution(BuildCcgMeasureStationSolution(), "CCG-精密尺寸测量站");
+            return;
+        }
+
+        // 未知开关必须报错退出，不许落到下面的"默认生成六方案"分支。
+        // 2026-10-28 实测：一个被代码页损坏的参数会让整程序按默认分支跑一遍，
+        // 在仓库根写出一个乱码的「解决方案」目录（里面只有一条账本 CSV）。
+        // 误调用变成全量重写，是这类工具最坏的失败模式——宁可 exit 2。
+        if (args.Length > 0)
+        {
+            Console.WriteLine("未知参数: " + args[0]);
+            Console.WriteLine("用法: GenSolution [--verify <目录> | --pair | --smart-line | --stress [--giant]"
+                              + " | --ccg-bga | --ccg-pack | --ccg-measure]");
+            Environment.ExitCode = 2;
             return;
         }
 

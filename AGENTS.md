@@ -352,7 +352,7 @@
 | R179 | **本机 `dotnet build`/`restore` 默认多进程会静默失败**（报"生成失败 / 0 个错误"、退出码 1）。**一律加 `-m:1 -nodeReuse:false`**。判据：`0 个错误` **且退出码 0** 才算构建通过。 |
 | R180 | **`File.Replace` 在受限环境一律被拒**（Move/Copy/Delete 正常）。`AppSettingsService.WriteReplacing` 只 `catch (IOException)` → `UnauthorizedAccessException` **带崩断言宿主**（ScadaChecks/FlowCanvasChecks 各崩一次）。替换式写文件必须同时 catch `IOException` + `UnauthorizedAccessException`。 |
 | R181 | **AgentTeams 成员可能写不了子目录**（沙箱只在仓库根授权、子目录不继承）→ **构建与跑测归主会话**，成员只做读/编辑/静态分析。成员报 `MSB3491 … is denied` 时**不要重试、不要换路径绕过**，直接交回主会话。 |
-| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ `audit_rules.ps1`（规则归属与编号并集）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
+| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ `audit_rules.ps1`（规则归属与编号并集）→ `vms_verify`（R187 方案布局，构建 `tools\vms-generator` 后跑 `--verify 解决方案`）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
 | R183 | **"没跑"和"跑绿了"必须能分开**。① 捕获子进程输出**不要走管道**：`& $exe 2>&1 \| Out-String` 按控制台代码页（本机 936）解码 .NET 宿主的 UTF-8 → 日志成了"合法 UTF-8 的乱码"，统计正则永不命中，每个宿主回落打印"全部通过"（**没人能验证的汇总行比没有汇总行更坏**）。回读**严格 UTF-8 优先、失败回落 936**（`powershell.exe` 子进程确实吐 936）。② **子进程零输出 = 判红**。`Start-Process -ArgumentList ''` 抛参数绑定异常，而 `$ErrorActionPreference='Continue'` 会把它变成 `Exit=0` —— 2026-10-22 实测整个 gate 报 `8 steps green` 而六个宿主**一个都没跑**。③ **别用 `Start-Process` 跑被测进程**（2026-10-22 又踩两次）：`-Wait` 等的是**整棵进程树**，一个残留后代就把 gate 挂死（实测空转 11 分钟、无子进程、无日志）；去掉 `-Wait` 后 `-PassThru` 的 **`ExitCode` 恒为 `$null`**（`WaitForExit` 后、`Refresh()` 后都还是空），`$null -ne 0` 判真 → 走进失败分支，`[int]$null` → 0 → **印出 exit=0 报全绿**。正解：`[Diagnostics.Process]::Start(ProcessStartInfo)` + 有界 `WaitForExit(ms)` + `StandardOutput.BaseStream.CopyToAsync` 把**原始字节**直接落盘；`Add-Row` 的退出码参数**不许做强类型**，`$null` 一律判红。守门：`run_gates.ps1` 的 `NO OUTPUT` 分支、`exit 124`（超时）、`exit 127`（启动失败）、`exit code unknown` 判红。 |
 
 ---
@@ -378,7 +378,7 @@
 
 | # | 判据 |
 |---|---|
-| R187 | **生成/改 `.vms` 前先读 `docs\方案设计\AI生成VMS文件指南.md`**（字段、ID 与引用、生成顺序、自检清单）。三条硬判据：① 方案是**文件夹**（`<方案名>\<方案名>.vms` + `Image\`/`Assets\`/`Alarms\`/`History\`/`Logs\`，文件夹名=文件名）；② `.vms` 只写**方案内相对路径**：`[A-Za-z]:\\` 与 `..\` 命中数 = 0，图片匹配 `^Image\\[^\\]+$` 且文件存在；③ `AssetId` 稳定 Guid。守门：`tools\vms-generator` 的 `WriteFolderSolution`/`AssertNoExternalPath`；生成后 `SolutionService.LoadAsync` + `FlowCompiler` 逐流程验证。 |
+| R187 | **生成/改 `.vms` 前先读 `docs\方案设计\AI生成VMS文件指南.md`**（§1.1 文件夹布局、§1.1.1 字段作用域）。判据分两级，`tools\vms-generator --verify <目录>` 是唯一实现：**ERROR**＝`..\` 命中数 0；资产引用（`SourcePath`/`SourceImagePath`/`*Assets[].RelativePath`）必须方案内相对、平铺在 `Image\`/`Assets\Templates\`/`Assets\Models\`、文件存在；`AssetId` 是稳定 Guid 且 `TemplateAssetId`/`ModelAssetId` 能反查。**WARN（已知边界）**＝步骤级 `InputValues.FilePath`/`FolderPath`/`DirectoryTemplate` 的盘符路径——`IExecutionContext` 没有方案根成员，采集插件只在 `ImageAssetId` 非空时走 resolver，**关掉它要改公共契约（R12 大改动）**。守门：`run_gates` 的 `vms_verify` 步（构建 `tools\vms-generator` 后跑 `--verify 解决方案`）；生成期另有 `WriteFolderSolution`/`AssertNoExternalPath`。 |
 
 ---
 
