@@ -6,12 +6,13 @@
 > Source of truth is the directory listing itself. Newest first; the
 > description column is the first markdown heading of each entry.
 
-Entries: **603**
+Entries: **604**
 
 ## 2026-10
 
 | Date | Entry |
 |---|---|
+| 2026-10-29 | [换机同步与约束入库（2026-10-29）](2026-10-29-换机同步与约束入库.md) |
 | 2026-10-28 | [资产化三项落地：手眼入标定目录 / 标定源图接资产 / 模板条目参考图接资产](2026-10-28-资产化三项落地（HandEye入目录-标定源图-模板参考图）.md) |
 | 2026-10-28 | [视觉图像多格布局「双击放大本格 / 再双击还原」（2026-10-28）](2026-10-28-视觉图像多格双击放大本格.md) |
 | 2026-10-28 | [结果源配置（Web 基线 + 后端解析优先级）](2026-10-28-结果源配置（Web基线-后端优先级）.md) |
