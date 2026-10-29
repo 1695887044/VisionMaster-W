@@ -874,6 +874,30 @@ namespace VisionMaster.Models
                         }
                     }
                 }
+                else if (Binding.WriteBatchSession.Current is { } batch)
+                {
+                    // 批会话内：只记账，等步骤边界统一冲刷。
+                    // 返回 true = "已受理"，**不是**"已到 PLC"——镜像也要等冲刷成功才更新，
+                    // 否则界面会显示一个设备上并不存在的值（与本文件插队写分支的既有立场一致）。
+                    AddressConfig.TryCreatePollAddress(out var poll);
+                    batch.Record(
+                        ConnectionName,
+                        new BatchWriteItem
+                        {
+                            Address = AddressConfig.Address,
+                            Poll = poll,
+                            Value = wireValue,
+                            ValueType = DataType ?? wireValue.GetType(),
+                        },
+                        mirrorValue,
+                        UpdateMirrorValue,
+                        items =>
+                        {
+                            CommunicationManager.TryWriteBatch(ConnectionName, items, batch.Urgent, out var batchResult);
+                            return batchResult;
+                        },
+                        _ => { /* 失败由步骤边界统一汇总上报，这里不逐项刷日志 */ });
+                }
                 else
                 {
                     // 经 Manager → 连接专属线程下发：与轮询、其他写命令在同一条线程上串行执行
@@ -1137,6 +1161,10 @@ namespace VisionMaster.Models
                 error = $"连接 [{ConnectionName}] 离线，变量 [{Name}] 未读取";
                 return false;
             }
+
+            // 写后读：会话里若有未提交的写，先冲刷再读设备——否则读到的是写之前的值（静默错值）。
+            // 只放在"显式读"入口，不放在 Value getter：镜像属性被界面每帧读取，冲刷会造成高频下发。
+            Binding.WriteBatchSession.FlushCurrent();
 
             try
             {

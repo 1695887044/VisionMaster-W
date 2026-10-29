@@ -33,6 +33,22 @@ namespace VisionMaster.Communications
         private volatile bool _refusedFailure;
         private volatile string? _lastConnectError;
 
+        /// <summary>
+        /// 字节间隙超时：对端两次发送之间最多等多久。
+        /// <para>由协议专属的 <see cref="FreeProtocolConfig.ResponseTimeoutMs"/> 控制；它 ≤0 时回落到通用读超时。</para>
+        /// </summary>
+        private int GapTimeoutMs => Math.Max(100, _config.ResponseTimeoutMs > 0
+            ? _config.ResponseTimeoutMs
+            : _config.ReadTimeoutMs);
+
+        /// <summary>
+        /// 整帧总时限：从发出命令到收完一帧的上限，由通用「读超时」控制。
+        /// <para><b>为什么两个都要</b>：只有间隙超时时，对端每 &lt;间隙 挤一个字节就能无限拖长一帧
+        /// （实测症状是"连接看着活着、这一帧永远收不完"）。有了总时限，"改读超时"也才真正影响读——
+        /// 旧实现里通用读超时被响应超时完全遮蔽，改它只改了写超时。</para>
+        /// </summary>
+        private int FrameDeadlineMs => Math.Max(100, _config.ReadTimeoutMs);
+
         public FreeProtocolConnection(FreeProtocolConfig config)
         {
             _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -101,8 +117,11 @@ namespace VisionMaster.Communications
 
             _client = client;
             _stream = client.GetStream();
-            _stream.ReadTimeout = Math.Max(100, _config.ResponseTimeoutMs);
-            _stream.WriteTimeout = Math.Max(100, _config.ReadTimeoutMs);
+            // 套接字级超时只表达"字节间隙"：两次发送之间最多等多久。
+            // 整帧总时限（通用「读超时」）由 ReadResponseBytes 的 deadline 控制——
+            // 两个字段各管一件事，界面上两个框都真的有用。
+            _stream.ReadTimeout = GapTimeoutMs;
+            _stream.WriteTimeout = GapTimeoutMs;
             _isConnected = true;
             _refusedFailure = false;
             _lastConnectError = null;
@@ -242,15 +261,28 @@ namespace VisionMaster.Communications
 
         /// <summary>
         /// 读到结束符（或超时/对端关闭）为止，返回去掉结束符的原始字节。
-        /// 空结束符时，把"读超时"视为一帧结束（适合定长/对端主动断开的设备）。
+        /// 空结束符时，把"整帧超时"视为一帧结束（适合定长/对端主动断开的设备）。
+        /// <para>两道闸：套接字级 = 字节间隙（<see cref="GapTimeoutMs"/>）；这里 = 整帧总时限
+        /// （<see cref="FrameDeadlineMs"/>）。只有间隙闸时，对端每 &lt;间隙 挤一个字节就能无限拖长一帧。</para>
         /// </summary>
         private byte[] ReadResponseBytes()
         {
             var buffer = new List<byte>(256);
             var one = new byte[1];
+            var clock = System.Diagnostics.Stopwatch.StartNew();
+            int deadlineMs = FrameDeadlineMs;
 
             while (true)
             {
+                // 整帧闸：每收一个字节查一次，最多超出一个间隙的时长
+                if (clock.ElapsedMilliseconds >= deadlineMs)
+                {
+                    _lastIoFailed = true;
+                    if (_terminator.Length == 0 && buffer.Count > 0) break; // 空结束符：读到超时即一帧
+                    throw new TimeoutException(
+                        $"自由协议整帧超时（{deadlineMs}ms 内未收完，已收 {buffer.Count} 字节；字节间隙超时 {GapTimeoutMs}ms）");
+                }
+
                 int n;
                 try
                 {
@@ -261,7 +293,7 @@ namespace VisionMaster.Communications
                     _lastIoFailed = true;
                     if (_terminator.Length == 0 && buffer.Count > 0) break;
                     throw new TimeoutException(
-                        $"自由协议等待响应超时（{_config.ResponseTimeoutMs}ms）：{ex.Message}", ex);
+                        $"自由协议等待响应超时（间隙 {GapTimeoutMs}ms，整帧上限 {deadlineMs}ms）：{ex.Message}", ex);
                 }
 
                 if (n <= 0) break; // 对端关闭

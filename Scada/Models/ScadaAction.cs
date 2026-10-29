@@ -42,6 +42,10 @@ namespace VisionMaster.Scada
         private double? _max;
         private int? _bitIndex;
         private string _soundKind = "Info";
+        private Guid _languageId;
+        private string? _languageName;
+        private int? _delayMs;
+        private int? _muteMinutes;
         private bool _onlyIfPreviousSucceeded;
 
         /// <summary>动作类型（决定下面哪几组字段有意义）</summary>
@@ -457,6 +461,105 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
+        /// 目标语言表稳定身份（<see cref="ScadaActionType.SetLanguage"/>）。
+        /// <c>Guid.Empty</c> = 旧数据只能按名找（与变量/画面/配方同一条"Id 权威、名字兜底"口径）。
+        /// </summary>
+        public Guid LanguageId
+        {
+            get => _languageId;
+            set
+            {
+                if (SetProperty(ref _languageId, value))
+                {
+                    RaisePropertyChanged(nameof(HasLanguage));
+                    RaisePropertyChanged(nameof(LanguageDisplayName));
+                    RaisePropertyChanged(nameof(Detail));
+                }
+            }
+        }
+
+        /// <summary>目标语言表显示名（只给人看；运行态按 <see cref="LanguageId"/> 找，找不到才按名字兜底）</summary>
+        public string? LanguageName
+        {
+            get => _languageName;
+            set
+            {
+                if (SetProperty(ref _languageName, value))
+                {
+                    RaisePropertyChanged(nameof(HasLanguage));
+                    RaisePropertyChanged(nameof(LanguageDisplayName));
+                    RaisePropertyChanged(nameof(Detail));
+                }
+            }
+        }
+
+        /// <summary>是否已选语言表（Id 或名字任一非空白即算）</summary>
+        public bool HasLanguage
+            => _languageId != Guid.Empty || !string.IsNullOrWhiteSpace(_languageName);
+
+        /// <summary>语言表那一格显示什么：名字 / 语言#前8位 / （未选语言）</summary>
+        public string LanguageDisplayName
+        {
+            get
+            {
+                if (!string.IsNullOrWhiteSpace(_languageName))
+                    return _languageName!;
+
+                return _languageId == Guid.Empty
+                    ? "（未选语言）"
+                    : "语言#" + _languageId.ToString("N").Substring(0, 8);
+            }
+        }
+
+        /// <summary>
+        /// 延时毫秒（<see cref="ScadaActionType.Delay"/>）。<c>null</c> 或 ≤0 视为"没填"，
+        /// 由执行侧当场拒绝并说明——悄悄按 0 处理会让"我明明配了延时"变成一个查不出来的假象。
+        /// </summary>
+        public int? DelayMs
+        {
+            get => _delayMs;
+            set
+            {
+                if (SetProperty(ref _delayMs, value))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>
+        /// 静音时长（分钟，<see cref="ScadaActionType.MuteAlarm"/>）。
+        /// <c>null</c> 或 ≤0 视为"没填"，执行侧按默认 5 分钟处理并在日志里说明——
+        /// 静音是个"少响一会儿"的软操作，没填就给默认值比拒绝更符合现场预期。
+        /// </summary>
+        public int? MuteMinutes
+        {
+            get => _muteMinutes;
+            set
+            {
+                if (SetProperty(ref _muteMinutes, value))
+                    RaisePropertyChanged(nameof(Detail));
+            }
+        }
+
+        /// <summary>
+        /// 绑定/自愈回填目标语言表（口径同 <see cref="BindPage"/>：Id 是权威键，名字给人看）。
+        /// </summary>
+        public void BindLanguage(Guid languageId, string? languageName)
+        {
+            LanguageId = languageId;
+            LanguageName = languageName;
+        }
+
+        /// <summary>语言表改名命中判定（Id 优先、名字兜底）</summary>
+        public bool MatchesLanguage(Guid languageId, string? oldName)
+        {
+            if (languageId != Guid.Empty && _languageId == languageId)
+                return true;
+
+            return !string.IsNullOrEmpty(oldName)
+                && string.Equals(_languageName, oldName, StringComparison.Ordinal);
+        }
+
+        /// <summary>
         /// 本动作的关键参数（属性面板上"这一行右边要显示的短文本"）。
         /// 单独开一个只读属性，是为了让界面不必各自去 switch 一遍动作类型——
         /// 那份 switch 与 <see cref="Describe"/> 是同一份知识，只该存在一处。
@@ -503,6 +606,18 @@ namespace VisionMaster.Scada
                 ? $"{AxisLabel}（{(IsForward(_targetMm) ? "正向" : "反向")}）"
                 : AxisLabel,
             ScadaActionType.MotionJogStop => AxisLabel,
+            // v6：登录/注销没有参数，行内留空；切换语言显示目标语言名；延时显示毫秒。
+            ScadaActionType.Logon => string.Empty,
+            ScadaActionType.Logoff => string.Empty,
+            ScadaActionType.SetLanguage => HasLanguage ? LanguageDisplayName : string.Empty,
+            ScadaActionType.Delay => _delayMs is { } ms && ms > 0
+                ? ms.ToString(CultureInfo.InvariantCulture) + " ms"
+                : string.Empty,
+            // v7：确认报警无参数；静音显示分钟数（未填按默认 5 分钟，行内留空由 Describe 说明）
+            ScadaActionType.AcknowledgeAlarm => string.Empty,
+            ScadaActionType.MuteAlarm => _muteMinutes is { } mute && mute > 0
+                ? mute.ToString(CultureInfo.InvariantCulture) + " 分钟"
+                : string.Empty,
             _ => string.Empty,
         };
 
@@ -697,6 +812,20 @@ namespace VisionMaster.Scada
             ScadaActionType.MotionJogStop => !HasAxis
                 ? "点动结束（未选轴）"
                 : $"点动结束 {AxisLabel}",
+            // v6 四条：措辞与面板/日志同源。"没填"的那两档必须说清楚，否则用户会以为配好了。
+            ScadaActionType.Logon => "弹出登录窗",
+            ScadaActionType.Logoff => "注销当前账号",
+            ScadaActionType.SetLanguage => !HasLanguage
+                ? "切换语言（未选语言）"
+                : $"切换语言 → {LanguageDisplayName}",
+            ScadaActionType.Delay => _delayMs is { } ms && ms > 0
+                ? $"延时 {ms.ToString(CultureInfo.InvariantCulture)} ms 后继续"
+                : "延时（未填毫秒）",
+            // v7 两条：措辞与面板/日志同源。"确认全部"要说清楚范围，"静音"要带上时长。
+            ScadaActionType.AcknowledgeAlarm => "确认全部待确认报警",
+            ScadaActionType.MuteAlarm => _muteMinutes is { } mute && mute > 0
+                ? $"静音 {mute.ToString(CultureInfo.InvariantCulture)} 分钟"
+                : "静音 5 分钟（未填时长，按默认）",
             _ => Type.DisplayName(),
         };
 

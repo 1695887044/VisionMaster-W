@@ -86,6 +86,21 @@ namespace Plugin.ResultUpload
             set { _variableName = value; OnPropertyChanged(); }
         }
 
+        private Guid _variableId = Guid.Empty;
+
+        /// <summary>
+        /// 变量的稳定身份（确认配置时按名字唯一命中捕获；旧配置为空）。
+        ///
+        /// 为什么与 <see cref="VariableName"/> 并存：多设备允许同名点位之后（同一设备内唯一），
+        /// 名字不再能唯一定位一个变量。运行期"Id 优先、名字兜底"，
+        /// 变量改名后这个字段仍然读的是同一个变量。
+        /// </summary>
+        public Guid VariableId
+        {
+            get => _variableId;
+            set { _variableId = value; OnPropertyChanged(); }
+        }
+
         private BuiltInField _builtIn = BuiltInField.Timestamp;
         /// <summary>来源=内置字段时选哪种</summary>
         public BuiltInField BuiltIn

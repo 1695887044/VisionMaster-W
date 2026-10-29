@@ -52,6 +52,15 @@ namespace VisionMaster.Services
                 return true;
             }
 
+            // ①b 重名：精确名没命中，但这个名字确实存在（只是重复）。
+            // 必须先于 ② 报出来——否则 `Alarm[90]` 会落到"数组根 Alarm 不存在"，
+            // 把"同名两台设备"误报成"数组变量没建"，排查方向直接跑偏。
+            if (VariableNameAmbiguity.TryExplain(_registry, text, out var ambiguity))
+            {
+                error = ambiguity;
+                return false;
+            }
+
             // ② 数组元素：Base[index]
             if (!TryParseElementReference(text, out string baseName, out int index))
             {
@@ -63,6 +72,12 @@ namespace VisionMaster.Services
 
             if (root == null)
             {
+                if (VariableNameAmbiguity.TryExplain(_registry, baseName, out var rootAmbiguity))
+                {
+                    error = rootAmbiguity;
+                    return false;
+                }
+
                 error = $"找不到变量「{text}」（数组根「{baseName}」不存在）";
                 return false;
             }

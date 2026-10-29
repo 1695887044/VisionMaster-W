@@ -1,0 +1,387 @@
+<UserControl
+    x:Class="VisionMaster.Views.DialogViews.LanguageManagerView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="520"
+    d:DesignWidth="860"
+    mc:Ignorable="d">
+
+    <!--
+        多语言管理器（方案级语言表：键 → 各语言译文）。
+        由 EasyDialog.ShowSync 承载；这里只有内容区，确定/取消是 EasyDialog 的按钮。
+        编辑的是文档副本，确认后由 Commit() 原地写回（见 LanguageManagerViewModel）。
+
+        结构照文本列表管理器（StateListManagerView）逐条对应：
+        左侧共享表清单 + 右侧条目表格，只把"值/文字/图片/颜色"换成"键/译文"。
+    -->
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!--  本视图自带口粮（R22）：脱离 App 单独渲染时也能取到令牌  -->
+                <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="CellBox" TargetType="TextBox">
+                <Setter Property="Height" Value="26" />
+                <Setter Property="Padding" Value="6,3" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="TinyButton" TargetType="Button">
+                <Setter Property="Height" Value="26" />
+                <Setter Property="Padding" Value="9,0" />
+                <Setter Property="FontSize" Value="11.5" />
+                <Setter Property="Cursor" Value="Hand" />
+                <Setter Property="Background" Value="{StaticResource ScadaSurfaceBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ScadaPanelBorderBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Foreground" Value="{StaticResource ScadaTextBrush}" />
+            </Style>
+
+            <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource TinyButton}">
+                <Setter Property="Foreground" Value="{StaticResource ScadaDangerBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ScadaDangerBrush}" />
+            </Style>
+
+            <!--  「当前」徽标：小圆角底色块，左侧列表与右栏共用同一份  -->
+            <Style x:Key="CurrentBadge" TargetType="Border">
+                <Setter Property="Padding" Value="5,1" />
+                <Setter Property="CornerRadius" Value="4" />
+                <Setter Property="Background" Value="{StaticResource ScadaAccentSoftBrush}" />
+                <Setter Property="BorderBrush" Value="{StaticResource ScadaAccentBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <!--  「当前」徽标只在是当前语言时出现：两条路径（列表行 / 右栏标题）共用同一份触发器  -->
+            <Style x:Key="CurrentBadgeVisibility" TargetType="Border" BasedOn="{StaticResource CurrentBadge}">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding IsCurrent}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="CurrentBadgeVisibilitySelected" TargetType="Border" BasedOn="{StaticResource CurrentBadge}">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIsCurrent}" Value="True">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="ListRow" TargetType="ListBoxItem">
+                <Setter Property="Padding" Value="8,6" />
+                <Setter Property="Margin" Value="0,1" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border
+                                x:Name="Bd"
+                                Padding="{TemplateBinding Padding}"
+                                Background="Transparent"
+                                CornerRadius="5">
+                                <ContentPresenter />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaHoverBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ScadaAccentSoftBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <DataTemplate x:Key="EntryRow">
+                <Grid Margin="0,2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBox
+                        Grid.Column="0"
+                        Margin="0,0,6,0"
+                        Style="{StaticResource CellBox}"
+                        Text="{Binding Key, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="文案键（不含 @）：图元文本写成 @键 就会取这一行的译文；区分大小写" />
+
+                    <TextBox
+                        Grid.Column="1"
+                        Margin="0,0,6,0"
+                        Style="{StaticResource CellBox}"
+                        Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="该语言下的译文；留空 = 这一条在这个语言下还没翻（会回落到其它语言，再没有就原样显示 @键）" />
+
+                    <Button
+                        Grid.Column="2"
+                        Width="24"
+                        Height="24"
+                        Padding="0"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Click="OnRemoveEntryClick"
+                        Content="×"
+                        Cursor="Hand"
+                        FontSize="13"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        ToolTip="删除这一条" />
+                </Grid>
+            </DataTemplate>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!--  左：语言表清单  -->
+        <Border
+            Grid.Column="0"
+            Padding="10"
+            Background="{StaticResource ScadaPanelBackgroundBrush}"
+            BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+            BorderThickness="0,0,1,0">
+            <DockPanel>
+                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="语言表" />
+                    <Button
+                        Grid.Column="1"
+                        Padding="8,0"
+                        Click="OnAddLanguageClick"
+                        Content="＋ 新建"
+                        Style="{StaticResource TinyButton}"
+                        ToolTip="新建一张语言表（首张自动设为当前语言）" />
+                </Grid>
+
+                <ListBox
+                    Background="Transparent"
+                    BorderThickness="0"
+                    ItemContainerStyle="{StaticResource ListRow}"
+                    ItemsSource="{Binding Languages}"
+                    SelectedItem="{Binding SelectedLanguage, Mode=TwoWay}">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    FontSize="12"
+                                    Foreground="{StaticResource ScadaTextBrush}"
+                                    Text="{Binding Name}"
+                                    TextTrimming="CharacterEllipsis" />
+                                <!--  「当前」徽标：语言表一换，画面上所有 @键 就按它解析  -->
+                                <Border Grid.Column="1" Margin="6,0,0,0" Style="{StaticResource CurrentBadgeVisibility}">
+                                    <TextBlock
+                                        FontSize="9.5"
+                                        Foreground="{StaticResource ScadaAccentBrush}"
+                                        Text="当前" />
+                                </Border>
+                                <TextBlock
+                                    Grid.Column="2"
+                                    Margin="6,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="10"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="{Binding Language.Entries.Count, StringFormat='{}{0} 条'}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!--  右：词条编辑  -->
+        <Grid Grid.Column="1" Margin="16,14,16,14">
+            <TextBlock
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontSize="12"
+                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                Text="左侧还没有语言表。点「＋ 新建」开始；一张表 = 一种界面语言。"
+                TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedLanguage}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Grid>
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Visibility" Value="Visible" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding SelectedLanguage}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!--  语言名 + 当前语言 + 设为当前 + 删除  -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock
+                                VerticalAlignment="Center"
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Foreground="{StaticResource ScadaTextBrush}"
+                                Text="语言名称" />
+                            <Border Margin="8,0,0,0" Style="{StaticResource CurrentBadgeVisibilitySelected}">
+                                <TextBlock
+                                    FontSize="9.5"
+                                    Foreground="{StaticResource ScadaAccentBrush}"
+                                    Text="当前" />
+                            </Border>
+                        </StackPanel>
+                        <TextBox
+                            Margin="0,5,0,0"
+                            Style="{StaticResource CellBox}"
+                            Text="{Binding SelectedLanguage.Name, UpdateSourceTrigger=PropertyChanged}"
+                            ToolTip="显示名（如「简体中文」「English」）；改名不影响已经配好的键" />
+                    </StackPanel>
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="14,0,0,0"
+                        VerticalAlignment="Bottom"
+                        Orientation="Horizontal">
+                        <TextBlock
+                            Margin="0,0,10,0"
+                            VerticalAlignment="Center"
+                            FontSize="10.5"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            Text="{Binding CurrentLanguageText, StringFormat='当前语言：{0}'}"
+                            TextTrimming="CharacterEllipsis" />
+                        <!--  已经是当前语言时置灰：再点一次没有意义，也免得用户以为"没生效"  -->
+                        <Button
+                            Margin="0,0,8,0"
+                            Click="OnSetCurrentClick"
+                            Content="设为当前语言"
+                            ToolTip="画面上的 @键 按这张表解析；确认后跟着方案一起存盘">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TinyButton}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedIsCurrent}" Value="True">
+                                            <Setter Property="IsEnabled" Value="False" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button
+                            Click="OnRemoveLanguageClick"
+                            Content="删除语言"
+                            Style="{StaticResource DangerButton}" />
+                    </StackPanel>
+                </Grid>
+
+                <Border
+                    Grid.Row="1"
+                    Margin="0,14,0,0"
+                    BorderBrush="{StaticResource ScadaHairlineBrush}"
+                    BorderThickness="0,0,0,1" />
+
+                <!--  表头  -->
+                <Grid Grid.Row="2" Margin="0,12,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="230" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        FontSize="10.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="键（图元里写 @键）" />
+                    <TextBlock
+                        Grid.Column="1"
+                        Margin="6,0,0,0"
+                        FontSize="10.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="译文" />
+                </Grid>
+
+                <ScrollViewer
+                    Grid.Row="3"
+                    Margin="0,2,0,8"
+                    VerticalScrollBarVisibility="Auto">
+                    <ItemsControl
+                        ItemTemplate="{StaticResource EntryRow}"
+                        ItemsSource="{Binding SelectedLanguage.Language.Entries}" />
+                </ScrollViewer>
+
+                <StackPanel Grid.Row="4">
+                    <StackPanel Orientation="Horizontal">
+                        <Button
+                            Click="OnAddEntryClick"
+                            Content="＋ 添加词条"
+                            Style="{StaticResource TinyButton}" />
+                        <Button
+                            Margin="8,0,0,0"
+                            Click="OnCollectKeysClick"
+                            Content="从方案收集键"
+                            Style="{StaticResource TinyButton}"
+                            ToolTip="把方案里已用到、这张表还没有的 @键 补成空行（只补缺失，不覆盖已有译文）" />
+                    </StackPanel>
+                    <TextBlock
+                        Margin="0,8,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="{Binding CoverageText}"
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Margin="0,4,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource ScadaFaintTextBrush}"
+                        Text="图元文本以 @ 开头即按本表解析（@@ 表示字面量 @）；本表没翻的键会先找其它语言，再没有就原样显示 @键。"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Grid>
+</UserControl>

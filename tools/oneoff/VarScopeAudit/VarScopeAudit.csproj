@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>VarScopeAudit</AssemblyName>
+    <RootNamespace>VarScopeAudit</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- 审计用一次性探针：只为拿到 Core/Communication/Scada/插件 的真实现，不参与构建闸门 -->
+    <ProjectReference Include="..\..\..\VisionMaster\VisionMaster.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Utility\Plugin.Util.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.DataRecord\Plugin.DataRecord.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.ResultUpload\Plugin.ResultUpload.csproj" />
+  </ItemGroup>
+</Project>

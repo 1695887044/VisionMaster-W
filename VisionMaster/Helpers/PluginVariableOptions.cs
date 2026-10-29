@@ -49,9 +49,9 @@ namespace VisionMaster.Helpers
             if (workspace == null)
                 return result;
 
-            // 去重键是「名字 + 作用域」而不是只按名字：全局与运行时允许同名，那是两个不同的东西
-            //（作用域本身就是为了把同名歧义显式化才加的）。只按名字去重会让"运行时那个同名变量"
-            // 在候选里凭空消失，而界面上看起来"名字明明建好了"。
+            // 去重键是「名字 + 作用域 + 设备」而不是只按名字：全局与运行时允许同名，那是两个不同的东西；
+            // 不同设备的同名点位（同一设备内唯一）也是两个不同的东西，只按名字去重会让第二台设备
+            // **在插件下拉里凭空消失**——用户以为"变量明明建好了"，实际是候选被吞了。
             var seen = new HashSet<string>(StringComparer.Ordinal);
 
             // ① 变量管理里的那批（含网络变量）：作用域=全局时唯一合法的名字来源
@@ -59,14 +59,20 @@ namespace VisionMaster.Helpers
             {
                 if (variable == null || string.IsNullOrWhiteSpace(variable.Name))
                     continue;
-                if (!seen.Add(Key(variable.Name, ScopeGlobal)))
-                    continue;   // 同名重复：以先出现者为准，与变量索引 Rebuild 的口径一致
+
+                var device = variable is NetworkVariableModel network
+                    ? (network.ConnectionName ?? string.Empty)
+                    : string.Empty;
+
+                if (!seen.Add(Key(variable.Name, ScopeGlobal, device)))
+                    continue;
 
                 result.Add(new VariableOption
                 {
                     VariableId = variable.VariableId,
                     Name = variable.Name,
                     Scope = ScopeGlobal,
+                    Device = device,
                     TypeName = ShortTypeName(variable.DataType),
                     Description = string.IsNullOrWhiteSpace(variable.Description)
                         ? "全局变量"
@@ -89,7 +95,7 @@ namespace VisionMaster.Helpers
                 if (variable is ISystemVariableContainer { Fields.Count: > 0 })
                     continue;
 
-                if (!seen.Add(Key(variable.Name, ScopeSystem)))
+                if (!seen.Add(Key(variable.Name, ScopeSystem, string.Empty)))
                     continue;
 
                 result.Add(new VariableOption
@@ -115,7 +121,7 @@ namespace VisionMaster.Helpers
                 {
                     if (step == null || !FlowQueryHelper.TryGetDefinedVariable(step, out var name, out var type))
                         continue;
-                    if (string.IsNullOrWhiteSpace(name) || !seen.Add(Key(name, ScopeRuntime)))
+                    if (string.IsNullOrWhiteSpace(name) || !seen.Add(Key(name, ScopeRuntime, string.Empty)))
                         continue;
 
                     result.Add(new VariableOption
@@ -131,7 +137,9 @@ namespace VisionMaster.Helpers
             return result;
         }
 
-        private static string Key(string name, string scope) => scope + "\n" + name;
+        /// <summary>候选去重键：作用域 + 名字 + 设备（设备为空 = 本地/运行时变量）</summary>
+        private static string Key(string name, string scope, string device)
+            => scope + "\n" + name + "\n" + device;
 
         /// <summary>按 Id 在图纸里找步骤（含嵌套容器的分支；找不到返回 null）</summary>
         private static StepModel? FindStepById(IEnumerable<StepModel>? steps, Guid stepId)

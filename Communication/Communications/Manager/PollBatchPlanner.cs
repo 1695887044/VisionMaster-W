@@ -82,6 +82,17 @@ namespace VisionMaster.Communications
             public string ConnectionName = string.Empty;
 
             public string SegmentPrefix = string.Empty;
+
+            /// <summary>
+            /// 段地址覆盖串（null = 退回 <see cref="SegmentPrefix"/> + 十进制 <see cref="Start"/>）。
+            /// <para>为什么需要它：地址单位不是十进制的区（EasyNet 的 U 区十六进制、X/Y 八进制，
+            /// MC 的 X/Y/B/W 十六进制）不能把十进制 Start 直接拼回地址串——0x21001C 会被再按十六进制
+            /// 解析成 0x21001C 之外的设备号，单读与批读打到两个地址（MC 当年踩过）。</para>
+            /// <para>由地址实现按区内进制给出（<see cref="PollAddress.SegmentAddressOverride"/>），
+            /// 规划器沿用"段首变量"的那一份：段的起点就是段首变量的起点，合并不会改 Start。</para>
+            /// </summary>
+            public string? AddressOverride;
+
             public int Start;
             public int EndUnit;
 
@@ -104,15 +115,18 @@ namespace VisionMaster.Communications
             /// </summary>
             public readonly List<(PollAddress Address, CommunicationVariable Variable)> Owned = new();
 
-            /// <summary>本段可用的 HSL 地址（如 "x=3;100" / "MB100" / "DB7.DBB100"）</summary>
-            public string Address => SegmentPrefix + Start;
+            /// <summary>本段可用的设备地址（如 "x=3;100" / "MB100" / "DB7.DBB100" / "U21001C0"）</summary>
+            public string Address => AddressOverride ?? SegmentPrefix + Start;
 
             /// <summary>段跨度（单元数）</summary>
             public int SpanUnits => EndUnit - Start;
 
-            /// <summary>段内每个单元占用的字节数（Modbus 寄存器区 1 单元 = 2 字节，其余 1:1）</summary>
+            /// <summary>段内每个单元占用的字节数（Modbus 寄存器区/EasyNet 字区 1 单元 = 2 字节，其余 1:1）</summary>
             public int BytesPerUnit =>
-                Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins && !IsBitArea ? 2 : 1;
+                Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins or PollProtocol.EasyNet
+                    && !IsBitArea
+                    ? 2
+                    : 1;
 
             /// <summary>
             /// 本段"连续失败"的轮数（成功一轮即归零）。
@@ -408,6 +422,7 @@ namespace VisionMaster.Communications
                             GroupKey = poll.GroupKey,
                             ConnectionName = variable.ConnectionName,
                             SegmentPrefix = poll.SegmentPrefix,
+                            AddressOverride = poll.SegmentAddressOverride,
                             Start = poll.Start,
                             EndUnit = poll.EndUnit,
                             IsBitArea = poll.IsBitArea,
@@ -442,6 +457,7 @@ namespace VisionMaster.Communications
                             GroupKey = poll.GroupKey,
                             ConnectionName = variable.ConnectionName, // C5：限流 key 需要它，编译期取一次
                             SegmentPrefix = poll.SegmentPrefix,
+                            AddressOverride = poll.SegmentAddressOverride,
                             Start = poll.Start,
                             EndUnit = poll.EndUnit,
                             IsBitArea = poll.IsBitArea
@@ -666,9 +682,21 @@ namespace VisionMaster.Communications
 
             if (attempted == 0) return PollCycleOutcome.Completed;   // 无读项：不算故障（连接活性由其它读写刷新）
             if (linkFault) return PollCycleOutcome.LinkFault;        // ★ 必须显式判：前几段成功、后段链路断时 failed < attempted 会误判为正常
-            return failed < attempted
-                ? PollCycleOutcome.Completed
-                : PollCycleOutcome.LinkFault;                        // 全失败 ⇒ 通信级故障，交给 Worker 断线重连
+            if (failed < attempted) return PollCycleOutcome.Completed;
+
+            // 全失败还要再分一层：设备明确回了"这个地址读不了"（错误帧 / 非法地址 / 段超长）时链路是好的，
+            // 断线重连只会把"地址配错"伪装成"连不上"——实测 H5U 模拟器段长超限回 129，
+            // 整轮 12 段全红 → 旧逻辑判 LinkFault → 界面一直显示"重连中"，而 TCP 每次都是连上的。
+            // 只有连接自证链路已断（传输层 I/O 失败，见 ILinkHealthProbe）才判 LinkFault；
+            // 不支持自证的连接没有依据，维持原判定（宁可重连，也不把半开链路当健康）。
+            if (connection is ILinkHealthProbe healthy && !healthy.HasLinkFault)
+            {
+                LogThrottled($"allrejected:{connection.ConnectionName}",
+                    $"本轮 {attempted} 个读项全部被设备拒绝，但链路未断（按地址级失败处理，不断线重连）");
+                return PollCycleOutcome.Completed;
+            }
+
+            return PollCycleOutcome.LinkFault;                       // 全失败且链路自证断开 ⇒ 通信级故障，交给 Worker 断线重连
         }
 
         /// <summary>
@@ -865,7 +893,7 @@ namespace VisionMaster.Communications
                     $"段 {seg.Address} 实际返回 {data.Length} 字节，不足解码 {item.Variable.VariableName}（需 {byteOffset + byteLength} 字节）");
 
             return item.BitOffset >= 0
-                ? DecodeBit(data, byteOffset, item.BitOffset, item.ValueType)
+                ? DecodeBit(data, byteOffset, byteLength, item.BitOffset, item.ValueType)
                 : DecodeValue(data, byteOffset, byteLength, item, order);
         }
 
@@ -955,10 +983,19 @@ namespace VisionMaster.Communications
         }
 
         /// <summary>S7 位访问：取指定字节的第 N 位</summary>
-        private static object DecodeBit(byte[] data, int byteOffset, int bitOffset, Type type)
+        /// <summary>
+        /// 从段内字节切片里取一个位（LSB-first）。
+        /// <para>位序号是"相对本变量地址单元的位号"，上限由<b>单元宽度</b>决定而不是写死 7：
+        /// 字节单元（S7 的 <c>M10.3</c>）只有 0~7，字单元（EasyNet 的 <c>D100.12</c>）是 0~15。
+        /// 写死 7 会让字内高 8 位永远读不到；写成裸 <c>&gt;15</c> 又会让将来的字节单元协议静默读到相邻字节。</para>
+        /// </summary>
+        private static object DecodeBit(byte[] data, int byteOffset, int byteLength, int bitOffset, Type type)
         {
-            if (bitOffset is < 0 or > 7) throw new ArgumentOutOfRangeException(nameof(bitOffset));
-            bool bit = ((data[byteOffset] >> bitOffset) & 1) == 1;
+            if (bitOffset < 0 || bitOffset >= byteLength * 8)
+                throw new ArgumentOutOfRangeException(nameof(bitOffset),
+                    $"位偏移 {bitOffset} 超出本变量跨度 {byteLength} 字节（最多 {byteLength * 8 - 1} 位）");
+
+            bool bit = ((data[byteOffset + bitOffset / 8] >> (bitOffset % 8)) & 1) == 1;
             return type == typeof(bool) ? bit : Convert.ChangeType(bit, type);
         }
 

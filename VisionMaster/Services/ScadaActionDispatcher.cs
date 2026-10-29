@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Windows.Threading;
 using Core.Interfaces;
 using VisionMaster.Helpers;
 using VisionMaster.Scada;
@@ -14,7 +17,7 @@ namespace VisionMaster.Services
     ///
     /// 现在接通了哪些动作
     /// ---------
-    /// 二十六个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
+    /// 三十二个动作<b>都已真执行</b>：「记录日志」写一行运行日志；「写变量」走
     /// <see cref="IScadaValueSource"/> 解析后落 <c>IWritableVariable.TryWrite</c>（S6 接入）；
     /// 「置位 / 复位 / 取反」走同一条通道做"读-改-写"（v4 位操作，见 <see cref="ExecuteBitAction"/>）；
     /// 「切换画面」走 <see cref="IScadaNavigator"/> 找画面并换 <c>CurrentPage</c>（S8 接入）；
@@ -24,6 +27,23 @@ namespace VisionMaster.Services
     /// 本类不做二次解释）；
     /// 运动九条（轴使能 / 失能 / 绝对定位 / 相对定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）
     /// 走 <see cref="MotionActionExecutor"/>（取轴、门禁、下发全在那一层，见其类注释）。
+    ///
+    /// v6 四条（登录 / 注销 / 切换语言 / 延时）的分工
+    /// ---------
+    /// 前三条各接一个<b>可选</b>出口：登录窗（<c>Func&lt;string?, bool&gt;</c>，本类只负责"把窗调出来"，
+    /// 凭据不进 .vms）、用户会话（<see cref="IScadaUserSession"/>，只有注销一件事）、
+    /// 语言服务（<see cref="IScadaLanguageService"/>，切当前语言表）。
+    /// 三者都没接线时按"未接入"如实跳过——与运动/配方/声音同一条纪律：宿主装配状态由执行侧当场说。
+    /// 「延时」不需要任何外部服务，但它<b>会接管循环</b>：把本条之后的剩余动作排进
+    /// <see cref="DispatcherTimer"/>，本轮循环到此为止，到点后再走一遍
+    /// <see cref="DispatchWithResult"/>（见 <see cref="ExecuteDelay"/> 的限制说明）。
+    ///
+    /// v7 两条（确认报警 / 静音）的分工
+    /// ---------
+    /// 各接一个<b>可选</b>出口：<see cref="IScadaAlarmCommands"/>（确认全部待确认报警）与
+    /// <see cref="IScadaAlarmMute"/>（按分钟静音报警声音）。两者都没接线时按"未接入"如实跳过，
+    /// 与 v6 同一条纪律：宿主装配状态由执行侧当场说，不静默。
+    /// 两条都<b>不是</b>危险动作（不直接动设备），危险判定仍只看 <c>ScadaActionType.IsDangerous</c>。
     ///
     /// 运动动作的唯一例外：<b>下发成功不代表到位</b>
     /// ---------
@@ -176,6 +196,58 @@ namespace VisionMaster.Services
         private readonly IScadaConfirmationService? _confirmations;
 
         /// <summary>
+        /// 登录窗出口（动作表的「登录」）。可为 null——没接线时按"未接入登录窗"跳过。
+        ///
+        /// 参数是"这次为什么需要登录"（权限 Key 之类的一句说明），可空；
+        /// 返回值 = 用户这次真的登录成功了吗。本类<b>不</b>接触账号密码：
+        /// 凭据由人在窗里敲、由宿主校验（.vms 会被复制、会被发到现场，绝不能存口令）。
+        /// 为什么是 <c>Func</c> 而不是再造一个接口：它只有一个方法、只有分发器一个消费者，
+        /// 而宿主那边的现成实现（<c>ShowRuntimeAccessLoginPrompt</c>）签名本来就长这样。
+        /// </summary>
+        private readonly Func<string?, bool>? _loginPrompt;
+
+        /// <summary>
+        /// 用户会话出口（动作表的「注销」）。可为 null——没接线时按"未接入用户会话"跳过。
+        /// 只认 <see cref="IScadaUserSession"/> 这一个最小接口，避免分发器直接依赖主程序里的
+        /// <c>ScadaAccessPolicy</c> 具体类。
+        /// </summary>
+        private readonly IScadaUserSession? _userSession;
+
+        /// <summary>
+        /// 语言服务出口（动作表的「切换语言」）。可为 null——没接线时按"未接入语言服务"跳过。
+        /// 运行态"当前语言"是会话里的一份快照（见 <see cref="IScadaLanguageService"/> 的类注释），
+        /// 本类只按 Id/名字递一句"切到哪张表"，找不到的原因由那一层原样带上来。
+        /// </summary>
+        private readonly IScadaLanguageService? _languages;
+
+        /// <summary>
+        /// 报警命令出口（动作表的「确认报警」，v7）。可为 null——没接线时按"未接入"跳过。
+        ///
+        /// 只认 <see cref="IScadaAlarmCommands"/> 这一个最小接口，不认引擎：引擎是宿主装配出来的对象
+        /// （随方案加载重建），而本类是应用级单例。宿主把"此刻活着的那台引擎"接在接口后面，
+        /// 与 <see cref="IScadaRunHub"/> / 导航出口同一条分工。
+        /// </summary>
+        private readonly IScadaAlarmCommands? _alarmCommands;
+
+        /// <summary>
+        /// 报警静音出口（动作表的「静音」，v7）。可为 null——没接线时按"未接入"跳过。
+        ///
+        /// 与 <see cref="IScadaSoundPlayer"/> 是两件事：那个是"操作员按一下响一声"的即时反馈，
+        /// 这个是报警声音的静音策略（紧急级不受约束）。实现方是运行态会话里的
+        /// <c>ScadaSoundAlarmService</c>，所以接线必须"每次现取活着的那个实例"，
+        /// 抓住一份会在换会话后静音一台已经没人听的服务。
+        /// </summary>
+        private readonly IScadaAlarmMute? _alarmMute;
+
+        /// <summary>
+        /// 「静音」动作没填时长时的默认分钟数。与 <c>ScadaSoundAlarmService.DefaultMuteMinutes</c>
+        /// 是同一个数（现场在"报警声音"面板上看到的默认静音时长就是它）。
+        /// 不直接引用那个常量：本类只认 <see cref="IScadaAlarmMute"/> 这一个最小接口，
+        /// 不该为了一个数字去认识宿主的具体服务类。
+        /// </summary>
+        private const int DefaultMuteMinutes = 5;
+
+        /// <summary>
         /// 上一条动作是否成功（P0 条件动作）。只在 UI 线程上用，不跨线程。
         /// 由 <see cref="Ok"/> / <see cref="Skipped"/> / <see cref="Failed"/> 统一置位，
         /// 循环里据此决定“仅在上一条成功时执行”的动作跑不跑。
@@ -194,7 +266,12 @@ namespace VisionMaster.Services
             MotionActionExecutor? motions = null,
             IScadaConfirmationService? confirmations = null,
             IRecipeCommandSink? recipes = null,
-            IScadaSoundPlayer? sounds = null)
+            IScadaSoundPlayer? sounds = null,
+            Func<string?, bool>? loginPrompt = null,
+            IScadaUserSession? userSession = null,
+            IScadaLanguageService? languages = null,
+            IScadaAlarmCommands? alarmCommands = null,
+            IScadaAlarmMute? alarmMute = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _values = values ?? throw new ArgumentNullException(nameof(values));
@@ -205,6 +282,17 @@ namespace VisionMaster.Services
             _confirmations = confirmations;
             _recipes = recipes;
             _sounds = sounds;
+            // v6 三条出口（登录窗 / 用户会话 / 语言服务）：与上面那些一样是可选参数。
+            // 追加在末尾而不是插在中间：既有 16 处按位置/命名传参的构造调用（断言工程、
+            // 网关与离线场景）一行都不用改，也不会因为位置错开而把声音出口传成语言服务。
+            _loginPrompt = loginPrompt;
+            _userSession = userSession;
+            _languages = languages;
+            // v7 两条出口（确认报警 / 静音）：同样是追加在末尾的可选参数。
+            // 位置仍然不动既有参数：断言工程、网关与离线场景的构造调用一行都不用改，
+            // 也不会因为位置错开把静音出口传成语言服务。
+            _alarmCommands = alarmCommands;
+            _alarmMute = alarmMute;
         }
 
         /// <inheritdoc/>
@@ -282,8 +370,14 @@ namespace VisionMaster.Services
             }
 
             _lastActionSucceeded = true;
-            foreach (var action in hook.Actions)
+            // 用 for 而不是 foreach：延时动作要把"本条之后"的剩余动作原样交出去
+            // （见 ExecuteDelay），那需要知道当前下标。集合本身在 UI 线程上不会被并发改
+            // （执行期间用户点不到属性面板），所以按下标取是安全的。
+            var actions = hook.Actions;
+            for (var index = 0; index < actions.Count; index++)
             {
+                var action = actions[index];
+
                 // 集合里的 null 只可能来自手工改坏的 .vms（反序列化会把 null 原样塞进 List），
                 // 跳过它，不要因为一条坏数据把整串动作和这次点击一起废掉。
                 // 但条件动作必须把它当成“上一条没成功”：一条坏数据不该成为写状态变量的放行条。
@@ -303,12 +397,17 @@ namespace VisionMaster.Services
                     continue;
                 }
 
+                // 只有「延时」需要"后面的动作"，别的动作传 null（不白拷一份集合）
+                DelayContext? delay = action.Type == ScadaActionType.Delay
+                    ? new DelayContext(hook.Event, SliceActions(actions, index + 1))
+                    : null;
+
                 try
                 {
                     // Execute 内部通过 Ok/Skipped/Failed 落归档；先置一个保守值，
                     // 万一某个分支什么都没落，也按"未执行"而不是"成功"计数。
                     _lastActionOutcome = ScadaAuditOutcome.Skipped;
-                    Execute(action, head, stamp);
+                    Execute(action, head, stamp, delay);
 
                     switch (_lastActionOutcome)
                     {
@@ -330,9 +429,31 @@ namespace VisionMaster.Services
                     Failed(stamp, action, $"{head} → {action.Describe()} 执行失败：{ex.Message}", ex.Message);
                     failed++;
                 }
+
+                // 延时是唯一一条会"接管剩下的动作"的：ExecuteDelay 把剩余动作排进
+                // DispatcherTimer、本条算成功之后，本轮循环到此为止——剩下的动作由延时回调
+                // 重新走一遍 DispatchWithResult。没排上（没填毫秒 / 非 UI 线程）则照常往下跑，
+                // 一条没配好的延时不该把同一串里的其它动作一起卡住。
+                if (delay != null && _lastActionOutcome == ScadaAuditOutcome.Success)
+                    break;
             }
 
             return new ScadaActionDispatchResult(total, succeeded, skipped, failed);
+        }
+
+        /// <summary>
+        /// 把 <paramref name="actions"/> 从 <paramref name="start"/> 起拷成一份新表。
+        /// 拷而不是切片：延时回调在<b>之后</b>才跑，那时集合可能已经被用户改过
+        /// （运行态里改不了，但设计期与"运行中重进"都可能），拿一份快照最稳。
+        /// null 项原样带过去——派发侧本来就会跳过它，并在计数里记一笔。
+        /// </summary>
+        private static List<ScadaAction> SliceActions(IReadOnlyList<ScadaAction> actions, int start)
+        {
+            var rest = new List<ScadaAction>(Math.Max(0, actions.Count - start));
+            for (var i = start; i < actions.Count; i++)
+                rest.Add(actions[i]);
+
+            return rest;
         }
 
         /// <summary>
@@ -412,6 +533,13 @@ namespace VisionMaster.Services
         private readonly record struct AuditStamp(string Actor, string Subject, string EventText);
 
         /// <summary>
+        /// 「延时」动作要用的两样东西：原钩子的事件（临时钩子要沿用同一个事件名，
+        /// 否则延时后那几行日志会写成另一个事件）与"本条之后"的剩余动作快照。
+        /// 只有 Delay 会传，其它动作传 null——不让每个动作都背一份用不上的集合。
+        /// </summary>
+        private readonly record struct DelayContext(ScadaEventType Event, List<ScadaAction> Remaining);
+
+        /// <summary>
         /// 动作<b>成功</b>：记一行 Info，并落一条审计（成功档）。
         /// </summary>
         /// <param name="detail">
@@ -471,7 +599,11 @@ namespace VisionMaster.Services
         /// 由同一个出处生成（<see cref="ScadaEventTypeExtensions.DisplayName"/> 与
         /// <see cref="ScadaAction.Describe"/>）。
         /// </summary>
-        private void Execute(ScadaAction action, string head, AuditStamp stamp)
+        /// <param name="delay">
+        /// 只有「延时」动作会传（见 <see cref="DelayContext"/>）：原事件 + 本条之后的剩余动作。
+        /// 其它动作传 null。参数可选是为了让既有 20 多个 case 的调用点一字不改。
+        /// </param>
+        private void Execute(ScadaAction action, string head, AuditStamp stamp, DelayContext? delay = null)
         {
             // 轴控九条不再从事件动作表下发（2026-10-25 纠偏）。
             // 放在 switch 之前而不是删掉 case：老 .vms 里已经配上的运动动作仍在，
@@ -543,6 +675,37 @@ namespace VisionMaster.Services
 
                 case ScadaActionType.ApplyRecipe:
                     ExecuteRecipeAction(action, head, stamp);
+                    return;
+
+                // ── v6 四条：登录 / 注销 / 切换语言 / 延时 ──
+                // 前三条都只做"接线判断 + 结果翻译"，真正的登录窗、会话、词表都在宿主那一侧；
+                // 延时是唯一一条会改变"这一串动作怎么跑"的动作，剩余动作由调用方（DispatchWithResult
+                // 的循环）交给它，排好队之后循环就此收手。
+                case ScadaActionType.Logon:
+                    ExecuteLogon(action, head, stamp);
+                    return;
+
+                case ScadaActionType.Logoff:
+                    ExecuteLogoff(action, head, stamp);
+                    return;
+
+                case ScadaActionType.SetLanguage:
+                    ExecuteSetLanguage(action, head, stamp);
+                    return;
+
+                // ── v7 两条：确认报警 / 静音 ──
+                // 两条都只做"接线判断 + 结果翻译"：引擎与会话里的声音服务都在宿主那一侧，
+                // 本类是应用级单例，刻意不认识"此刻在不在运行"。
+                case ScadaActionType.AcknowledgeAlarm:
+                    ExecuteAcknowledgeAlarm(action, head, stamp);
+                    return;
+
+                case ScadaActionType.MuteAlarm:
+                    ExecuteMuteAlarm(action, head, stamp);
+                    return;
+
+                case ScadaActionType.Delay:
+                    ExecuteDelay(action, head, stamp, delay);
                     return;
 
                 // 运动九条（2026-10-25 起不再从这里下发）：守卫在 Execute 开头，
@@ -742,7 +905,333 @@ namespace VisionMaster.Services
         }
 
         /// <summary>
-        /// 执行一条运动动作（使能 / 失能 / 定位 / 回零 / 停止 / 清报警 / 点动开始 / 点动结束）。
+        /// 执行一条「登录」动作：把运行态登录窗调出来，由操作员当场登录。
+        ///
+        /// 三档交代（与另外三族动作同款）：
+        ///   ⓪ 没接登录窗 → Skipped（宿主装配状态，不是动作类型没接通）；
+        ///   ① 用户关掉窗 / 登录没通过 → Skipped（这是"这次没登"，不是软件坏了，记 Warn 不记 Error）；
+        ///   ② 登录成功 → Ok。
+        ///
+        /// 为什么本类<b>不</b>碰账号密码：.vms 会被复制、会被发到现场、会被 AI 读，
+        /// 把口令写进画面等于写进明文配置文件。这里只递一句"为什么需要登录"，凭据在窗里敲。
+        /// 为什么弹窗异常按"没通过"处理而不是 Failed：弹窗起不来是环境/装配问题，
+        /// 与"凭据错"对现场是同一件事——这次没登录，下次点一下就好（口径同切画面）。
+        /// </summary>
+        private void ExecuteLogon(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_loginPrompt == null)
+            {
+                const string reason = "未接入登录窗";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            bool loggedIn;
+            try
+            {
+                // 参数留 null：动作表里没有"为什么需要登录"这一项，需要时由窗自己按最小权限问。
+                loggedIn = _loginPrompt(null);
+            }
+            catch (Exception ex)
+            {
+                // 登录窗会跑嵌套消息泵（PushFrame），异常沿 UI 线程冒出去会直接带崩进程
+                // （本仓没有进程级兜底）。按"这次没登录"处理是失败安全。
+                const string reason = "登录窗异常，按未登录处理";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}（{ex.Message}）", ex.Message);
+                return;
+            }
+
+            if (!loggedIn)
+            {
+                const string reason = "登录被取消或未通过";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → 已登录");
+        }
+
+        /// <summary>
+        /// 执行一条「注销」动作：结束当前会话，回到"只剩 Always 权限"。
+        ///
+        /// 为什么用户名要在<b>注销前</b>取：注销之后 <see cref="IScadaUserSession.CurrentUserName"/>
+        /// 已经是 null，事后再取只能写一句"原用户 未登录"——而审计要回答的恰恰是"谁退的"。
+        /// 为什么本来就是未登录也算成功：注销是幂等的（见契约），"现在确实没有会话"就是结果。
+        /// 失败只有一种：出口说了没成（原因原样带上来，不加工），记 Error。
+        /// </summary>
+        private void ExecuteLogoff(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_userSession == null)
+            {
+                const string reason = "未接入用户会话";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            // 注销前取：注销之后这个名字就没了，而日志/审计要写"原用户是谁"
+            var previous = _userSession.CurrentUserName;
+
+            if (!_userSession.TryLogout(out var error))
+            {
+                var reason = string.IsNullOrWhiteSpace(error) ? "用户会话未能注销" : error!;
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            var who = string.IsNullOrWhiteSpace(previous) ? AnonymousActor : previous!.Trim();
+            Ok(stamp, action, $"{head} → 已注销（原用户 {who}）", $"原用户 {who}");
+        }
+
+        /// <summary>
+        /// 执行一条「切换语言」动作：把运行态当前语言切到目标语言表。
+        ///
+        /// 寻址口径与变量/画面/配方逐字一致：<b>Id 优先、名字兜底</b>——Id 非空就按 Id 走
+        /// （改名不会打断已经配好的按钮），只有旧数据没存 Id 时才按名字找。
+        /// 三档交代：
+        ///   ⓪ 没接语言服务 → Skipped（宿主装配状态）；
+        ///   ① 没选语言（Id 与名字都空）→ Skipped（配置漏了，面板上那句橙色提示说的是同一件事）；
+        ///   ② 服务说了切不过去（目标表被删 / 表为空）→ Failed，原因原样带上来。
+        /// 成功后名字取 <see cref="IScadaLanguageService.CurrentLanguageName"/>（切换<b>之后</b>的值）：
+        /// 动作里存的名字可能已经过期（语言表刚改过名），日志要写的是"现在真的切到了哪一张"。
+        /// </summary>
+        private void ExecuteSetLanguage(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_languages == null)
+            {
+                const string reason = "未接入语言服务";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            if (!action.HasLanguage)
+            {
+                const string reason = "未选语言";
+                Skipped(stamp, action, $"{head} → {action.Type.DisplayName()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            bool switched;
+            string? error;
+            if (action.LanguageId != Guid.Empty)
+                switched = _languages.TrySetLanguage(action.LanguageId, out error);
+            else
+                switched = _languages.TrySetLanguage(action.LanguageName, out error);
+
+            if (!switched)
+            {
+                // 原因由服务给（目标表被删 / 表为空）；它没给话时补一句兜底，
+                // 不写成一个冒号后面什么都没有的半截串
+                var reason = string.IsNullOrWhiteSpace(error) ? "语言服务未能切换" : error!;
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            Ok(stamp, action, $"{head} → 切换语言 → {_languages.CurrentLanguageName}",
+                _languages.CurrentLanguageName);
+        }
+
+        /// <summary>
+        /// 执行一条「确认报警」动作：确认当前<b>全部</b>待确认报警（激活 + 已恢复未确认）。
+        ///
+        /// 三档交代（与 v6 那四条同款）：
+        ///   ⓪ 没接报警命令出口 → Skipped（宿主装配状态，不是动作类型没接通）；
+        ///   ① 出口给了原因 → Failed（未运行 / 引擎未挂载 / 引擎抛异常，原因原样带上来，不加工）；
+        ///   ② 出口给了条数 → Ok，<b>0 条也记 Info</b>。
+        ///
+        /// 为什么 0 条不记 Warn/Error：动作表挂在图元/画面上，它不知道操作员想确认哪一条
+        /// （逐条确认是「报警汇总表」行内按钮的事，那里才有 AlarmId）。"本来就没有待确认的"
+        /// 或"刚被别人确认完"都是正常结果，不是这次操作失败。
+        /// 措辞上刻意写"没有待确认的报警"而不是"确认了 0 条"：后者读起来像有什么东西出了错，
+        /// 而现场必须能一眼分清"没做事"与"做失败了"——这两件事的下一步动作完全不同。
+        /// </summary>
+        private void ExecuteAcknowledgeAlarm(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_alarmCommands == null)
+            {
+                const string reason = "未接入报警命令出口";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            var count = _alarmCommands.AcknowledgeAll(out var error);
+
+            // 出口给了原因：这次真没成（没在运行 / 引擎没挂上 / 引擎抛了）。原因原样带上来，
+            // 包一层"确认失败"会把唯一能行动的那句话盖掉。
+            if (!string.IsNullOrWhiteSpace(error))
+            {
+                Failed(stamp, action, $"{head} → {action.Describe()}：{error}", error);
+                return;
+            }
+
+            if (count > 0)
+            {
+                Ok(stamp, action, $"{head} → 确认了 {count} 条报警", $"确认了 {count} 条报警");
+                return;
+            }
+
+            // 0 条：正常结果，记 Info。措辞与失败档分开（见方法注释）
+            Ok(stamp, action, $"{head} → 没有待确认的报警", "没有待确认的报警");
+        }
+
+        /// <summary>
+        /// 执行一条「静音」动作：让报警声音静音 <see cref="ScadaAction.MuteMinutes"/> 分钟。
+        ///
+        /// 三档交代：
+        ///   ⓪ 没接静音出口 → Skipped（宿主装配状态）；
+        ///   ① 出口说没成 → Failed，原因原样带上来（典型是"有紧急级未确认报警"，
+        ///      宿主按"紧急不可静音"拒绝，见 <c>ScadaSoundAlarmService.Mute</c>）；
+        ///   ② 成了 → Ok，日志里写清"静音多少分钟"与"紧急报警不受静音约束"。
+        ///
+        /// 没填时长（null / ≤0）按 <see cref="DefaultMuteMinutes"/> 分钟：静音是"少响一会儿"的软操作，
+        /// 当场拒绝比给默认值更不符合现场预期。但<b>必须在日志里写明这是默认值</b>——
+        /// 否则"我明明没填，它怎么自己静音了"会变成一次追查。
+        ///
+        /// 为什么日志里要常驻"紧急报警不受静音约束"这一句：静音<b>不是</b>"报警不响了"，
+        /// 紧急级照样发声。少写这半句，现场会得出"静音了但还在叫 = 软件坏了"的结论。
+        /// </summary>
+        private void ExecuteMuteAlarm(ScadaAction action, string head, AuditStamp stamp)
+        {
+            if (_alarmMute == null)
+            {
+                const string reason = "未接入静音出口";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            // 没填（null / 0 / 负数）按默认 5 分钟。先判"是不是用了默认值"再取分钟数：
+            // 填 5 与没填都得到 5，但日志里该不该出现"按默认"只有这个判断分得清。
+            var configured = action.MuteMinutes;
+            var byDefault = configured is not { } value || value <= 0;
+            var minutes = byDefault ? DefaultMuteMinutes : configured!.Value;
+
+            if (!_alarmMute.TryMute(minutes, out var error))
+            {
+                // 出口没给话时补一句兜底，不留"冒号后面什么都没有"的半截串
+                var reason = string.IsNullOrWhiteSpace(error) ? "静音出口未能静音" : error!;
+                Failed(stamp, action, $"{head} → {action.Describe()}：{reason}", reason);
+                return;
+            }
+
+            var suffix = byDefault ? $"，未填时长，按默认 {DefaultMuteMinutes} 分钟" : string.Empty;
+            Ok(stamp, action,
+                $"{head} → 已静音 {minutes} 分钟（紧急报警不受静音约束）{suffix}",
+                $"静音 {minutes} 分钟{(byDefault ? "（默认）" : string.Empty)}");
+        }
+
+        /// <summary>延时后日志里那个标记：同一个对象名上只允许出现一次（链式延时会重复进来）</summary>
+        private const string DelayedMarker = "（延时后）";
+
+        /// <summary>
+        /// 执行一条「延时」动作：把<b>本条之后</b>的剩余动作推迟 <see cref="ScadaAction.DelayMs"/>
+        /// 毫秒，用 <see cref="DispatcherTimer"/> 排进 UI 消息队列。
+        ///
+        /// 语义（按设计基线，不额外发挥）：
+        /// ① 只影响本条<b>之后</b>的动作；前面的已经执行完，不回滚；
+        /// ② 不阻塞 UI 线程（Timer 只是往队列里塞一拍），也不影响别的事件；
+        /// ③ 本条算成功，本轮循环到此为止（调用方据返回值收手，见 DispatchWithResult 里的 break）。
+        ///
+        /// 三档交代：
+        ///   ⓪ 没填毫秒（null / ≤0）→ Skipped，<b>后续动作照常立刻执行</b>——
+        ///      一条没配好的延时不该把同一串里的其它动作一起卡住；
+        ///   ① 非 UI 线程（<see cref="Dispatcher.FromThread"/> 为 null）→ Skipped，同上；
+        ///   ② 排上了 → Ok，日志写清"剩余几条在延时后执行"；剩余为 0 时明说"没有后续动作"
+        ///      （配在最后一条上的延时是空操作，不装作它干了什么）。
+        ///
+        /// <b>已知限制（刻意不在这里补）</b>：运行停止 / 切页时，还没到点的后续动作<b>不再执行</b>。
+        /// 本类拿不到"这次运行还在不在"的事实——那是运行态会话的状态，而分发器是应用级单例，
+        /// 刻意不认识会话（见类注释"为什么每一行都带谁在操作"那段的分工）。所以这里
+        /// <b>不自造</b>一个"是否还在运行"的判据：到点后照常派发，由被派发的那几条动作各自判断
+        /// "此刻还能不能做"（切画面找不到、变量写不进……都会如实记一行）。
+        /// 回调里只做一件事：把异常吞掉并记一条 Warn——Tick 里抛出去会沿 UI 线程冒到进程级，
+        /// 而本仓没有全局异常处理。
+        /// </summary>
+        private void ExecuteDelay(ScadaAction action, string head, AuditStamp stamp, DelayContext? delay)
+        {
+            // ① 没填毫秒：配置漏了。Describe() 此刻是"延时（未填毫秒）"，再补一句就重复了
+            if (action.DelayMs is not { } delayMs || delayMs <= 0)
+            {
+                const string reason = "延时未填毫秒";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            var rest = delay?.Remaining ?? new List<ScadaAction>();
+
+            // ② 配在最后一条上：延时没有可推的对象，如实说一句，不装作它干了什么
+            if (rest.Count == 0)
+            {
+                Ok(stamp, action, $"{head} → {action.Describe()}：没有后续动作，延时无实际效果",
+                    "没有后续动作");
+                return;
+            }
+
+            // ③ 拿不到 Dispatcher = 不在 UI 线程上：Timer 排不进去，照实说一句
+            var dispatcher = Dispatcher.FromThread(Thread.CurrentThread);
+            if (dispatcher == null)
+            {
+                const string reason = "延时只能在 UI 线程上排队";
+                Skipped(stamp, action, $"{head} → {action.Describe()}：{reason}，本条未执行", reason);
+                return;
+            }
+
+            // 临时钩子：只带剩余动作，且**不继承确认开关**——确认已在本次触发的开头问过一次，
+            // 到点后再问一遍等于同一个按钮弹两次窗（用户会以为动作执行了两次）。
+            // 事件沿用原钩子：延时后的那几行日志必须写成同一个事件，否则排查时对不上。
+            var temp = new ScadaEventHook
+            {
+                Event = delay?.Event ?? ScadaEventType.Pressed,
+                RequireConfirmation = false,
+            };
+
+            foreach (var item in rest)
+                temp.Actions.Add(item);
+
+            // 延时后的那几行日志要能一眼看出"这是延时后的半截"：把标记缀在**对象名**上。
+            // 不能直接拿 head 当 sourceName 传进去——head 本身已经是
+            // "[组态事件] 谁 · 对象 · 事件"，再当一次对象名会拼成
+            // "[组态事件] 谁 · [组态事件] 谁 · 对象 · 事件 · 事件" 这种自我重复的串。
+            //
+            // 幂等：链式延时（延时→动作→延时→动作）时，第二段拿到的 Subject 已经带过后缀，
+            // 再拼一次会得到"按钮（延时后）（延时后）"。同一个标记只该出现一次。
+            var delayedSubject = stamp.Subject.EndsWith(DelayedMarker, StringComparison.Ordinal)
+                ? stamp.Subject
+                : stamp.Subject + DelayedMarker;
+
+            var timer = new DispatcherTimer(DispatcherPriority.Normal, dispatcher)
+            {
+                Interval = TimeSpan.FromMilliseconds(delayMs),
+            };
+
+            timer.Tick += (_, _) =>
+            {
+                // 一次性：先停表，再派发。不先停的话，Tick 里嵌套的消息泵（派发过程中可能弹窗）
+                // 会让同一条延时反复触发，同一个动作跑好几遍。
+                timer.Stop();
+
+                try
+                {
+                    _ = DispatchWithResult(temp, delayedSubject, stamp.Actor);
+                }
+                catch (Exception ex)
+                {
+                    // 契约要求动作执行不抛（见 DispatchWithResult 的 try/catch），这里是最后一道兜底：
+                    // Tick 里的异常会沿 UI 线程冒到进程级，而本仓没有全局异常处理。
+                    _log.Warn($"{head} → 延时到点后执行失败：{ex.Message}");
+                }
+                finally
+                {
+                    // 临时钩子只是这一拍的载体：派发完就清空，否则它会一直钉住这些动作
+                    // （ScadaEventHook 会给每条动作挂 PropertyChanged 订阅，不清就是一次延时一条泄漏）。
+                    temp.Actions.Clear();
+                }
+            };
+
+            timer.Start();
+
+            Ok(stamp, action, $"{head} → {action.Describe()}：剩余 {rest.Count} 条将在延时后执行",
+                $"{delayMs} ms 后执行剩余 {rest.Count} 条");
+        }
+
         ///
         /// 为什么本类只做"接线判断 + 结果翻译"，取轴与门禁全交给 <see cref="MotionActionExecutor"/>：
         /// 那两件事需要 <c>MotionAxisRegistry</c> / <c>IMotionProvider</c> / <c>MotionCommandGate</c>

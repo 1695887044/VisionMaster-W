@@ -574,6 +574,25 @@ namespace FlowCanvasChecks
             Check("当前流程照列并标注「不能调用自己」",
                 selfDisplay == "回原（当前流程，不能调用自己）", selfDisplay ?? "(null)");
 
+            // ---- ②b 历史数据：整线 + 子程序并存（2026-10-29 起界面互斥，旧 .vms 仍可能有）----
+            // 仍要列出来（否则已配好的值在下拉里显示成空白 = "配置丢了"），
+            // 但显示文本必须说明"整线运行时不可调用"——这正是"列表里为什么混进非子流程"的答案。
+            // 独立夹具：不动上面那份 workspace（后面 viaSource 还要按它的候选数比对）。
+            var legacyWorkspace = new WorkspaceContext();
+            var legacySolution = new SolutionModel();
+            legacySolution.Flows.Clear();
+            legacySolution.Flows.Add(new FlowModel
+            {
+                FlowName = "工位_整线子程序",
+                InvokeType = FlowInvokeType.LineStart | FlowInvokeType.Subroutine,
+            });
+            legacyWorkspace.SwitchSolution(legacySolution);
+            var legacyDisplay = SubroutineFlowOptions.Build(legacyWorkspace)
+                .FirstOrDefault(o => o.Value == "工位_整线子程序")?.Display;
+            Check("★整线成员仍在候选里，但后缀写明「整线运行时不可调用」",
+                legacyDisplay == "工位_整线子程序（整线成员，整线运行时不可调用）",
+                legacyDisplay ?? "(null)");
+
             // ---- ③ 注册接线：契约层来源表能取到同一份候选，且不顶掉其它来源 ----
             StepConfigOptionSource.RegisterAdditional(kind =>
                 kind == StepConfigOptionKind.MotionAxisName

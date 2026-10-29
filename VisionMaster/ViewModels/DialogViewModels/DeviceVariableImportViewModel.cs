@@ -314,7 +314,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "Excel 工作簿 (*.xlsx)|*.xlsx",
+                // 与主入口同口径：xlsx（本仓模板）与汇川导出的 CSV 都收
+                Filter = "变量表 (*.xlsx;*.csv)|*.xlsx;*.csv|Excel 工作簿 (*.xlsx)|*.xlsx|汇川变量表 (*.csv)|*.csv",
                 Title = "选择变量表",
                 FileName = FileName,
             };
@@ -430,7 +431,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             try
             {
-                _rows = DeviceVariableImportService.ReadRows(FilePath);
+                // 读周期只在 CSV 路径上有意义：汇川的「采集周期」与它一致时不当扫描组处理
+                _rows = DeviceVariableImportService.ReadRows(FilePath, _connection?.ReadCycleMs);
                 RowCount = _rows.Count;
                 RebuildPlan();
             }

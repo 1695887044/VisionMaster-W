@@ -10,6 +10,28 @@ namespace VisionMaster.Communications
     public abstract class EthernetConfigBase : ConnectionConfigBase
     {
         /// <summary>
+        /// 以太网连接的默认读超时（毫秒）。
+        /// <para><b>为什么与基类默认 5000 不同</b>：以太网帧小、链路快，一次静默超时的代价是
+        /// "占掉若干拍 + 断线重连"；5000ms 在 1000ms 周期下等于白等 5 拍。取 2000 是折中——
+        /// 网关/无线场景仍留有余量，而真超时能早 3 秒暴露。</para>
+        /// <para><b>为什么取 2000 而不是 1000</b>：误判超时的代价（断链 + 3s 建连 + 1~5s 退避）
+        /// 比它想省下的那 1 秒更贵；Modbus TCP 转 RTU 网关（后端 9600bps）读 120 寄存器约 0.25s，
+        /// 1000ms 只剩 1.3 倍余量，容易误判。</para>
+        /// <para>串口不走这里（<see cref="SerialConfig"/> 直接继承基类），保持 5000ms：
+        /// 2400bps 下单帧 256 字节本身就约 1.07s，压不下去。</para>
+        /// </summary>
+        private const int DefaultReadTimeoutMs = 2000;
+
+        /// <summary>
+        /// 以太网配置构造：把读超时默认值下调到 <see cref="DefaultReadTimeoutMs"/>。
+        /// <para>放在基类构造器而不是工厂里：任何新建的以太网配置（含属性面板"新建连接"、
+        /// 方案里缺该字段的老文件）都拿到同一个值，不需要每个协议各写一遍。</para>
+        /// </summary>
+        protected EthernetConfigBase()
+        {
+            ReadTimeoutMs = DefaultReadTimeoutMs;
+        }
+        /// <summary>
         /// <para>获取或设置目标设备的 IP 地址。</para>
         /// <para>默认值：127.0.0.1</para>
         /// </summary>

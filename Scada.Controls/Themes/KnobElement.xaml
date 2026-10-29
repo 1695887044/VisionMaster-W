@@ -1,0 +1,71 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        旋钮图元的外观：一块圆角底板 + 一块自绘面（KnobSurface）。
+
+        几何全部在 KnobSurface.OnRender 里画（轨道弧 / 进度弧 / 刻度线 / 盘面 / 指针 / 读数）：
+        弧的端点、每个刻度的端点、指针长度都依赖"此刻多大"，与表盘（GaugeElement）同一条纪律——
+        模板里一个算术都没有。
+
+        为什么必须有这块自绘子元素、而不是让控件自己 OnRender：模板根 Border 带 Fill 背景，
+        模板子元素画在控件自身渲染的上层，控件 OnRender 画的东西会被整块盖住（静默，像"什么都没画"）。
+
+        ShowValue=False 时读数不画：这个开关由控件代码翻（KnobSurface 读 Owner.ShowValue），
+        不写 ControlTemplate.Triggers 的 DataTrigger——本环境下它不触发，写了是死代码。
+        这里只保留一条属性触发器（IsEnabled=False 压暗），属性触发器照常工作。
+
+        颜色一律取令牌，不写十六进制（R140）；KnobColor / TrackColor 的默认值写在控件属性上，
+        不在 Style 里覆盖——Style 的 setter 优先级高于依赖属性默认值，写了就等于改了"默认值"。
+    -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <Style TargetType="{x:Type local:KnobElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="True" />
+        <Setter Property="IsTabStop" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <!--  触摸命中区下限：默认 140×140，缩到很小时也还按得住  -->
+        <Setter Property="MinWidth" Value="48" />
+        <Setter Property="MinHeight" Value="48" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Fill" Value="{StaticResource HmiSurfaceBrush}" />
+        <Setter Property="Stroke" Value="{StaticResource HmiBorderBrush}" />
+        <Setter Property="StrokeThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:KnobElement}">
+                    <!--
+                        底板：Fill 是面板底色、Stroke 是面板描边（圆角走基类 CornerRadius，
+                        Border.CornerRadius 是 CornerRadius 类型，不能直接 TemplateBinding double）。
+                        Background 必须非空（哪怕是 Transparent）：空背景的 Border 不参与命中测试，
+                        点在旋钮的空白处就传不到控件上。
+                    -->
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                        <!--  自绘面：只读控件状态，自己不存值  -->
+                        <local:KnobSurface x:Name="PART_Surface" Margin="4" ClipToBounds="True" />
+                    </Border>
+
+                    <ControlTemplate.Triggers>
+                        <!--  禁用态：整体压暗（属性触发器照常工作；DataTrigger 才是死代码）  -->
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

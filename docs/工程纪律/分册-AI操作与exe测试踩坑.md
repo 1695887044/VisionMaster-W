@@ -141,6 +141,11 @@
 | 弹窗断言全绿但进程 `-532462766` 退出（Prism 关窗回调被伪造） | C-51 | ✅ |
 | XAML 注释里写 `---- 标题 ----` → `MC3000` 构建失败 | C-52 | ✅ |
 | 右键菜单在 UIA 顶层窗口里看不到 / 跨调用点不到菜单项 | C-53 | ✅ |
+| 量设备"单帧上限"却用了不存在的地址 / 把"重连中"当成 TCP 连不上 | E-10 | ✅ |
+| 读到的值与现场不一致（PLC 重编译后变量表地址全变） | E-11 | ✅ |
+| `run_gates` 已在跑，又往 `docs/code-changes/` 加文档 → `docs_index` 判红 | C-54 | ✅ |
+| 加了 `InternalsVisibleTo` 仍报 `CS0122`（被引用 DLL 没重建） | C-55 | ✅ |
+| `run_gates` 全绿，但某个视图的冒烟其实没跑（要 `--xxx` 参数） | C-55 | ⚠️ |
 
 ---
 
@@ -450,7 +455,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 
 ### C. 命令、编码与输出
 
-#### C-01 子进程输出走管道 → 936 解码乱码 / 正则永不命中  [✅]  最近：2026-10-27  复发：多次
+#### C-01 子进程输出走管道 → 936 解码乱码 / 正则永不命中  [✅]  最近：2026-10-29  复发：多次
 - **现象**：日志中文乱码（"合法 UTF-8 的乱码"）、统计正则永不命中、每个宿主回落打印"全部通过"。
 - **触发场景 / 复现**：`& $exe 2>&1 | Out-String`（R183①）。
 - **原因**：.NET 宿主输出 UTF-8，PowerShell 管道按控制台代码页（本机 936）解码。
@@ -462,6 +467,13 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   （已不是原始字节）；ASCII 标记（`[PASS]`/`RESULT:`）照样命中、数字看似对得上，中文 pattern 全不命中——
   比管道那一版更隐蔽。**解法**：验真一律 `cmd > 文件`（原样字节）或 `[Diagnostics.Process]`（SOP §1.4）。
   **判据**：日志落盘后先用 `rg` 搜一个中文关键词，搜得到才算这份日志可用。
+- **2026-10-29 补充（`[Diagnostics.Process]` 重定向同样中招，但这一份能救回）**：用
+  `ProcessStartInfo.RedirectStandardOutput=true` + `ReadToEndAsync()` 而**不设** `StandardOutputEncoding`，
+  拿到的是按 `Console.OutputEncoding`（本机 936）解码的乱码；再按 UTF-8 落盘就成了"合法 UTF-8 的乱码"
+  （实测 `[√通过]` → `[鈭氶€氳繃]`、`通过: 4392` 整行搜不到）。**与 PowerShell 管道不同，这一份可逆**：
+  把落盘文本按 936 重新编码、再按 UTF-8 解码即可还原（乱码字符与原始字节一一对应）。
+  **正解**：`$psi.StandardOutputEncoding=[Text.Encoding]::UTF8`，或 `cmd > 文件` 落原始字节。
+  **判据**：搜中文 pattern 零命中、但搜 `鍏ㄩ儴`/`閫氳繃` 之类命中 = 这份日志是 936 解出来的。
 
 #### C-02 `Start-Process -Wait` 挂死 / `ExitCode` 恒为 `$null`  [✅]  最近：2026-10-25  复发：2 次
 - **现象**：测试空转十几分钟、无子进程、无日志；或 `exit=0` 报全绿但实际失败。
@@ -502,7 +514,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   `Where-Object` / `Select-String`；或改搜 ASCII 标记（数字、`RESULT:`、`Count=`、`WROTE`）。
 - **规避建议**：中文检索不走 `findstr`；不确定编码时先按 ASCII 数字定位。
 
-#### C-06 cmd 里 `> $null` 建出名为 `$null` 的文件  [⚠️]  最近：2026-10-28  复发：4 次
+#### C-06 cmd 里 `> $null` 建出名为 `$null` 的文件  [⚠️]  最近：2026-10-29  复发：5 次
 - **现象**：仓库根多一个 `$null` 文件；`tools\audit_root.ps1` 报 `FILE  $null`（有时名字显示为空）。
 - **触发场景 / 复现**：在 `cmd.exe` 里写 `command > $null`（`$null` 是 PowerShell 概念）。
 - **原因**：cmd 把 `$null` 当普通文件名，创建同名文件。
@@ -517,7 +529,14 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   CreationTime 08:36 与本会话命令同秒。**0 字节 + 时间吻合 = 自己产生，直接删**；
   非空 + 时间不符 = 别人的在途产物，按上一段移到 `artifacts\logs\` 留证据。
   **根本规避：`2>$null` 只写在 `.ps1` 文件里或纯 PowerShell 会话内，不要放在 cmd 包装的 `-Command` 串里。**
+  **2026-10-29 本会话复发（第 5 次，变体）**：同族但文件名不是 `$null` 而是**一个单引号 `'`**（0 字节）。
+  来自 `powershell -Command "... | Select-Object -Last 40"` 这类**含引号与管道的长串**：cmd 先按自己的
+  规则拆 `"` 与 `|`，把一段引号当成重定向目标，于是在仓库根建出名为 `'` 的文件。
+  表现：`audit_root` 报 `FILE  '`（后面直接换行，看起来像"空名字"）。
+  **判据一样**：0 字节 + mtime 与自己的命令同秒 → 自己产生的，直接删。
+  规避：`-Command` 串里不要同时出现 `'`、`"`、`|`、`>`；复杂脚本落 `.ps1` 再 `-File` 跑（R2 同理）。
 - **相关命令 / 参数**：`Remove-Item -LiteralPath 'D:\C#\VM\$null' -Force`；
+  引号变体：`Remove-Item -LiteralPath (Join-Path (Get-Location) \"'\") -Force`；
   留证据用 `[IO.File]::Move('D:\C#\VM\$null', 'artifacts\logs\<yyyyMMdd>\stray-null-redirect-error.txt')`
 
 #### C-07 按截图坐标点按钮点到相邻按钮（"点了没反应"）  [✅]  最近：2026-10-27  复发：2 次
@@ -831,7 +850,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   2026-10-27 又复现：`--quality` / `--help-check` 的输出经 `| findstr` 管道时进程不退，
   下一次构建锁 exe；改为**重定向到文件**，跑完 `taskkill /IM FlowCanvasChecks.exe /F` 再构建。
 
-#### C-28 断言宿主的计时类断言在机器被占用时会抖（两次红不同条目）  [✅]  最近：2026-10-27  复发：1 次
+#### C-28 断言宿主的计时类断言在机器被占用时会抖（两次红不同条目）  [✅]  最近：2026-10-29  复发：2 次
 - **现象**：同一份代码连跑两次 `FlowCanvasChecks`：第一次红「第 2 圈同一断点再次断开住」（5s 等待超时），
   第二次红「托管计时器 300ms 内跳拍密度合理」（ticks=7，期望 ≈30）；功能类断言全绿。
 - **触发场景 / 复现**：用户 `VisionMaster.exe` 正在运行 + 另一会话在构建/跑插件扫描时连跑断言宿主。
@@ -846,6 +865,11 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   `LastFault`** 的落值顺序竞态——断言"看到停机"后立刻读原因，撞上中间窗口。
   **判据**：失败信息里"相关字段全空"而不是"数值偏一点"，先怀疑**写入顺序/可见性**，不要直接归为抖动；
   修复是把两件事放进同一把锁（先落故障、再置状态），不是放宽等待时间。
+- **2026-10-29 复现（`CommChecks` C17-3）**：`Manager.Connect 幽灵端口：refused 失败即返回 false`
+  首跑报「返回 False，耗时 3008ms」判红（阈值 2900ms），原样重跑 **2320ms 绿**，其余 386 条两次都绿。
+  **原因**：该断言连 `127.0.0.1:1` 等 OS 层拒绝，本机拒绝延迟在 2~3s 之间漂（C17-1 的注释已写"~2s 是底线"），
+  阈值离延迟中位数只有几百毫秒余量。**判据**：同一二进制、同一台机、只差一次重跑就变色 → 抖动不是回归；
+  **处理**：重跑一次留证，汇报里写明"首跑红/重跑绿"，不要为此改产品代码，也不要偷偷把阈值放宽。
 
 #### C-29 PowerShell 手算 PNG IHDR 得到错误宽高（`-shl`/`-bor` 优先级与字节符号）  [✅]  最近：2026-10-27  复发：1 次
 - **现象**：读 `pcb_focus_telecentric_001.png` 的 IHDR，得到 `240x224`，实际 `752x480`；图片本身能正常打开。
@@ -978,7 +1002,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 - **相关命令 / 参数**：`vm_ui_act {"nameContains":"稍后再说","controlType":"Button","action":"invoke"}`；
   守门：`uismoke.mjs` 两条（按名字定位 + 计数确实变了）。
 
-#### C-39 `cmd` 里 `& echo EXIT=%ERRORLEVEL%` 读到的是上一条命令的退出码  [✅]  最近：2026-10-28  复发：5 次
+#### C-39 `cmd` 里 `& echo EXIT=%ERRORLEVEL%` 读到的是上一条命令的退出码  [✅]  最近：2026-10-29  复发：7 次
 - **现象**：`node tools\oneoff\register-vm-mcp.mjs & echo EXIT=%ERRORLEVEL%` 打印 `EXIT=0`，
   但脚本走的是 `process.exit(1)` 的拒绝分支——"闸门没拦住"的假结论。
 - **触发场景 / 复现**：cmd 单行里用 `&` 串联后紧跟 `%ERRORLEVEL%`，判"闸门到底拦没拦住"时。
@@ -998,6 +1022,11 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   或 PowerShell 里 `$LASTEXITCODE`。
   **同族复发四（`;` 把整条 gate 命令吞成参数）**：`powershell -File tools\run_gates.ps1 -Only X > log 2>&1; powershell -File ...`
   → `run_gates.ps1` 报 `无法将值"powershell"转换为类型"System.Int32"`（第二段被当成 `-StepTimeoutSec` 的值）。
+  **同族复发五（2026-10-29，后台任务整条没跑却报 exit 0）**：后台执行
+  `if not exist "logs\20261029" mkdir ... & powershell -File tools\run_gates.ps1 > <log> 2>&1 && echo GATES_OK || echo GATES_FAIL`，
+  任务卡片报 `completed (exit code 0)`，但 **`<log>` 文件根本不存在**——整条命令没跑起来，
+  `0` 只是外层壳的退出码。**判据不是退出码而是落盘物**：先 `dir <log>`，文件不在 = 没跑（R183「子进程零输出 = 判红」同族）。
+  另：`cmd` 的 `&` 串联里每个 `%ERRORLEVEL%` 都在整行解析期展开，同一行写多个等于全部取同一个旧值。
 - **相关命令 / 参数**：`powershell -NoProfile -Command "node <脚本>; 'exitcode=' + $LASTEXITCODE"`。
 
 #### C-42 PowerShell 变量名不区分大小写：`$l` 覆盖 `$L`，列表只剩 1 个元素  [✅]  最近：2026-10-28  复发：1 次
@@ -1147,6 +1176,46 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 - **规避建议**：菜单类交互一律"打开 + 选择"原子化；`INVOKED`/`AXPress` 只证明动作被接受，
   必须回读目标窗口标题（本次 `window 运行统计 · 结果源`）才算打开。
 
+#### C-54 `run_gates` 已在跑，又往 `docs/code-changes/` 加文档 → `docs_index` 判红  [✅]  最近：2026-10-29  复发：3 次
+- **现象**：整轮 gate 跑完是 15/16，唯一红的是
+  `[FAIL] docs_index exit=1 STALE INDEX (docs/code-changes entries= N written) - regenerated, re-run`。
+- **触发场景 / 复现**：先启动 `run_gates.ps1`（后台），随后写本轮要交付的 `code-changes` 文档；
+  gate 的 `docs_index` 步在文档落盘之前就跑完了。
+- **原因**：`docs_index` 是 gate 的**第一步**，它只检查"当前磁盘内容与 `INDEX.md` 是否一致"，
+  之后新增的文档它没看见（或反之：它重建了索引、判红要求复跑）。
+- **解决办法**：补跑 `tools\run_gates.ps1 -Only docs_index -SkipBuild`；
+  若它自己报 `STALE INDEX ... regenerated, re-run`，**再跑一次**才绿（第一次负责重建，第二次才证明幂等）。
+- **规避建议**：顺序上先写完全部文档再开 gate；已经开了就先跑完再补 docs_index，
+  不要为了这一步重跑整轮 16 步（FlowCanvasChecks 一轮就要几分钟）。
+
+#### C-55 `run_gates` 用空参数跑宿主 → 参数化冒烟根本没执行，"全绿"不代表那些视图被测过  [⚠️]  最近：2026-10-29  复发：1 次
+- **现象**：`run_gates.ps1` 报 `UIThemeSmokeTest exit=0`（甚至 `no summary line` 也算绿），
+  但 `gate-UIThemeSmokeTest.log` 里**完全没有**变量绑定/变量管理这几段——
+  它们要 `--variable-binding` / `--global-variables` 这类参数才跑（`Program.cs` 的 `args.Contains(...)` 分支）。
+- **触发场景 / 复现**：改 `VariableBindingView.xaml(.cs)` 后只跑 `tools\run_gates.ps1`，
+  以为"gate 绿了就等于这个视图测过"。对比：手跑 `UIThemeSmokeTest.exe --variable-binding` 才是那 38 条。
+- **原因**：`run_gates` 对每个宿主固定 `-Arguments ''`（默认套件 = Shell/布局/表格/令牌等）；
+  参数化冒烟不在默认套件里。`Get-Counts` 匹配不到汇总行时只写 `no summary line` 备注，**不判红**。
+- **解决办法**：改了哪个视图，就按它自己的参数手跑一次，例如
+  `UIThemeSmokeTest\bin\Debug\net9.0-windows\UIThemeSmokeTest.exe --variable-binding`
+  （`--global-variables` / `--solution-list` / `--message-dialog` / `--plugin-views` 同理）。
+- **规避建议**：交付汇报里"断言宿主全绿"要写清是哪一档：`run_gates` 的默认套件，
+  还是带参数的那条。两者不能互相替代。改 `Program.cs` 加新参数时同步想一次"它进不进默认套件"。
+- **相关命令 / 参数**：`tools\run_gates.ps1 -Only UIThemeSmokeTest`（只跑默认套件）；
+  `UIThemeSmokeTest.exe --variable-binding`（单视图冒烟，38 条）。
+
+#### C-55 加了 `InternalsVisibleTo` 仍报 `CS0122` 不可访问（被引用工程没重建）  [✅]  最近：2026-10-29  复发：1 次
+- **现象**：源码里已给 `VM.Communication.csproj` 加 `<InternalsVisibleTo Include="CommChecks" />`，
+  编 CommChecks 仍报一串 `CS0122: "WriteProtocolFamily"不可访问，因为它具有一定的保护级别`。
+- **触发场景 / 复现**：宿主在跑（`VisionMaster.exe` 锁 bin），为绕开锁用
+  `dotnet build CommChecks -p:BuildProjectReferences=false` 编宿主——被引用的 `VM.Communication.dll`
+  还是加特性**之前**那份。
+- **原因**：`BuildProjectReferences=false` 复用旧产物，新加的 `InternalsVisibleTo` 没进 DLL。
+- **解决办法**：先单独重建被引用工程（`dotnet build Communication\VM.Communication.csproj -m:1 -nodeReuse:false`），
+  再 `-p:BuildProjectReferences=false` 编宿主。
+- **规避建议**：报"internal 类型不可访问"但源码确实加了 `InternalsVisibleTo` → 先怀疑 DLL 陈旧，
+  比该 DLL 与 csproj 的 mtime；不要改代码去"绕过保护级别"。
+
 ### D. 路径与权限
 #### D-01 相对路径按进程当前目录解析  [✅]  最近：2026-10-25  复发：2 次
 - **现象**：`[IO.File]::ReadAllLines('docs\x.md')` 报找不到，文件确实存在。
@@ -1293,6 +1362,45 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   再跑 `--judge`；判据看 Modules DLL mtime ≥ 源码、`HELP_RES` 数 = 磁盘 `.md` 数。
 - **规避建议**：看到“源码已改但断言仍红”，先核 `Modules\` 产物的 mtime/内嵌资源数，再看源码；
   不要把旧 DLL 的红当成实现没修。
+
+#### E-10 协议探针量"设备上限"时用了不存在的地址 → 把"地址非法"读成"长度超限"  [✅]  最近：2026-10-29  复发：1 次
+- **现象**：用原始帧探针量 EasyNet 单帧字数上限，`D20000` 上 500 字也回错误码 64，
+  差点写成"该设备只支持 <500 字"。
+- **触发场景 / 复现**：`tools\oneoff\easynet_limit_probe.ps1` 第一版对 `D20000` 扫 500/501/512/600/…；
+  换成日志里真实存在的 `D800` 后，501 字成功、512 字回 129，边界才显现。
+- **原因**：设备对"地址不存在"与"长度超限"回**不同错误码**（64 = 地址非法，129 = 超长），
+  探针没先确认地址可读，两类错误被混成一条结论。
+- **解决办法**：量上限前先用**日志/变量表里真实存在的地址**读一次小长度确认成功，
+  再逐级加长；每种错误码单独记录，不合并成"上限"。
+- **规避建议**：参考实现（HSL 虚拟服务器）的上限数字**不能当真机结论**——同一协议在
+  HSL 服务器上 4000 字/16000 位都能过，官方 H5U 模拟器 512 字即拒。凡"上限/超时/回码"类数字，
+  必须标注是在哪台设备上量的（`docs/code-changes/2026-10-29-EasyNet真机连通修复（回显0x02与段上限）.md`）。
+- **附带判据**：设备列表显示"重连中"**不等于 TCP 连不上**——先看日志有没有
+  `Reconnecting -> Connected`；有就是链路通、问题在报文/地址层。
+- **2026-10-29 复发（跑基准前没确认设备在线）**：`CommTest [E]` 直接跑，得到
+  `[ConnectionRefused] 由于目标计算机积极拒绝` 与 `通过 18 / 失败 1`；上一轮还在的
+  `h5u_daemon.exe`（PID 38104）已经退出。**判据**：跑任何真机基准前先
+  `Get-NetTCPConnection -LocalPort <端口> -State Listen` 确认监听；拿不到就写"设备离线、本轮未复跑"，
+  **不许**把 `ConnectionRefused` 当成协议/代码回归，也不许自己拉起厂商模拟器（那是用户的运行环境）。
+
+#### E-11 读到值与现场不一致 → 先核变量表地址是否与 PLC 编译产物一致  [✅]  最近：2026-10-29  复发：1 次
+- **现象**：现场说「EasyNet 读的 Alarm3[79] 是 True，程序没读取对」。原始帧实测：
+  表里的 `U210019F` 恒 0，编译产物里的 `U210118F` 为 1；按编译地址读 `Alarm3[0..99]`
+  **只有下标 79 置位**，与现场逐位吻合。
+- **触发场景 / 复现**：变量表由 `C:\Users\16958\Desktop\12.csv`（文件内时间戳 **01:40:47**）转换，
+  而 PLC 工程 `VarAddrMap.am` / `VarNameAndAddr.csv` / `PLC.hcp` 均为 **16:46**（当天重编译过）。
+  整表 2357 条里能在当前符号表按名找到的 **437 条地址全部变了（0 条相同）**。
+- **原因**：AutoShop 对未显式指定地址的全局变量**编译期自动分配**地址，重编译即可能整体位移；
+  导出文件不会自我更新，`UB 2100150` 这类地址一旦写进表就永远指老地方。
+- **解决办法**：以**编译产物**为准重建地址，可信度顺序
+  `VarAddrMap.am`（`u16 长度 + 名称 + NUL + u32 LE 地址`，9649 条，含数组元素与结构体字段）
+  > `VarNameAndAddr.csv`（622 条全局变量，UTF-16LE）
+  > HMI `obj\Tags.dat`（432 条，`名称…39#十进制地址#-1`，与前者逐条一致）。
+  本次据此生成 437 条修正表，逐点实测 `Alarm3[79]=1`、`PLCVersion=1.0`。
+- **规避建议**：导入变量表前先比时间戳（导出文件内时间戳 vs `VarAddrMap.am` 的 `LastWriteTime`）；
+  **"名字相同"不代表"地址相同"**，地址维度必须独立核；反向也成立——`Rail_Servo_Cmd` 与 `Sv_Cmd`
+  不同名却可能是同一份数据。多连接导出（本例 `Plc` / `切轨PLC`）里的变量不能塞进同一条连接。
+  详见 `docs/code-changes/2026-10-29-EasyNet读取值与PLC不一致（变量表地址陈旧）.md`。
 
 ### F. 端口与网络
 
@@ -1470,7 +1578,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 - **相关命令 / 参数**：本例实测值——UI 线程 5s/3641ms（73%）、16 核占 8.7~9.1 核、工作集 831→834MB（稳态）、
   日志 141~154 KB/s（≈1000 行/秒）。取证过程见 `docs/code-changes/2026-10-27-界面卡死诊断（循环运行日志洪水模态弹窗）.md`。
 
-#### C-41 构建红在"别人正在改的文件"里：先看 mtime，别顺手修  [✅]  最近：2026-10-27  复发：1 次
+#### C-41 构建红在"别人正在改的文件"里：先看 mtime，别顺手修  [✅]  最近：2026-10-29  复发：2 次
 - **现象**：自己只改了 4 个文件（`LogViewModel` / `ImageCollectionService` / `EditGate` / `ShellViewModel`），
   `dotnet build FlowCanvasChecks.csproj` 却红在 `Plugins\Plugin.ResultDisplay\Services\DisplayDraw.cs(224,298)`：
   `error CS0266: 无法将类型"double"隐式转换为"int"`。代码是 `int width = a.LineWidth > 0 ? a.LineWidth : 2;`。
@@ -1491,8 +1599,25 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
     Sort-Object LastWriteTime -Descending | Select-Object LastWriteTime, FullName
   ```
   汇报里必须把"哪条红是别人的在飞改动"写清楚，**不要混进自己的交付结论**（也不要把别人的红说成"已验证通过"）。
+- **2026-10-29 补充（同一批文件被连续改，红点会"自己变绿"）**：另一会话在 23:58–00:18 连续重构
+  `ShellViewModel` / 结果源弹窗 VM / `FlowInvokeChecks`。期间看到三种红：
+  ① `ShellViewModel.cs(441) CS0266`（对方把计数改 `long`、局部变量还是 `int`）；
+  ② `FlowResultSourceDialogViewModel.cs(657) CS0103 IsMainFlow`（对方删了"主流程"概念、漏了一行通知）；
+  ③ `FlowInvokeChecks.cs(265) CS1003`——**文件当前内容完全合法**（逐行数过引号、字符码点也正常），
+  重跑一次构建即绿：构建读到了对方**写入中途**的内容。
+  **判据**：报错文件 mtime 在几分钟内 → 先原样重跑一次；仍红再按上面的流程等对方收尾。
+  ①② 对方随后自行修好（00:07 那次保存），**不要抢着改**——改了会撞掉对方的意图。
 - **相关命令 / 参数**：本轮实证——对方半成品红 1 条（`A1b OverlayContours`，同属 `Plugin.ResultDisplay`），
   与自己的改动无交集（自己的 4 个文件不在标注生成路径上）。等对方收尾后需复跑一次确认。
+- **2026-10-29 补充二（`MSB3073 copy … 代码为 1`：对方构建正在往同一个 `Modules\` 复制）**：
+  改完流程栏双击后构建 `FlowCanvasChecks.csproj`，`Plugin.CSharpScript` / `Plugin.ImageScript` 的
+  后置复制步骤同时报 `error MSB3073: 命令"copy … Modules\"已退出，代码为 1`，
+  但**没有任何宿主进程**（`Get-Process VisionMaster,FlowCanvasChecks` 为空），源文件也都在。
+  **判据**：手动执行同一条 `copy <源> D:\C#\VM\Modules\<文件> /Y` 成功（`已复制 1 个文件`）→ 不是权限、不是路径，
+  是那一刻目标文件被**另一个会话的构建**占用；原样重跑构建即绿（本轮重跑 0 错）。
+  **规避**：`MSB3073` 出现在 `Modules\` 复制步骤时，先看目标文件 mtime 与 `Get-Process dotnet`，
+  别去改 `.csproj` 里的 copy 命令。注意 `dotnet` 里可能有一个常驻 `VBCSCompiler`（19:13 起的那个），
+  **它不是"另一个构建在跑"**——看命令行 `VBCSCompiler.dll` 就能排除。
 
 #### C-42 残留断言宿主进程锁住 exe/DLL：构建报 MSB3027/MSB3021，先结束进程  [✅]  最近：2026-10-27  复发：2 次
 - **现象**：`dotnet build FlowCanvasChecks.csproj` 报
@@ -1640,4 +1765,14 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 | 2026-10-28 | 全仓审计「绑定是否都走控件」：只剩 `LinkableValueEditor` 自己在发 `LinkPathEvent`（JudgeTable 已由并发会话迁移并加 `[JT48]` 扫描断言）；8 个动态端口插件分两种合法接法（行对象自带 Port / `MultiBinding`+`PortsVersion`）；可写的手输框只有 DataRecord、ResultUpload 两处「运行时变量名」。据此新增 §45/**R190**（取值只许两种形态、手输只给运行时变量），并修正 R189 原文「必须 MultiBinding」的误伤；`audit_rules` 191 行 / 52,770B | — | R189（补「两种接法」变体） |
 
 **下次更新时**：只改「0. 快速索引」「对应条目」「3. 经验迭代」「4. 最近更新」四处；
+| 2026-10-29 | 结果源弹窗三处修订（自动标签随状态 / 只读单行 / 变量搜索）：DLG-18~22 + 2 条结构闸，FlowCanvasChecks 4349/0、gate 16/16；期间另一会话连续重构同批文件，构建出现写入中途的瞬时语法错，重跑即绿 | — | C-41（补同批文件连续改 + 重跑即绿变体） |
+| 2026-10-29 | EasyNet 真机连不上定位：探针实测 H5U 模拟器读响应 `[8]=0x02`、字区上限 501 字（512 回 129）、位区 8000 位；修 `ValidateReadEcho` / `MaxSegmentUnits` / 全拒不再判链路故障；CommChecks 380/0、CommTest 2315 点全 Good（109ms） | E-10 | — |
+| 2026-10-29 | 通讯超时三处错接修复（第 0 批）：FreeProtocol 拿读超时当写超时、OmronFins 默认 5000 遮蔽通用读超时、`TriggerWrite` 文档谎称会合并；补 C8-5~C8-10 六条下发断言（EasyNet/FreeProtocol 用回环监听真建连）；CommChecks 386/0 | — | C-28（补 `CommChecks` C17-3 变体，复发 +1） |
+| 2026-10-29 | 字区位变量并段（第 1 批）：`D100.5` 从"每点一次兜底单读"改为"随所属字并段"，`DecodeBit` 位上限按单元宽度（字节 0~7 / 字 0~15）；8 条新断言（含 S7 字节单元反向回归），CommChecks 393/0；H5U 模拟器离线，2315 点基准本轮未复跑 | — | E-10（补"跑基准前先确认设备在监听"变体，复发 +1） |
+| 2026-10-29 | 读超时体检与默认值分档（第 2 批）：新增 `ReadTimeoutAdvisor`（阈值=超过一个整周期）、日志出口按结论去重、保存后 toast、以太网默认 5000→2000（串口保持 5000）；8 条新断言含 C8-12 用 `RequestConnect` 验日志接线与去重；CommChecks 400/0、gate 16/16 | C-54 | — |
+| 2026-10-29 | 写批量化 C0/C1：`HslHelper.EncodeForWire`（合并写线路字节）+ `WriteBatchPlanner`（只合严格连续）+ `TryWriteBatch`（段粒度结果、失败即停）；C33 断言当场抓出 `GetValueArray` 的 `ulong` 溢出并修掉；CommChecks 410/0（未接线，产品行为零变化）；全量 gate 被运行中的 `VisionMaster.exe` 挡住未跑 | — | C-55（新增） |
+| 2026-10-29 | 变量绑定候选列表卡顿（虚拟化失效）：先做二分（空模板 8ms / 真实模板 400ms）定位行模板成本，再给列表按视口算 `MaxHeight` 恢复虚拟化；`--variable-binding` 38 条全绿。发现 `run_gates` 用空参数跑宿主、参数化冒烟不在默认套件里 → 新增一条 | C-55 | C-06（引号变体建出名为 `'` 的根文件，复发 +1）、C-39（`& echo %ERRORLEVEL%` 又踩，复发 +1）、C-54（后台 gate 期间加文档，复发 +1） |
+| 2026-10-29 | EasyNet 读取值与 PLC 对不上（Alarm3[79]）：原始帧实测定位为**变量表地址陈旧**（12.csv@01:40 早于 16:46 重编译），驱动无缺陷；解析 `VarAddrMap.am`（9649 条）生成 437 条修正表，逐点实测 Alarm3[79]=1、PLCVersion=1.0 | E-11 | E-10（补"地址不存在会被读成 0 而非报错"变体，复发 +1） |
+| 2026-10-29 | 流程栏双击算子不弹参数窗修复（`TreeViewBehavior` 双击写回靶 + null 清高亮、`ProcessViewModel` 接住 `Open` 返回值）：FlowCanvasChecks 4392/0（新增 V11 四条真 TreeView 回放）；构建期撞另一会话写 `ScadaActionDispatcher.cs` 与并发复制 `Modules\`，各补一条变体 | — | C-01（补 `[Diagnostics.Process]` 重定向 936 可救回）、C-41（补 `MSB3073 copy` 并发变体 + VBCSCompiler 不是构建） |
+| 2026-10-29 | 变量绑定弹窗打开卡死（9000 变量）：临时诊断量出"首次 `UpdateLayout` = 122 781 ms / realized=9001，随后收敛回 6"——首帧代价被终态断言掩盖；修法 = 构造器预置有界 `MaxHeight` + `Items.Count == 0` 不放宽，9000 条首帧降到 61 ms；新增两条首帧断言并做变异反证（改坏守卫 → `firstPassRealized=1501` 判红）。`--variable-binding` 41/0 | — | C-39（`& echo %ERRORLEVEL%` 又踩一次：FAIL 那轮仍打印 RUN=0，复发 +1；并补「后台任务整条没跑、任务报 exit 0、日志文件根本不存在」变体） |
 新增条目按模板补齐五段；汇报里写「台账已更新：新增 N 条 / 合并 M 条」。

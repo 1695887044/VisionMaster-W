@@ -1,0 +1,336 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <!--
+        报警汇总表图元的外观（Hmi.AlarmTable）。
+
+        三件事在模板里刻意不做：
+        1) 不用 ListView + GridView（R19：应用级 Fluent 的隐式 ListView 样式会顶掉框架那份，
+           列头消失、类型全名上屏）。这里用 ItemsControl + 行 DataTemplate，列宽是固定像素。
+        2) 不写 ControlTemplate.Triggers 里的 DataTrigger（本环境一律不触发、且一条绑定报错都不写）。
+           显隐、斑马纹、已确认淡化全部由控件算成只读 DP / 行字段，模板直绑。
+        3) 不挑颜色。哪一行用哪个级别色由 AlarmTableElement.CreateRow 算好（AlarmTableRow.SeverityBrush），
+           模板只管画；模板里挑色就得用转换器 + 跨层 RelativeSource，出错时是"静默显示成默认色"。
+
+        列宽为什么是 Auto 列 + 定宽单元格，而不是 ColumnDefinition 写死像素：
+        控件要能整列收起「时间 / 级别 / 确认」三列（ShowTime / ShowSeverity / AllowAck）。
+        ColumnDefinition 是 FrameworkContentElement，绑 TemplatedParent 不可靠；
+        而"定宽单元格 + Auto 列"既能给出固定像素宽，又能在单元格 Collapsed 时让整列归零。
+        表头与行用同一组列结构与同一个 Margin，所以天然对齐。
+
+        颜色一律走 ScadaTokens.xaml（本文件 hex = 0，R140）；本分册就地合并令牌（R30）。
+    -->
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        小实心按钮（行内「确认」与工具条「全部确认」共用）。
+        属性触发器（Trigger Property=）在本环境照常工作，DataTrigger 才不触发——
+        所以四态用属性触发器表达，不碰任何绑定。
+    -->
+    <Style x:Key="AlarmTableButtonStyle" TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource HmiPrimaryBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderStrongBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource HmiPrimaryTextBrush}" />
+        <Setter Property="FontSize" Value="11.5" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border
+                        x:Name="ButtonRoot"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="3"
+                        SnapsToDevicePixels="True">
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="ButtonRoot" Property="Background" Value="{StaticResource HmiPrimaryHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="ButtonRoot" Property="Opacity" Value="0.8" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="ButtonRoot" Property="Background" Value="{StaticResource HmiTrackBrush}" />
+                            <Setter TargetName="ButtonRoot" Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
+                            <Setter Property="Foreground" Value="{StaticResource HmiTextMutedBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- 表头格：小一号、次要色、不换行 -->
+    <Style x:Key="AlarmTableHeaderTextStyle" TargetType="TextBlock">
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextMutedBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <Style TargetType="{x:Type local:AlarmTableElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="FontSize" Value="12" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:AlarmTableElement}">
+                    <Grid>
+                        <!-- 深色卡片底：Fill 未配置时（直接 new 控件）也能得到运行画面的表面色 -->
+                        <Border
+                            Background="{StaticResource HmiSurfaceBrush}"
+                            BorderBrush="{StaticResource HmiBorderBrush}"
+                            BorderThickness="{TemplateBinding StrokeThickness}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}" />
+
+                        <!-- 用户配置的 Fill / Stroke 叠在令牌底之上：不改变既有属性语义 -->
+                        <Border
+                            Background="{TemplateBinding Fill}"
+                            BorderBrush="{TemplateBinding Stroke}"
+                            BorderThickness="{TemplateBinding StrokeThickness}"
+                            CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}" />
+
+                        <Border
+                            Margin="{TemplateBinding Padding}"
+                            Padding="10,8"
+                            TextElement.FontFamily="{TemplateBinding FontFamily}"
+                            TextElement.FontSize="{TemplateBinding FontSize}"
+                            TextElement.Foreground="{TemplateBinding Foreground}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <!--  ① 工具条：标题 + 未确认计数 + 全部确认  -->
+                                <Grid
+                                    Grid.Row="0"
+                                    Margin="0,0,0,6"
+                                    Visibility="{Binding ToolbarVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontSize="{TemplateBinding FontSize}"
+                                        FontWeight="SemiBold"
+                                        Text="{TemplateBinding Text}"
+                                        TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        FontSize="11"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding UnacknowledgedText, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                    <Button
+                                        Grid.Column="2"
+                                        Margin="8,0,0,0"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding AcknowledgeAllCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Content="全部确认"
+                                        IsEnabled="{Binding CanAcknowledgeAll, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Style="{StaticResource AlarmTableButtonStyle}" />
+                                </Grid>
+
+                                <!--  ② 表头：与行同构（同样 5 列 + 同样 Margin），所以列天然对齐  -->
+                                <Grid Grid.Row="1" Margin="0,0,0,2">
+                                    <Border
+                                        Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                        CornerRadius="3" />
+                                    <!--  用户配的表头底色叠在令牌之上（留空 = 只有令牌那一层）  -->
+                                    <Border
+                                        Background="{TemplateBinding HeaderBackground}"
+                                        CornerRadius="3" />
+
+                                    <Grid Margin="6,4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock
+                                            Grid.Column="0"
+                                            Width="70"
+                                            Style="{StaticResource AlarmTableHeaderTextStyle}"
+                                            Text="时间"
+                                            Visibility="{Binding TimeVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <TextBlock
+                                            Grid.Column="1"
+                                            Margin="0,0,8,0"
+                                            Style="{StaticResource AlarmTableHeaderTextStyle}"
+                                            Text="报警名" />
+                                        <TextBlock
+                                            Grid.Column="2"
+                                            Width="44"
+                                            Style="{StaticResource AlarmTableHeaderTextStyle}"
+                                            Text="级别"
+                                            Visibility="{Binding SeverityVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+                                        <TextBlock
+                                            Grid.Column="3"
+                                            Width="92"
+                                            Style="{StaticResource AlarmTableHeaderTextStyle}"
+                                            Text="状态" />
+                                        <TextBlock
+                                            Grid.Column="4"
+                                            Width="56"
+                                            Style="{StaticResource AlarmTableHeaderTextStyle}"
+                                            Text="确认"
+                                            Visibility="{Binding AckVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+                                    </Grid>
+                                </Grid>
+
+                                <!--  ③ 正文：行列表与提示互斥（显隐由控件算好，不用模板触发器）  -->
+                                <Grid Grid.Row="2">
+                                    <ScrollViewer
+                                        HorizontalContentAlignment="Stretch"
+                                        HorizontalScrollBarVisibility="Disabled"
+                                        VerticalScrollBarVisibility="Auto"
+                                        Focusable="False"
+                                        Visibility="{Binding RowsVisibility, RelativeSource={RelativeSource TemplatedParent}}">
+                                        <ItemsControl
+                                            HorizontalContentAlignment="Stretch"
+                                            ItemsSource="{Binding Rows, RelativeSource={RelativeSource TemplatedParent}}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <!--  一行 = 26px：时间 / 报警名 / 级别 / 状态 / 确认  -->
+                                                    <Border
+                                                        Height="26"
+                                                        Background="{Binding RowBackground}"
+                                                        CornerRadius="3"
+                                                        Opacity="{Binding RowOpacity}">
+                                                        <Grid Margin="6,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock
+                                                                Grid.Column="0"
+                                                                Width="70"
+                                                                VerticalAlignment="Center"
+                                                                FontFamily="Consolas, Cascadia Mono"
+                                                                FontSize="11"
+                                                                Foreground="{StaticResource HmiTextMutedBrush}"
+                                                                Text="{Binding TimeText}"
+                                                                TextTrimming="CharacterEllipsis"
+                                                                Visibility="{Binding TimeVisibility}" />
+
+                                                            <TextBlock
+                                                                Grid.Column="1"
+                                                                Margin="0,0,8,0"
+                                                                VerticalAlignment="Center"
+                                                                Text="{Binding NameText}"
+                                                                TextTrimming="CharacterEllipsis" />
+
+                                                            <TextBlock
+                                                                Grid.Column="2"
+                                                                Width="44"
+                                                                VerticalAlignment="Center"
+                                                                FontSize="11"
+                                                                Foreground="{Binding SeverityBrush}"
+                                                                Text="{Binding SeverityText}"
+                                                                TextTrimming="CharacterEllipsis"
+                                                                Visibility="{Binding SeverityVisibility}" />
+
+                                                            <TextBlock
+                                                                Grid.Column="3"
+                                                                Width="92"
+                                                                VerticalAlignment="Center"
+                                                                FontSize="11"
+                                                                Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                                                Text="{Binding StateText}"
+                                                                TextTrimming="CharacterEllipsis" />
+
+                                                            <Button
+                                                                Grid.Column="4"
+                                                                Width="52"
+                                                                Height="20"
+                                                                VerticalAlignment="Center"
+                                                                Command="{Binding AcknowledgeCommand}"
+                                                                Content="确认"
+                                                                IsEnabled="{Binding CanAcknowledge}"
+                                                                Style="{StaticResource AlarmTableButtonStyle}"
+                                                                Visibility="{Binding AcknowledgeVisibility}" />
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+
+                                    <!--  空态 / 设计期提示：正文文案由控件算好（设计期不写「当前无报警」）  -->
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        FontSize="12.5"
+                                        Foreground="{StaticResource HmiTextSecondaryBrush}"
+                                        Text="{Binding BodyText, RelativeSource={RelativeSource TemplatedParent}}"
+                                        TextAlignment="Center"
+                                        TextWrapping="Wrap"
+                                        Visibility="{Binding BodyVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+                                </Grid>
+
+                                <!--  ④ 页脚：左侧状态行（确认结果 / 权限原因），右侧截断提示  -->
+                                <Grid Grid.Row="3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Margin="0,4,8,0"
+                                        FontSize="11"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding StatusText, RelativeSource={RelativeSource TemplatedParent}}"
+                                        TextTrimming="CharacterEllipsis"
+                                        Visibility="{Binding StatusVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Margin="0,4,0,0"
+                                        HorizontalAlignment="Right"
+                                        FontSize="11"
+                                        Foreground="{StaticResource HmiTextMutedBrush}"
+                                        Text="{Binding FooterText, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Visibility="{Binding FooterVisibility, RelativeSource={RelativeSource TemplatedParent}}" />
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

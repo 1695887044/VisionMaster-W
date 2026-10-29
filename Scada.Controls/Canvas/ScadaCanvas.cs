@@ -530,6 +530,37 @@ namespace VisionMaster.Scada.Controls
         }
 
         /// <summary>
+        /// 设计期文本解析器（把 <c>@键</c> 换成当前语言的文字），注入给每个图元控件。
+        /// 与 <see cref="StateListResolver"/> 同一范式；断言/无方案场景保持 null
+        /// （那时控件只做 <c>@@</c> 转义还原，<c>@键</c> 原样显示——"看得见哪个键没配"）。
+        ///
+        /// 为什么由画布转一手而不是让控件反向抓方案文档：控件不该知道 <c>.vms</c> 长什么样，
+        /// 同一套控件运行态走 <see cref="ScadaRuntimeContext.Languages"/>、设计期走这里。
+        /// 语言表改完之后重新赋一次本属性（换一个新委托实例）就是"整页按新语言重铺"的入口。
+        /// </summary>
+        public static readonly DependencyProperty TextResolverProperty = DependencyProperty.Register(
+            nameof(TextResolver), typeof(Func<string, string>), typeof(ScadaCanvas),
+            new FrameworkPropertyMetadata(null, OnTextResolverChanged));
+
+        /// <summary>设计期文本解析器（<c>@键</c> → 当前语言的文字）</summary>
+        public Func<string, string>? TextResolver
+        {
+            get => (Func<string, string>?)GetValue(TextResolverProperty);
+            set => SetValue(TextResolverProperty, value);
+        }
+
+        private static void OnTextResolverChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var canvas = (ScadaCanvas)d;
+            var resolver = (Func<string, string>?)e.NewValue;
+
+            // 不调 canvas.Refresh()（画布没有这个方法，也不该有）：控件的 TextResolver setter
+            // 自己会 OnTextResolverChanged → Refresh() 重铺属性，整页重建反而会丢选中与动画痕迹。
+            foreach (var control in canvas.EnumerateControls())
+                control.TextResolver = resolver;
+        }
+
+        /// <summary>
         /// 画面解析器（Id → 画面），注入给每个图元控件（Hmi.SubPage 用）。
         /// 与 <see cref="StateListResolver"/> 同一范式；断言/无方案场景保持 null。
         /// </summary>
@@ -1623,6 +1654,10 @@ namespace VisionMaster.Scada.Controls
                 control.ImageAssetResolver = ImageAssetResolver;
                 control.ImageBytesResolver = ImageBytesResolver;
                 control.StateListResolver = StateListResolver;
+                // 设计期文本解析器：新建的控件也要带上，否则"新拖进来的图元 @键 不解析、
+                // 老的解析"，看起来像随机故障。注：这个 setter 自己会 Refresh 一次（见控件侧），
+                // 下面的 control.Refresh() 是给几何/层偏移用的，两件事互不替代。
+                control.TextResolver = TextResolver;
                 control.PageResolver = PageResolver;
                 control.PageNameResolver = PageNameResolver;
                 control.PageElementsResolver = PageElementsResolver ?? DefaultPageElementsResolver;

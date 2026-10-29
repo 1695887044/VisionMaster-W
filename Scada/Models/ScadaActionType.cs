@@ -149,6 +149,55 @@ namespace VisionMaster.Scada
         /// 且不受报警播报的最低级别门槛限制——这是操作员主动触发的一句话。
         /// </summary>
         SpeakText = 28,
+
+        /// <summary>
+        /// 登录（v6）：弹出运行态登录窗，让操作员当场登录。
+        ///
+        /// <b>不把账号密码存进 .vms</b>：组态文件会被复制、会被发到现场、会被 AI 读；
+        /// 把口令写进画面等于把它写进明文配置文件。本动作只负责"把登录窗调出来"，
+        /// 凭据由人在窗里敲、由 <c>ScadaUserStore</c> 校验。
+        /// </summary>
+        Logon = 29,
+
+        /// <summary>
+        /// 注销（v6）：结束当前登录会话，回到"未登录"（只剩 <c>Always</c> 权限）。
+        /// 与 <see cref="Logon"/> 配对，让运行画面能自己管会话，不必退回主界面。
+        /// </summary>
+        Logoff = 30,
+
+        /// <summary>
+        /// 切换语言（v6）：把运行态当前语言切到 <see cref="ScadaAction.LanguageId"/> 指定的那张语言表。
+        /// 目标不存在/表为空时由执行侧当场拒绝并说明，不静默留在原语言。
+        /// </summary>
+        SetLanguage = 31,
+
+        /// <summary>
+        /// 延时（v6）：把<b>同一钩子里排在后面的动作</b>推迟 <see cref="ScadaAction.DelayMs"/> 毫秒再执行。
+        ///
+        /// 为什么需要它：脉冲输出（写 1 → 等 500ms → 写 0）、点灯提示后自动复位、
+        /// 按一下分两步走——没有延时就只能靠流程步骤，而画面按钮不该为此启动一条流程。
+        ///
+        /// 语义边界（实现按此执行，不额外发挥）：
+        /// ① 只影响<b>本条之后</b>的动作；前面的动作已经执行完，不会回滚；
+        /// ② 延时期间不阻塞 UI 线程（排到 Dispatcher 队列），也不影响其它事件；
+        /// ③ 运行停止/切页时未到点的后续动作<b>不再执行</b>，日志记一条"延时已取消"。
+        /// </summary>
+        Delay = 32,
+
+        /// <summary>
+        /// 确认报警（v7）：确认当前<b>全部</b>待确认报警（激活 + 已恢复未确认）。
+        ///
+        /// 为什么不带"确认某一条"的参数：动作表挂在图元/画面上，它不知道操作员想确认哪一条；
+        /// 逐条确认是「报警汇总表」行内按钮的事（那里有 AlarmId）。
+        /// 返回 0 条不算失败——"本来就没有待确认的"是一种正常结果，日志里照实说。
+        /// </summary>
+        AcknowledgeAlarm = 33,
+
+        /// <summary>
+        /// 静音（v7）：按 <see cref="ScadaAction.MuteMinutes"/> 分钟静音报警声音。
+        /// 紧急级（Critical）不受静音约束（见宿主 ScadaSoundAlarmService 的口径），这一点由执行侧说明。
+        /// </summary>
+        MuteAlarm = 34,
     }
 
     /// <summary>
@@ -225,6 +274,14 @@ namespace VisionMaster.Scada
             ScadaActionType.PlaySound => "播放声音",
             ScadaActionType.SpeakText => "语音播报",
             ScadaActionType.ApplyRecipe => "应用配方",
+            // v6 四条：登录/注销/切换语言/延时。名字都用现场两字短词，下拉里与既有动作同一节奏。
+            ScadaActionType.Logon => "登录",
+            ScadaActionType.Logoff => "注销",
+            ScadaActionType.SetLanguage => "切换语言",
+            ScadaActionType.Delay => "延时",
+            // v7：报警闭环的两条。名字与「报警确认按钮」「静音」在界面上同词。
+            ScadaActionType.AcknowledgeAlarm => "确认报警",
+            ScadaActionType.MuteAlarm => "静音",
             // 高版本软件存下的动作类型读进低版本会落到这里（Newtonsoft 按数值反序列化，不校验取值范围）。
             // 报出数值而不是抛异常：坏在一条动作上，不该让整张画面打不开。
             _ => $"未知动作({(int)type})",
@@ -307,6 +364,16 @@ namespace VisionMaster.Scada
             ScadaActionType.OpenPopup => null,
             ScadaActionType.ClosePopup => null,
             ScadaActionType.ApplyRecipe => null,
+            // v6 四条：接通与否取决于宿主装配（登录窗/用户会话/语言服务是否注入），
+            // 那是装配状态不是动作能力，由执行侧当场报"未接入"并给出可照做的原因。
+            // 延时不需要任何外部服务，只要在 UI 线程上就一定能排进 Dispatcher。
+            ScadaActionType.Logon => null,
+            ScadaActionType.Logoff => null,
+            ScadaActionType.SetLanguage => null,
+            ScadaActionType.Delay => null,
+            // v7 两条：是否接通取决于宿主装配（报警命令出口 / 静音出口），由执行侧当场报"未接入"。
+            ScadaActionType.AcknowledgeAlarm => null,
+            ScadaActionType.MuteAlarm => null,
             _ => "本版本不认识该动作",
         };
     }

@@ -19,7 +19,6 @@ namespace VisionMaster.ViewModels.DialogViewModels
         protected List<VariableNode> _realTree = new();
         private bool _disposed = false;
 
-        public ObservableCollection<VariableNode> DisplayNodes { get; } = new();
         public DelegateCommand<VariableNode> ToggleNodeCommand { get; }
 
         protected GlobalVariableViewModelBase(IWorkspaceManager workspace)
@@ -43,53 +42,42 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (node == null || !node.IsContainer) return;
             node.IsExpanded = !node.IsExpanded;
-            UpdateFlatList();
+            RefreshDisplay();
         }
 
         /// <summary>
-        /// 将树状结构压平为UI渲染用的一维列表
+        /// 把 <see cref="_realTree"/> 重新铺到界面上（子类实现）。
+        ///
+        /// 基类不再自备一份扁平表：明细表是"整棵树 → 来源/分组/搜索过滤 → 扁平行"一次算完的
+        /// （见 <c>GlobalVariableManagerViewModel.UpdateFilteredList</c>），
+        /// 中间再存一份只写不读的 <c>DisplayNodes</c> 只会误导下一个人去绑它。
         /// </summary>
-        protected virtual void UpdateFlatList()
+        protected virtual void RefreshDisplay()
         {
-            DisplayNodes.Clear();
-            foreach (var root in _realTree)
-            {
-                DisplayNodes.Add(root);
-                if (root.IsExpanded)
-                {
-                    foreach (var child in root.Children)
-                    {
-                        DisplayNodes.Add(child);
-                    }
-                }
-            }
         }
+
+        /// <summary>
+        /// 树建好后的后处理钩子（子类可在此按名称路径归组等）。
+        /// 默认原样返回。
+        /// </summary>
+        protected virtual List<VariableNode> PostProcessTree(List<VariableNode> roots) => roots;
 
         /// <summary>
         /// 刷新整个树结构（保留展开状态）
         /// </summary>
         protected virtual void RefreshTree()
         {
-            // 展开态按稳定身份（VariableId）记忆：按名字记的话，变量一改名新树里的节点
+            // 展开态按稳定身份记忆：按名字记的话，变量一改名新树里的节点
             // 与旧键对不上，展开中的数组变量会莫名其妙自动折叠。
-            // 旧工程数据（Id 为空）退回按名记，行为与从前一致
-            var expandedIds = _realTree
-                .Where(n => n.IsExpanded && n.OriginalModel != null && n.OriginalModel.VariableId != Guid.Empty)
-                .Select(n => n.OriginalModel.VariableId)
-                .ToHashSet();
-            var expandedNames = _realTree
-                .Where(n => n.IsExpanded && (n.OriginalModel == null || n.OriginalModel.VariableId == Guid.Empty))
-                .Select(n => n.Name)
-                .ToHashSet();
+            // 旧工程数据（Id 为空）退回按名记，行为与从前一致；
+            // 合成容器（按名称路径归组出来的）用路径键，见 VariableNode.ExpandKey。
+            var expandedKeys = CollectExpandedKeys(_realTree);
 
             _realTree.Clear();
 
             foreach (var gv in EnumerateTreeVariables())
             {
                 var rootNode = CreateRootNode(gv);
-                rootNode.IsExpanded = gv.VariableId != Guid.Empty
-                    ? expandedIds.Contains(gv.VariableId)
-                    : expandedNames.Contains(rootNode.Name);
 
                 if (ShouldCreateChildNodes(gv))
                 {
@@ -99,7 +87,59 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 _realTree.Add(rootNode);
             }
 
-            UpdateFlatList();
+            _realTree = PostProcessTree(_realTree);
+            RestoreExpandedKeys(_realTree, expandedKeys);
+            RefreshDisplay();
+        }
+
+        /// <summary>
+        /// 收集"需要记忆展开态"的节点键：合成容器（路径键）与顶层真实变量。
+        /// 数组元素行不记忆——它们随父数组长度变化而重建，记忆反而会留下错位状态。
+        /// </summary>
+        private static HashSet<string> CollectExpandedKeys(IEnumerable<VariableNode> roots)
+        {
+            var keys = new HashSet<string>(StringComparer.Ordinal);
+            void Walk(VariableNode node)
+            {
+                if (node.IsExpanded)
+                {
+                    var key = ExpansionKeyOf(node);
+                    if (!string.IsNullOrEmpty(key)) keys.Add(key!);
+                }
+                foreach (var child in node.Children) Walk(child);
+            }
+
+            foreach (var root in roots) Walk(root);
+            return keys;
+        }
+
+        private static void RestoreExpandedKeys(IEnumerable<VariableNode> roots, HashSet<string> keys)
+        {
+            if (keys.Count == 0) return;
+
+            void Walk(VariableNode node)
+            {
+                var key = ExpansionKeyOf(node);
+                if (!string.IsNullOrEmpty(key) && keys.Contains(key!))
+                    node.IsExpanded = true;
+                foreach (var child in node.Children) Walk(child);
+            }
+
+            foreach (var root in roots) Walk(root);
+        }
+
+        /// <summary>
+        /// 节点的展开态记忆键。合成容器用 <see cref="VariableNode.ExpandKey"/>（名称路径），
+        /// 顶层真实变量用 VariableId（旧数据回落名称），数组元素行返回 null（不记忆）。
+        /// </summary>
+        private static string? ExpansionKeyOf(VariableNode node)
+        {
+            if (!string.IsNullOrEmpty(node.ExpandKey)) return node.ExpandKey;
+            if (!node.IsRootNode || node.OriginalModel == null) return null;
+
+            return node.OriginalModel.VariableId != Guid.Empty
+                ? "id:" + node.OriginalModel.VariableId
+                : "name:" + node.Name;
         }
 
         /// <summary>
@@ -176,7 +216,27 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     break;
             }
 
-            VisionMaster.Helpers.SafeDispatch.BeginInvoke(() => RefreshTree());
+            QueueTreeRefresh();
+        }
+
+        private bool _refreshPosted;
+
+        /// <summary>
+        /// 合并触发的树重建：批量导入 2357 个变量时**每条 Add** 都会走到这里，
+        /// 不合并就是 2357 次 O(N) 全量重建（O(N²)，实测 UI 线程卡一分钟——
+        /// 2026-10-29 汇川 2357 点导入实测）。同一轮调度里只排一次重建，
+        /// 排队期间集合再怎么变，最终那次 RefreshTree 拿到的都是最终状态。
+        /// 单条增删的行为不变（一次 post 一次重建）。
+        /// </summary>
+        protected void QueueTreeRefresh()
+        {
+            if (_refreshPosted) return;
+            _refreshPosted = true;
+            VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
+            {
+                _refreshPosted = false;
+                RefreshTree();
+            });
         }
 
         /// <summary>变量加入集合时回调（子类在此补挂变量级事件监听）</summary>

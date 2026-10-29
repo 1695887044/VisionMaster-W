@@ -1525,6 +1525,17 @@
                                 </Border>
 
                                 <Grid Margin="0,8,0,0" MinHeight="220">
+                                    <!--
+                                        【虚拟化的前提：高度有界】本列表嵌在右栏 BindingBodyScroll 里，
+                                        若不给高度上限，外层 ScrollViewer 会以"无穷高"量它，
+                                        VirtualizingStackPanel 于是逐行实例化、一行都不回收 ——
+                                        全局变量两三千条时打开弹窗/改搜索词都要把几千行重造一遍（实测
+                                        1501 条 ≈ 6.2 s），表现就是"变量一多就卡"。
+                                        上限由 code-behind 的 UpdateCandidateMaxHeight 按"视口剩余高度"算，
+                                        且只有内容超过 3 屏才真的封顶：十几行以内保持自然高度
+                                        （与设计基线逐像素一致、不出现内层滚动条），长列表才在自己的
+                                        高度内滚动、虚拟化只保留可见的十来个容器。
+                                    -->
                                     <ListBox
                                         x:Name="CandidateList"
                                         Background="Transparent"
@@ -1532,7 +1543,7 @@
                                         FocusVisualStyle="{StaticResource DialogFocusVisual}"
                                         ItemsSource="{Binding DisplayPorts}"
                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                        ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                        ScrollViewer.VerticalScrollBarVisibility="Auto"
                                         SelectedItem="{Binding SelectedOutputPort}">
                                         <ListBox.ItemContainerStyle>
                                             <Style TargetType="ListBoxItem" BasedOn="{StaticResource DialogOptionItem}">
@@ -1616,6 +1627,8 @@
                                                                 Style="{StaticResource DialogChipSuccess}">
                                                                 <Border.Visibility>
                                                                     <MultiBinding Converter="{StaticResource CandidateBoundVisibilityConverter}">
+                                                                        <Binding Path="DataContext.SelectedInputPort.BoundVariableId" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
+                                                                        <Binding Path="VariableId" />
                                                                         <Binding Path="DataContext.SelectedInputPort.LinkedAddress" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
                                                                         <Binding Path="DataContext.SelectedNode.Name" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
                                                                         <Binding Path="Name" />
@@ -1654,6 +1667,8 @@
                                                             <Button.Visibility>
                                                                 <MultiBinding Converter="{StaticResource CandidateBindButtonVisibilityConverter}">
                                                                     <Binding Path="IsBindable" />
+                                                                    <Binding Path="DataContext.SelectedInputPort.BoundVariableId" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
+                                                                    <Binding Path="VariableId" />
                                                                     <Binding Path="DataContext.SelectedInputPort.LinkedAddress" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
                                                                     <Binding Path="DataContext.SelectedNode.Name" RelativeSource="{RelativeSource AncestorType={x:Type UserControl}}" />
                                                                     <Binding Path="Name" />

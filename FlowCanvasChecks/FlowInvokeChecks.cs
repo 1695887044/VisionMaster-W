@@ -262,8 +262,8 @@ namespace FlowCanvasChecks
                     goHome?.InvokeType == FlowInvokeType.Timer, $"GoHome.InvokeType={goHome?.InvokeType}");
                 Check("加载时老单选 2（变量）迁移为 Variable 位",
                     check?.InvokeType == FlowInvokeType.Variable, $"检测.InvokeType={check?.InvokeType}");
-                Check("老值 0 保持 Manual（手动）",
-                    mainTask?.InvokeType == FlowInvokeType.Manual, $"MainTask.InvokeType={mainTask?.InvokeType}");
+                Check("老值 0 保持 Manual；MainTask 例外：认领时补上「整线」位（老方案的「主任务」就是被整线启动的那条）",
+                    mainTask?.InvokeType == FlowInvokeType.LineStart, $"MainTask.InvokeType={mainTask?.InvokeType}");
 
                 Check("★加载时老默认名认领（GoHome→Home 角色；MainTask→无角色 + 勾整线）",
                     goHome?.Role == FlowRole.Home && mainTask?.Role == FlowRole.None

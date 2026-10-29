@@ -5,6 +5,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Threading;
 using Core.Events;
 using Prism.Dialogs;
@@ -470,6 +471,7 @@ namespace FlowCanvasChecks
             }
 
             DeleteKeepsCommandTargetAlive();
+            DoubleClickOpensTheRowUnderMouse();
         }
 
         // ==================================================================
@@ -600,6 +602,133 @@ namespace FlowCanvasChecks
             {
                 vm.Deactivate();
             }
+        }
+
+        // ==================================================================
+        //  V11：双击某行 → 命令靶必须是**这一行**（2026-10-29 真机：流程栏双击算子不弹参数窗）
+        //
+        //  背景：流程栏双击走 TreeViewBehavior.DoubleClickCommand → ModuleActionCommand(ModuleParameters)
+        //  → StepParameterDialog.Open(SelectStep)，即"按当前选中项取参"；而画布双击用的是
+        //  被点节点的 Model（OpenModuleParameters）。于是只要"当前选中项"和树上高亮行脱钩，
+        //  流程栏就点不动（靶为 null → Open 直接 false → 用户看到"点了没反应"），画布却一切正常。
+        //
+        //  两条脱钩通道都在 TreeViewBehavior：
+        //   ① VM 把选中项推成 null 时回调直接 return（树高亮留在旧行，而 TreeView.SelectedItem 只读）；
+        //   ② 反向推送找不到容器时静默放弃（高亮留旧行、靶已换人）。
+        //  修法：① 改为把高亮一起清掉；② 双击时直接把被点的数据项写进绑定，保证"靶 = 看到的行"。
+        //
+        //  本断言必须在**真 TreeView** 上跑：脱钩态由"树的高亮 + 双向绑定"共同产生，
+        //  纯 VM 直调（像 V5 那样赋 SelectStep）根本造不出这个状态，必然是假绿。
+        // ==================================================================
+        private static void DoubleClickOpensTheRowUnderMouse()
+        {
+            var results = new List<(string Name, bool Ok, string Detail)>();
+            var sta = new Thread(() =>
+            {
+                try { RunDoubleClickProbe(results); }
+                catch (Exception ex)
+                {
+                    lock (results) results.Add(("STA 运行", false, ex.GetType().Name + ": " + ex.Message));
+                }
+            });
+            sta.SetApartmentState(ApartmentState.STA);
+            sta.Start();
+            sta.Join();
+
+            foreach (var r in results)
+                Check("V11：" + r.Name, r.Ok, r.Detail);
+        }
+
+        private static void RunDoubleClickProbe(List<(string Name, bool Ok, string Detail)> results)
+        {
+            void R(string name, bool ok, string detail)
+            {
+                lock (results) results.Add((name, ok, detail));
+            }
+
+            var h = new Harness();
+            var vm = new ProcessViewModel(h.Workspace, new RecordingDialogService());
+
+            // 复刻 ProcessView.xaml 的三条接线：选中项双向 + 双击命令 + 双击命令参数
+            var tree = new TreeView { ItemsSource = h.Flow.Steps };
+            BindingOperations.SetBinding(
+                tree,
+                UI.Behaviors.TreeViewBehavior.BindableSelectedItemProperty,
+                new Binding(nameof(ProcessViewModel.SelectStep))
+                {
+                    Source = vm,
+                    Mode = BindingMode.TwoWay,
+                });
+            UI.Behaviors.TreeViewBehavior.SetDoubleClickCommand(tree, vm.ModuleActionCommand);
+            UI.Behaviors.TreeViewBehavior.SetDoubleClickCommandParameter(tree, ModuleCommandAction.ModuleParameters);
+
+            // 容器生成只要一次布局，不需要 Window / Application（同 V10）
+            var host = new Border { Width = 420, Height = 700, Child = tree };
+            host.Measure(new Size(420, 700));
+            host.Arrange(new Rect(0, 0, 420, 700));
+            host.UpdateLayout();
+            PumpProbeFrames(6);
+
+            try
+            {
+                var first = h.Add(new ActionStep("\uE700", "延时", StubPluginProvider.LeafPlugin, "延时_1"));
+                var second = h.Add(new ActionStep("\uE700", "变量赋值", StubPluginProvider.LeafPlugin, "变量赋值_2"));
+                PumpProbeFrames(8);
+
+                // ---- ① 常规：双击一行（此前未选中）→ 命令靶 = 该行 ----
+                ReplayDoubleClick(tree, 1);
+                PumpProbeFrames(6);
+                R("双击某行 → 命令靶 = 该行（与画布双击同口径）",
+                    ReferenceEquals(CommandTarget(vm), second) && ReferenceEquals(tree.SelectedItem, second),
+                    $"树选中={Describe(tree.SelectedItem)}；命令靶={Describe(CommandTarget(vm))}（期望 {second.StepName}）");
+
+                // ---- ② 复现脱钩：外部把当前步骤清空（等价 SwitchFlow 传当前流程 → SwitchStep(null)）----
+                //  旧实现：树高亮留在第二行不动，靶变 null —— 那一行从此"高亮着但点不动"。
+                h.Workspace.SwitchStep(null);
+                PumpProbeFrames(8);
+                R("外部清空当前步骤 → 树高亮跟着清（不留'高亮着但靶为 null'的死行）",
+                    tree.SelectedItem == null && CommandTarget(vm) == null,
+                    $"树选中={Describe(tree.SelectedItem)}（期望 null）；命令靶={Describe(CommandTarget(vm))}（期望 null）");
+
+                // ---- ③ 脱钩之后仍要能双击打开：靶 = 被点的那一行 ----
+                //  这一条是用户症状的正面复现（双击不弹窗 ↔ 靶为 null/旧行）。
+                ReplayDoubleClick(tree, 0);
+                PumpProbeFrames(6);
+                R("脱钩之后双击另一行 → 命令靶 = 被点的那一行（不是 null、不是旧行）",
+                    ReferenceEquals(CommandTarget(vm), first) && ReferenceEquals(tree.SelectedItem, first),
+                    $"树选中={Describe(tree.SelectedItem)}；命令靶={Describe(CommandTarget(vm))}（期望 {first.StepName}）");
+
+                // ---- ④ 清空后"立刻"双击**当前高亮着的那一行** → 靶仍必须回到这一行 ----
+                //  这一条单独钉住"为什么光清高亮不够"：清空触发的清高亮排在 Dispatcher.Background 队列里，
+                //  用户紧接着的双击落在它之前。此时行还高亮着、IsSelected=true 是空操作（不发 SelectedItemChanged），
+                //  没有"把被点的数据项写回绑定"这一步，靶就还是 null —— 真机表现就是双击不弹窗。
+                h.Workspace.SwitchStep(null);   // ③ 之后第 0 行选中；这里清空，清高亮尚未执行
+                ReplayDoubleClick(tree, 0);     // 用户紧接着双击那一行（它此刻仍高亮）
+                PumpProbeFrames(8);
+                R("清空后立刻双击仍高亮的那一行 → 靶 = 该行（清理还在队列里也不能漏）",
+                    ReferenceEquals(CommandTarget(vm), first) && ReferenceEquals(tree.SelectedItem, first),
+                    $"树选中={Describe(tree.SelectedItem)}；命令靶={Describe(CommandTarget(vm))}（期望 {first.StepName}）");
+            }
+            finally
+            {
+                vm.Deactivate();
+            }
+        }
+
+        /// <summary>
+        /// 回放一次双击：MouseDoubleClick 是 Direct 路由事件，只能投给挂处理器的元素（= 树），
+        /// Source 声明被点处——与 RenderProbe.ReplayLeftDown 同一手法。
+        /// </summary>
+        private static void ReplayDoubleClick(TreeView tree, int index)
+        {
+            if (tree.ItemContainerGenerator.ContainerFromIndex(index) is not TreeViewItem item)
+                return;
+
+            tree.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+            {
+                RoutedEvent = Control.MouseDoubleClickEvent,
+                Source = item,
+            });
         }
 
         /// <summary>命令靶：ModuleActionCommand 真正取参的那个私有字段（SelectStep 是它的公开投影，两者曾经各说各话）</summary>

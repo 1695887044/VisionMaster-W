@@ -2,12 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Windows;
 using Core.Interfaces;
 using Prism.Commands;
 using Prism.Dialogs;
 using Prism.Mvvm;
-using UI.CustomControl;
 using VisionMaster.Models;
 using VisionMaster.Services;
 
@@ -198,12 +196,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private bool _isLineVerdictSource;
 
         /// <summary>
-        /// 本流程是否作为底栏「全部」口径的线级 OK/NG 来源（保存时写
-        /// <see cref="SolutionModel.LineVerdictFlowId"/>）。
+        /// 本流程是否作为方案的"线级来源"（保存时写 <see cref="SolutionModel.LineVerdictFlowId"/>）。
         ///
-        /// 【为什么取代了"主流程"判据】2026-10-28 起没有主流程角色：多条整线流程平级运行，
-        /// "线级取哪一条"必须显式落盘，否则底栏的 OK/NG 无从取值。勾上本项即把其它流程的标记顶掉
-        /// （同一时刻只有一条）。
+        /// 【2026-10-29 起只剩一个用途】底栏 KPI 已下线，这个标记不再决定底栏 OK/NG；
+        /// 现在只影响「查看最近一轮」优先打开哪条流程（没有标记时取第一条生产流程）。
+        /// 勾上本项即把其它流程的标记顶掉（同一时刻只有一条）。
         /// </summary>
         public bool IsLineVerdictSource
         {
@@ -233,18 +230,20 @@ namespace VisionMaster.ViewModels.DialogViewModels
         public string WarningText => _mode switch
         {
             FlowResultSourceKind.ResultStep =>
-                "没有结果输出步骤时，底栏 OK/NG 将显示「未判定」；不会自动插入步骤。",
+                "没有结果输出步骤时，本轮记「未判定」；不会自动插入步骤。",
             FlowResultSourceKind.Variable =>
                 "变量必须由流程每轮无条件写入；否则建议改用结果输出步骤或加轮次戳。",
             FlowResultSourceKind.StepPort =>
                 "分支里的步骤允许选；但分支未走到时本轮记「未判定」，不会沿用上一轮。",
             FlowResultSourceKind.None =>
                 IsLineVerdictSource
-                    ? "当前是线级汇总来源：不参与后，底栏「全部」将没有线级 OK/NG；保存时会再确认一次。"
+                    ? "当前是线级来源：「查看最近一轮」会优先打开本流程；选「不参与」不影响轮次记录。"
                     : "Home / End / 辅助流程适合选「不参与」；轮次仍记录，可在下钻里查看。",
-            _ => HasResultStep
-                ? string.Empty
-                : "没有结果输出步骤；保存后按回退顺序解析（变量 > 端口 > 约定变量），可能为未判定。",
+            _ => HasMultipleResultSteps
+                ? $"流程里有 {ResultStepCount} 个结果输出步骤（判定源歧义）：本轮跳过结果步骤、按回退链继续；建议只保留一个。"
+                : HasResultStep
+                    ? string.Empty
+                    : "没有结果输出步骤；保存后按回退顺序解析（变量 > 端口 > 约定变量），可能为未判定。",
         };
 
         public bool HasWarning => WarningText.Length > 0;
@@ -254,11 +253,17 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             get
             {
-                if (IsReadOnly) return "只读：需要流程编辑权限";
+                // 只读态由 ReadOnlyText 单独一行说明；这里不再重复一句"只读"，
+                // 也不再逐项提示"请选择…"——只读下用户根本改不了，提示是噪音。
+                if (IsReadOnly) return string.Empty;
                 if (_flow == null) return "流程不存在（可能已被删除）";
 
                 return _mode switch
                 {
+                    // 一条流程只允许一个结果输出（2026-10-29 规则）：多于一个时判定源歧义，
+                    // 保存"只认结果输出步骤"的配置没有意义，先让用户把流程改对。
+                    FlowResultSourceKind.ResultStep when HasMultipleResultSteps =>
+                        $"流程里有 {ResultStepCount} 个结果输出步骤；只能保留一个（多余的请删除，或改用步骤端口模式）",
                     FlowResultSourceKind.Variable when _selectedVariable == null => "请选择结果变量",
                     FlowResultSourceKind.StepPort when _selectedStep == null => "请选择判定步骤",
                     FlowResultSourceKind.StepPort when _selectedPort == null => "请选择 bool 输出端口",
@@ -269,12 +274,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool HasValidationError => ValidationText.Length > 0;
 
-        /// <summary>面板内的行内错误（与底部校验同源，按模式只亮一处）</summary>
-        public bool HasVariableError => IsVariableMode && _selectedVariable == null;
+        /// <summary>面板内的行内错误（与底部校验同源，按模式只亮一处；只读下不亮）</summary>
+        public bool HasVariableError => !IsReadOnly && IsVariableMode && _selectedVariable == null;
 
-        public bool HasStepError => IsStepPortMode && _selectedStep == null;
+        public bool HasStepError => !IsReadOnly && IsStepPortMode && _selectedStep == null;
 
-        public bool HasPortError => IsStepPortMode && _selectedPort == null;
+        public bool HasPortError => !IsReadOnly && IsStepPortMode && _selectedPort == null;
 
         public bool CanSave => !IsReadOnly && _flow != null && ValidationText.Length == 0;
 
@@ -306,6 +311,20 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public bool HasResultStep => ResultStepName.Length > 0;
 
+        /// <summary>流程里检测到的结果输出步骤个数（一条流程只允许一个）</summary>
+        public int ResultStepCount { get; private set; }
+
+        /// <summary>多于一个：判定源歧义（解析器按未判定处理，不猜"最后执行"）</summary>
+        public bool HasMultipleResultSteps => ResultStepCount > 1;
+
+        /// <summary>检测到的结果输出步骤名（顿号分隔，用于歧义提示）</summary>
+        public string ResultStepListText => string.Join("、", _resultStepNames);
+
+        /// <summary>自动模式的"当前生效"是否落在结果输出步骤上（歧义时不算）</summary>
+        public bool AutoUsesResultStep => HasResultStep && !HasMultipleResultSteps;
+
+        private readonly List<string> _resultStepNames = new();
+
         /// <summary>流程里检测到的结果输出步骤名（没有则空串）</summary>
         public string ResultStepName { get; private set; } = string.Empty;
 
@@ -330,6 +349,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public DelegateCommand CancelCommand { get; }
 
+        /// <summary>清空变量搜索词（搜索框右侧的 ×；空串时按钮收起）</summary>
+        public DelegateCommand ClearVariableFilterCommand { get; }
+
         #region IDialogAware
 
         public bool CanCloseDialog() => true;
@@ -350,6 +372,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             if (_flow == null)
             {
                 Variables.Clear();
+                FilteredVariables.Clear();
                 Steps.Clear();
                 Ports.Clear();
                 ResultStepName = string.Empty;
@@ -423,6 +446,41 @@ namespace VisionMaster.ViewModels.DialogViewModels
             {
                 Variables.Add(row);
             }
+
+            ApplyVariableFilter();
+        }
+
+        /// <summary>
+        /// 按 <see cref="VariableFilter"/> 重建 <see cref="FilteredVariables"/>。
+        ///
+        /// 两条纪律：
+        /// ① 已选中的变量永远保留（否则用户一边打字一边把已配好的选择弄丢）；
+        /// ② 重填集合时 ComboBox 可能经 TwoWay 把 SelectedItem 推成 null——填完把选择顶回去。
+        /// </summary>
+        private void ApplyVariableFilter()
+        {
+            var keep = _selectedVariable;
+            string filter = (_variableFilter ?? string.Empty).Trim();
+
+            FilteredVariables.Clear();
+            foreach (var option in Variables)
+            {
+                bool match = filter.Length == 0
+                             || option.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                             || option.TypeText.Contains(filter, StringComparison.OrdinalIgnoreCase)
+                             || option.KindText.Contains(filter, StringComparison.OrdinalIgnoreCase);
+
+                if (match || ReferenceEquals(option, keep))
+                    FilteredVariables.Add(option);
+            }
+
+            if (keep != null && !ReferenceEquals(_selectedVariable, keep))
+            {
+                _selectedVariable = keep;
+                RaisePropertyChanged(nameof(SelectedVariable));
+            }
+
+            RaisePropertyChanged(nameof(HasNoVariableMatch));
         }
 
         private void BuildSteps()
@@ -430,15 +488,13 @@ namespace VisionMaster.ViewModels.DialogViewModels
             Steps.Clear();
             ResultStepName = string.Empty;
             ResultStepLocation = string.Empty;
+            _resultStepNames.Clear();
+            ResultStepCount = 0;
 
             if (_flow == null) return;
 
             WalkSteps(_flow.Steps, inBranch: false);
-
-            if (ResultStepName.Length == 0)
-            {
-                // 走完都没命中：保持空串，由 HasResultStep 驱动提示
-            }
+            ResultStepCount = _resultStepNames.Count;
         }
 
         private void WalkSteps(IEnumerable<StepModel>? steps, bool inBranch)
@@ -467,10 +523,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     inBranch,
                     step.PluginTypeName ?? string.Empty));
 
-                if (ResultStepName.Length == 0 && IsResultOutputStep(step))
+                if (IsResultOutputStep(step))
                 {
-                    ResultStepName = step.StepName ?? ResultStepDisplayName;
-                    ResultStepLocation = inBranch ? "分支内" : "主路径";
+                    _resultStepNames.Add(step.StepName ?? ResultStepDisplayName);
+                    if (ResultStepName.Length == 0)
+                    {
+                        ResultStepName = step.StepName ?? ResultStepDisplayName;
+                        ResultStepLocation = inBranch ? "分支内" : "主路径";
+                    }
                 }
             }
         }
@@ -557,6 +617,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(SelectedStep));
             RaisePropertyChanged(nameof(SelectedPort));
 
+            // 预选是直接写字段的：补一次过滤，保证"已选项一定在候选里"
+            ApplyVariableFilter();
+
             RaiseModeFlags();
         }
 
@@ -621,7 +684,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         /// <summary>
         /// 保存核心（不关窗）：校验 → 写 <see cref="FlowModel"/> 的结果源字段。
-        /// 返回 false 表示校验/只读/主流程二次确认未通过，什么都没写。
+        /// 返回 false 表示校验/只读未通过，什么都没写。
         ///
         /// 单独暴露出来是为了让断言宿主能验"写了什么"，而不必伪造 Prism 的关窗回调
         /// （<c>DialogCloseListener</c> 的回调由 DialogService 注入，宿主里没有容器）。
@@ -630,21 +693,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             if (!CanSave || _flow == null) return false;
 
-            // Q3：线级汇总来源选「不参与」允许保存，但再确认一次（无 WPF 宿主时跳过，保证可断言）
-            if (_mode == FlowResultSourceKind.None
-                && IsLineVerdictSource
-                && Application.Current != null)
-            {
-                bool ok = EasyDialog.ShowSync(
-                    "线级汇总来源不参与统计",
-                    "底栏「全部」将没有线级 OK/NG 来源（仍记录轮次）。仍然保存？");
-                if (!ok) return false;
-            }
-
             _flow.ResultSource = _mode;
 
-            // 线级汇总来源：勾上就占位（同一时刻只有一条，直接覆盖），取消勾选只清"自己的"标记，
+            // 线级来源：勾上就占位（同一时刻只有一条，直接覆盖），取消勾选只清"自己的"标记，
             // 不误清别的流程 —— 否则取消勾选会顺手把别人配好的来源抹掉。
+            // （底栏 KPI 已于 2026-10-29 下线；这个标记现在只影响「查看最近一轮」优先打开哪条流程。）
             var solution = _workspace.CurrentSolution;
             if (solution != null)
             {
@@ -699,9 +752,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(HasResultStep));
             RaisePropertyChanged(nameof(ResultStepName));
             RaisePropertyChanged(nameof(ResultStepLocation));
+            RaisePropertyChanged(nameof(ResultStepCount));
+            RaisePropertyChanged(nameof(HasMultipleResultSteps));
+            RaisePropertyChanged(nameof(ResultStepListText));
+            RaisePropertyChanged(nameof(AutoUsesResultStep));
             RaisePropertyChanged(nameof(VariableValueText));
             RaisePropertyChanged(nameof(PortValueText));
             RaisePropertyChanged(nameof(StepLocationText));
+            RaisePropertyChanged(nameof(HasNoVariableMatch));
             RaisePropertyChanged(nameof(IsReadOnly));
             RaisePropertyChanged(nameof(IsEditable));
             RaisePropertyChanged(nameof(ReadOnlyText));

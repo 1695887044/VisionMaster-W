@@ -50,8 +50,10 @@ namespace ScadaChecks
                     && (int)ScadaActionType.SpeakText == 28
                     && (int)ScadaActionType.Log == 1
                     && (int)ScadaActionType.ApplyRecipe == 23
+                    // v6 起枚举到 32、v7 到 34（AcknowledgeAlarm=33 / MuteAlarm=34），
+                    // 仍然是 1..N 连续无空洞：只许末尾追加的纪律由这条钉住。
                     && Enum.GetValues<ScadaActionType>().Select(v => (int)v)
-                        .SequenceEqual(Enumerable.Range(1, 28)),
+                        .SequenceEqual(Enumerable.Range(1, 34)),
                     $"SetBit={(int)ScadaActionType.SetBit} / ResetBit={(int)ScadaActionType.ResetBit} / " +
                     $"ToggleBit={(int)ScadaActionType.ToggleBit} / values=" +
                     string.Join(",", Enum.GetValues<ScadaActionType>().Select(v => (int)v)));

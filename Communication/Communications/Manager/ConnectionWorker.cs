@@ -80,6 +80,13 @@ namespace VisionMaster.Communications
 
         private bool HasUrgentPending => Volatile.Read(ref _urgentPending) > 0;
 
+        /// <summary>
+        /// 当前是否有插队命令待执行（只读、无副作用）。
+        /// <para>批执行器在<b>段与段之间</b>问一次：命中就让路，把"安全联锁写等整批跑完"的延迟
+        /// 从"N 次往返"压回"1 次往返"。</para>
+        /// </summary>
+        public bool HasUrgentPendingWork => HasUrgentPending;
+
         // N1：唤醒信号——Worker 阻塞等待时，任一条队列有新命令入队都要能立刻叫醒它；
         // 容量固定为 1：只表达"有活干了"，多余信号被吞掉即可（醒来后无条件排空两队列，不会漏命令）
         private readonly SemaphoreSlim _commandSignal = new(0, 1);

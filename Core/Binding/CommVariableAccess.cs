@@ -101,6 +101,14 @@ namespace VisionMaster.Binding
             var resolved = _workspace.VariableRegistry?.FindByName(key);
             if (resolved == null)
             {
+                // 同名跨设备重复时，按名读写无法确定目标设备；这里必须报歧义而不是"找不到"，
+                // 否则用户会以为变量被删了（而实际上只是不知道该给哪一台）。
+                if (VariableNameAmbiguity.TryExplain(_workspace.VariableRegistry, key, out var ambiguity))
+                {
+                    error = ambiguity;
+                    return false;
+                }
+
                 error = $"找不到变量「{key}」，请先在变量管理里确认";
                 return false;
             }

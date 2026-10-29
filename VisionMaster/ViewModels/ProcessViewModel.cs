@@ -671,7 +671,12 @@ namespace VisionMaster.ViewModels
                     // 2026-10-09：返回值 false = 该对象没有参数面板（分支卡片），不再兜底弹"空白条件编辑器"；
                     // 并行分组的参数面板是 EasyDialog 属性网格（静态弹窗），分派同样在那一处，这里不再给提示。
                     // workspace 传下去：并行面板保存成功后推进 CurrentFlow.Version（口径同旧面板 OnSave）。
-                    StepParameterDialog.Open(SelectStep, dialogService, Workspace);
+                    //
+                    // 2026-10-29：返回值必须接住。靶根本不是一个步骤（null / 分支卡片）时 Open 直接 false
+                    // 且一个字都不提示，旧写法丢掉返回值 → 用户侧"点了完全没反应、日志也没有"。
+                    // 插件视图创建失败那条路已经由 StepParameterDialog 自己报过，这里只兜"没有可打开的靶"。
+                    if (!StepParameterDialog.Open(SelectStep, dialogService, Workspace) && SelectStep is not StepModel)
+                        ShowFeedback("没有可打开的算子参数：请先选中一个算子", false);
                     break;
                 case ModuleCommandAction.ToggleBreakpoint:
                     // 纯运行期标记：取反 IsBreakpoint（不落盘、不递增 Version）。

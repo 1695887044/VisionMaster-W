@@ -70,6 +70,13 @@ namespace CommChecks
             ScanGroupPersistence();
             ConnectTimeoutPropagation();
             ReadTimeoutPropagation();
+            WriteBatchEncodingEquivalence();
+            WriteBatchPlanning();
+            WriteBatchSessionChecks();
+            WriteBatchExecutorChecks();
+            WriteBatchFlushAndUrgentChecks();
+            FreeProtocolDeadlineChecks();
+            RecipeBatchPathChecks();
             SerialConnectTimeoutHidden();
             SerialByteOrderFollowsConfig();
             S7ByteCountFollowsHelperTable();
@@ -97,6 +104,7 @@ namespace CommChecks
             McFinsFreeProtocolContract();
             McFinsBatchPlanning();
             McFinsAddressContract();
+            EasyNetContract();
             ProtocolDisplayNameContract();
             FreeProtocolLoopback();
             CommunicationProtocolsAndAddRollback();
@@ -539,11 +547,11 @@ namespace CommChecks
                 AllHaveDescription<McProtocolType>() && AllHaveDescription<McFrameFormat>(), "");
             Check("B9-3 ParityMode / StopBitsMode 有 [Description]",
                 AllHaveDescription<ParityMode>() && AllHaveDescription<StopBitsMode>(), "");
-            Check("B9-4 McArea / FinsArea 每个成员都有 [Display(Name)]（存储区下拉的数据源）",
-                AllHaveDisplay<McArea>() && AllHaveDisplay<FinsArea>(), "");
+            Check("B9-4 McArea / FinsArea / EasyNetArea 每个成员都有 [Display(Name)]（存储区下拉的数据源）",
+                AllHaveDisplay<McArea>() && AllHaveDisplay<FinsArea>() && AllHaveDisplay<EasyNetArea>(), "");
             Check("B9-5 已实现协议文案走中文显示名（不再拼枚举成员名）",
                 CommunicationProtocols.ImplementedText
-                    == "Modbus TCP / Modbus RTU / 西门子 S7 / 三菱 MC / 欧姆龙 FINS / 自由协议",
+                    == "Modbus TCP / Modbus RTU / 西门子 S7 / 三菱 MC / 欧姆龙 FINS / 自由协议 / 汇川 EasyNet",
                 CommunicationProtocols.ImplementedText);
         }
 
@@ -846,16 +854,21 @@ namespace CommChecks
         /// </summary>
         private static void ReadTimeoutPropagation()
         {
-            Section("C8 读超时下发到 HSL 设备（config.ReadTimeoutMs → device.ReceiveTimeOut）");
+            Section("C8 读超时下发（HSL ReceiveTimeOut / NetworkStream）");
 
-            // 默认值路径：恰好与 HSL 默认值同值，故这条只证明"默认行为没被改坏"，
-            // 真正证明"确实下发了"的是下面三条非默认值用例。
+            // 默认值路径：以太网读超时默认 2000ms（EthernetConfigBase 构造器统一下调，理由见该类注释）。
+            // 旧默认 5000 与 HSL 默认同值，但那个值只是"跟随库默认"，不是设计出来的。
             using (var mtConn = new ModbusTcpConnection(new ModbusTcpConfig { IpAddress = "127.0.0.1", Port = 502 }))
             {
                 int actual = DeviceReceiveTimeOut(mtConn);
-                Check("C8-1 ModbusTcp：默认读超时 5000 在设备上（与 HSL 默认同值，保证不填=旧行为）",
-                    actual == 5000, $"设备实际值 {actual}ms");
+                Check("C8-1 ModbusTcp：以太网默认读超时 2000（不再跟随 HSL 的 5000）",
+                    actual == 2000, $"设备实际值 {actual}ms");
             }
+
+            // 串口保持 5000：2400bps 下单帧 256 字节本身就要约 1.07s，压不下去（分档的意义就在这里）
+            Check("C8-1b 串口默认读超时仍是 5000（低速串口压不下去，不能跟着以太网一起降）",
+                new SerialConfig { PortName = "COM1" }.ReadTimeoutMs == 5000,
+                $"串口默认 {new SerialConfig { PortName = "COM1" }.ReadTimeoutMs}ms");
 
             // 非默认值路径：证明配置真的被下发，而不是一直吃 HSL 默认
             using (var mtConn = new ModbusTcpConnection(
@@ -882,6 +895,987 @@ namespace CommChecks
                 Check("C8-4 串口：读超时同样下发（TimeoutMs 在串口无处可用，读超时才是它的实际超时）",
                     actual == 1500, $"设备实际值 {actual}ms");
             }
+
+            // 以下覆盖此前一条断言都没有的四种连接。没有断言守着，正是"读超时错接"能活到今天的原因
+            // （R65：绿灯是真的，只是少了一条）。
+            using (var mcConn = new MitsubishiMcConnection(
+                new MitsubishiMcConfig { IpAddress = "192.168.0.1", ReadTimeoutMs = 1200 }))
+            {
+                int actual = DeviceReceiveTimeOut(mcConn);
+                Check("C8-5 MitsubishiMc：读超时如实下发", actual == 1200, $"设备实际值 {actual}ms");
+            }
+
+            using (var finsFollow = new OmronFinsConnection(
+                new OmronFinsConfig { IpAddress = "192.168.0.1", ReadTimeoutMs = 1800 }))
+            {
+                int actual = DeviceReceiveTimeOut(finsFollow);
+                Check("C8-6 OmronFins：响应超时留 0 时跟随通用读超时（旧默认 5000 会把它永久遮蔽）",
+                    actual == 1800, $"设备实际值 {actual}ms");
+            }
+
+            using (var finsOwn = new OmronFinsConnection(
+                new OmronFinsConfig { IpAddress = "192.168.0.1", ReadTimeoutMs = 1800, ResponseTimeoutMs = 900 }))
+            {
+                int actual = DeviceReceiveTimeOut(finsOwn);
+                Check("C8-7 OmronFins：显式填响应超时时以它为准（专属字段优先、0 = 跟随）",
+                    actual == 900, $"设备实际值 {actual}ms");
+            }
+
+            // EasyNet / FreeProtocol 的超时落在 NetworkStream 上，必须真建连才能核。
+            // 用本机回环监听，不碰任何真实设备：连上即可，服务端不发送任何数据。
+            var timeoutListener = new TcpListener(IPAddress.Loopback, 0);
+            timeoutListener.Start();
+            int timeoutProbePort = ((IPEndPoint)timeoutListener.LocalEndpoint).Port;
+            var timeoutClients = new List<TcpClient>();
+            var timeoutAcceptLoop = Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        var client = timeoutListener.AcceptTcpClient();
+                        lock (timeoutClients) timeoutClients.Add(client);
+                    }
+                }
+                catch { /* listener 停止即退出 */ }
+            });
+
+            try
+            {
+                using (var easy = new EasyNetConnection(
+                    new EasyNetConfig { IpAddress = "127.0.0.1", Port = timeoutProbePort, ReadTimeoutMs = 1300 }))
+                {
+                    bool ok = easy.Connect();
+                    int actual = ok ? StreamReadTimeout(easy) : -1;
+                    Check("C8-8 EasyNet：读超时落到 NetworkStream（此前无断言）",
+                        ok && actual == 1300,
+                        ok ? $"流实际值 {actual}ms" : easy.LastConnectError ?? "连接失败");
+                }
+
+                using (var freeFollow = new FreeProtocolConnection(new FreeProtocolConfig
+                {
+                    IpAddress = "127.0.0.1",
+                    Port = timeoutProbePort,
+                    ReadTimeoutMs = 1600,
+                    ResponseTimeoutMs = 0,
+                }))
+                {
+                    bool ok = freeFollow.Connect();
+                    int read = ok ? StreamReadTimeout(freeFollow) : -1;
+                    int write = ok ? StreamWriteTimeout(freeFollow) : -1;
+                    Check("C8-9 FreeProtocol：响应超时留 0 时读写都跟随通用读超时（旧写法把读超时当写超时）",
+                        ok && read == 1600 && write == 1600,
+                        ok ? $"读 {read}ms / 写 {write}ms" : freeFollow.LastConnectError ?? "连接失败");
+                }
+
+                using (var freeOwn = new FreeProtocolConnection(new FreeProtocolConfig
+                {
+                    IpAddress = "127.0.0.1",
+                    Port = timeoutProbePort,
+                    ReadTimeoutMs = 1600,
+                    ResponseTimeoutMs = 700,
+                }))
+                {
+                    bool ok = freeOwn.Connect();
+                    int read = ok ? StreamReadTimeout(freeOwn) : -1;
+                    int write = ok ? StreamWriteTimeout(freeOwn) : -1;
+                    Check("C8-10 FreeProtocol：显式填响应超时时读写同一生效值（不再出现读 700/写 1600 的错配）",
+                        ok && read == 700 && write == 700,
+                        ok ? $"读 {read}ms / 写 {write}ms" : freeOwn.LastConnectError ?? "连接失败");
+                }
+            }
+            finally
+            {
+                timeoutListener.Stop();
+                lock (timeoutClients)
+                {
+                    foreach (var client in timeoutClients) { try { client.Dispose(); } catch { } }
+                    timeoutClients.Clear();
+                }
+                try { timeoutAcceptLoop.Wait(2000); } catch { }
+            }
+
+            // ---- C8-11 读超时 vs 扫描周期体检（ReadTimeoutAdvisor，日志出口与弹窗出口共用这一份规则）----
+            var adviceCfg = new CommunicationConfig(CommunicationType.ModbusTcp)
+            {
+                ConnectionName = "ADV",
+                ReadCycleMs = 1000,
+            };
+
+            adviceCfg.Config.ReadTimeoutMs = 500;
+            Check("C8-11 读超时未超过周期 → 不提示（不制造噪声）",
+                ReadTimeoutAdvisor.Describe(adviceCfg) == null,
+                ReadTimeoutAdvisor.Describe(adviceCfg) ?? "(null)");
+
+            adviceCfg.Config.ReadTimeoutMs = 5000;
+            string? adviceSlow = ReadTimeoutAdvisor.Describe(adviceCfg);
+            Check("C8-11 读超时 5000 / 周期 1000 → 提示吞掉约 5 拍（TCP 说明带重连代价）",
+                adviceSlow != null && adviceSlow.Contains("5 个周期") && adviceSlow.Contains("重连"),
+                adviceSlow ?? "(null)");
+
+            // 自定义快组才是最坏情况：结论必须按"生效最短周期"算，不能只看默认组。
+            // 50ms 已低于读超时下限 100ms，"压到周期/4"做不到——必须直说无解，不能给夹到下限的假建议。
+            adviceCfg.ScanGroups.Add(new ScanGroupConfig { Name = "Fast", IntervalMs = 50 });
+            string? adviceFast = ReadTimeoutAdvisor.Describe(adviceCfg);
+            Check("C8-11 自定义快组 50ms → 按最短周期算（100 拍），且指出低于读超时下限无法匹配",
+                adviceFast != null && adviceFast.Contains("50ms") && adviceFast.Contains("100 个周期")
+                && adviceFast.Contains("无法匹配") && !adviceFast.Contains("100~100ms"),
+                adviceFast ?? "(null)");
+
+            // 串口不实现 ILinkHealthProbe，一次超时不中断本轮 → 说明必须与 TCP 不同（乘段数）
+            var adviceSerial = new CommunicationConfig(CommunicationType.ModbusRtu)
+            {
+                ConnectionName = "ADVS",
+                ReadCycleMs = 1000,
+            };
+            adviceSerial.Config.ReadTimeoutMs = 5000;
+            string? adviceSerialText = ReadTimeoutAdvisor.Describe(adviceSerial);
+            Check("C8-11 串口提示带「乘以段数」，与 TCP 的「重连」区分开",
+                adviceSerialText != null && adviceSerialText.Contains("段数"),
+                adviceSerialText ?? "(null)");
+
+            // ---- C8-12 日志出口接线：真管理器 + 真注册变量，验证"结论去重"与"改好后能重新告警" ----
+            // RequestConnect 是同步编译轮询计划的公开入口（非阻塞建连），不需要设备在线。
+            var capturedWarnings = new ConcurrentQueue<string>();
+            var previousSink = AdvancedCommunicationManager.LogSink;
+            AdvancedCommunicationManager.LogSink = new CapturingLogSink(capturedWarnings);
+            try
+            {
+                using var advMgr = new AdvancedCommunicationManager { AutoReconnectEnabled = false };
+                var advConnCfg = new CommunicationConfig(CommunicationType.ModbusTcp)
+                {
+                    ConnectionName = "ADV_WIRE",
+                    ReadCycleMs = 200,
+                };
+                advConnCfg.Config.ReadTimeoutMs = 4000;   // 20 拍
+                advMgr.AddConnection(advConnCfg);
+
+                var advVar = MakeVar("ADV0", "", 0, mergeAdjacent: false);
+                advVar.ConnectionName = "ADV_WIRE";
+                advMgr.RegisterVariable(advVar);
+
+                advMgr.RequestConnect("ADV_WIRE");   // 同步编译一次 → 体检一次
+                advMgr.RequestConnect("ADV_WIRE");   // 结论没变 → 不重复告警
+
+                int adviceHits = capturedWarnings.Count(l => l.Contains("读超时") && l.Contains("ADV_WIRE"));
+                Check("C8-12 日志出口接线：编译轮询计划触发体检，同一结论只告警一次",
+                    adviceHits == 1, $"命中 {adviceHits} 次");
+
+                // 改好 → 结论变 null、条目清掉；再改坏 → 必须重新告警（不是"一次告警永久静音"）
+                advConnCfg.Config.ReadTimeoutMs = 100;
+                advMgr.RequestConnect("ADV_WIRE");
+                advConnCfg.Config.ReadTimeoutMs = 4000;
+                advMgr.RequestConnect("ADV_WIRE");
+
+                int adviceHits2 = capturedWarnings.Count(l => l.Contains("读超时") && l.Contains("ADV_WIRE"));
+                Check("C8-12 配置改好再改坏 → 重新告警（去重按结论而不是按连接永久静音）",
+                    adviceHits2 == 2, $"命中 {adviceHits2} 次");
+            }
+            finally
+            {
+                AdvancedCommunicationManager.LogSink = previousSink;
+            }
+        }
+
+        /// <summary>
+        /// C20 合并写编码等价性：<c>HslHelper.EncodeForWire</c> 产出的字节，必须与"单值写实际发到线上的字节"逐字节相同。
+        /// <para>为什么这是硬前置：合并写走 <c>WriteBytes</c>，绕过 HSL 的 ByteTransform 与窄类型提升；
+        /// 一旦编码不等价，得到的是"设备接受了错误值、不报错"，比多几次往返糟糕得多。</para>
+        /// <para>HSL 系协议比对 <c>ByteTransform.TransByte</c>（单值写走的就是它）；EasyNet 不走 HSL，
+        /// 它的单值写是 <c>BitConverter</c> 小端，故按小端比对。</para>
+        /// </summary>
+        private static void WriteBatchEncodingEquivalence()
+        {
+            Section("C33 合并写编码等价性（EncodeForWire vs 单值写实际线路字节）");
+
+            var orders = new[]
+            {
+                ByteOrderFormat.ABCD, ByteOrderFormat.BADC,
+                ByteOrderFormat.CDAB, ByteOrderFormat.DCBA,
+            };
+
+            var values = new (string Name, object Value)[]
+            {
+                ("short", (short)0x1234),
+                ("ushort", (ushort)0xABCD),
+                ("int", 0x12345678),
+                ("uint", 0x89ABCDEFu),
+                ("float", 1.5f),
+                ("long", 0x1122334455667788L),
+                ("ulong", 0x99AABBCCDDEEFF11UL),
+                ("double", 2.25d),
+            };
+
+            var hslSubjects = new (string Name, ICommunicationConnection Conn, WriteProtocolFamily Family)[]
+            {
+                ("ModbusTcp", new ModbusTcpConnection(new ModbusTcpConfig { IpAddress = "127.0.0.1", Port = 502 }), WriteProtocolFamily.Modbus),
+                ("SiemensS7", new SiemensS7Connection(new SiemensS7Config { IpAddress = "192.168.0.1" }), WriteProtocolFamily.SiemensS7),
+                ("MitsubishiMc", new MitsubishiMcConnection(new MitsubishiMcConfig { IpAddress = "192.168.0.1" }), WriteProtocolFamily.Word),
+            };
+
+            int mismatches = 0;
+            var detail = new List<string>();
+
+            foreach (var subject in hslSubjects)
+            {
+                try
+                {
+                    var device = GetDevice(subject.Conn);
+                    var transform = device.GetType().GetProperty("ByteTransform")!.GetValue(device)!;
+                    var formatProp = transform.GetType().GetProperty("DataFormat")!;
+
+                    foreach (var order in orders)
+                    {
+                        // 用"枚举名"设置 HSL 的 DataFormat（两套枚举成员顺序不同，绝不能按序号强转）
+                        formatProp.SetValue(transform, Enum.Parse(formatProp.PropertyType, order.ToString()));
+
+                        foreach (var (valueName, value) in values)
+                        {
+                            var transByte = transform.GetType().GetMethod("TransByte", new[] { value.GetType() })!;
+                            var expected = (byte[])transByte.Invoke(transform, new[] { value })!;
+                            var actual = HslHelper.EncodeForWire(value, subject.Family, order);
+
+                            if (!expected.SequenceEqual(actual))
+                            {
+                                mismatches++;
+                                if (detail.Count < 6)
+                                    detail.Add($"{subject.Name}/{order}/{valueName}: 单值={Convert.ToHexString(expected)} 合并={Convert.ToHexString(actual)}");
+                            }
+                        }
+                    }
+                }
+                finally
+                {
+                    subject.Conn.Dispose();
+                }
+            }
+
+            Check("C33-1 HSL 三族 × 8 种数值 × 4 种字序：合并写编码与单值写逐字节一致",
+                mismatches == 0,
+                mismatches == 0 ? "全部一致" : $"不一致 {mismatches} 处；{string.Join("；", detail)}");
+
+            // EasyNet 不走 HSL：它的单值写是 BitConverter 小端
+            using (var easy = new EasyNetConnection(new EasyNetConfig { IpAddress = "127.0.0.1", Port = 12939 }))
+            {
+                _ = easy; // 只为表明"该族不用 HSL ByteTransform"
+                int easyMismatch = 0;
+                foreach (var (_, value) in values)
+                {
+                    byte[] expected = value switch
+                    {
+                        short v => BitConverter.GetBytes(v),
+                        ushort v => BitConverter.GetBytes(v),
+                        int v => BitConverter.GetBytes(v),
+                        uint v => BitConverter.GetBytes(v),
+                        float v => BitConverter.GetBytes(v),
+                        long v => BitConverter.GetBytes(v),
+                        ulong v => BitConverter.GetBytes(v),
+                        double v => BitConverter.GetBytes(v),
+                        _ => Array.Empty<byte>(),
+                    };
+                    if (!expected.SequenceEqual(HslHelper.EncodeForWire(value, WriteProtocolFamily.EasyNet, ByteOrderFormat.DCBA)))
+                        easyMismatch++;
+                }
+
+                Check("C33-2 EasyNet（不走 HSL）：合并写编码 = 单值写的小端字节",
+                    easyMismatch == 0, $"不一致 {easyMismatch} 处");
+            }
+
+            // 反向：同一个 int 在 ABCD 与 DCBA 下必须不同，否则 C20-1 恒真
+            Check("C33-3 反向：同一 int 在 ABCD 与 DCBA 下编码必须不同（防断言恒真）",
+                !HslHelper.EncodeForWire(0x12345678, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD)
+                    .SequenceEqual(HslHelper.EncodeForWire(0x12345678, WriteProtocolFamily.Modbus, ByteOrderFormat.DCBA)), "");
+
+            // 窄类型提升必须与 WriteTyped 同口径：Modbus 的 byte 占一个寄存器，EasyNet 保持 1 字节
+            int modbusByte = HslHelper.EncodeForWire((byte)0x7F, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD).Length;
+            int easyNetByte = HslHelper.EncodeForWire((byte)0x7F, WriteProtocolFamily.EasyNet, ByteOrderFormat.ABCD).Length;
+            Check("C33-4 窄类型提升同口径：Modbus byte = 2 字节（提升为寄存器），EasyNet byte = 1 字节",
+                modbusByte == 2 && easyNetByte == 1, $"Modbus={modbusByte} EasyNet={easyNetByte}");
+
+            // 无端序语义的值：原样下发，绝不重排（重排会让字符串乱码、字节块错位）
+            byte[] asciiBytes = HslHelper.EncodeForWire("AB", WriteProtocolFamily.Modbus, ByteOrderFormat.DCBA);
+            Check("C33-5 string 原样编码：ASCII 字节不随字序重排",
+                asciiBytes.SequenceEqual(new byte[] { 0x41, 0x42 }), Convert.ToHexString(asciiBytes));
+
+            byte[] rawBytes = HslHelper.EncodeForWire(new byte[] { 0x01, 0x02, 0x03 }, WriteProtocolFamily.EasyNet, ByteOrderFormat.DCBA);
+            Check("C33-6 byte[] 原样编码：字节块不随字序重排",
+                rawBytes.SequenceEqual(new byte[] { 0x01, 0x02, 0x03 }), Convert.ToHexString(rawBytes));
+
+            // 反向：同字序下数值必须被重排——证明上面两条的"不重排"不是恒真
+            byte[] shuffled = HslHelper.EncodeForWire((short)0x1234, WriteProtocolFamily.Modbus, ByteOrderFormat.DCBA);
+            Check("C33-7 反向：short 在 DCBA 下必须重排为 34 12（与 byte[] 的不重排形成对照）",
+                shuffled.SequenceEqual(new byte[] { 0x34, 0x12 }), Convert.ToHexString(shuffled));
+        }
+
+        /// <summary>
+        /// C21 批写规划：只合严格连续、空隙断开、超限分段、白名单外退回单值写。
+        /// </summary>
+        private static void WriteBatchPlanning()
+        {
+            Section("C34 批写规划（连续合并 / 空隙断开 / 超限分段 / 白名单外退回单写）");
+
+            static PollAddress ModbusReg(int start, int span = 1) => new()
+            {
+                Protocol = PollProtocol.Modbus,
+                GroupKey = "HoldingRegisters",
+                SegmentPrefix = "40001",
+                Start = start,
+                SpanUnits = span,
+            };
+
+            static BatchWriteItem Item(string address, PollAddress poll, object value) => new()
+            {
+                Address = address,
+                Poll = poll,
+                Value = value,
+                ValueType = value.GetType(),
+            };
+
+            var contiguous = new[]
+            {
+                Item("40001", ModbusReg(0), (short)1),
+                Item("40002", ModbusReg(1), (short)2),
+                Item("40003", ModbusReg(2), (short)3),
+            };
+            var segs = WriteBatchPlanner.Build(contiguous, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            Check("C34-1 三个连续寄存器 → 1 段，载荷 6 字节（旧行为是 3 次往返）",
+                segs.Count == 1 && segs[0].Payload?.Length == 6 && segs[0].Merged,
+                $"段={segs.Count} 载荷={segs[0].Payload?.Length}");
+
+            var gapped = new[]
+            {
+                Item("40001", ModbusReg(0), (short)1),
+                Item("40002", ModbusReg(1), (short)2),
+                Item("40006", ModbusReg(5), (short)3),
+            };
+            var gapSegs = WriteBatchPlanner.Build(gapped, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            Check("C34-2 空隙（0,1,5）→ 2 段，绝不把中间 3 个寄存器填进载荷",
+                gapSegs.Count == 2
+                && gapSegs[0].Payload?.Length == 4
+                && gapSegs[1].Payload?.Length == 2,
+                $"段={gapSegs.Count} 载荷={string.Join(",", gapSegs.Select(s => s.Payload?.Length))}");
+
+            var over = Enumerable.Range(0, 130).Select(i => Item($"r{i}", ModbusReg(i), (short)i)).ToArray();
+            var overSegs = WriteBatchPlanner.Build(over, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            Check("C34-3 130 个连续寄存器 → 按写上限 120 切成 2 段（120 + 10）",
+                overSegs.Count == 2 && overSegs[0].SpanUnits == 120 && overSegs[1].SpanUnits == 10,
+                $"段={overSegs.Count} 跨度={string.Join(",", overSegs.Select(s => s.SpanUnits))}");
+
+            var bits = new[]
+            {
+                Item("x=1;0", new PollAddress { Protocol = PollProtocol.Modbus, GroupKey = "Coils", SegmentPrefix = "x=1;", Start = 0, SpanUnits = 1, IsBitArea = true }, true),
+                Item("x=1;1", new PollAddress { Protocol = PollProtocol.Modbus, GroupKey = "Coils", SegmentPrefix = "x=1;", Start = 1, SpanUnits = 1, IsBitArea = true }, true),
+            };
+            var bitSegs = WriteBatchPlanner.Build(bits, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            Check("C34-4 位区不合并（位写语义不同，各自成段走 Write(addr, bool)）",
+                bitSegs.Count == 2 && bitSegs.All(s => !s.Merged), $"段={bitSegs.Count}");
+
+            var hexWord = new[]
+            {
+                Item("U21001C0", new PollAddress
+                {
+                    Protocol = PollProtocol.EasyNet,
+                    GroupKey = "U",
+                    SegmentPrefix = "U",
+                    SegmentAddressOverride = "U21001C0",
+                    Start = 0x21001C,
+                    SpanUnits = 1,
+                }, (short)1),
+            };
+            Check("C34-5 覆盖串非空的地址不参与合并（Prefix+Start 会打到别的地址）",
+                WriteBatchPlanner.Build(hexWord, WriteProtocolFamily.EasyNet, ByteOrderFormat.DCBA).All(s => !s.Merged), "");
+
+            var easyByte = new[]
+            {
+                Item("D100", new PollAddress { Protocol = PollProtocol.EasyNet, GroupKey = "D", SegmentPrefix = "D", Start = 100, SpanUnits = 1 }, (byte)0x7F),
+            };
+            Check("C34-6 EasyNet byte（编码 1 字节 ≠ 槽位 2 字节）退回单值写，不合并",
+                WriteBatchPlanner.Build(easyByte, WriteProtocolFamily.EasyNet, ByteOrderFormat.DCBA).All(s => !s.Merged), "");
+        }
+
+        /// <summary>
+        /// C35 写批会话（暴力测试）：记账 / 按连接分组 / 成功才更新镜像 / 失败不撒谎 / 幂等 /
+        /// 并行隔离 / 冲刷委托异常 / 结果缺失 / 压力。
+        /// <para>会话是"插件无感合并写"的唯一入口，任何一条语义错了都会静默写错值或丢写，故按用例逐条钉死。</para>
+        /// </summary>
+        private static void WriteBatchSessionChecks()
+        {
+            Section("C35 写批会话（记账 / 分组 / 镜像 / 失败 / 幂等 / 并行 / 压力）");
+
+            static BatchWriteItem Item(string address) => new()
+            {
+                Address = address,
+                Poll = null,
+                Value = (short)1,
+                ValueType = typeof(short),
+            };
+
+            static BatchWriteResult Result(params bool[] succeeded) => new(
+                succeeded.Select(ok => new BatchWriteItemResult(true, ok, ok ? null : "模拟失败")).ToArray(),
+                Array.Empty<BatchWriteSegmentResult>(),
+                false);
+
+            // 1) 无会话：写路径走立即下发（行为与改造前逐字一致）
+            Check("C35-1 未开会话时 Current 为 null（写路径仍走立即下发）",
+                VisionMaster.Binding.WriteBatchSession.Current == null, "");
+
+            // 2) 记账 + 一次冲刷 + 镜像顺序
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                var applied = new List<object?>();
+                int flushCalls = 0;
+                IReadOnlyList<BatchWriteItem>? seen = null;
+
+                for (int i = 0; i < 3; i++)
+                {
+                    int captured = i;
+                    session.Record("PLC1", Item($"D{100 + i}"), captured,
+                        v => applied.Add(v),
+                        items => { flushCalls++; seen = items; return Result(true, true, true); },
+                        _ => { });
+                }
+
+                Check("C35-2 会话内 3 次写只记账、不发送", session.PendingCount == 3, $"{session.PendingCount}");
+
+                int failures = session.Flush();
+                Check("C35-3 冲刷：委托 1 次、items 3 项、镜像 3 次、失败 0",
+                    failures == 0 && flushCalls == 1 && seen?.Count == 3 && applied.Count == 3,
+                    $"失败={failures} 委托={flushCalls} 项={seen?.Count} 镜像={applied.Count}");
+                Check("C35-4 镜像按记录顺序回填", applied.SequenceEqual(new object?[] { 0, 1, 2 }), string.Join(",", applied));
+                Check("C35-5 冲刷后待写清空", session.PendingCount == 0, $"{session.PendingCount}");
+            }
+
+            // 3) 失败项不更新镜像（镜像 = 设备真值，不能向界面撒谎）
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                var applied = new List<object?>();
+                var failed = new List<BatchWriteItemResult>();
+                for (int i = 0; i < 3; i++)
+                {
+                    int captured = i;
+                    session.Record("PLC1", Item($"D{i}"), captured,
+                        v => applied.Add(v),
+                        _ => Result(true, false, true),
+                        r => failed.Add(r));
+                }
+
+                int failures = session.Flush();
+                Check("C35-6 中间项失败 → 只 2 次镜像更新 + 1 次失败回调（失败项不写镜像）",
+                    failures == 1 && applied.Count == 2 && failed.Count == 1
+                    && applied.SequenceEqual(new object?[] { 0, 2 }),
+                    $"失败={failures} 镜像={applied.Count} 回调={failed.Count}");
+            }
+
+            // 4) 按连接分组
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                var calls = new List<(string Conn, int Count)>();
+                for (int i = 0; i < 4; i++)
+                {
+                    string conn = i % 2 == 0 ? "PLC1" : "PLC2";
+                    session.Record(conn, Item($"D{i}"), null, _ => { },
+                        items => { lock (calls) calls.Add((conn, items.Count)); return Result(Enumerable.Repeat(true, items.Count).ToArray()); },
+                        _ => { });
+                }
+
+                session.Flush();
+                Check("C35-7 按连接分组：两条连接各一次冲刷、各 2 项",
+                    calls.Count == 2 && calls.All(c => c.Count == 2)
+                    && calls.Select(c => c.Conn).Distinct().Count() == 2,
+                    string.Join("；", calls.Select(c => $"{c.Conn}×{c.Count}")));
+            }
+
+            // 5) 幂等
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                int flushCalls = 0;
+                session.Record("PLC1", Item("D0"), null, _ => { },
+                    _ => { flushCalls++; return Result(true); }, _ => { });
+
+                session.Flush();
+                session.Flush();
+                Check("C35-8 冲刷幂等：第二次是空操作", flushCalls == 1, $"委托 {flushCalls} 次");
+            }
+
+            // 6) 冲刷委托抛异常 → 整组按失败处理，不向调用方抛
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                var failed = new List<BatchWriteItemResult>();
+                for (int i = 0; i < 2; i++)
+                {
+                    session.Record("PLC1", Item($"D{i}"), null, _ => { },
+                        _ => throw new InvalidOperationException("模拟冲刷炸了"),
+                        r => failed.Add(r));
+                }
+
+                int failures = session.Flush();
+                Check("C35-9 冲刷委托抛异常 → 整组失败、不向上抛",
+                    failures == 2 && failed.Count == 2 && failed.All(f => f.Error?.Contains("模拟冲刷炸了") == true),
+                    $"失败={failures} 回调={failed.Count}");
+            }
+
+            // 7) 结果项少于请求 → 缺的按失败处理（绝不静默当成功）
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                var failed = new List<BatchWriteItemResult>();
+                for (int i = 0; i < 3; i++)
+                {
+                    session.Record("PLC1", Item($"D{i}"), null, _ => { },
+                        _ => Result(true), r => failed.Add(r));
+                }
+
+                int failures = session.Flush();
+                Check("C35-10 结果项少于请求 → 缺的按失败处理", failures == 2 && failed.Count == 2, $"失败={failures}");
+            }
+
+            // 8) Dispose 后不许再记账、Current 归 null
+            {
+                var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                session.Dispose();
+
+                bool threw = false;
+                try
+                {
+                    session.Record("PLC1", Item("D0"), null, _ => { }, _ => Result(true), _ => { });
+                }
+                catch (ObjectDisposedException) { threw = true; }
+
+                Check("C35-11 Dispose 后 Record 抛 ObjectDisposedException（不静默丢写）", threw, "");
+                Check("C35-12 Dispose 后 Current 归 null", VisionMaster.Binding.WriteBatchSession.Current == null, "");
+            }
+
+            // 9) 并行隔离：4 个分支各自开会话，互不串批
+            {
+                var counts = new System.Collections.Concurrent.ConcurrentBag<int>();
+                var tasks = new List<Task>();
+                for (int branch = 0; branch < 4; branch++)
+                {
+                    tasks.Add(Task.Run(() =>
+                    {
+                        using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                        for (int i = 0; i < 50; i++)
+                            session.Record("PLC1", Item($"D{i}"), null, _ => { }, _ => Result(true), _ => { });
+                        counts.Add(session.PendingCount);
+                        session.Flush();
+                    }));
+                }
+
+                Task.WaitAll(tasks.ToArray());
+                Check("C35-13 并行隔离：4 个分支各 50 项，互不串批",
+                    counts.Count == 4 && counts.All(n => n == 50), string.Join(",", counts));
+            }
+
+            // 10) 压力：2000 项 × 4 连接
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                int totalFlushed = 0;
+                int flushCalls = 0;
+
+                for (int i = 0; i < 2000; i++)
+                {
+                    session.Record($"PLC{i % 4}", Item($"D{i}"), i, _ => { },
+                        items =>
+                        {
+                            Interlocked.Increment(ref flushCalls);
+                            Interlocked.Add(ref totalFlushed, items.Count);
+                            return Result(Enumerable.Repeat(true, items.Count).ToArray());
+                        },
+                        _ => { });
+                }
+
+                int failures = session.Flush();
+                Check("C35-14 压力：2000 项 / 4 连接，全部成功且委托合计 2000 项",
+                    failures == 0 && totalFlushed == 2000 && flushCalls == 4,
+                    $"失败={failures} 合计={totalFlushed} 委托={flushCalls}");
+            }
+        }
+
+        /// <summary>
+        /// C36 批执行器：段间让路 / 段失败即停 / 链路短路 / 逐项扇出 / 压力。
+        /// <para>让路与短路是"批"相对"逐条写"唯一的两个行为变化，必须能注入判据、可复现地钉住。</para>
+        /// </summary>
+        private static void WriteBatchExecutorChecks()
+        {
+            Section("C36 批执行器（段间让路 / 失败即停 / 链路短路 / 逐项扇出 / 压力）");
+
+            static PollAddress Reg(int start) => new()
+            {
+                Protocol = PollProtocol.Modbus,
+                GroupKey = "HoldingRegisters",
+                SegmentPrefix = "40001",
+                Start = start,
+                SpanUnits = 1,
+            };
+
+            static BatchWriteItem Item(int start) => new()
+            {
+                Address = $"4000{start}",
+                Poll = Reg(start),
+                Value = (short)start,
+                ValueType = typeof(short),
+            };
+
+            // 跳着写 → 三段
+            var items = new[] { Item(0), Item(5), Item(10) };
+            var segments = WriteBatchPlanner.Build(items, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            Check("C36-0 前提：三个跳开的地址规划成 3 段",
+                segments.Count == 3 && segments.All(s => s.Merged), $"段={segments.Count}");
+
+            var calls = new List<string>();
+            var normal = WriteBatchExecutor.Run(segments, items, (seg, _) => calls.Add(seg.Address), null, null);
+            Check("C36-1 无让路：三段全发、逐项成功",
+                calls.Count == 3 && normal.Items.All(i => i.Success) && !normal.YieldedToUrgent,
+                $"发送={calls.Count} 成功={normal.Items.Count(i => i.Success)}");
+
+            calls.Clear();
+            int asked = 0;
+            var yielded = WriteBatchExecutor.Run(segments, items,
+                (seg, _) => calls.Add(seg.Address),
+                () => ++asked >= 2,   // 第 2 段之前命中插队
+                null);
+            Check("C36-2 第 2 段前让路：只发 1 段，其余标未尝试，且不算链路故障",
+                calls.Count == 1 && yielded.YieldedToUrgent
+                && yielded.Items[0].Success
+                && !yielded.Items[1].Attempted && !yielded.Items[2].Attempted
+                && !yielded.StoppedByLinkFault,
+                $"发送={calls.Count} 未尝试={yielded.Items.Count(i => !i.Attempted)} 链路故障={yielded.StoppedByLinkFault}");
+
+            calls.Clear();
+            var noRun = WriteBatchExecutor.Run(segments, items, (seg, _) => calls.Add(seg.Address), () => true, null);
+            Check("C36-3 一开始就让路：0 段发送、全部未尝试",
+                calls.Count == 0 && noRun.Items.All(i => !i.Attempted), $"发送={calls.Count}");
+
+            int nth = 0;
+            var failedMid = WriteBatchExecutor.Run(segments, items,
+                (_, _) => { if (++nth == 2) throw new InvalidOperationException("模拟段失败"); },
+                null, () => false);
+            Check("C36-4 第 2 段失败且链路正常：第 3 段不下发、不标链路故障",
+                failedMid.Items[0].Success
+                && failedMid.Items[1].Attempted && !failedMid.Items[1].Success
+                && !failedMid.Items[2].Attempted
+                && !failedMid.StoppedByLinkFault,
+                $"项={string.Join(",", failedMid.Items.Select(i => i.Attempted ? (i.Success ? "OK" : "FAIL") : "SKIP"))}");
+
+            nth = 0;
+            var linkDead = WriteBatchExecutor.Run(segments, items,
+                (_, _) => { if (++nth == 2) throw new InvalidOperationException("模拟断链"); },
+                null, () => true);
+            Check("C36-5 第 2 段失败且链路自证断开：标 StoppedByLinkFault，第 3 段不下发",
+                linkDead.StoppedByLinkFault && !linkDead.Items[2].Attempted
+                && linkDead.Segments[2].Error?.Contains("链路已断开") == true,
+                $"链路故障={linkDead.StoppedByLinkFault} 第3段原因={linkDead.Segments[2].Error}");
+
+            // 合并段 → 一个往返，但逐项都要有结果
+            var contiguous = new[] { Item(0), Item(1), Item(2) };
+            var mergedSegs = WriteBatchPlanner.Build(contiguous, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            var fanout = WriteBatchExecutor.Run(mergedSegs, contiguous, (_, _) => { }, null, null);
+            Check("C36-6 合并段逐项扇出：1 段 3 项全部标成功",
+                mergedSegs.Count == 1 && fanout.Items.Length == 3 && fanout.Items.All(i => i.Success),
+                $"段={mergedSegs.Count} 项={fanout.Items.Length}");
+
+            // 压力：1000 段，第 500 段让路
+            var many = Enumerable.Range(0, 1000).Select(i => Item(i * 3)).ToArray();
+            var manySegs = WriteBatchPlanner.Build(many, WriteProtocolFamily.Modbus, ByteOrderFormat.ABCD);
+            int sent = 0;
+            int askCount = 0;
+            var stressed = WriteBatchExecutor.Run(manySegs, many, (_, _) => sent++, () => ++askCount > 500, null);
+            Check("C36-7 压力：1000 段在第 500 段让路 → 发 500 段、500 项未尝试",
+                manySegs.Count == 1000 && sent == 500
+                && stressed.Items.Count(i => !i.Attempted) == 500,
+                $"段={manySegs.Count} 发送={sent} 未尝试={stressed.Items.Count(i => !i.Attempted)}");
+
+            // 压力：1000 段全部成功
+            int sentAll = 0;
+            var allOk = WriteBatchExecutor.Run(manySegs, many, (_, _) => sentAll++, null, null);
+            Check("C36-8 压力：1000 段无让路 → 全发、1000 项全成功",
+                sentAll == 1000 && allOk.Items.All(i => i.Success),
+                $"发送={sentAll} 成功={allOk.Items.Count(i => i.Success)}");
+        }
+
+        /// <summary>
+        /// C37 写后读前冲刷 + 插队标志传播。
+        /// <para>写后读：会话里若有未提交的写，读之前必须冲刷，否则读到旧镜像（静默错值）。</para>
+        /// </summary>
+        private static void WriteBatchFlushAndUrgentChecks()
+        {
+            Section("C37 写后读前冲刷 / 插队标志传播");
+
+            Check("C37-1 无会话时 FlushCurrent 是空操作（返回 0、不抛）",
+                VisionMaster.Binding.WriteBatchSession.FlushCurrent() == 0, "");
+
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin();
+                int flushes = 0;
+                session.Record("PLC1",
+                    new BatchWriteItem { Address = "40001", Poll = null, Value = (short)1, ValueType = typeof(short) },
+                    null, _ => { },
+                    items => { flushes++; return new BatchWriteResult(
+                        items.Select(_ => new BatchWriteItemResult(true, true, null)).ToArray(),
+                        Array.Empty<BatchWriteSegmentResult>(), false); },
+                    _ => { });
+
+                int failed = VisionMaster.Binding.WriteBatchSession.FlushCurrent();
+                Check("C37-2 FlushCurrent 把会话里的待写一次冲掉（读前自动落地）",
+                    failed == 0 && flushes == 1 && session.PendingCount == 0,
+                    $"失败={failed} 冲刷={flushes} 剩余={session.PendingCount}");
+            }
+
+            Check("C37-3 退出 using 后 Current 归 null（不会泄漏到下一个步骤）",
+                VisionMaster.Binding.WriteBatchSession.Current == null, "");
+
+            {
+                using var outer = VisionMaster.Binding.WriteBatchSession.Begin();
+                Check("C37-4 默认不插队", !outer.Urgent, $"Urgent={outer.Urgent}");
+
+                using var inner = VisionMaster.Binding.WriteBatchSession.Begin(urgent: true);
+                Check("C37-5 嵌套 Begin(urgent:true) 把同一会话升级为插队",
+                    ReferenceEquals(outer, inner) && outer.Urgent, $"同实例={ReferenceEquals(outer, inner)} Urgent={outer.Urgent}");
+            }
+
+            Check("C37-6 全部退出后 Current 归 null",
+                VisionMaster.Binding.WriteBatchSession.Current == null, "");
+        }
+
+        /// <summary>
+        /// C38 FreeProtocol 两道超时闸：字节间隙（响应超时）与整帧总时限（读超时）。
+        /// <para>用本地回环构造四种对端：不回 / 慢速挤字节 / 正常应答 / 空结束符。
+        /// 关键判据是"慢速挤字节不会把一帧无限拖长"——那正是只有间隙闸时的漏洞。</para>
+        /// </summary>
+        private static void FreeProtocolDeadlineChecks()
+        {
+            Section("C38 FreeProtocol 两道超时闸（字节间隙 / 整帧总时限）");
+
+            static (TcpListener Listener, int Port) StartListener(Action<NetworkStream> handler)
+            {
+                var listener = new TcpListener(IPAddress.Loopback, 0);
+                listener.Start();
+                int port = ((IPEndPoint)listener.LocalEndpoint).Port;
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        using var client = listener.AcceptTcpClient();
+                        using var stream = client.GetStream();
+                        handler(stream);
+                    }
+                    catch { /* 对端异常不拖垮断言 */ }
+                });
+                return (listener, port);
+            }
+
+            // 1) 对端不回：间隙闸先触发（不应等满整帧上限）
+            {
+                var (listener, port) = StartListener(stream =>
+                {
+                    var buffer = new byte[256];
+                    stream.Read(buffer, 0, buffer.Length);
+                    Thread.Sleep(3000);
+                });
+
+                var clock = Stopwatch.StartNew();
+                using var conn = new FreeProtocolConnection(new FreeProtocolConfig
+                {
+                    IpAddress = "127.0.0.1",
+                    Port = port,
+                    FrameTerminator = "\\r\\n",
+                    ResponseTimeoutMs = 200,
+                    ReadTimeoutMs = 5000,
+                });
+
+                bool connected = conn.Connect();
+                string? message = null;
+                try { conn.Read<short>("CMD"); }
+                catch (Exception ex) { message = ex.Message; }
+                clock.Stop();
+
+                Check("C38-1 对端不回：间隙闸（200ms）先触发，不等满整帧上限 5000ms",
+                    connected && message != null && message.Contains("间隙 200ms")
+                    && clock.ElapsedMilliseconds < 2000,
+                    $"耗时={clock.ElapsedMilliseconds}ms 消息={message}");
+                listener.Stop();
+            }
+
+            // 2) 对端慢速挤字节（每 50ms 一个，永不出现结束符）：整帧闸必须兜住
+            {
+                var (listener, port) = StartListener(stream =>
+                {
+                    var buffer = new byte[256];
+                    stream.Read(buffer, 0, buffer.Length);
+                    for (int i = 0; i < 60; i++)
+                    {
+                        stream.WriteByte((byte)'x');
+                        stream.Flush();
+                        Thread.Sleep(50);
+                    }
+                });
+
+                var clock = Stopwatch.StartNew();
+                using var conn = new FreeProtocolConnection(new FreeProtocolConfig
+                {
+                    IpAddress = "127.0.0.1",
+                    Port = port,
+                    FrameTerminator = "\\r\\n",
+                    ResponseTimeoutMs = 200,
+                    ReadTimeoutMs = 400,
+                });
+
+                bool connected = conn.Connect();
+                string? message = null;
+                try { conn.Read<short>("CMD"); }
+                catch (Exception ex) { message = ex.Message; }
+                clock.Stop();
+
+                Check("C38-2 对端每 50ms 挤一个字节：整帧闸在 400ms 兜住（不会被无限拖长）",
+                    connected && message != null && message.Contains("整帧超时")
+                    && clock.ElapsedMilliseconds < 1500,
+                    $"耗时={clock.ElapsedMilliseconds}ms 消息={message}");
+                listener.Stop();
+            }
+
+            // 3) 正常应答：两道闸都不该误伤
+            {
+                var (listener, port) = StartListener(stream =>
+                {
+                    var buffer = new byte[256];
+                    stream.Read(buffer, 0, buffer.Length);
+                    var bytes = Encoding.ASCII.GetBytes("42\r\n");
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush();
+                    Thread.Sleep(400);
+                });
+
+                using var conn = new FreeProtocolConnection(new FreeProtocolConfig
+                {
+                    IpAddress = "127.0.0.1",
+                    Port = port,
+                    FrameTerminator = "\\r\\n",
+                    ResponseTimeoutMs = 200,
+                    ReadTimeoutMs = 2000,
+                });
+
+                bool connected = conn.Connect();
+                string? text = null;
+                string? message = null;
+                try { text = conn.Read<short>("CMD").ToString(); }
+                catch (Exception ex) { message = ex.Message; }
+
+                Check("C38-3 正常应答：两道闸都不误伤", connected && text == "42",
+                    $"值={text} 错误={message}");
+                listener.Stop();
+            }
+
+            // 4) 空结束符：整帧超时视为一帧结束（既有语义不能丢）
+            {
+                var (listener, port) = StartListener(stream =>
+                {
+                    var buffer = new byte[256];
+                    stream.Read(buffer, 0, buffer.Length);
+                    var bytes = Encoding.ASCII.GetBytes("7");
+                    stream.Write(bytes, 0, bytes.Length);
+                    stream.Flush();
+                    Thread.Sleep(2000);
+                });
+
+                var clock = Stopwatch.StartNew();
+                using var conn = new FreeProtocolConnection(new FreeProtocolConfig
+                {
+                    IpAddress = "127.0.0.1",
+                    Port = port,
+                    FrameTerminator = "",
+                    ResponseTimeoutMs = 200,
+                    ReadTimeoutMs = 400,
+                });
+
+                bool connected = conn.Connect();
+                string? text = null;
+                string? message = null;
+                try { text = conn.Read<short>("CMD").ToString(); }
+                catch (Exception ex) { message = ex.Message; }
+                clock.Stop();
+
+                Check("C38-4 空结束符：整帧超时当作一帧结束，返回已收的 7",
+                    connected && text == "7", $"值={text} 错误={message} 耗时={clock.ElapsedMilliseconds}ms");
+                listener.Stop();
+            }
+        }
+
+        /// <summary>
+        /// C39 配方下发路径：整份配方在**一个插队会话**里记完账、终检前一次冲刷。
+        /// <para>RecipeService 依赖 <c>IWorkspaceManager</c>，在本宿主里无法构造；这里分两段验证：
+        /// ① 机制层——插队会话下 N 项写只冲刷一次、且冲刷时 Urgent=true；
+        /// ② 接线层——源码里确实是"会话包住写循环 + 终检前 Flush"（静态扫描，缺失即红）。</para>
+        /// </summary>
+        private static void RecipeBatchPathChecks()
+        {
+            Section("C39 配方下发路径（插队会话一次冲刷 + 终检前落地）");
+
+            // ① 机制：50 项写 → 1 次冲刷，且冲刷时处于插队状态
+            {
+                using var session = VisionMaster.Binding.WriteBatchSession.Begin(urgent: true);
+                int flushCalls = 0;
+                int itemsSeen = 0;
+                bool urgentAtFlush = false;
+
+                for (int i = 0; i < 50; i++)
+                {
+                    session.Record("PLC1",
+                        new BatchWriteItem { Address = $"4{i:D4}", Poll = null, Value = (short)i, ValueType = typeof(short) },
+                        i, _ => { },
+                        items =>
+                        {
+                            flushCalls++;
+                            itemsSeen = items.Count;
+                            urgentAtFlush = session.Urgent;
+                            return new BatchWriteResult(
+                                items.Select(_ => new BatchWriteItemResult(true, true, null)).ToArray(),
+                                Array.Empty<BatchWriteSegmentResult>(), false);
+                        },
+                        _ => { });
+                }
+
+                int failed = session.Flush();
+                Check("C39-1 配方形状：50 项写只冲刷一次、50 项同批、走插队车道",
+                    failed == 0 && flushCalls == 1 && itemsSeen == 50 && urgentAtFlush,
+                    $"失败={failed} 冲刷={flushCalls} 项={itemsSeen} 插队={urgentAtFlush}");
+            }
+
+            // ② 接线：源码里"会话包住写循环、终检前 Flush"
+            string? source = ReadRepoFile("VisionMaster", "Services", "RecipeService.cs");
+            if (source == null)
+            {
+                Check("C39-2 能找到 RecipeService.cs（找不到就红，不静默跳过）", false, "文件未找到");
+                return;
+            }
+
+            int beginAt = source.IndexOf("WriteBatchSession.Begin(urgent: true)", StringComparison.Ordinal);
+            int flushAt = source.IndexOf("batch.Flush()", StringComparison.Ordinal);
+            // 用终检循环的完整注释做锚点：单搜"终检"会命中文件更早处的无关文字（本断言第一次就是因此误报）
+            int verifyAt = source.IndexOf("终检：逐条回读并按声明类型比较", StringComparison.Ordinal);
+
+            Check("C39-2 源码接线：Begin(urgent:true) 存在且早于 batch.Flush()",
+                beginAt >= 0 && flushAt > beginAt,
+                $"Begin@{beginAt} Flush@{flushAt}");
+
+            Check("C39-3 源码接线：Flush 在终检之前（终检读镜像，不冲刷永远是旧值）",
+                flushAt >= 0 && verifyAt > flushAt,
+                $"Flush@{flushAt} 终检@{verifyAt}");
+        }
+
+        /// <summary>
+        /// 从仓库里读一个源文件（断言宿主跑在 bin 下，逐级向上找仓库根）。
+        /// 找不到返回 null——由调用方判红，绝不静默跳过。
+        /// </summary>
+        private static string? ReadRepoFile(params string[] relativeParts)
+        {
+            var dir = new DirectoryInfo(AppContext.BaseDirectory);
+            for (int depth = 0; depth < 8 && dir != null; depth++)
+            {
+                var candidate = Path.Combine(new[] { dir.FullName }.Concat(relativeParts).ToArray());
+                if (File.Exists(candidate))
+                    return File.ReadAllText(candidate);
+                dir = dir.Parent;
+            }
+            return null;
         }
 
         #endregion
@@ -2442,6 +3436,50 @@ namespace CommChecks
             public bool[] ReadBits(string address, ushort count) => new bool[count];
         }
 
+        /// <summary>
+        /// 测试桩：所有读都抛"设备级拒绝"（模拟 PLC 回错误帧/非法地址），并按需声明链路是否已断。
+        /// <para>用来钉住 PollBatchPlanner 的判定分层：<b>设备拒绝 ≠ 链路断开</b>。
+        /// 实测背景（2026-10-29）：H5U 模拟器对超长段回错误码 129，旧逻辑把整轮全红判成 LinkFault，
+        /// TCP 明明每次都连上，界面却一直显示"重连中"。</para>
+        /// </summary>
+        private sealed class DeviceRejectConnection : ICommunicationConnection, ILinkHealthProbe
+        {
+            private readonly bool _linkFault;
+
+            public DeviceRejectConnection(bool linkFault) => _linkFault = linkFault;
+
+            public string ConnectionName => "STUB_REJECT";
+
+            public CommunicationType Type => CommunicationType.EasyNet;
+
+            public bool IsConnected => true;
+
+            public ByteOrderFormat ByteOrder => ByteOrderFormat.DCBA;
+
+            public bool HasLinkFault => _linkFault;
+
+            public bool Connect() => true;
+
+            public void Disconnect() { }
+
+            public bool TestConnection() => true;
+
+            public void Dispose() { }
+
+            public T Read<T>(string address) where T : struct
+                => throw new InvalidOperationException("PLC 返回错误码 129");
+
+            public void Write(string address, object value) { }
+
+            public byte[] ReadBytes(string address, ushort length)
+                => throw new InvalidOperationException("PLC 返回错误码 129");
+
+            public void WriteBytes(string address, byte[] data) { }
+
+            public bool[] ReadBits(string address, ushort count)
+                => throw new InvalidOperationException("PLC 返回错误码 129");
+        }
+
         /// <summary>读私有常量：断言按"实现自己的口径"验，而不是在测试里再抄一份数字</summary>
         private static int CommandQueueCapacity()
             => (int)typeof(ConnectionWorker)
@@ -3515,6 +4553,87 @@ namespace CommChecks
             public void Dispose() { }
         }
 
+        /// <summary>
+        /// 返回固定字节的桩：同时实现 <see cref="ISegmentReader"/>（EasyNet/MC/FINS 的"字"字段）
+        /// 与 <see cref="ICommunicationConnection.ReadBytes"/>（Modbus/S7 的字节段），
+        /// 用来验证"段内按偏移取位"而不碰真实设备。
+        /// </summary>
+        private sealed class FixedBytesConnection : ICommunicationConnection, ISegmentReader
+        {
+            private readonly byte[] _data;
+            private readonly ByteOrderFormat _order;
+
+            public FixedBytesConnection(byte[] data, ByteOrderFormat order)
+            {
+                _data = data;
+                _order = order;
+            }
+
+            /// <summary>本段被请求的次数——"字区位并段后只发一次请求"就靠它证明</summary>
+            public int ReadCalls { get; private set; }
+
+            public string ConnectionName => "FIXED";
+
+            public CommunicationType Type => CommunicationType.EasyNet;
+
+            public bool IsConnected => true;
+
+            public ByteOrderFormat ByteOrder => _order;
+
+            public bool Connect() => true;
+
+            public void Disconnect() { }
+
+            public bool TestConnection() => true;
+
+            public T Read<T>(string address) where T : struct => throw new NotSupportedException();
+
+            public void Write(string address, object value) => throw new NotSupportedException();
+
+            public void WriteBytes(string address, byte[] data) => throw new NotSupportedException();
+
+            public bool[] ReadBits(string address, ushort count) => new bool[count];
+
+            public byte[] ReadBytes(string address, ushort length)
+            {
+                ReadCalls++;
+                return _data;
+            }
+
+            public byte[] ReadSegment(string address, ushort units)
+            {
+                ReadCalls++;
+                return _data;
+            }
+
+            public void Dispose() { }
+        }
+
+        /// <summary>
+        /// 捕获日志的桩：把 Warn 文本收进队列，用于断言"读超时体检只告警一次"。
+        /// 只实现 Warn，其余级别丢弃——断言只关心警告。
+        /// </summary>
+        private sealed class CapturingLogSink : Core.Interfaces.ILogService
+        {
+            private readonly ConcurrentQueue<string> _sink;
+
+            public CapturingLogSink(ConcurrentQueue<string> sink) => _sink = sink;
+
+            public void Success(params string[] messages) { }
+
+            public void Error(params Exception[] messages) { }
+
+            public void Error(params string[] messages) { }
+
+            public void Info(params string[] messages) { }
+
+            public void Warn(params string[] messages)
+            {
+                foreach (var message in messages)
+                    _sink.Enqueue(message ?? string.Empty);
+            }
+        }
+
         private sealed class FakeDriverFactory : ICommunicationDriverFactory
         {
             public FakeDriverFactory(string id, Type configType, string? displayName = null)
@@ -4220,6 +5339,23 @@ namespace CommChecks
             => DeviceIntProperty(connection, "ReceiveTimeOut");
 
         /// <summary>
+        /// 读连接私有的 <c>_stream</c>（<see cref="NetworkStream"/>）——EasyNet / FreeProtocol
+        /// 不走 HSL，超时直接设在流上（C8 用）。取不到直接抛，不静默放过。
+        /// </summary>
+        private static NetworkStream GetConnectionStream(ICommunicationConnection connection)
+            => (NetworkStream)connection.GetType()
+                .GetField("_stream", BindingFlags.Instance | BindingFlags.NonPublic)!
+                .GetValue(connection)!;
+
+        /// <summary>流的读超时（<c>NetworkStream.ReadTimeout</c>），C8 用</summary>
+        private static int StreamReadTimeout(ICommunicationConnection connection)
+            => GetConnectionStream(connection).ReadTimeout;
+
+        /// <summary>流的写超时（<c>NetworkStream.WriteTimeout</c>），C8 用</summary>
+        private static int StreamWriteTimeout(ICommunicationConnection connection)
+            => GetConnectionStream(connection).WriteTimeout;
+
+        /// <summary>
         /// 读设备 <c>ByteTransform</c> 上的 <c>DataFormat</c>（C10 用）。返回枚举名而非枚举值：
         /// CommChecks 不引用 HSL 命名空间（<c>IByteTransform.DataFormat</c> 是 HSL 的 <c>DataFormat</c>），
         /// 且两套枚举（本项目 <c>ByteOrderFormat</c> 与 HSL <c>DataFormat</c>）成员顺序不同，比名字才安全。
@@ -4263,6 +5399,328 @@ namespace CommChecks
             if (outer[connectionName] is not System.Collections.IDictionary inner)
                 return null;
             return inner[variableName] as CommunicationVariable;
+        }
+
+        #endregion
+
+        #region EasyNet（汇川 Easy 系列专用协议）
+
+        /// <summary>
+        /// EasyNet 契约：地址编码、报文模板、回显校验、错误帧、段合并。
+        /// <para>期望帧不是"按代码再写一遍"，而是**实测抓包**（tools\oneoff\easynet_probe.ps1
+        /// 对 127.0.0.1:12939 模拟器的真实收发），这样断言能钉住"与原版/PLC 一致"。</para>
+        /// </summary>
+        private static void EasyNetContract()
+        {
+            Section("EasyNet 地址 / 报文 / 回显 / 批量");
+
+            // ---- 1) U 区地址解析（汇川导出文件里带空格与 UB/UW 前缀）----
+            bool u1 = EasyNetCodec.TryParseAddress("U2100070", out var a1, out string e1);
+            Check("U2100070 解析", u1 && a1.WireBitAddress == 0x2100070, u1 ? $"0x{a1.WireBitAddress:X}" : e1);
+
+            bool u2 = EasyNetCodec.TryParseAddress("UB 2100070", out var a2, out string e2);
+            Check("UB 2100070 解析（带空格）", u2 && a2.WireBitAddress == 0x2100070, u2 ? $"0x{a2.WireBitAddress:X}" : e2);
+
+            bool u3 = EasyNetCodec.TryParseAddress("UW 21001C0", out var a3, out string e3);
+            Check("UW 21001C0 解析（带空格）", u3 && a3.WireBitAddress == 0x21001C0, u3 ? $"0x{a3.WireBitAddress:X}" : e3);
+
+            Check("U 区地址 4 字节小端", a1.AddressBytes[0] == 0x70 && a1.AddressBytes[1] == 0x00
+                && a1.AddressBytes[2] == 0x10 && a1.AddressBytes[3] == 0x02,
+                $"实际 {BitConverter.ToString(a1.AddressBytes)}");
+
+            // ---- 2) 其它区：八进制 / 字区折算 / Y·S 基址 ----
+            bool d1 = EasyNetCodec.TryParseAddress("D100", out var ad, out _);
+            Check("D100 → 位 1600", d1 && ad.WireBitAddress == 1600, d1 ? $"{ad.WireBitAddress}" : "");
+
+            bool d2 = EasyNetCodec.TryParseAddress("D100.5", out var ad2, out _);
+            Check("D100.5 → 位 1605", d2 && ad2.WireBitAddress == 1605, d2 ? $"{ad2.WireBitAddress}" : "");
+
+            bool x1 = EasyNetCodec.TryParseAddress("X10", out var ax, out _);
+            Check("X10 按八进制 → 8", x1 && ax.WireBitAddress == 8, x1 ? $"{ax.WireBitAddress}" : "");
+
+            bool y1 = EasyNetCodec.TryParseAddress("Y10", out var ay, out _);
+            Check("Y10 → 8 + 0x80000", y1 && ay.WireBitAddress == 8 + 0x80000, y1 ? $"0x{ay.WireBitAddress:X}" : "");
+
+            bool s1 = EasyNetCodec.TryParseAddress("S10", out var asv, out _);
+            Check("S10 → 10 + 0x80000", s1 && asv.WireBitAddress == 10 + 0x80000, s1 ? $"0x{asv.WireBitAddress:X}" : "");
+
+            Check("M10 类型码 0x1", EasyNetCodec.TryParseAddress("M10", out var am, out _)
+                && (am.AddressBytes[2] & 0xF0) == 0x10, am == null ? "" : $"byte2=0x{am.AddressBytes[2]:X2}");
+
+            Check("非法地址 Q100 被拒", !EasyNetCodec.TryParseAddress("Q100", out _, out _), "");
+            Check("空地址被拒", !EasyNetCodec.TryParseAddress("  ", out _, out _), "");
+
+            // ---- 3) 报文模板（与探针实测逐字节一致）----
+            var bitReq = EasyNetCodec.BuildReadCommand(a1, 1);
+            Check("读位帧模板（实测对照）",
+                Convert.ToHexString(bitReq) == "16000103010000000100010000007000100201000000",
+                Convert.ToHexString(bitReq));
+
+            var wordReq = EasyNetCodec.BuildReadCommand(a3, 32);
+            Check("读字帧模板（实测对照）",
+                Convert.ToHexString(wordReq) == "1600010301000000010001000000C001100220000000",
+                Convert.ToHexString(wordReq));
+
+            // ---- 4) 读回显校验：地址/位数必须与请求一致 ----
+            byte[] goodResp = Convert.FromHexString("1700010301000000010001000000700000020100000000");
+            Check("读回显校验通过", EasyNetCodec.ValidateReadEcho(bitReq, goodResp, 1, out _), "");
+            Check("回显数据 1 字节", goodResp.Length - EasyNetCodec.HeaderLength == 1, $"{goodResp.Length - 22}");
+
+            byte[] badResp = (byte[])goodResp.Clone();
+            badResp[14] = 0x71; // 地址被篡改
+            Check("回显地址不符被拒", !EasyNetCodec.ValidateReadEcho(bitReq, badResp, 1, out _), "");
+
+            // 命令字节：0x01（参考服务器原样回显）与 0x02（实测汇川 H5U 模拟器对读请求的回码）都必须接受；
+            // 写成"必须等于请求字节"会把真机上的每一次成功读都判成失败（2026-10-29 实测 12 段全红）。
+            byte[] devCmd = (byte[])goodResp.Clone();
+            devCmd[8] = 0x02; // H5U 真机读响应
+            Check("回显 0x02（H5U 真机读响应）被接受", EasyNetCodec.ValidateReadEcho(bitReq, devCmd, 1, out _), "");
+
+            byte[] wrongCmd = (byte[])goodResp.Clone();
+            wrongCmd[8] = 0x06; // 把写回执当成读响应
+            Check("回显命令非法被拒（0x06 写回执）", !EasyNetCodec.ValidateReadEcho(bitReq, wrongCmd, 1, out _), "");
+
+            byte[] shortResp = new byte[20];
+            Check("回显过短被拒", !EasyNetCodec.ValidateReadEcho(bitReq, shortResp, 1, out _), "");
+
+            bool bitsThrew = false;
+            try { EasyNetCodec.UnpackBits(new byte[1], 0, 16); }
+            catch (InvalidOperationException) { bitsThrew = true; }
+            Check("位数据不足抛异常（不静默补 false）", bitsThrew, "");
+
+            // ---- 5) 错误帧 ----
+            byte[] err = Convert.FromHexString("0E000103010000000F0081000000");
+            Check("错误帧识别（0x81）", EasyNetCodec.IsErrorResponse(err, out int code, out _) && code == 0x81,
+                $"code={code}");
+            Check("正常回显不算错误帧", !EasyNetCodec.IsErrorResponse(goodResp, out _, out _), "");
+
+            // ---- 6) 地址对象构建 ----
+            var uAddr = new EasyNetAddress { Area = EasyNetArea.U, Offset = "2100070", DataType = DataValueType.Boolean };
+            Check("EasyNetAddress U 构建", uAddr.Address == "U2100070", uAddr.Address);
+
+            var dBit = new EasyNetAddress
+            {
+                Area = EasyNetArea.D, Offset = "100", DataType = DataValueType.Boolean, BitOffset = 5
+            };
+            Check("EasyNetAddress D100.5 构建", dBit.Address == "D100.5", dBit.Address);
+
+            var xBit = new EasyNetAddress { Area = EasyNetArea.X, Offset = "10", DataType = DataValueType.Boolean };
+            Check("EasyNetAddress X 八进制回写", xBit.Address == "X10", xBit.Address);
+
+            // ---- 7) 轮询地址：U 区位/字分别批量，未对齐退回单读 ----
+            Check("U 布尔 → 位段", uAddr.TryCreatePollAddress(out var pBit)
+                && pBit != null && pBit.IsBitArea && pBit.Start == 0x2100070
+                && pBit.SpanUnits == 1 && pBit.SegmentAddressOverride == "U2100070",
+                pBit == null ? "null" : $"start=0x{pBit.Start:X} span={pBit.SpanUnits} addr={pBit.SegmentAddressOverride}");
+
+            var uWord = new EasyNetAddress { Area = EasyNetArea.U, Offset = "21001C0", DataType = DataValueType.Int32 };
+            Check("U Int32 → 字段（字号+覆盖串）", uWord.TryCreatePollAddress(out var pWord)
+                && pWord != null && !pWord.IsBitArea && pWord.Start == 0x21001C
+                && pWord.SpanUnits == 2 && pWord.SegmentAddressOverride == "U21001C0",
+                pWord == null ? "null" : $"start=0x{pWord.Start:X} span={pWord.SpanUnits} addr={pWord.SegmentAddressOverride}");
+
+            var uUnaligned = new EasyNetAddress { Area = EasyNetArea.U, Offset = "21001C1", DataType = DataValueType.Int32 };
+            Check("U 数值未字对齐 → 单读", !uUnaligned.TryCreatePollAddress(out _), "");
+
+            var dWord = new EasyNetAddress { Area = EasyNetArea.D, Offset = "100", DataType = DataValueType.Int16 };
+            Check("D Int16 → 字段", dWord.TryCreatePollAddress(out var pD)
+                && pD != null && pD.Start == 100 && pD.SpanUnits == 1, pD == null ? "null" : $"start={pD.Start}");
+
+            // 字区布尔（D100.5）：作为"1 个字的段成员"进段。三条坐标前提在这里钉死——
+            // Start 必须是字号、SpanUnits 必须 1、覆盖串必须 null。
+            // 覆盖串一旦带 .bit，MergeSegments 的 ThenBy(EndUnit) 会把它排成段首，整段从位地址起读，
+            // 段内所有变量一起错且无异常（静默错值）——所以这条断言是正确性前提，不是风格检查。
+            Check("D 布尔位访问 → 字区段成员（字号坐标、无覆盖串）",
+                dBit.TryCreatePollAddress(out var pDBit)
+                && pDBit != null
+                && !pDBit.IsBitArea && pDBit.IsBitAccess
+                && pDBit.Start == 100 && pDBit.SpanUnits == 1
+                && pDBit.BitOffset == 5
+                && pDBit.SegmentAddressOverride == null,
+                pDBit == null ? "null"
+                    : $"start={pDBit.Start} span={pDBit.SpanUnits} bit={pDBit.BitOffset} addr={pDBit.SegmentAddressOverride ?? "(null)"}");
+
+            // ---- 6b) 字区位与同字数值合并成一段：读一个字的 16 位是免费的 ----
+            var dMixed = new[]
+            {
+                EasyWordVar("D100v", 100, typeof(short)),
+                EasyWordVar("D100b4", 100, typeof(bool), bitOffset: 4),
+                EasyWordVar("D100b5", 100, typeof(bool), bitOffset: 5),
+                EasyWordVar("D100b11", 100, typeof(bool), bitOffset: 11),
+                EasyWordVar("D100b12", 100, typeof(bool), bitOffset: 12),
+            };
+            var dMixedPlanner = PollBatchPlanner.Build(dMixed, PollTransportKind.Ethernet);
+            Check("D 字区：数值 + 同字四个位 → 1 段 0 兜底（旧实现是 4 次兜底单读）",
+                dMixedPlanner.SegmentCount == 1 && dMixedPlanner.FallbackCount == 0,
+                $"段={dMixedPlanner.SegmentCount} 兜底={dMixedPlanner.FallbackCount}");
+
+            // 0x20 → 低字节 bit5 置位；0x10 → 高字节 bit4 置位（即字内第 12 位）
+            var dMixedConn = new FixedBytesConnection(new byte[] { 0x20, 0x10 }, ByteOrderFormat.DCBA);
+            dMixedPlanner.Poll(dMixedConn, null);
+            Check("D 字区：同段内数值按字序解码（0x20,0x10 → 4128）",
+                Equals(dMixed[0].CurrentValue, (short)4128),
+                $"{dMixed[0].CurrentValue}（{dMixed[0].CurrentValue?.GetType().Name}）");
+            Check("D 字区：低字节位序 bit4=False / bit5=True",
+                Equals(dMixed[1].CurrentValue, false) && Equals(dMixed[2].CurrentValue, true),
+                $"bit4={dMixed[1].CurrentValue} bit5={dMixed[2].CurrentValue}");
+            Check("D 字区：高字节位序 bit11=False / bit12=True（旧实现 8~15 直接抛异常）",
+                Equals(dMixed[3].CurrentValue, false) && Equals(dMixed[4].CurrentValue, true),
+                $"bit11={dMixed[3].CurrentValue} bit12={dMixed[4].CurrentValue}");
+            Check("D 字区：整段只发一次请求", dMixedConn.ReadCalls == 1, $"{dMixedConn.ReadCalls} 次");
+
+            // 立刻读（TryReadOne）与轮询共用同一份解码：位偏移 12 也必须正确
+            var singleBitPlanner = PollBatchPlanner.Build(
+                new[] { EasyWordVar("D200b12", 200, typeof(bool), bitOffset: 12) },
+                PollTransportKind.Ethernet);
+            var singleBitConn = new FixedBytesConnection(new byte[] { 0x00, 0x10 }, ByteOrderFormat.DCBA);
+            bool singleBitOk = singleBitPlanner.TryReadOne(singleBitConn, out var singleBitValue, out var singleBitError);
+            Check("字区位变量的立刻读（TryReadOne）同样按字内位解码",
+                singleBitOk && Equals(singleBitValue, true),
+                $"成功={singleBitOk} 值={singleBitValue} 错误={singleBitError}");
+
+            // 反向：S7 是字节单元（BytesPerUnit=1），放宽 DecodeBit 后仍只认字节内 0~7
+            var s7BitVar = new CommunicationVariable
+            {
+                ConnectionName = "S7Check",
+                VariableName = "M10.3",
+                Address = "M10.3",
+                AddressConfig = new S7Address
+                {
+                    Area = S7Area.M,
+                    Offset = "10",
+                    DataType = DataValueType.Boolean,
+                    BitOffset = 3,
+                    Length = 1,
+                },
+                ValueType = typeof(bool).AssemblyQualifiedName,
+                AccessMode = VariableAccessMode.ReadOnly,
+            };
+            var s7BitPlanner = PollBatchPlanner.Build(new[] { s7BitVar }, PollTransportKind.Ethernet);
+            var s7BitConn = new FixedBytesConnection(new byte[] { 0x08 }, ByteOrderFormat.ABCD);
+            s7BitPlanner.Poll(s7BitConn, null);
+            Check("S7 字节单元回归：M10.3 仍取字节 0 的第 3 位（放宽没带歪别的协议）",
+                Equals(s7BitVar.CurrentValue, true) && s7BitPlanner.FallbackCount == 0,
+                $"值={s7BitVar.CurrentValue} 兜底={s7BitPlanner.FallbackCount}");
+
+            // 上限按实测汇川 H5U 模拟器（2026-10-29）取：字区 501 字成功 / 512 字回 129；
+            // 位区 8000 位成功 / 8001 位回 64、8192 位回 129。两区统一按 8000 位封顶。
+            Check("段上限：位 8000 / 字 500",
+                new PollAddress { Protocol = PollProtocol.EasyNet, IsBitArea = true }.MaxSegmentUnits == 8000
+                && new PollAddress { Protocol = PollProtocol.EasyNet }.MaxSegmentUnits == 500, "");
+
+            // ---- 7b) 全段被设备拒绝 ≠ 链路断开（判定分层，正反各一条）----
+            var rejectVars = new[]
+            {
+                MakeVar("R0", "", 0, mergeAdjacent: false),
+                MakeVar("R1", "", 100, mergeAdjacent: false),
+            };
+            var rejectPlanner = PollBatchPlanner.Build(rejectVars, PollTransportKind.Ethernet);
+            var rejected = rejectPlanner.Poll(new DeviceRejectConnection(linkFault: false), null);
+            Check("全段被设备拒绝但链路正常 → Completed（不断线重连）",
+                rejected == PollCycleOutcome.Completed,
+                $"结局 {rejected}，段={rejectPlanner.SegmentCount}");
+
+            var linkDead = rejectPlanner.Poll(new DeviceRejectConnection(linkFault: true), null);
+            Check("全段失败且链路自证断开 → 仍判 LinkFault（反向）",
+                linkDead == PollCycleOutcome.LinkFault,
+                $"结局 {linkDead}");
+
+            // ---- 8) 批量规划：连续位 3 个 + 连续 Int32 2 个 → 2 段 ----
+            var vars = new System.Collections.Generic.List<CommunicationVariable>
+            {
+                EasyVar("B0", "2100070", typeof(bool)),
+                EasyVar("B1", "2100071", typeof(bool)),
+                EasyVar("B2", "2100072", typeof(bool)),
+                EasyVar("W0", "21001C0", typeof(int)),
+                EasyVar("W1", "21001E0", typeof(int)),
+            };
+            var planner = PollBatchPlanner.Build(vars, PollTransportKind.Ethernet);
+            Check("EasyNet 批量合并 → 2 段 0 兜底",
+                planner.SegmentCount == 2 && planner.FallbackCount == 0 && planner.PollItemCount == 2,
+                $"段={planner.SegmentCount} 兜底={planner.FallbackCount}");
+
+            // ---- 9) 段上限生效：两个相距超过 2000 字的 Int32 → 2 段 ----
+            var far = new System.Collections.Generic.List<CommunicationVariable>
+            {
+                EasyVar("F0", "21001C0", typeof(int)),
+                EasyVar("F1", "2120000", typeof(int)),
+            };
+            var farPlanner = PollBatchPlanner.Build(far, PollTransportKind.Ethernet);
+            Check("超段上限不合并", farPlanner.SegmentCount == 2, $"段={farPlanner.SegmentCount}");
+
+            // ---- 10) 方案落盘链路：每个"有地址对象"的已实现协议都必须能重建 AddressConfig ----
+            // 漏一支的后果是静默的：方案存得下，重开时 AddressConfig=null，变量永远不刷新。
+            foreach (var (protocol, area, offset) in new[]
+                     {
+                         (CommunicationType.ModbusTcp, "HoldingRegisters", "0"),
+                         (CommunicationType.ModbusRtu, "HoldingRegisters", "0"),
+                         (CommunicationType.SiemensS7, "M", "0"),
+                         (CommunicationType.MitsubishiMc, "D", "0"),
+                         (CommunicationType.OmronFins, "D", "0"),
+                         (CommunicationType.EasyNet, "U", "2100070"),
+                     })
+            {
+                var dto = new VariableDto
+                {
+                    Protocol = protocol.ToString(),
+                    DataValueType = nameof(DataValueType.Int16),
+                    Area = area,
+                    Offset = offset
+                };
+                var rebuilt = dto.BuildAddressConfig();
+                Check($"VariableDto 重建地址 {protocol}", rebuilt != null,
+                    rebuilt?.GetType().Name ?? "null（保存后该协议变量会永久不刷新）");
+            }
+        }
+
+        private static CommunicationVariable EasyVar(string name, string uOffset, Type valueType)
+        {
+            var address = new EasyNetAddress
+            {
+                Area = EasyNetArea.U,
+                Offset = uOffset,
+                DataType = valueType == typeof(bool) ? DataValueType.Boolean
+                    : valueType == typeof(int) ? DataValueType.Int32
+                    : valueType == typeof(short) ? DataValueType.Int16
+                    : DataValueType.Float,
+                Length = 1
+            };
+            return new CommunicationVariable
+            {
+                ConnectionName = "EasyNetCheck",
+                VariableName = name,
+                Address = address.Address,
+                AddressConfig = address,
+                ValueType = valueType.AssemblyQualifiedName,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
+        }
+
+        /// <summary>
+        /// EasyNet 字区（D/R/W）变量：数值，或带位偏移的布尔（<c>D100.5</c>）。
+        /// 与 <see cref="EasyVar"/> 的区别只在区不同——字区布尔才是"能否并段"的争议点。
+        /// </summary>
+        private static CommunicationVariable EasyWordVar(string name, int word, Type valueType, int bitOffset = -1)
+        {
+            var address = new EasyNetAddress
+            {
+                Area = EasyNetArea.D,
+                Offset = word.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                DataType = valueType == typeof(bool) ? DataValueType.Boolean
+                    : valueType == typeof(short) ? DataValueType.Int16
+                    : DataValueType.Int32,
+                Length = 1,
+                BitOffset = bitOffset
+            };
+            return new CommunicationVariable
+            {
+                ConnectionName = "EasyNetCheck",
+                VariableName = name,
+                Address = address.Address,
+                AddressConfig = address,
+                ValueType = valueType.AssemblyQualifiedName,
+                AccessMode = VariableAccessMode.ReadOnly
+            };
         }
 
         #endregion

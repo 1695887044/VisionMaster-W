@@ -70,6 +70,29 @@ namespace FlowCanvasChecks
                 autoStep.Outcome == FlowRoundOutcome.Ok && autoStep.Source == FlowVerdictSource.ResultStep,
                 $"{autoStep.Outcome} / {autoStep.Source}");
 
+            // ---- 一条流程只允许一个结果输出（2026-10-29）：两个都执行 → 歧义，不再"取最后执行" ----
+            var resultStep2 = new ActionStep("I2", "结果输出2", typeof(ResultOutputPlugin).AssemblyQualifiedName!, "结果输出2");
+            resultStep2.State = StepState.Success;
+            resultStep2.LastRunStartTimestamp = Stopwatch.GetTimestamp();
+            session.Blueprints.Add(resultStep2);
+            var resultPlugin2 = new ResultOutputPlugin();
+            resultPlugin2.IsOkPort.TypedValue = false;
+            session.ExecutionEngine.PluginLookup[resultStep2.StepID] = resultPlugin2;
+
+            // 只在"显式结果步骤"模式下断言歧义：Auto 会按回退链落到变量（那是设计行为）
+            flow.ResultSource = FlowResultSourceKind.ResultStep;
+            flow.ResultVariableName = string.Empty;
+            var ambiguous = resolver.Resolve(session);
+            Program.Check("FRS-7 两个结果输出步骤 → 未判定（判定源歧义）",
+                ambiguous.Outcome == FlowRoundOutcome.Unknown
+                && ambiguous.Reason.Contains("结果输出步骤"),
+                $"{ambiguous.Outcome} / {ambiguous.Reason}");
+
+            // 回到单步状态，后面的 StepPort 用例不受影响
+            session.Blueprints.Remove(resultStep2);
+            session.ExecutionEngine.PluginLookup.Remove(resultStep2.StepID);
+            resultPlugin2.Dispose();
+
             // ---- StepPort 模式 ----
             var portStep = new ActionStep("P", "判定表", "stub.port", "判定表");
             portStep.State = StepState.Success;

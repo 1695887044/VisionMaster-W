@@ -3,7 +3,7 @@
 > 自动注入每个会话，硬上限 65536 字节；超了静默截断，截断点之后的规则等于不存在（2026-10-22 实测：原文 177,585 → 截到 65,140，§18 之后 115 条从未生效）。
 > 只留**判据 + 守门人 + 触发条件**；起因、异常栈、取证过程见 `docs/工程纪律/2026-10-22-工程纪律全集（原文归档）.md`（下称"归档"，各节复盘见归档同名 §N）。
 > 新增规则：追加末尾、编号顺延、必须带判据与守门人（无自动闸写"人工评审"）；加完 `(Get-Item AGENTS.md).Length` 必须 **< 56000**。
-> **满了就下沉，不压缩既有判据**：低频单域规则搬进 `docs/工程纪律/分册-*.md`，注入层只留"最易踩 + 指针"。**下沉判据：违反会被自动闸红的规则（行内或整节有守门）可下沉——漏看也会被红灯拉回；静默且无闸的必须留在本层。** 规则归属与编号并集由 `tools\audit_rules.ps1` 守门（进 run_gates）。现有分册：`分册-SCADA与图元`（§23/§27/§28/§31/§32）、`分册-通讯与设备`（§34/§35）、`分册-WPF模板与样式`（§6/§9/§22/§33）、`分册-启动与插件加载`（§15/§17/§24/§25）、`分册-帮助手册`（§13/§19）、`分册-停靠与面板`（§18）、`分册-流程栏与画布`（§21/§37）、`分册-属性面板与刷新`（§29）、`分册-HALCON画布交互`（§16）、`分册-AI操作与exe测试踩坑`（§41）。
+> **满了就下沉，不压缩既有判据**：低频单域规则搬进 `docs/工程纪律/分册-*.md`，注入层只留"最易踩 + 指针"。**下沉判据：违反会被自动闸红的规则（行内或整节有守门）可下沉——漏看也会被红灯拉回；静默且无闸的必须留在本层。** 规则归属与编号并集由 `tools\audit_rules.ps1` 守门（进 run_gates）。现有分册：`分册-SCADA与图元`（§23/§27/§28/§31/§32）、`分册-通讯与设备`（§34/§35）、`分册-WPF模板与样式`（§6/§9/§22/§33）、`分册-启动与插件加载`（§15/§17/§24/§25）、`分册-帮助手册`（§13/§19）、`分册-停靠与面板`（§14 的 R46/R47/R56、§18）、`分册-流程栏与画布`（§21/§37）、`分册-属性面板与刷新`（§29）、`分册-HALCON画布交互`（§11 的 R36/R37/R39、§16）、`分册-AI操作与exe测试踩坑`（§41）。
 
 ## 0. 编号冲突（引用时带章节号）
 
@@ -32,7 +32,7 @@
 | R7 | 动 `docs/` 结构前先读 `docs/归档/README.md` 与目标目录 `README.md`。 |
 | R8 | 未实现插件的方案说明书属现行设计文档，放 `docs/<插件名>/`，**不进归档**。 |
 | R9 | 跨进程协调先看 `LastWriteTime`——最近几分钟被改过就先报告确认。 |
-| R9A | **`docs/` 结构由闸门管，不靠记忆**：白名单唯一事实源 `tools\docs-layout.json`（`topDirs` 全量登记 + `rootFiles` 只允许 `项目全景说明.md`）。`docs/` 根级新增 `.md` 或新增顶层目录**必须先登记**，否则 `tools\audit_docs.ps1` 判红。日志式记录（`code-changes`/`meetings`/`performance`/`归档`）按 `orphanPolicy` 豁免人工 README。**找文档从 `docs/README.md`（文档中心，含四类分工与目录地图）进**；日志目录的 `INDEX.md` 由 `tools\gen_docs_index.ps1` 生成，**新增日志条目后必须重跑，否则 `run_gates.ps1` 的 `docs_index` 步判红**（判据：重跑后无任何目录被重写）。守门：`run_gates.ps1` 的 `docs_index` + `audit_docs` 两步。 |
+| R9A | **`docs/` 结构由闸门管，不靠记忆**：白名单唯一事实源 `tools\docs-layout.json`（`topDirs` 全量登记 + `rootFiles` 只允许 `README.md` 与 `项目全景说明.md`）。`docs/` 根级新增 `.md` 或新增顶层目录**必须先登记**；`tools\audit_docs.ps1` 目前是**报告模式（恒 exit 0）**，结构违规只进报告、不会判红。日志式记录（`code-changes`/`meetings`/`performance`/`归档`）按 `orphanPolicy` 豁免人工 README。**找文档从 `docs/README.md`（文档中心，含四类分工与目录地图）进**；日志目录的 `INDEX.md` 由 `tools\gen_docs_index.ps1` 生成，**新增日志条目后必须重跑，否则 `run_gates.ps1` 的 `docs_index` 步判红**（判据：重跑后无任何目录被重写）。守门：`run_gates.ps1` 的 `docs_index` 步（判红）；`audit_docs` 仅报告。 |
 | R9B | **双客户端（DSH + ZCode）共用一套约束**：唯一事实源仍是本文件；`tools\sync_constraints.ps1` 把「违反即回滚 / 症状静默 / 验收口径」7 类单向镜像进 `%USERPROFILE%\.zcode\AGENTS.md` 的 `DSH-SYNC` 标记块（块外内容原样保留、幂等、`-Check` 检漂移）。**改规则只改本文件再重跑脚本，不许手改镜像侧**；镜像范围外的章节（UI/HALCON/SCADA 等）ZCode 仍须回读本文件。守门：`run_gates.ps1` 的 `sync_constraints` 步（`-Check`）。 |
 
 ## 3. 三条红线（违反即回滚）
@@ -78,7 +78,7 @@
 
 | # | 判据 |
 |---|---|
-| R23 | **新增/改名 `StepModel` 子类必须给 `ProcessView.xaml` 补 `DataType="{x:Type models:<类型名>}"` 模板**（逐类型给，别指望基类）；容器类用 `HierarchicalDataTemplate` + `ItemsSource="{Binding Children}"`。守门：`ProcessTreeTemplateChecks` U1-U5（进常规 gate；例外清单 `Break/Continue/ReturnStep` + 反向断言防过期）。 |
+| R23 | **新增/改名 `StepModel` 子类必须给 `ProcessView.xaml` 补 `DataType="{x:Type models:<类型名>}"` 模板**（逐类型给，别指望基类）；容器类用 `HierarchicalDataTemplate` + `ItemsSource="{Binding Children}"`。守门：`ProcessTreeTemplateChecks` U1-U6（进常规 gate；例外清单 `Break/Continue/ReturnStep` + 反向断言防过期）。 |
 | R24 | 分支胶囊文案**只有 `StepCollection.DisplayName` 一个来源**，不挂独立 `Expression`；按父容器换色用 `RelativeSource AncestorType=TreeViewItem, AncestorLevel=2`。 |
 | R25 | **分支卡片（`StepCollection`）不进"按选中项执行"的命令链**。三道闸：视图拦左键/双击与非并行分支右键；VM 的 `SelectStep` 收到 `StepCollection` 清空选中；`StepParameterDialog.Open` 只对 `ActionStep`/`ConditionStep`/`ForStep`/`WaitStep`/`ParallelStep` 开窗，其余返回 false 由调用方提示。**例外**：并行分支胶囊右键出自己两项菜单（`CommandParameter` 绑 `PlacementTarget.DataContext`，且要求祖先链有 ContextMenu）。**若让 `SelectStep` 接纳 `StepCollection`，必须同时给 `TreeView_MouseDoubleClick` 补"数据项是 StepModel"守卫。** 守门：V1-V8 + 探针场景 F 三条（分支拦/箭头放行/算子不拦）。 |
 | R26 | **并行分组按"结构 vs 参数"分工**：结构动作在流程栏右键走 `ProcessViewModel` 命令族、过运行锁；**分支名（`StepCollection.StepName`）不在 FlowModel 监听面，命令手动 `Version++`；分组名走 setter 自动推，不手动**。参数动作无专属视图：双击组头 → `EasyDialog.ShowPropertyGridSync("并行分组参数", new ParallelGroupEditModel(...))`，确认才 `ApplyToModel()`。守门：V1/V6/V8、W1-W7。 |
@@ -105,37 +105,39 @@
 | R34 | **手填只产文本**，写入侧必须按声明类型解析一次（`Convert.ChangeType`；范例 `GlobalVariableWriter.TryCoerceText`）。**宽进严出**：能转就转，转不了报错并写清被拒原值；只放宽文本，类型化的值仍报错。数值文本另加：不变区域性、拒绝千分位。 |
 | R35 | **用户意图只能由真实输入事件判定，不许从"值变了"倒推**（程序灌值/候选重填/`ApplyConfigValues` 都会触发）。判据接 `PreviewTextInput`/`PreviewKeyDown`/`SelectionChanged` 或控件自报 `NotifyXxxEditedByUser()`。重填候选前先记住端口值、填后顶回（可编辑 ComboBox 有选中项时 `ItemsSource.Clear()` 会清 `Text` 并 TwoWay 推空串）。 |
 
-## 11. 离屏烘焙件只许一份（R36-R39）
+## 11. 离屏烘焙件只许一份（R36-R39）→ 分册《HALCON画布交互》
+
+**最易踩**：全仓 `OpenWindow` 只许在 `AnnotationBaker`（外加永久豁免 `Plugin.ImageScript\HDevDisplayBackend.cs`，**豁免清单只许变短**）；`BakeText.Box` 是必填位置参数（⚠ 大写 `Box`），文字宽度只有 baker 能量（`GetStringExtents` 必须排在 `TrySetFont` 之后，本仓没有 `GetTextExtents`）。
 
 | # | 判据 |
 |---|---|
-| R36 | 全仓 `OpenWindow` 只许在 `Services\Core.Halcon\Helpers\AnnotationBaker.cs`，外加**永久豁免** `Plugins\Plugin.ImageScript\HDevDisplayBackend.cs`（逐算子驱动、`[ThreadStatic]`、`BakePlan` 表达不了）。**豁免清单只许变短。** 用法：`new AnnotationBaker()` + 攒 `BakePlan` + `Bake(底图, plan)`。守门：`ResultDisplayCheck` ④/④b/④c。 |
-| R37 | **六条 + 两条状态纪律只在 baker 里实现一遍**：① `OpenWindow` mode 只能 `'buffer'`（否则 #1305）；② 窗口按尺寸常驻复用、`Dispose()` 才关（反复开关 → #9302 死锁）；③ 每轮无条件 `SetPart(win,0,0,h-1,w-1)`（漏了底图缩左上角；复用会串轮污染）；④ 文字坐标只用 `"window"`；⑤ `DispText` 必须显式给 `box`（默认就是开的），`BakeText.Box` 是必填位置参数（⚠ 大写 `Box`），字号走窗口级 `SetFont`；⑥ `DumpWindowImage` 源对象立刻 `Dispose`。外加：整段 `lock` 罩"改状态→画→回读"；`SetLineWidth` 还原 1、`SetDraw` 还原 `"margin"`。绘制顺序固定 `Shapes → Objects → Texts`（改层序改 plan 顺序，不改 baker）。 |
 | R38 | **"跳过"型断言必须能被反证**：写 `Check(name, true, "跳过：环境不支持 X")` 前必须回答"谁证明了是环境不支持而不是代码有 bug"，并把反证写进理由。**迁移/重构前先织网**。 |
-| R39 | **文字宽度只有 baker 能量**：`BakeText.HAlign`（`Left`/`Center`/`Right`，默认 `Left`）表达贴边，换算在 baker 内做并夹回 `[0,w-1]`。`GetStringExtents` 必须排在 `TrySetFont` 之后；本仓 HALCON **没有** `GetTextExtents`。**垂直分量留给调用方**（块高 = 行数 × 行距）。守门：`AnnotationBakerChecks` B8 + `ResultDisplayCheck` U1~U9。 |
+
+> 完整判据（R36/R37/R39；守门 `ResultDisplayCheck` ④/④b/④c、`AnnotationBakerChecks` B8 + `ResultDisplayCheck` U1~U9）见 `docs/工程纪律/分册-HALCON画布交互.md`。
 
 ## 12. 枚举上屏（R40）
 
 | # | 判据 |
 |---|---|
-| R40 | 候选一律 `StepConfigOption.ForEnum(类型, 成员名)`，不许 `new StepConfigOption(Enum.GetNames(...))`。① 显示中文、**值仍是成员名**（拿"圆"当值 = 改显示名打断已配流程）；② 回退成员名，绝不空白；③ HALCON/SDK 字面量不进界面；④ 新增成员必须补 `[Display(Name="中文")]`。守门：`MotionZMotionChecks` 6 条（含"选完写回仍是 `Circle`"与两处生成点共用 `ForEnum` 的扫描）。 |
+| R40 | 候选一律 `StepConfigOption.ForEnum(类型, 成员名)`，不许 `new StepConfigOption(Enum.GetNames(...))`。① 显示中文、**值仍是成员名**（拿"圆"当值 = 改显示名打断已配流程）；② 回退成员名，绝不空白；③ HALCON/SDK 字面量不进界面；④ 新增成员必须补 `[Display(Name="中文")]`。守门：`MotionZMotionChecks` 的 ForEnum 契约（条数以方法内 `Check(` 为准；含"选完写回仍是 `Circle`"与两处生成点共用 `ForEnum` 的扫描）。 |
 
 ## 13. 帮助手册打包（R41-R42）→ 分册《帮助手册》
 
-**最易踩**：新增插件类必须同时交手册（`Help\{插件类名}\`、`NN-` 前缀、首行 `# 一级标题`、无 BOM、正文 ≥70 行、禁 TODO）；**计数口径按"带 `[Display(GroupName=…)]` 的类"算（含 4 个设备驱动）**；R42 加完必须验证 DLL 真带了资源（增量构建静默漏打包）。**失败模式全是静默的。**
+**最易踩**：新增插件类必须同时交手册（`Help\{插件类名}\`、`NN-` 前缀、首行 `# 一级标题`、无 BOM、正文 ≥70 行、禁 TODO）；**计数口径按"带 `[Display(GroupName=…)]` 的类"算（2026-10-29 实测 58 类 / 43 工程，含 6 个设备驱动）**；R42 加完必须验证 DLL 真带了资源（增量构建静默漏打包）。**失败模式全是静默的。**
 
 > 完整判据（R41/R42 与守门 HM0~HM17）见 `docs/工程纪律/分册-帮助手册.md`。
 
-## 14. 停靠布局（R43-R47、R56）
+## 14. 停靠布局（R43-R47、R56）→ 分册《停靠与面板》
+
+**最易踩**：改 `Shell.xaml` 的面板归属/停靠语义必须递增 `LayoutHelper.CurrentLayoutSchemaVersion`（判据：旧 `Layout.xml` 恢复会不会抵消改造）；`ShellCopy.xaml` 是结构副本，改 docking 子树必须同步；`AttachDockWatchers` 两条路径都挂、先解绑再挂、幂等。
 
 | # | 判据 |
 |---|---|
 | R43 | **改 `Shell.xaml` 的面板归属/停靠语义必须递增 `LayoutHelper.CurrentLayoutSchemaVersion`**。判据：问"旧 `Layout.xml` 恢复会不会抵消改造"。后果要写进记录（用户自拖布局静默作废）。 |
-| R44 | `UIThemeSmokeTest\ShellCopy.xaml` 是 `Shell.xaml` 的结构副本（手工维护、无断言）——改 docking 子树必须同步。 |
+| R44 | `UIThemeSmokeTest\ShellCopy.xaml` 是 `Shell.xaml` 的结构副本（手工维护；有断言，改完必须同步）——改 docking 子树必须同步。 |
 | R45 | **`AttachDockWatchers` 两条路径都挂**：`LayoutHelper.LayoutLoaded` 事件 + `Shell.OnContentRendered` 里 `Load()` 之后无条件补挂。先解绑再挂、幂等。 |
-| R46 | 守门：`RunShellLayoutChecks()` 9 条（进冒烟基线）；只认"元素类型 + 父子/兄弟"，不写死行号与空白，像素宽度刻意不钉。**冒烟退出码恒为 1（既有红灯未清；旧"GridView 命中 vendored"归因已作废，具体哪组红待实跑定位）——以日志行为准，这是待还技术债。** |
-| R47 | **活动栏已整条下线**；组态三面板由"是否处于组态设计"自动收敛，不给手工开关；全局变量/通讯设置在顶部横条。**没有面板落点的命令不许进活动栏。** 改顶栏/活动栏**不升**结构版本。守门：`RunShellLayoutChecks()` 三条（主体 Grid 一列 / 无 `Panel_*` 开关 / 两命令在停靠区之前顶栏）。**改 `Shell.xaml` 前先看 mtime。** |
-| R56 | **判"是否处于组态设计"只认文档的 `LayoutDocument.IsSelected`，不许用 `IsActive`**（`IsActive` 是 DockingManager 当前活动内容，点右侧面板就翻转 → 自毁循环）。收敛走 `LayoutHelper.ApplyScadaPanelMode(manager, scadaDesign)`，**先 Show 目标再 Hide 对方**。触发三处：启动 `OnContentRendered`、`LayoutHelper.LayoutLoaded`（走 `OnLayoutLoaded`）、中央文档区切标签（**只认 `Panel_ScadaEditorView` 的 `IsSelected`**）。磁盘 `Layout.xml` 会恢复旧可见性 → 每次必须重收敛（故不升版本）。**已知边界**：「视图」菜单三项只 Show 不 Hide，是刻意的手工覆盖入口。守门：`RunPanelModeChecks()` 5 条。 |
+
+> 完整判据（R46/R47/R56；守门 `RunShellLayoutChecks()` / `RunPanelModeChecks()`）见 `docs/工程纪律/分册-停靠与面板.md`。
 
 ## 15. 启动自检超时（R48-R50）→ 分册《启动与插件加载》
 
@@ -145,7 +147,7 @@
 
 ## 16. HALCON 画布交互（R51-R55）→ 分册《HALCON画布交互》
 
-**最易踩**：R53 画布交互断言只能用**屏幕外可见窗口**——`buffer` 窗口上只有"点中对象内部"能命中，手柄与拖拽全失效（⚠ 与 §11 R37① 方向相反）；R54 `rectangle2` 的 length1 沿 **column** 轴，记反会得"手柄命中失败"假结论；R55 改 `Services\Core.Halcon` 必须 Debug 与 Release 都重建（红线③家族）。
+**最易踩**：R53 画布交互断言只能用**屏幕外可见窗口**——`buffer` 窗口上只有"点中对象内部"能命中，手柄与拖拽全失效（⚠ 与 §11 R37① 方向相反）；R54 `rectangle2` 的 length1 沿 **column** 轴，记反会得"手柄命中失败"假结论；R55 改 `Services\Core.Halcon` 必须 Debug 与 Release 都重建（红线③家族；`run_gates` 只建 Debug，Release 靠人工评审）。
 
 > 完整判据（R51/R52 与守门）见 `docs/工程纪律/分册-HALCON画布交互.md`。
 
@@ -198,9 +200,9 @@
 
 > 完整判据（R78-R80 与守门）见 `docs/工程纪律/分册-启动与插件加载.md`。
 
-## 25. 插件清单缓存（R81-R83）→ 分册《插件加载与缓存》
+## 25. 插件清单缓存（R81-R83）→ 分册《启动与插件加载》
 
-**最易踩**：R81 四道指纹（SchemaVersion / 每 DLL 大小+mtime / 无未登记 `Plugin*.dll` / 宿主契约版本）**全满足才命中，任一不满足即全量重扫并重写**，不做部分缓存；R82 缓存跳过实例化的前提是"构造器无副作用"，必须静态扫描钉住。
+**最易踩**：R81 四道指纹（SchemaVersion / 每 DLL 大小+mtime / 无未登记 `Plugin*.dll` / 契约程序集 `Core.Interfaces.dll` 的 size+mtime 文件指纹）**全满足才命中，任一不满足即全量重扫并重写**，不做部分缓存；R82 缓存跳过实例化的前提是"构造器无副作用"，必须静态扫描钉住。
 
 > 完整判据（R83 与守门）见 `docs/工程纪律/分册-启动与插件加载.md`。
 
@@ -261,7 +263,7 @@
 | R130 | **差异必须设计阶段预判**：字体度量、DPI、滚动条占位、flex/grid 与 WPF 布局差、多层阴影、动效曲线、文本截断、表格列宽（GridView 无星号列宽）、焦点态、无障碍。 |
 | R131 | **禁止用"桌面端更方便"反向改设计**；变更只能由基线升版发起，不可复刻项按 R125 升级，不得静默降级。 |
 | R132 | **验收由用户裁定**：每批附"改前改后截图 + 逐项对照表 + 差异清单"；未关闭或未经接受不得宣称完成。 |
-| R132A | **SCADA 运行态 Web 客户端是交付物**（2026-10-21 例外）：可进构建、可部署局域网、可独立维护；仅限"已设计画面的运行态查看/操作"，**不含**浏览器编辑组态。必须"单一运行内核 + N 视图会话"，且默认只读、服务端逐命令鉴权、审计带操作者/会话/IP、运动命令默认禁用。 |
+| R132A | **SCADA 运行态 Web 客户端是交付物**（2026-10-21 例外）：可进构建、可部署局域网、可独立维护；仅限"已设计画面的运行态查看/操作"，**不含**浏览器编辑组态。必须"单一运行内核 + N 视图会话"，且默认只读、服务端逐命令鉴权、审计带操作者/会话/IP、运动命令默认禁用。**2026-10-29 起新增开发暂停（见 §46 R191）；上述安全约束仍有效。** |
 
 ### 30.2 模板高度（R133-R135）
 
@@ -271,12 +273,12 @@
 | R134 | **验 .NET 9 WPF 必须用 `net9.0-windows` 探针工程**，**不许 PowerShell 5.1**（资源字典加载 0 条目、`LoadComponent` 报找不到 `System.Runtime 9.0.0.0` → "样式没生效"是假结论）。探针放临时目录，用完即删。 |
 | R135 | **弹窗可聚焦控件必须挂 `FocusVisualStyle="{StaticResource DialogFocusVisual}"`，ToolTip 必须用 `DialogToolTipStyle`**（`UI/Controls/Themes/Dialog/Dialog.Misc.xaml`，显式键控）。初始焦点用 `FocusManager.FocusedElement`，**不要 `Focusable="False"`**。 |
 
-### 30.3 Modbus 与运行期改配置（R136-R138）
+### 30.3 Modbus 与运行期改配置（R136、R138；R137 已废止）
 
 | # | 判据 |
 |---|---|
 | R136 | **运行期改配置必须"权限闸门 + 同一命令出口"，写方案活对象**（随保存落盘、不进撤销栈）：① 权限在按下前判（`AccessPolicy.CanOperate`；按钮 `CanExecute`/行内 `CanEdit`/命令执行前各判一次）；② **示教写"当前轴位置"**（离线明确拒绝）；③ 定位与动作表同一路径（`TryMove` → `MotionMoveAbsolute` → `CheckMove`），软限位/未使能/未回零/忙判据只有一份。**模板纪律**：行 `DataTemplate` 没有 `TemplatedParent`，颜色/可见性/可编辑性一律 `RelativeSource AncestorType=图元类型`；ComboBox 样式不许跨册 `StaticResource`。守门：AX7 点位三条 + AX10 十条。 |
-| R137 | **Modbus `Address` 是原始协议地址，不是 `4xxxx` 编号**：① 原始地址写 `"0"`/`"1"`，指定区域用 `x=3;0`/`x=1;0`；② `AddressStartWithZero` 只控制是否减 1，默认 `true`；按 1 基配置必须关掉，否则**静默读写相邻寄存器**；③ 新增 Modbus 驱动必须透传该开关，`ModbusDriverEditModel` 同步 `ToJson`/`From`。守门：`IoChecks` M.6~M.10。 |
+| R137 | **已废止（2026-10-29）**：原「`AddressStartWithZero` 三项判据 + `IoChecks` M.6~M.10」全部无落点——一方代码 0 命中（只剩 vendored `DLL\HslCommunication`）、`ModbusDriverEditModel` 全仓不存在、`IoChecks` 工程已删。仍有效的一句并入 R152：Modbus `Address` 是原始协议地址，不是 `4xxxx` 编号。 |
 | R138 | **配置型数据的运行期展示必须"每拍重读 + 指纹短路"**（点位是 `List<MotionPoint>`，外部改动无通知）：每拍 `TryGetPoints` + 指纹比对，**只有变化才重建行**（否则换掉用户正在输入的框）。**先问"谁还会改它、改完有没有通知"**。守门：AX10 两条（含"没变化不重建"的引用相等断言）。 |
 
 ### 30.4 派生只读属性（R139）
@@ -289,12 +291,12 @@
 
 | # | 判据 |
 |---|---|
-| R140 | **第一方 XAML 除颜色定义文件外不许 `#RRGGBB`/`#AARRGGBB`**。颜色文件只有**五个**（口径以 `UIThemeSmokeTest/Program.cs:3055-3138` 的豁免表为准，别按记忆数）：`Colors.xaml`（第一层令牌，**新令牌只加这里**）、`Fluent\FluentTokens.xaml`、`PluginConfigColors.xaml`、`Scada.Controls\Themes\ScadaTokens.xaml`、`VisionMaster\Themes\DockThemes\*`。**存量只减不增**：`hardcoded-colors.baseline.txt` 记 `路径\|数量`，新文件必须 0、老文件不许上涨。守门：`RunHardcodedColorChecks()`（进冒烟返回码）。**边界**：① 现无运行时主题切换（`StaticResource` 加载期解析；要即时变需迁 `DynamicResource`，独立批次）；② `Shell.xaml.cs` 换 `DarkTheme.xaml` 是 **AvalonDock 的 `dockManager.Theme`**，不是 WPF 资源字典。 |
-| R141 | **可复用 UI 一律抽进 `UI\Controls\Themes\Dialog\` 分册**：同一视觉结构**第二次出现**就下沉。先查 `DialogColumnCard`/`DialogColumnHeader`/`DialogColumnTitle`/`DialogOptionItem`/`DialogTag`/`DialogChip*`/`DialogEmptyState*`/`DialogIconButton`/`DialogInput`/`DialogCheckBox`。① 跨册 `StaticResource` 仍禁止；② 视图只写布局与绑定；③ 不改既有键语义（变体加 `...Accent`/`...Danger`，`BasedOn` 基础键）。守门：人工评审。 |
+| R140 | **第一方 XAML 除颜色定义文件外不许 `#RRGGBB`/`#AARRGGBB`**。颜色文件只有**五个**（口径以 `UIThemeSmokeTest/Program.cs:3967-3972` 的豁免表为准，DockThemes 前缀在 4000，别按记忆数）：`Colors.xaml`（第一层令牌，**新令牌只加这里**）、`Fluent\FluentTokens.xaml`、`PluginConfigColors.xaml`、`Scada.Controls\Themes\ScadaTokens.xaml`、`VisionMaster\Themes\DockThemes\*`。**存量只减不增**：`hardcoded-colors.baseline.txt` 记 `路径\|数量`，新文件必须 0、老文件不许上涨。守门：`RunHardcodedColorChecks()`（进冒烟返回码）。**边界**：① 现无运行时主题切换（`StaticResource` 加载期解析；要即时变需迁 `DynamicResource`，独立批次）；② `Shell.xaml.cs` 换 `DarkTheme.xaml` 是 **AvalonDock 的 `dockManager.Theme`**，不是 WPF 资源字典。 |
+| R141 | **可复用 UI 一律抽进 `UI\Controls\Themes\Dialog\` 分册**：同一视觉结构**第二次出现**就下沉。先查 `DialogColumnCard`/`DialogColumnHeader`/`DialogColumnTitle`/`DialogOptionItem`/`DialogTag`/`DialogChip*`/`DialogEmptyState*`/`DialogInput`/`DialogCheckBox`（`DialogIconButton` 在 `UI\Controls\Themes\Fluent\FluentAliases.xaml`）。① 跨册 `StaticResource` 仍禁止；② 视图只写布局与绑定；③ 不改既有键语义（变体加 `...Accent`/`...Danger`，`BasedOn` 基础键）。守门：人工评审。 |
 
 ## 31. 流程栏 v2 视觉（R139/R140/R141 的 B 义 + R142-R146）→ 分册《SCADA与图元》
 
-**最易踩**：R139 树行 `ContentPresenter` 必须 `Stretch`，改 Padding/箭头列宽时 -22 与 19/22 要同步；R145 AvalonDock 三条硬语义（收起用 **1px**、切标签看 `IsSelected`、`ShowAnchorable` 后旧引用失效）；R146 新增库样式键前必须全仓查同名。
+**最易踩**：R139 树行 `ContentPresenter` 必须 `Stretch`，改 Padding/箭头列宽时 -22 与 19/22 要同步；R145 AvalonDock 三条硬语义（收起把 pane 整块摘出停靠树、切标签看 `IsSelected`、`ShowAnchorable` 后旧引用失效）；R146 新增库样式键前必须全仓查同名。
 
 > 完整判据见分册。
 
@@ -342,7 +344,7 @@
 |---|---|
 | R175 | **验证分层**：断言宿主优先（快、无副作用、不依赖桌面）；只有它证明不了的才用真 `VisionMaster.exe`（真实渲染 / 启动链 / 停靠布局 / HTTP 端到端），且**用前必须重建**并核对 Debug 与 Release。 |
 | R176 | **跑真 exe 前**：备份 `Layout.xml`/`DefaultLayout.xml`（启动会覆盖用户布局）；确认 19000/19100/8080 未被占；确认没有第二个实例（`SingleInstanceCheck` 会踢掉后来的）。日志落 `artifacts\logs\<yyyyMMdd>\`。 |
-| R177 | **上下文不是记忆，工作区文件才是**：会话会被压缩，早期推理会丢 → **每轮结束必须留落盘物**（`docs/code-changes/` 或 `docs/交接报告-<日期>-<主题>.md`，五段：当前状态 / 已做 / 未做 / 下一步 / 踩过的坑）。没留 = 这轮结论等于没发生。 |
+| R177 | **上下文不是记忆，工作区文件才是**：会话会被压缩，早期推理会丢 → **每轮结束必须留落盘物**（`docs/code-changes/` 或 `docs/架构文档/交接报告/交接报告-<日期>-<主题>.md`，五段：当前状态 / 已做 / 未做 / 下一步 / 踩过的坑）。没留 = 这轮结论等于没发生。 |
 | R178 | **按交付物边界拆会话，不按时间**；**一条构建串行的任务链不许中途换会话**；AgentTeams 团队绑会话，换会话前必须收尾或归档，不能带着团队换。 |
 
 ## 39. 构建、产物与收尾验证（R179-R183）
@@ -352,7 +354,7 @@
 | R179 | **本机 `dotnet build`/`restore` 默认多进程会静默失败**（报"生成失败 / 0 个错误"、退出码 1）。**一律加 `-m:1 -nodeReuse:false`**。判据：`0 个错误` **且退出码 0** 才算构建通过。 |
 | R180 | **`File.Replace` 在受限环境一律被拒**（Move/Copy/Delete 正常）。`AppSettingsService.WriteReplacing` 只 `catch (IOException)` → `UnauthorizedAccessException` **带崩断言宿主**（ScadaChecks/FlowCanvasChecks 各崩一次）。替换式写文件必须同时 catch `IOException` + `UnauthorizedAccessException`。 |
 | R181 | **AgentTeams 成员可能写不了子目录**（沙箱只在仓库根授权、子目录不继承）→ **构建与跑测归主会话**，成员只做读/编辑/静态分析。成员报 `MSB3491 … is denied` 时**不要重试、不要换路径绕过**，直接交回主会话。 |
-| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ `audit_rules.ps1`（规则归属与编号并集）→ `vms_verify`（R187 方案布局，构建 `tools\vms-generator` 后跑 `--verify 解决方案`）→ 六个断言宿主**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
+| R182 | **收尾验证只有一个入口：`tools\run_gates.ps1`**。它按顺序跑 `docs_index`（日志目录 INDEX 新鲜度）→ `audit_root.ps1`（R166/R168 根目录白名单）→ `audit_artifacts.ps1`（红线③产物）→ `audit_docs.ps1`（docs 结构，**报告模式**）→ `audit_rules.ps1`（规则归属与编号并集）→ `sync_constraints.ps1 -Check`（R9B 镜像漂移）→ `vms_verify`（R187 方案布局，构建 `tools\vms-generator` 后跑 `--verify 解决方案`）→ **九个断言宿主**（CommChecks / DataPipelineChecks / DatabaseChecks / ScadaChecks / RecipeChecks / FlowCanvasChecks / UIThemeSmokeTest / HelpProbe / `Web\ScadaWebChecks`）**逐个按自己的 csproj 构建再跑**（`UIThemeSmokeTest`/`HelpProbe` **不在 sln**，`dotnet build VisionMaster.sln` 根本不重建它们），最后聚合退出码：任一红即 exit 1。日志 `artifacts\logs\<yyyyMMdd>\{build,gate}-<名>.log`（UTF-8 无 BOM）。**它自带陈旧 exe 检测**：exe 比该宿主源码旧直接判红，不跑旧 exe（R65）。`-SkipBuild` 只用于"刚构建完立刻复跑"，不是日常用法。 |
 | R183 | **"没跑"和"跑绿了"必须能分开**。① 捕获子进程输出**不要走管道**：`& $exe 2>&1 \| Out-String` 按控制台代码页（本机 936）解码 .NET 宿主的 UTF-8 → 日志成了"合法 UTF-8 的乱码"，统计正则永不命中，每个宿主回落打印"全部通过"（**没人能验证的汇总行比没有汇总行更坏**）。回读**严格 UTF-8 优先、失败回落 936**（`powershell.exe` 子进程确实吐 936）。② **子进程零输出 = 判红**。`Start-Process -ArgumentList ''` 抛参数绑定异常，而 `$ErrorActionPreference='Continue'` 会把它变成 `Exit=0` —— 2026-10-22 实测整个 gate 报 `8 steps green` 而六个宿主**一个都没跑**。③ **别用 `Start-Process` 跑被测进程**（2026-10-22 又踩两次）：`-Wait` 等的是**整棵进程树**，一个残留后代就把 gate 挂死（实测空转 11 分钟、无子进程、无日志）；去掉 `-Wait` 后 `-PassThru` 的 **`ExitCode` 恒为 `$null`**（`WaitForExit` 后、`Refresh()` 后都还是空），`$null -ne 0` 判真 → 走进失败分支，`[int]$null` → 0 → **印出 exit=0 报全绿**。正解：`[Diagnostics.Process]::Start(ProcessStartInfo)` + 有界 `WaitForExit(ms)` + `StandardOutput.BaseStream.CopyToAsync` 把**原始字节**直接落盘；`Add-Row` 的退出码参数**不许做强类型**，`$null` 一律判红。守门：`run_gates.ps1` 的 `NO OUTPUT` 分支、`exit 124`（超时）、`exit 127`（启动失败）、`exit code unknown` 判红。 |
 
 ---
@@ -370,7 +372,7 @@
 | # | 判据 |
 |---|---|
 | R185 | **凡操作电脑（GUI/进程/键鼠）或调用 exe 做测试：开工前先查、收工前必须补** `docs\工程纪律\分册-AI操作与exe测试踩坑.md`。每条五段：现象 / 复现 / 原因 / 解法 / 规避（带命令参数）；重复问题合并更新，不新增重复条目；状态 ✅ 已解决 / ⚠️ 仍存在 / 🗑️ 已失效。**收工汇报必须写「台账已更新：新增 N 条 / 合并 M 条」**。守门人：人工评审。 |
-| R186 | **本项目不注册、不调用 `vm-tools` MCP**（源码留 `tools\vm-mcp\`）；测试走 §39。守门：`register-vm-mcp.mjs` 默认拒绝。 |
+| R186 | **本项目不调用 `vm-tools` MCP**（`.zcode\config.json` 已登记但 `enabled:false`；源码留 `tools\vm-mcp\`）；测试走 §39。守门：`register-vm-mcp.mjs` 默认拒绝。 |
 
 ---
 
@@ -404,7 +406,13 @@
 |---|---|
 | R190 | **端口取值入口只许两种形态，不许第三种**：① 值型端口 → `LinkableValueEditor`（固定值输入框 + 🔗 + ✕，见 R189）；② **只有"运行时变量"来源**允许一个纯文本 / 可编辑下拉框手打**变量名**——它按名在运行期解析（本轮局部变量 → 全局/通讯/系统变量），编译期没有可连的端口对象，弹窗也表达不了。除这两者之外**不许任何手输**：不许手打端口名、步骤名、上游输出名来"代替绑定"，也不许自造可编辑框去填卡地址/轴名/枚举（那些是封闭集合，`LinkableValueEditor.IsOptionPort` 已渲染成下拉，空候选给原因——R33/§26）。三条判据：① 插件视图里出现绑定到 `InputPortName` / `PortName` / `SourcePort` / `LinkedAddress` 的 `TextBox` = 违反；② 手输"变量名"的框只许出现在 `Source==Variable` 分支，ToolTip 必须写清"按名解析、不是连线"；③ 封闭集合端口不许自造可编辑框。范式：`Plugin.DataRecord`（变量名列是可编辑 ComboBox，注释写明"C# 脚本 `SetVar` 的名字不在宿主候选快照里"）、`Plugin.Utility.VariableAssignment`（视图头三条契约："值行用 `LinkableValueEditor` / 全局名字只能选 / 运行时名字可编辑"）、`Plugin.ResultUpload`（`VariableName` 是唯一手输列，其余走控件）。**字段名/列名/变量名这类"名字定义"不算取值**（它们是端口名或 JSON 键的来源，按 R33 手填 + 候选）。守门：**人工评审**；核对命令 `findstr /s /n /c:"Binding InputPortName" Plugins\*.xaml`、`findstr /s /n /c:"Binding LinkedAddress" Plugins\*.xaml` 命中项的宿主属性若是 `Text`/`SelectedItem`（可写）即违反；`ToolTip`/`CommandParameter`/`Content` 的只读用途不算。 |---
 
+## 46. Web 方向暂停（R191）
+
+| # | 判据 |
+|---|---|
+| R191 | **Web 方向暂停开发（2026-10-29 起，用户决定）**：① **不新增功能、不做架构改造**：`Web\` 下五个工程（`VisionMaster.ScadaWeb` / `ScadaWebChecks` / `ScadaWebChemicalDemo` / `ScadaWebE2E` / `ScadaWebStress`）与 `WebProbe5`/`WebProbe6` 一律不加需求；② **不新开 Web 设计**：不新做页面/接口设计、不复刻 Web 稿、不动 `docs\SCADA运行态Web客户端\` 的方案与测试矩阵（改错字、补既有偏差可以）；③ **收到 Web 需求先回问用户是否恢复**，不得自行开工。**不在暂停范围**：既有构建与闸门照跑——`run_gates` 的 `ScadaWebChecks` 仍是九个断言宿主之一，红了照样算红，**只允许修红**；R132A 的安全约束（默认只读、逐命令鉴权、审计、运动默认禁用）继续有效。**恢复条件**：用户明确说"恢复 Web"。守门：人工评审。 |
+
 ## 附录：常见症状 → 章节
 
-列头消失/类型全名 → §6；流程栏类型全名/分支点不开 → §7；找不到资源名 → §9；图标字被切 → §22；面板不见/切标签闪退 → §18；下拉英文 → §12/§26；属性面板不刷新/两套参数同现 → §29+skill `vm-property-grid`；改了插件仍旧逻辑 → §5/§13/红线③；启动第一次退出 → §15；拖拽胶囊残留 → §37；界面改了没生效 → §30.2+skill `wpf-ui-debug`；输入框文字上下被切 → §40；操作电脑 / 跑 exe 测试踩坑 → §41；想给端口连值却去画布找端口 → §43；端口取值自己画了输入框/按钮 → §44/§45。
+列头消失/类型全名 → §6；流程栏类型全名/分支点不开 → §7；找不到资源名 → §9；图标字被切 → §22；面板不见/切标签闪退 → §18；下拉英文 → §12/§26；属性面板不刷新/两套参数同现 → §29+skill `vm-property-grid`；改了插件仍旧逻辑 → §5/§13/红线③；启动第一次退出 → §15；拖拽胶囊残留 → §37；界面改了没生效 → §30.2+skill `wpf-ui-debug`；输入框文字上下被切 → §40；操作电脑 / 跑 exe 测试踩坑 → §41；想给端口连值却去画布找端口 → §43；端口取值自己画了输入框/按钮 → §44/§45；Web 相关需求 → §46（暂停，先问用户是否恢复）。
 

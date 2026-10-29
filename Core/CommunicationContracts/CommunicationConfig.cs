@@ -237,6 +237,7 @@ namespace VisionMaster.Communications
                 CommunicationType.MitsubishiMc => new MitsubishiMcConfig { Type = protocol },
                 CommunicationType.OmronFins => new OmronFinsConfig { Type = protocol },
                 CommunicationType.FreeProtocol => new FreeProtocolConfig { Type = protocol },
+                CommunicationType.EasyNet => new EasyNetConfig { Type = protocol },
                 _ => null,
             };
             return config != null;
@@ -364,6 +365,7 @@ namespace VisionMaster.Communications
             CommunicationType.MitsubishiMc,
             CommunicationType.OmronFins,
             CommunicationType.FreeProtocol,
+            CommunicationType.EasyNet,
         };
 
         /// <summary>该协议是否已有可用的连接实现</summary>

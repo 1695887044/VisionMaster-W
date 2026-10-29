@@ -53,7 +53,7 @@
 | R142 | **同类图元的多个"预设"只能一个控件类 + 多套描述符默认值**（轴控台/轴面板/旧点位表共用 `AxisPanelElement`：一个 `AxisOptions` + 一个 `SelectedAxisId`）。默认值走 `ScadaPropertyCatalog.WithDefaults(...)`；旧 TypeKey 保留但 `ShowInToolbox=false`。**切轴必须"先对旧轴收手"**：`SelectedAxisId` 变化时用 `e.OldValue` 发 `JogStop`（**不能用按当前轴的 `EndJog()`**）。守门：AX11 + AX10。 |
 | R143 | **改面板默认宽度必须同时处理已保存的 `Layout.xml`**（恢复用文件里的绝对像素覆盖 XAML）。正解：反序列化后按 `ContentId` 找列并**夹紧**（`EnsureProcessColumnWidth`），只动该列，**不升版本**。守门：`RunPanelModeChecks` 第 ⑨ 条。 |
 | R144 | **出厂快照 `DefaultLayout.xml` 必须每次启动重捕获，"加载布局"命令不许刷新它**（`Load(refreshDefaultSnapshot)`：启动 true、加载命令 false）。捕获前先 `UpdateLayout()`。**恢复命令必须"先确认、失败也说话"。** 守门：`RunPanelModeChecks` 第 ⑩ 条。 |
-| R145 | **AvalonDock 三条硬语义**：① `DockHeight=0` 会被夹回原值，收起用 **1px**，幂等判据不能用高度；② 同 pane 多 anchorable 是标签页，切标签看 `IsSelected`（`ShowPanel` 少一句 `anchorable.IsSelected = true` 会停在最后 Show 的标签）；③ `ShowAnchorable` 会重挂 `LayoutContent`，切换后旧引用失效，断言必须重新 `FindPanel`。**组态模式收敛**（`ApplyScadaPanelMode`）：左栏收起 + 日志 1px，退出恢复；属性/图层合并属面板归属变更，**必须升版本**（3→4）。守门：`RunPanelModeChecks` ③b 三条。 |
+| R145 | **AvalonDock 三条硬语义**：① `DockHeight=0` 会被夹回原值；收起改为**把整块 pane 从停靠树摘下缓存**（原父容器/原索引插回），1px 只作兜底，幂等判据不能用高度；② 同 pane 多 anchorable 是标签页，切标签看 `IsSelected`（`ShowPanel` 少一句 `anchorable.IsSelected = true` 会停在最后 Show 的标签）；③ `ShowAnchorable` 会重挂 `LayoutContent`，切换后旧引用失效，断言必须重新 `FindPanel`。**组态模式收敛**（`ApplyScadaPanelMode`）：左栏收起 + 日志 pane 摘出，退出恢复；属性/图层合并属面板归属变更，**必须升版本**（当前 7）。守门：`RunPanelModeChecks` ③b 三条。 |
 | R146 | **新增库样式键前必须全仓查同名，键名带用途后缀**：① 加键前 `grep 'x:Key="你的键"'` 扫 `UI\Controls\Themes` 全目录；② 按钮用 `...Button`，胶囊/徽标用 `DialogTag`/`DialogChip*`，**同名不同 TargetType 一律视为冲突**；③ 改完必须真机开一次对应弹窗（`XamlParseException` 只在模板实例化时抛）。 |
 
 ## 32. SCADA 属性分组（R147）

@@ -392,9 +392,12 @@
                                         </StackPanel>
 
                                         <!--
-                                            未配齐提示：与运行侧判据同源（ShouldFire 的 TimerIntervalMs<=0、
-                                            EvaluateCore 的 TriggerVariable 空串比较）。与下面的"待接通"分工：
-                                            那个管"这一位有没有接通运行侧"，这个管"这一条流程有没有把参数配齐"。
+                                            调用方式警告行（琥珀）：两类"配了但不生效"共用一行，矛盾配置优先。
+                                              · 整线 + 子程序同时勾（历史 .vms）→ 两个入口抢同一会话，必须二选一；
+                                              · 勾了定时/变量却没配参数 → 与运行侧同源判据（ShouldFire 的
+                                                TimerIntervalMs<=0、EvaluateCore 的 TriggerVariable 空串比较）。
+                                            与下面的"待接通"分工：那个管"这一位有没有接通运行侧"，
+                                            这个管"这一条流程的配置本身站不站得住"。
                                         -->
                                         <TextBlock
                                             x:Name="ConfigNote"
@@ -402,7 +405,7 @@
                                             FontSize="10"
                                             FontWeight="SemiBold"
                                             Foreground="{StaticResource DialogWarningTextBrush}"
-                                            Text="{Binding InvokeConfigNote}"
+                                            Text="{Binding InvokeWarningText}"
                                             TextWrapping="Wrap" />
 
                                         <!--  派生小字（中性色）：仅子程序 / 手动——删掉「调用关系」列后它们没有别的表达  -->
@@ -425,7 +428,7 @@
                                     </StackPanel>
                                     <!--  仓库实测：DataTemplate.Triggers 里的 DataTrigger 可靠；空串时收起提示行  -->
                                     <DataTemplate.Triggers>
-                                        <DataTrigger Binding="{Binding InvokeConfigNote}" Value="">
+                                        <DataTrigger Binding="{Binding InvokeWarningText}" Value="">
                                             <Setter TargetName="ConfigNote" Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding DerivedNote}" Value="">

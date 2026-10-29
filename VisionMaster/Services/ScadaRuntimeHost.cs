@@ -310,6 +310,15 @@ namespace VisionMaster.Services
         /// </summary>
         private readonly Func<string, bool>? _accessLoginPrompt;
 
+        /// <summary>语言服务（v6）：文本 @键 解析；没接线时所有文本按字面量显示</summary>
+        private readonly IScadaLanguageService? _languages;
+
+        /// <summary>报警静音出口（v7）：画面上「静音」动作用</summary>
+        private readonly IScadaAlarmMute? _alarmMute;
+
+        /// <summary>配方面板命令出口（v7）：选/下载/上传/保存</summary>
+        private readonly IScadaRecipeCommands? _recipeCommands;
+
         public ScadaRuntimeHost(
             ILogService log,
             IUserNotifier notifier,
@@ -325,7 +334,10 @@ namespace VisionMaster.Services
             IScadaAxisCommandSink? axisCommands = null,
             IScadaConfirmationService? confirmations = null,
             ScadaMonitoringHost? monitoring = null,
-            Func<string, bool>? accessLoginPrompt = null)
+            Func<string, bool>? accessLoginPrompt = null,
+            IScadaLanguageService? languages = null,
+            IScadaAlarmMute? alarmMute = null,
+            IScadaRecipeCommands? recipeCommands = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _notifier = notifier ?? throw new ArgumentNullException(nameof(notifier));
@@ -339,6 +351,9 @@ namespace VisionMaster.Services
             _axisSource = axisSource;
             _axisCommands = axisCommands;
             _accessLoginPrompt = accessLoginPrompt;
+            _languages = languages;
+            _alarmMute = alarmMute;
+            _recipeCommands = recipeCommands;
             _confirmations = confirmations ?? new ScadaConfirmationService();
             _workspaceManager = workspace ?? throw new ArgumentNullException(nameof(workspace));
             _monitoring = monitoring ?? (System.Windows.Application.Current == null
@@ -900,7 +915,10 @@ namespace VisionMaster.Services
                 engine, beat, _valueWriter, _accessPolicy, _axisSource, _axisCommands, _confirmations, _valueSource,
                 priorAlarms, historySource, document.StateLists, subPages: _session,
                 reports: reportSource, reportExporter: new ScadaReportExporter(), audit: _audit,
-                accessLoginPrompt: _accessLoginPrompt);
+                accessLoginPrompt: _accessLoginPrompt,
+                languages: _languages,
+                alarmMute: _alarmMute,
+                recipeCommands: _recipeCommands);
 
             engine.Attach();
             beat.Start();

@@ -88,9 +88,16 @@ namespace VisionMaster.Views
             if (Canvas is null)
                 return;
 
-            Canvas.StateListResolver = (DataContext as ScadaEditorViewModel)?.ResolveStateList;
-            Canvas.PageResolver = (DataContext as ScadaEditorViewModel)?.ResolvePage;
-            Canvas.PageNameResolver = (DataContext as ScadaEditorViewModel)?.ResolvePageByName;
+            var viewModel = DataContext as ScadaEditorViewModel;
+            Canvas.StateListResolver = viewModel?.ResolveStateList;
+            Canvas.PageResolver = viewModel?.ResolvePage;
+            Canvas.PageNameResolver = viewModel?.ResolvePageByName;
+
+            // 设计期文本解析器：图元文本里的 @键 按方案里的当前语言显示（@键 约定见 ScadaTextCatalog）。
+            // 与上面几个同一条注入方式——控件不反向抓方案文档；运行态那一路走 ScadaRuntimeContext.Languages。
+            // 语言表改完后视图模型会 RaisePropertyChanged(nameof(ResolveText))，XAML 那条绑定
+            // 把新委托推进画布的 TextResolver DP，DP 回调再逐个转发给控件 → 控件 Refresh() 重铺文本。
+            Canvas.TextResolver = viewModel?.ResolveText;
         }
 
         private void OnViewUnloaded(object sender, RoutedEventArgs e)

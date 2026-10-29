@@ -180,6 +180,32 @@ namespace Plugin.DataRecord
             RebuildDynamicInputs();
         }
 
+        public override void OnConfirm(IStepConfigData stepData)
+        {
+            CaptureVariableIds();
+            base.OnConfirm(stepData);
+        }
+
+        /// <summary>
+        /// 把「来源=变量」各列的目标 Id 落进配置（Id 优先、名字兜底，见 <see cref="VariableOptionResolver"/>）。
+        ///
+        /// 为什么要捕获：多设备允许同名点位之后（同一设备内唯一），名字不再能唯一定位一个变量；
+        /// 运行期只有拿到 Id 才能在变量改名后仍然读同一个变量。
+        /// 重名时留空 → 运行期明确报歧义，而不是静默读另一台设备的值。
+        /// </summary>
+        private void CaptureVariableIds()
+        {
+            var options = _configContext?.Variables;
+            if (options == null || Columns == null) return;
+
+            foreach (var column in Columns)
+            {
+                if (column == null || column.Source != ColumnSource.Variable) continue;
+                column.VariableId = VariableOptionResolver.CaptureId(
+                    options, column.VariableId, column.VariableName, "Global");
+            }
+        }
+
         #endregion
 
         #region 配置界面：变量名候选（宿主快照）
@@ -618,8 +644,9 @@ namespace Plugin.DataRecord
                 case ColumnSource.Port:
                     return Inputs.TryGetValue(col.Name, out var p) ? p.GetActualValue() : null;
                 case ColumnSource.Variable:
-                    // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）
-                    return TryResolveVariable(context, col.VariableName, out var v) ? v : null;
+                    // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）；
+                    // 共享变量那条按 Id 优先（多设备同名点位只有 Id 能唯一定位）
+                    return TryResolveVariable(context, col.VariableId, col.VariableName, out var v) ? v : null;
                 default: // BuiltIn
                     switch (col.BuiltIn)
                     {
@@ -654,15 +681,19 @@ namespace Plugin.DataRecord
         /// 再把结果经端口/变量交给本算子。</para>
         /// <para>缺名不抛异常：行照记、该格为空，并按名字限次 WARN（走宿主日志，不塞 RecordingHub 的队列）。</para>
         /// </summary>
-        private bool TryResolveVariable(IExecutionContext context, string name, out object value)
+        private bool TryResolveVariable(IExecutionContext context, Guid variableId, string name, out object value)
         {
             value = null;
             if (context == null) return false; // 配置面板"测试写一行"没有上下文：按空值处理，不提示
 
             string key = name?.Trim();
-            if (string.IsNullOrEmpty(key)) return false;
-
-            if (context.LocalVariables != null && context.LocalVariables.TryGetValue(key, out var local))
+            if (string.IsNullOrEmpty(key))
+            {
+                // 只存了 Id（旧名字被清空/改名）：仍按 Id 取，取不到就算了
+                if (variableId == Guid.Empty) return false;
+                key = string.Empty;
+            }
+            else if (context.LocalVariables != null && context.LocalVariables.TryGetValue(key, out var local))
             {
                 // 键存在就到此为止（哪怕值是 null）：局部变量遮蔽同名全局变量是既定语义，
                 // 继续往下兜底会在"局部变量声明了但本轮还没赋值"时静默读到另一个变量。
@@ -671,13 +702,14 @@ namespace Plugin.DataRecord
             }
 
             if (context.SharedVariables != null &&
-                context.SharedVariables.TryRead(Guid.Empty, key, out var shared, out _))
+                context.SharedVariables.TryRead(variableId, key, out var shared, out _))
             {
                 value = shared;
                 return true;
             }
 
-            WarnMissingVariable(context, key);
+            if (key.Length > 0)
+                WarnMissingVariable(context, key);
             return false;
         }
 

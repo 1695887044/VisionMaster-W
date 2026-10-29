@@ -484,7 +484,11 @@ namespace VisionMaster
         [Description("自由协议")]
         FreeProtocol,
         [Description("OPC UA（未实现）")]
-        OpcUa
+        OpcUa,
+        // 追加在末尾（不插队）：Newtonsoft 默认把枚举落盘成整数，
+        // 在中间插入会让存量 communications.json / .vms 里的协议号整体错位。
+        [Description("汇川 EasyNet")]
+        EasyNet
     }
     public enum DataValueType
     {

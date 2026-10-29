@@ -10,7 +10,8 @@ internal static partial class Program
     //  改造清单（对齐 docs\方案设计\AI生成VMS文件指南.md）：
     //    1. 七条工位流程补「结果判定 → 变量输出」两环：
     //       判定表（Plugin.JudgeTable）+ 变量赋值（旧单值模型，test-suite.vms 同款形状）
-    //    2. 工位流程 InvokeType 置 32（子程序位），否则 Main 的「调用流程」会被宿主拒绝
+    //    2. 工位流程 InvokeType 置 32（只勾子程序位，不勾整线 128——两者互斥，2026-10-29 裁决），
+    //       否则 Main 的「调用流程」会被宿主拒绝；Main 自己置 128（它就是整线入口）
     //    3. 五条文件夹流程的 For.LoopCount 接全局参数变量（参数配置页可调）
     //    4. Blob 缺陷流程的 MmPerPixel 端口接全局参数变量
     //    5. Home / Main / End 骨架编排：
@@ -104,12 +105,15 @@ internal static partial class Program
             var flow = flows.FirstOrDefault(f => f["FlowName"]?.Value<string>() == st.FlowName) as JObject;
             if (flow == null) { Console.WriteLine("MISSING FLOW: " + st.FlowName); continue; }
 
-            // 子程序位(32) + 随整线启动(128) = 160：
-            //   · 子程序位让 Main 的「调用流程」仍能拉起它（整件串行模式）；
-            //   · 整线位让工具栏「启动整线 / 整线循环」把它和另外六个工位**各起各的会话**一起启动，
-            //     一条工位失败/卡死只收尾它自己（FlowBatchSelector 的新口径，2026-10-28）。
-            // 工位 Role 保持 0（None）：整线成员是"平级"，不是主流程的子流程。
-            flow["InvokeType"] = 160;
+            // 只勾子程序位(32)：这七条是 **Main 的子程序**，由 Main 的七个「调用流程」步骤拉起。
+            //
+            // 【为什么不再同时勾整线(128)】2026-10-29 用户裁决：「整线」与「子程序」互斥
+            // （流程管理里勾一个自动清另一个）。运行期一个流程名只有一个会话 + 一把会话锁，
+            // 两个入口同时勾时：整线在跑 → Main 调它必然失败（FlowInvoker 见 IsRunning 直接拒）；
+            // Main 正在调它 → 点「启动整线」又被 ShellViewModel 的 IsRunning 判据静默跳过。
+            // 旧写法 160 是"两种模式都支持"，但两种模式本来只能二选一，配出来就是
+            // "看起来能跑、实际另一条路永远走不通"。现口径：**整线入口 = Main，工位只当子程序**。
+            flow["InvokeType"] = 32;
 
             // 算法步骤（按 PluginTypeName 前缀定位，不依赖步骤名）
             var algo = PairFindStep(flow["Steps"], st);
@@ -563,6 +567,9 @@ internal static partial class Program
             PairVarSet("pair:home:done", "置初始化完成标记", "Home_Done", new JValue(true)),
         };
         flow["Steps"] = steps;
+        // 骨架角色必须显式写：Role 缺省（0）会被 MandatoryFlows 当成"缺 Home"再补一条 Home2
+        flow["Role"] = 1;
+        flow["InvokeType"] = 0;
         flow["Description"] = "回原 / 回零：置系统就绪并预热首个工位（无运动卡的样例方案）";
         Console.WriteLine("  Home: 3 步（就绪 + 预热）");
     }
@@ -574,10 +581,24 @@ internal static partial class Program
         {
             PairVarSet("pair:end:ready", "清系统就绪", "SystemReady", new JValue(false)),
         };
+        flow["Role"] = 3;
+        flow["InvokeType"] = 0;
         flow["Description"] = "收尾：清系统就绪位";
         Console.WriteLine("  End: 1 步");
     }
 
+    /// <summary>
+    /// 「整件串行」流程（默认名 Main）。
+    ///
+    /// 【2026-10-29 起它是什么】**整线入口**（Role=0 + 勾整线 128）。工具栏「启动整线 / 整线循环」
+    /// 启动的就是它；它体内串行调用七工位（那七条只勾子程序 32），再统计、上报、写账本。
+    ///
+    /// 【为什么它必须勾整线、工位必须只勾子程序】旧写法是反的：七工位 160（整线 + 子程序）、
+    /// Main 手动。结果"启动整线"跑的是七工位各自的会话，Main 只能另手动跑；两者同时用，
+    /// 七工位会话已被自己占住，`FlowInvoker` 回「正在运行中（被其它执行占用）」，统计读到上一轮旧值。
+    /// 2026-10-29 用户裁决「整线」与「子程序」互斥后，口径统一成一条：
+    /// **整线入口只有 Main，工位是它的子程序**，不存在"两套循环"。
+    /// </summary>
     static void PairRebuildMain(JArray flows)
     {
         var flow = PairFlow(flows, "Main");
@@ -601,8 +622,11 @@ internal static partial class Program
         steps.Add(csvStep);
 
         flow["Steps"] = steps;
-        flow["Description"] = "整件串行：七工位串行检测 → 统计（总数/OK/NG/良率）→ 结果上报 → CSV 账本";
-        Console.WriteLine("  Main: " + steps.Count + " 步（七工位 + 统计 + 账本）");
+        // Role=0（普通流程）+ InvokeType=128（勾整线）：见方法注释——它就是整线入口
+        flow["Role"] = 0;
+        flow["InvokeType"] = 128;
+        flow["Description"] = "整线入口：七工位串行检测 → 统计（总数/OK/NG/良率）→ 结果上报 → CSV 账本";
+        Console.WriteLine("  Main: " + steps.Count + " 步（七工位 + 统计 + 账本；Role=0/勾整线，整线入口）");
     }
 
     static JObject PairFlow(JArray flows, string name)
@@ -757,13 +781,15 @@ internal static partial class Program
     // ==================================================================
     //  四条扩展工位流程（2026-10-28）
     //
-    //  与七条工位同一口径：Role=0（普通工位）、InvokeType=32（子程序位）、启用；
+    //  与七条工位同一口径：Role=0（普通流程）、InvokeType=160（子程序 32 + 随整线启动 128）、启用；
     //  末尾都是「判定表 → 结果输出 → 变量赋值」，判定由「结果输出」显式声明给宿主
     //  （FlowVerdictResolver 的 ResultStep 分支），底栏 / System.Flow.* 才拿得到 OK/NG。
     //
+    //  【2026-10-28 主流程角色退役】没有"主流程"了：生产主任务只看 InvokeType 的 128 位，
+    //  工位与主任务平级。所以四条也勾整线位——点「启动整线」时与七工位各起各的会话一起跑。
+    //
     //  与七条工位的差异（刻意）：
-    //   · 不进 Main、不置整线位（128）：Main 仍是七工位串行、账本列不变；
-    //     这四条单独运行（流程栏右键运行 / 流程管理）。
+    //   · 不进 Main：Main 仍只调七工位（账本 11 列不变），四条不进账本、不参与综合结果；
     //   · 图像不写组态工位卡：自动运行页是 4 列 × 2 行的七卡布局，加卡要重排版面
     //     （属 R132 验收范围，另开一批）。
     //
@@ -774,7 +800,7 @@ internal static partial class Program
     //   · color\cable2.png       HALCON 线束图（10 芯，配方见下）
     // ==================================================================
 
-    const string P_ROI = "Plugin.CreateRoi.CreateRoiPlugin, Plugin.CreateRoi" + S;
+    // P_ROI（Plugin.CreateRoi）已在 Program.cs 里定义，本文件直接用
     const string P_GEOMFIND = "Plugin.GeometryFinder.GeometryFinderPlugin, Plugin.GeometryFinder" + S;
     const string P_GEOMREL = "Plugin.GeometryRelation.GeometryRelationPlugin, Plugin.GeometryRelation" + S;
     const string P_IMAGEDIFF = "Plugin.ImageDiff.ImageDiffPlugin, Plugin.ImageDiff" + S;
@@ -934,6 +960,7 @@ internal static partial class Program
             ["LinkedSources"] = new JObject { [varId.ToString()] = sourceLink },
             ["OutputPortDefinitions"] = new JArray(),
         };
+    }
 
     /// <summary>
     /// ROI 的动态输出端口快照（R18/§6）：插件运行期按 RoiList 重建，
@@ -953,6 +980,12 @@ internal static partial class Program
         return arr;
     }
 
+    /// <summary>
+    /// 新建一条**独立演示流程**：Role=0（普通流程）+ InvokeType=128（只勾随整线启动）。
+    ///
+    /// 它们不被 Main 调用，所以不勾子程序位——2026-10-29 起「整线」与「子程序」互斥
+    /// （见 RunPair 第 2 步的注释）。四条扩展链各自带 For/延时，随「启动整线」各起各的会话。
+    /// </summary>
     static JObject PairNewFlow(string name, string desc, JArray steps)
         => new JObject
         {
@@ -962,7 +995,7 @@ internal static partial class Program
             ["Version"] = 0,
             ["IsEnabled"] = true,
             ["Role"] = 0,
-            ["InvokeType"] = 32,
+            ["InvokeType"] = 128,
             ["TimerIntervalMs"] = 0,
             ["StepsEncrypted"] = false,
             ["TriggerMode"] = 0,
@@ -981,7 +1014,7 @@ internal static partial class Program
         // ---------- ① 几何计算_关系：ROI 圈出横条/竖条 → 两次几何查找 → 夹角 → 判定 ----------
         {
             const string flowName = "几何计算_关系";
-            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过");
+            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过重建（仅校正调用方式）");
             else
             {
                 const string sAcq = "pair:geom:acq", sRoi = "pair:geom:roi";
@@ -1011,7 +1044,7 @@ internal static partial class Program
                         ["MaskInvert"] = false,
                         ["DisplayViewIndex"] = 0,
                     },
-                    new JObject { ["SrcImage"] = L(sAcq, "OutputImage", "读取角度测试图") });
+                    new JObject { ["SrcImage"] = L(sAcq, "Image", "读取角度测试图") });
                 roiStep["Description"] = "两个矩形 ROI：横条 / 竖条（Domain_xxx 输出保留全局坐标）";
                 roiStep["OutputPortDefinitions"] = PairRoiPorts(new[] { "横条", "竖条" });
 
@@ -1052,7 +1085,7 @@ internal static partial class Program
         // ---------- ② 前置质量门：质量检查 → If(合格) 走下游算法 / Else 直接判 NG ----------
         {
             const string flowName = "前置质量门";
-            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过");
+            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过重建（仅校正调用方式）");
             else
             {
                 const string sFor = "pair:q:for", sAcq = "pair:q:acq", sIq = "pair:q:iq", sIf = "pair:q:if";
@@ -1067,7 +1100,7 @@ internal static partial class Program
 
                 var okSteps = new JArray
                 {
-                    PairGeomFind(sFind, "下游算法_找轮廓", "Line", L(sAcq, "OutputImage", "读取待检图")),
+                    PairGeomFind(sFind, "下游算法_找轮廓", "Line", L(sAcq, "Image", "读取待检图")),
                     PairJudgeStep(sJudge, "结果判定_Quality", okRules, okLinks, "成像合格后才跑下游算法；下游须找到轮廓"),
                     PairResultOutput(sOut, "结果输出_Quality",
                         L(sJudge, "IsOk", "结果判定_Quality"), L(sJudge, "Reason", "结果判定_Quality")),
@@ -1096,7 +1129,7 @@ internal static partial class Program
                 var body = new JArray
                 {
                     PairAcqFolder(sAcq, "读取待检图", Abs(@"Image\quality"), sFor, "遍历待检图"),
-                    PairImageQuality(sIq, "成像质量检查", L(sAcq, "OutputImage", "读取待检图")),
+                    PairImageQuality(sIq, "成像质量检查", L(sAcq, "Image", "读取待检图")),
                     PairIf(sIf, "质量门", "Usable", T_BOOL, L(sIq, "IsUsable", "成像质量检查"),
                         "成像合格", okSteps, "成像不合格", ngSteps),
                     Action("pair:q:delay", "节拍延时_Quality", "常用工具", P_DELAY, "延时", "\uf017",
@@ -1115,7 +1148,7 @@ internal static partial class Program
         // ---------- ③ 差分_基准比对：基准图固定 + 被测图遍历 → 逐像元差分 → 判定 ----------
         {
             const string flowName = "差分_基准比对";
-            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过");
+            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过重建（仅校正调用方式）");
             else
             {
                 const string sRef = "pair:d:ref", sFor = "pair:d:for", sTest = "pair:d:test";
@@ -1132,7 +1165,7 @@ internal static partial class Program
                 {
                     PairAcqFolder(sTest, "读取被测图", Abs(@"Image\diff"), sFor, "遍历被测图"),
                     PairImageDiff(sDiff, "逐像元差分",
-                        L(sRef, "OutputImage", "读取基准图"), L(sTest, "OutputImage", "读取被测图")),
+                        L(sRef, "Image", "读取基准图"), L(sTest, "Image", "读取被测图")),
                     PairJudgeStep(sJudge, "结果判定_Diff", rules, judgeLinks,
                         "差异总面积 ≤ 2000 px 且未判有差异（阈值按基准帧实测：同帧 2px / 换帧 101047px）"),
                     PairResultOutput(sOut, "结果输出_Diff",
@@ -1161,7 +1194,7 @@ internal static partial class Program
         // ---------- ④ 颜色检查_线序：一维颜色序列 → 配方比对 ----------
         {
             const string flowName = "颜色检查_线序";
-            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过");
+            if (Exists(flowName)) Console.WriteLine("  " + flowName + ": 已存在，跳过重建（仅校正调用方式）");
             else
             {
                 const string sAcq = "pair:c:acq", sChk = "pair:c:chk";
@@ -1178,7 +1211,7 @@ internal static partial class Program
                 {
                     PairAcqFile(sAcq, "读取线束图", Abs(@"Image\color\cable2.png"),
                         "HALCON 线束图（10 芯，自上而下：黑 白 灰 紫 蓝 绿 黄 红 玫红 棕）"),
-                    PairColorCheck(sChk, "线序检查", L(sAcq, "OutputImage", "读取线束图")),
+                    PairColorCheck(sChk, "线序检查", L(sAcq, "Image", "读取线束图")),
                     PairJudgeStep(sJudge, "结果判定_Color", rules, judgeLinks,
                         "颜色序列与配方逐位一致且根数 = 10"),
                     PairResultOutput(sOut, "结果输出_Color",
@@ -1194,7 +1227,25 @@ internal static partial class Program
                 Console.WriteLine("  " + flowName + ": 新建 " + steps.Count + " 步");
             }
         }
+
+        // 已存在的流程也要校正"调用方式"（幂等自愈）：
+        // 四条独立演示链只勾「整线」(128)——它们不被 Main 调用，勾子程序没有意义
+        // （2026-10-29 起「整线」与「子程序」互斥，见 RunPair 第 2 步的注释）。
+        // 早先生成的是 32 / 160，重跑 --pair 必须能把它们统一到 128，而不是"已存在就跳过"。
+        foreach (var f in flows.OfType<JObject>())
+        {
+            var name = f["FlowName"]?.Value<string>();
+            if (name == null || Array.IndexOf(PairExtraFlowNames, name) < 0) continue;
+            f["Role"] = 0;
+            f["InvokeType"] = 128;
+        }
     }
+
+    /// <summary>本方法新建/校正的四条扩展流程名（幂等闸与调用方式校正共用一份）。</summary>
+    static readonly string[] PairExtraFlowNames =
+    {
+        "几何计算_关系", "前置质量门", "差分_基准比对", "颜色检查_线序",
+    };
 
     /// <summary>几何查找（Kind：Line / Circle / Ellipse）</summary>
     static JObject PairGeomFind(string seed, string name, string kind, JObject srcLink)
@@ -1862,18 +1913,27 @@ internal static partial class Program
 
         // 运行控制条。
         //
-        // 【整线 vs 整件】2026-10-28 起流程管理有了「随整线启动」位（InvokeType 128）：
-        //   整线 = 七个工位流程**各起各的会话**一起跑，一条失败/卡死只收尾它自己（生产模式）；
-        //   整件 = Main 串行调七工位 → 统计 → 结果上报 → 写账本（演示/追溯模式）。
-        // 组态里没有"启动整线"这个动作类型，所以整线按钮 = 一条钩子里挂七个「启动流程」动作，
+        // 【整线 vs 整件】2026-10-29 起「整线」与「子程序」互斥，整线成员只有 Main + 四条扩展链：
+        //   启动整线 = Main（串行调七工位 → 统计 → 上报 → 账本）+ 四条扩展链各起各的会话；
+        //   执行一次整件 = 只跑一遍 Main（整线在跑时会被"正在运行"拒掉，这是正常的启动/单次之分）。
+        // 组态里没有"启动整线"这个动作类型，所以整线按钮 = 一条钩子里挂若干「启动流程」动作，
         // 语义与工具栏「启动整线」一致（都只是逐条 StartFlow，互不等待）。
         var lineStartActions = new JArray();
         var lineStopActions = new JArray();
-        foreach (var st in PairStations)
+        // 整线成员判据与 FlowBatchSelector 同源（InvokeType 的 128 位）：Main + 四条扩展链。
+        // 七工位只勾子程序(32)，不在这里——它们由 Main 的「调用流程」拉起，不能顶层启动。
+        if (!string.IsNullOrEmpty(mainFlowId))
         {
-            string flowId = PairStationFlowId(st);
-            lineStartActions.Add(PairAct(4, flowId: flowId, flowName: st.FlowName));
-            lineStopActions.Add(PairAct(5, flowId: flowId, flowName: st.FlowName));
+            lineStartActions.Add(PairAct(4, flowId: mainFlowId, flowName: "Main"));
+            lineStopActions.Add(PairAct(5, flowId: mainFlowId, flowName: "Main"));
+        }
+        // 四条扩展流程同样是整线成员（Role=0 + InvokeType=128）：组态按钮与工具栏「启动整线」
+        // 必须同一口径，否则"整线"在两个入口启动的流程集不同。它们没有工位卡，靠变量看结果。
+        foreach (var extra in PairExtraFlowNames)
+        {
+            if (!PairFlowIds.TryGetValue(extra, out var extraId) || string.IsNullOrEmpty(extraId)) continue;
+            lineStartActions.Add(PairAct(4, flowId: extraId, flowName: extra));
+            lineStopActions.Add(PairAct(5, flowId: extraId, flowName: extra));
         }
 
         els.Add(PairCard(page, "控制卡", 40, 130, 1800, 96, "", C_CYAN));
@@ -1884,7 +1944,7 @@ internal static partial class Program
         els.Add(El(page, "执行一次整件", "Hmi.Button", 484, 152, 216, 56, 20, ButtonProps("执行一次整件", C_BLUE, "#FF1D4ED8"), null,
             new JArray { Hook(2, new JArray { PairAct(6, flowId: mainFlowId, flowName: "Main") }) }));
         els.Add(PairText(page, "运行提示", 716, 156, 560, 48,
-            "整线 = 七工位各起各的会话并行（一条故障只停它自己）\n执行一次整件 = 串行跑 Main（含统计、结果上报与账本）",
+            "启动整线 = Main 串行跑七工位（含统计、结果上报与账本）+ 四条扩展链各起各的会话\n执行一次整件 = 只跑一遍 Main",
             13, C_SUB, "Normal", "Left", 10, "Top"));
         PairStatus(els, page, "就绪", 1300, 160, "SystemReady", "就绪", 70);
         PairStatus(els, page, "本件", 1390, 160, "CurrentResult", "本件", 70);
@@ -2421,10 +2481,11 @@ internal static partial class Program
         }
         Console.WriteLine($"self-check: links={linkTotal}, broken={badLinks}");
 
-        // 绝对路径盘点（预期：五条文件夹流程 + 四条扩展流程的 FilePath/FolderPath，共 17 处）
+        // 绝对路径盘点（已知边界：采集步骤的 FilePath/FolderPath + 方案根变量 + 账本目录模板）。
+        // 数字只作盘点，不钉死——每加一条采集流程就会涨。
         var abs = new System.Text.RegularExpressions.Regex(@"""[^""]*[A-Za-z]:\\\\");
         var hits = abs.Matches(json);
-        Console.WriteLine("self-check: absolute-path-like hits = " + hits.Count + "（预期 17：文件夹模式的路径边界）");
+        Console.WriteLine("self-check: absolute-path-like hits = " + hits.Count + "（已知边界：采集路径 + 方案根变量 + 账本模板）");
 
         var scada = root["Scada"];
         Console.WriteLine("self-check: pages=" + ((JArray)scada["Pages"]).Count

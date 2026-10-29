@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>变量名选择弹窗 · 设计基线 v2</title>
+<style>
+  html, body { margin: 0; padding: 0; background: #EEF2F7; }
+  #vp-design-root { color-scheme: light !important; }
+</style>
+</head>
+<body>
+<div id="vp-design-root">
+  <style>
+    #vp-design-root{
+      color-scheme:light;
+      --vp-surface:#FFFFFF;
+      --vp-surface-2:#F8FAFC;
+      --vp-surface-3:#F1F5F9;
+      --vp-border:#E2E8F0;
+      --vp-border-soft:#EEF2F7;
+      --vp-border-strong:#CBD5E1;
+      --vp-text:#0F172A;
+      --vp-text-2:#475569;
+      --vp-text-3:#94A3B8;
+      --vp-text-4:#64748B;
+      --vp-primary:#0EA5E9;
+      --vp-primary-strong:#0284C7;
+      --vp-primary-text:#0369A1;
+      --vp-primary-soft:#F0F9FF;
+      --vp-primary-light:#E0F2FE;
+      --vp-primary-border:#BAE6FD;
+      --vp-success:#22C55E;
+      --vp-success-text:#15803D;
+      --vp-success-soft:#F0FDF4;
+      --vp-success-border:#BBF7D0;
+      --vp-danger:#EF4444;
+      --vp-danger-text:#B91C1C;
+      --vp-danger-soft:#FEF2F2;
+      --vp-danger-border:#FECACA;
+      --vp-warning:#F59E0B;
+      --vp-warning-text:#B45309;
+      --vp-warning-soft:#FFF4E5;
+      --vp-warning-border:#FDE68A;
+      --vp-violet:#8B5CF6;
+      --vp-violet-soft:#F5F3FF;
+      --vp-violet-text:#6D28D9;
+      --vp-font:"Segoe UI Variable Text","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+      --vp-mono:"Cascadia Mono","Consolas","Microsoft YaHei UI",monospace;
+      --vp-r-sm:6px; --vp-r-md:8px; --vp-r-lg:10px; --vp-r-xl:12px; --vp-r-win:16px;
+      --vp-shadow-window:0 28px 72px rgba(15,23,42,.20),0 4px 16px rgba(15,23,42,.08);
+      --vp-shadow-pop:0 12px 32px rgba(15,23,42,.14),0 2px 8px rgba(15,23,42,.06);
+      font-family:var(--vp-font);
+      -webkit-font-smoothing:antialiased;
+    }
+    #vp-design-root *{box-sizing:border-box;}
+    #vp-design-root button,
+    #vp-design-root input{font-family:inherit;}
+    #vp-design-root button{color:inherit;}
+    #vp-design-root svg{display:block;}
+    #vp-design-root :focus-visible{outline:2px solid var(--vp-primary);outline-offset:2px;}
+
+    /* ---------------- 页面骨架 ---------------- */
+    #vp-design-root .vp-page{max-width:1440px;margin:0 auto;padding:24px 24px 56px;}
+    #vp-design-root .vp-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    #vp-design-root .vp-title-row h1{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--vp-text);}
+    #vp-design-root .vp-ver{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:6px;background:var(--vp-primary-light);color:var(--vp-primary-text);font-size:11px;font-weight:700;}
+    #vp-design-root .vp-sub{margin:8px 0 0;font-size:12.5px;line-height:1.65;color:var(--vp-text-2);}
+    #vp-design-root .vp-sub b{color:var(--vp-text);font-weight:600;}
+    #vp-design-root .vp-note{margin:12px 0 0;padding:10px 12px;border:1px solid var(--vp-warning-border);background:var(--vp-warning-soft);border-radius:var(--vp-r-md);font-size:11.5px;line-height:1.6;color:var(--vp-warning-text);}
+    #vp-design-root .vp-nav{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px;}
+    #vp-design-root .vp-nav a{display:inline-flex;align-items:center;height:26px;padding:0 10px;border:1px solid var(--vp-border);border-radius:999px;background:var(--vp-surface);color:var(--vp-text-2);font-size:11.5px;text-decoration:none;}
+    #vp-design-root .vp-nav a:hover{border-color:var(--vp-primary-border);color:var(--vp-primary-text);background:var(--vp-primary-soft);}
+    #vp-design-root section{margin-top:28px;}
+    #vp-design-root .vp-h2{display:flex;align-items:center;gap:10px;margin:0 0 4px;font-size:15px;font-weight:600;color:var(--vp-text);}
+    #vp-design-root .vp-h2 .vp-id{display:inline-flex;align-items:center;height:20px;padding:0 7px;border-radius:5px;background:var(--vp-surface-3);color:var(--vp-text-4);font-size:10.5px;font-weight:700;letter-spacing:.04em;}
+    #vp-design-root .vp-h2-sub{margin:0 0 12px;font-size:11.5px;line-height:1.6;color:var(--vp-text-4);}
+    #vp-design-root .vp-stage{display:flex;justify-content:center;padding:22px;border-radius:var(--vp-r-xl);background:linear-gradient(180deg,#F1F5F9 0%,#E7EDF5 100%);border:1px solid var(--vp-border);}
+
+    /* ---------------- 通用小件 ---------------- */
+    #vp-design-root .vp-chip{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:5px;font-size:10px;font-weight:600;line-height:1;white-space:nowrap;}
+    #vp-design-root .vp-chip-type{background:var(--vp-surface-3);color:var(--vp-text-4);}
+    #vp-design-root .vp-chip-scope-global{background:var(--vp-primary-light);color:var(--vp-primary-text);}
+    #vp-design-root .vp-chip-scope-runtime{background:var(--vp-violet-soft);color:var(--vp-violet-text);}
+    #vp-design-root .vp-chip-invalid{background:var(--vp-danger-soft);color:var(--vp-danger-text);border:1px solid var(--vp-danger-border);}
+    #vp-design-root .vp-chip-manual{background:var(--vp-warning-soft);color:var(--vp-warning-text);border:1px solid var(--vp-warning-border);}
+    #vp-design-root .vp-chip-writable{background:var(--vp-success-soft);color:var(--vp-success-text);border:1px solid var(--vp-success-border);}
+    #vp-design-root .vp-chip-device{background:var(--vp-surface-3);color:var(--vp-text-4);border:1px solid var(--vp-border-strong);font-family:var(--vp-mono);letter-spacing:0;}
+    #vp-design-root .vp-chip-device.is-dup{background:var(--vp-warning-soft);color:var(--vp-warning-text);border-color:var(--vp-warning-border);}
+    #vp-design-root .vp-icon{width:13px;height:13px;flex:none;}
+
+    /* ---------------- S0 配置页 ---------------- */
+    #vp-design-root .vp-cfg{width:960px;max-width:100%;background:var(--vp-surface);border-radius:var(--vp-r-win);box-shadow:var(--vp-shadow-window);overflow:hidden;}
+    #vp-design-root .vp-cfg-head{display:flex;align-items:flex-start;gap:12px;padding:16px 18px 10px;}
+    #vp-design-root .vp-cfg-head h3{margin:0;font-size:15px;font-weight:600;color:var(--vp-text);}
+    #vp-design-root .vp-cfg-head .vp-count{display:inline-flex;align-items:center;height:20px;padding:0 8px;margin-left:6px;border-radius:999px;background:var(--vp-surface-3);color:var(--vp-text-4);font-size:11px;font-weight:600;}
+    #vp-design-root .vp-cfg-head p{margin:6px 0 0;font-size:11.5px;color:var(--vp-text-4);}
+    #vp-design-root .vp-btn-add{margin-left:auto;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--vp-primary-border);border-radius:var(--vp-r-md);background:var(--vp-primary-soft);color:var(--vp-primary-text);font-size:12px;font-weight:600;cursor:pointer;}
+    #vp-design-root .vp-cfg-body{display:grid;grid-template-columns:1fr 300px;gap:14px;padding:0 18px 14px;}
+    #vp-design-root .vp-cols{display:grid;grid-template-columns:96px 1fr 1fr 72px;gap:8px;padding:0 10px 6px;font-size:10.5px;color:var(--vp-text-3);}
+    #vp-design-root .vp-row{display:grid;grid-template-columns:96px 1fr 1fr 72px;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--vp-border);border-radius:var(--vp-r-md);background:var(--vp-surface);margin-bottom:8px;position:relative;}
+    #vp-design-root .vp-row.is-selected{border-color:var(--vp-primary-border);box-shadow:0 0 0 2px rgba(14,165,233,.10);}
+    #vp-design-root .vp-scope-pill{display:inline-flex;align-items:center;justify-content:space-between;gap:6px;height:30px;padding:0 8px;border:1px solid var(--vp-border);border-radius:7px;font-size:11px;color:var(--vp-text-2);background:var(--vp-surface);}
+    #vp-design-root .vp-scope-pill.is-global{background:var(--vp-primary-light);border-color:var(--vp-primary-border);color:var(--vp-primary-text);font-weight:600;}
+    #vp-design-root .vp-name-cell{display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:1px solid var(--vp-border);border-radius:7px;background:var(--vp-surface);cursor:pointer;transition:border-color 150ms ease,background 150ms ease;}
+    #vp-design-root .vp-name-cell:hover{border-color:var(--vp-primary-border);background:var(--vp-primary-soft);}
+    #vp-design-root .vp-name-cell .vp-nm{flex:1;min-width:0;font-size:11.5px;font-weight:600;color:var(--vp-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #vp-design-root .vp-name-cell .vp-nm.is-empty{font-weight:400;color:var(--vp-text-3);}
+    #vp-design-root .vp-name-cell .vp-nm.is-invalid{color:var(--vp-danger-text);}
+    #vp-design-root .vp-name-cell .vp-caret{width:11px;height:11px;color:var(--vp-text-3);flex:none;}
+    #vp-design-root .vp-value-cell{display:flex;align-items:center;gap:4px;height:30px;}
+    #vp-design-root .vp-value-box{flex:1;min-width:0;display:flex;align-items:center;height:30px;padding:0 9px;border:1px solid var(--vp-border);border-radius:7px;background:var(--vp-surface);font-size:11.5px;color:var(--vp-text);}
+    #vp-design-root .vp-value-box.is-link{border-color:var(--vp-primary-border);background:var(--vp-primary-soft);color:var(--vp-primary-text);font-family:var(--vp-mono);font-size:11px;}
+    #vp-design-root .vp-icon-btn{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--vp-text-3);cursor:pointer;}
+    #vp-design-root .vp-icon-btn:hover{background:var(--vp-surface-3);color:var(--vp-text-2);}
+    #vp-design-root .vp-lock{display:inline-flex;align-items:center;justify-content:center;height:30px;color:var(--vp-text-3);}
+    #vp-design-root .vp-cfg-foot{display:flex;align-items:center;justify-content:space-between;padding:8px 18px 12px;font-size:11px;color:var(--vp-text-3);border-top:1px solid var(--vp-border-soft);}
+    #vp-design-root .vp-card{border:1px solid var(--vp-border);border-radius:var(--vp-r-lg);background:var(--vp-surface);padding:12px;}
+    #vp-design-root .vp-card + .vp-card{margin-top:10px;}
+    #vp-design-root .vp-card-head{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--vp-text-4);}
+    #vp-design-root .vp-card-title{margin:8px 0 2px;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--vp-text);word-break:break-all;}
+    #vp-design-root .vp-card-meta{margin:0 0 10px;font-size:11px;color:var(--vp-text-3);}
+    #vp-design-root .vp-tip{position:relative;padding:8px 9px 8px 26px;border:1px solid var(--vp-primary-border);border-radius:var(--vp-r-md);background:var(--vp-primary-soft);font-size:10.5px;line-height:1.55;color:var(--vp-primary-text);}
+    #vp-design-root .vp-tip > svg{position:absolute;left:9px;top:8px;}
+    #vp-design-root .vp-tip.is-warn{border-color:var(--vp-warning-border);background:var(--vp-warning-soft);color:var(--vp-warning-text);}
+    #vp-design-root .vp-tip.is-danger{border-color:var(--vp-danger-border);background:var(--vp-danger-soft);color:var(--vp-danger-text);}
+
+    /* ---------------- 弹窗 ---------------- */
+    #vp-design-root .vp-dlg{width:880px;max-width:100%;background:var(--vp-surface);border-radius:var(--vp-r-win);box-shadow:var(--vp-shadow-window);overflow:hidden;display:flex;flex-direction:column;}
+    #vp-design-root .vp-dlg-title{display:flex;align-items:center;gap:12px;padding:14px 16px 12px;border-bottom:1px solid var(--vp-border-soft);}
+    #vp-design-root .vp-dlg-icon{width:36px;height:36px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:10px;background:var(--vp-primary-light);color:var(--vp-primary-text);}
+    #vp-design-root .vp-dlg-icon.is-runtime{background:var(--vp-violet-soft);color:var(--vp-violet-text);}
+    #vp-design-root .vp-dlg-title h3{margin:0;font-size:15px;font-weight:600;color:var(--vp-text);display:flex;align-items:center;gap:8px;}
+    #vp-design-root .vp-dlg-title p{margin:4px 0 0;font-size:11px;color:var(--vp-text-3);}
+    #vp-design-root .vp-dlg-close{margin-left:auto;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:7px;background:transparent;color:var(--vp-text-3);cursor:pointer;}
+    #vp-design-root .vp-dlg-close:hover{background:var(--vp-surface-3);color:var(--vp-text);}
+    #vp-design-root .vp-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--vp-border-soft);background:var(--vp-surface-2);}
+    #vp-design-root .vp-search{flex:1;min-width:0;display:flex;align-items:center;gap:7px;height:30px;padding:0 9px;border:1px solid var(--vp-border);border-radius:7px;background:var(--vp-surface);}
+    #vp-design-root .vp-search.is-focus{border-color:var(--vp-primary);box-shadow:0 0 0 2px rgba(14,165,233,.14);}
+    #vp-design-root .vp-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;font-size:11.5px;color:var(--vp-text);}
+    #vp-design-root .vp-search input::placeholder{color:var(--vp-text-3);}
+    #vp-design-root .vp-filter{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 9px;border:1px solid var(--vp-border);border-radius:7px;background:var(--vp-surface);font-size:11.5px;color:var(--vp-text-2);cursor:pointer;white-space:nowrap;}
+    #vp-design-root .vp-check{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--vp-text-2);white-space:nowrap;}
+    #vp-design-root .vp-check i{width:14px;height:14px;border:1px solid var(--vp-border-strong);border-radius:4px;background:var(--vp-surface);display:inline-block;}
+    #vp-design-root .vp-check.is-on i{background:var(--vp-primary);border-color:var(--vp-primary);position:relative;}
+    #vp-design-root .vp-check.is-on i::after{content:"";position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 1.8px 1.8px 0;transform:rotate(45deg);}
+    #vp-design-root .vp-dlg-body{display:grid;grid-template-columns:1fr 300px;gap:12px;padding:12px 16px;}
+    #vp-design-root .vp-list{border:1px solid var(--vp-border);border-radius:var(--vp-r-lg);overflow:hidden;display:flex;flex-direction:column;background:var(--vp-surface);}
+    #vp-design-root .vp-list-head{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--vp-border-soft);background:var(--vp-surface-2);font-size:10.5px;color:var(--vp-text-3);}
+    #vp-design-root .vp-list-body{position:relative;height:336px;overflow:auto;}
+    #vp-design-root .vp-group{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:7px;height:28px;padding:0 10px;background:var(--vp-surface-3);border-bottom:1px solid var(--vp-border);font-size:10.5px;font-weight:600;color:var(--vp-text-2);}
+    #vp-design-root .vp-group .vp-group-count{margin-left:auto;font-weight:400;color:var(--vp-text-3);font-size:10px;}
+    #vp-design-root .vp-group .vp-group-meta{font-weight:400;color:var(--vp-text-3);font-size:10px;}
+    #vp-design-root .vp-group .vp-group-dot{width:6px;height:6px;border-radius:50%;background:var(--vp-success);flex:none;}
+    #vp-design-root .vp-item{display:flex;align-items:center;gap:10px;height:52px;padding:0 10px 0 12px;border-bottom:1px solid var(--vp-border-soft);cursor:pointer;position:relative;}
+    #vp-design-root .vp-item:last-child{border-bottom:0;}
+    #vp-design-root .vp-item:hover{background:var(--vp-surface-2);}
+    #vp-design-root .vp-item.is-selected{background:var(--vp-primary-soft);}
+    #vp-design-root .vp-item.is-selected::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--vp-primary);}
+    #vp-design-root .vp-item.is-focus{outline:2px solid var(--vp-primary);outline-offset:-2px;}
+    #vp-design-root .vp-item.is-invalid{background:var(--vp-danger-soft);cursor:not-allowed;}
+    #vp-design-root .vp-item.is-invalid .vp-item-name{color:var(--vp-danger-text);}
+    #vp-design-root .vp-item-main{flex:1;min-width:0;}
+    #vp-design-root .vp-item-line1{display:flex;align-items:center;gap:7px;min-width:0;}
+    #vp-design-root .vp-item-name{font-size:13px;font-weight:600;color:var(--vp-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #vp-design-root .vp-item-note{margin-top:2px;font-size:10.5px;color:var(--vp-text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #vp-design-root .vp-item-tail{flex:none;display:flex;align-items:center;gap:6px;}
+    #vp-design-root .vp-scrollbar{position:absolute;right:2px;top:2px;bottom:2px;width:6px;border-radius:3px;background:var(--vp-surface-3);}
+    #vp-design-root .vp-scrollbar::after{content:"";position:absolute;left:0;top:0;width:6px;height:88px;border-radius:3px;background:var(--vp-border-strong);}
+    #vp-design-root .vp-detail{border:1px solid var(--vp-border);border-radius:var(--vp-r-lg);padding:12px;background:var(--vp-surface);display:flex;flex-direction:column;gap:10px;}
+    #vp-design-root .vp-kv{display:grid;grid-template-columns:56px 1fr;gap:6px 8px;font-size:11px;}
+    #vp-design-root .vp-kv dt{color:var(--vp-text-3);}
+    #vp-design-root .vp-kv dd{margin:0;color:var(--vp-text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    #vp-design-root .vp-detail h4{margin:0;font-size:15px;font-weight:600;color:var(--vp-text);word-break:break-all;}
+    #vp-design-root .vp-detail-desc{font-size:10.5px;line-height:1.6;color:var(--vp-text-4);}
+    #vp-design-root .vp-divider{height:1px;background:var(--vp-border-soft);}
+    #vp-design-root .vp-freeform{margin-top:auto;}
+    #vp-design-root .vp-freeform .vp-fl-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--vp-text);}
+    #vp-design-root .vp-freeform p{margin:6px 0 8px;font-size:10.5px;line-height:1.55;color:var(--vp-text-4);}
+    #vp-design-root .vp-fl-row{display:flex;gap:6px;}
+    #vp-design-root .vp-fl-row input{flex:1;min-width:0;height:30px;padding:0 9px;border:1px solid var(--vp-border);border-radius:7px;background:var(--vp-surface);font-size:11.5px;color:var(--vp-text);outline:0;font-family:var(--vp-mono);}
+    #vp-design-root .vp-fl-row input:focus{border-color:var(--vp-primary);box-shadow:0 0 0 2px rgba(14,165,233,.14);}
+    #vp-design-root .vp-btn{display:inline-flex;align-items:center;justify-content:center;height:30px;padding:0 12px;border-radius:7px;font-size:11.5px;font-weight:600;cursor:pointer;border:1px solid var(--vp-border);background:var(--vp-surface);color:var(--vp-text-2);white-space:nowrap;}
+    #vp-design-root .vp-btn:hover{background:var(--vp-surface-2);}
+    #vp-design-root .vp-btn.is-primary{border-color:var(--vp-primary);background:var(--vp-primary);color:#fff;}
+    #vp-design-root .vp-btn.is-primary:hover{background:var(--vp-primary-strong);border-color:var(--vp-primary-strong);}
+    #vp-design-root .vp-btn.is-ghost{border-color:var(--vp-primary-border);background:var(--vp-primary-soft);color:var(--vp-primary-text);}
+    #vp-design-root .vp-btn.is-danger-ghost{border-color:var(--vp-danger-border);background:var(--vp-danger-soft);color:var(--vp-danger-text);}
+    #vp-design-root .vp-btn[disabled]{opacity:.45;cursor:not-allowed;}
+    #vp-design-root .vp-dlg-foot{display:flex;align-items:center;gap:10px;padding:10px 16px;border-top:1px solid var(--vp-border-soft);background:var(--vp-surface-2);}
+    #vp-design-root .vp-foot-hint{font-size:11px;color:var(--vp-text-3);}
+    #vp-design-root .vp-foot-hint b{color:var(--vp-text-2);font-weight:600;}
+    #vp-design-root .vp-kbd{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 4px;margin:0 2px;border:1px solid var(--vp-border-strong);border-bottom-width:2px;border-radius:4px;background:var(--vp-surface);font-family:var(--vp-mono);font-size:10px;color:var(--vp-text-2);}
+    #vp-design-root .vp-foot-actions{margin-left:auto;display:flex;gap:8px;}
+
+    /* ---------------- 状态集 ---------------- */
+    #vp-design-root .vp-states{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+    #vp-design-root .vp-state{border:1px solid var(--vp-border);border-radius:var(--vp-r-lg);background:var(--vp-surface);overflow:hidden;}
+    #vp-design-root .vp-state-cap{display:flex;align-items:center;gap:7px;padding:8px 12px;border-bottom:1px solid var(--vp-border-soft);background:var(--vp-surface-2);font-size:11px;font-weight:600;color:var(--vp-text-2);}
+    #vp-design-root .vp-state-body{padding:12px;min-height:190px;display:flex;flex-direction:column;}
+    #vp-design-root .vp-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px 8px;}
+    #vp-design-root .vp-empty .vp-empty-ico{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;background:var(--vp-surface-3);color:var(--vp-text-3);}
+    #vp-design-root .vp-empty h5{margin:10px 0 4px;font-size:12.5px;font-weight:600;color:var(--vp-text);}
+    #vp-design-root .vp-empty p{margin:0;max-width:280px;font-size:10.5px;line-height:1.6;color:var(--vp-text-4);}
+
+    /* ---------------- 标注 ---------------- */
+    #vp-design-root .vp-spec{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;}
+    #vp-design-root .vp-spec-card{border:1px solid var(--vp-border);border-radius:var(--vp-r-lg);background:var(--vp-surface);padding:12px 14px;}
+    #vp-design-root .vp-spec-card h4{margin:0 0 8px;font-size:12px;font-weight:600;color:var(--vp-text);display:flex;align-items:center;gap:6px;}
+    #vp-design-root .vp-spec-card h4 span{display:inline-flex;align-items:center;height:18px;padding:0 6px;border-radius:5px;background:var(--vp-surface-3);color:var(--vp-text-4);font-size:9.5px;font-weight:700;letter-spacing:.04em;}
+    #vp-design-root table.vp-t{width:100%;border-collapse:collapse;font-size:11px;}
+    #vp-design-root table.vp-t th{text-align:left;font-weight:600;color:var(--vp-text-3);padding:4px 6px;border-bottom:1px solid var(--vp-border-soft);font-size:10.5px;}
+    #vp-design-root table.vp-t td{padding:4px 6px;border-bottom:1px solid var(--vp-border-soft);color:var(--vp-text-2);vertical-align:top;}
+    #vp-design-root table.vp-t tr:last-child td{border-bottom:0;}
+    #vp-design-root .vp-swatch{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px;border:1px solid rgba(15,23,42,.10);}
+    #vp-design-root ul.vp-ul{margin:0;padding-left:16px;font-size:11px;line-height:1.75;color:var(--vp-text-2);}
+    #vp-design-root ul.vp-ul b{color:var(--vp-text);font-weight:600;}
+    #vp-design-root code{font-family:var(--vp-mono);font-size:10.5px;padding:1px 4px;border-radius:4px;background:var(--vp-surface-3);color:var(--vp-text-2);}
+  </style>
+
+  <div class="vp-page">
+    <header>
+      <div class="vp-title-row">
+        <h1>变量名选择弹窗 · 设计基线</h1>
+        <span class="vp-ver">v2</span>
+      </div>
+      <p class="vp-sub">
+        用途：<b>「变量赋值」名字列</b>（以及后续 DataRecord / ResultUpload / CSharpScript 等所有"写到哪个变量"的字段）的唯一选择入口。
+        本稿把现在的<b>行内浮层 + 可编辑下拉</b>收敛成<b>一个弹窗</b>：名字列变成只读块，点它开窗。
+      </p>
+      <p class="vp-sub">
+        v2 增补：<b>全局变量按所属设备分组</b>。两台 PLC 都有 <code>Alarm[90]</code> 时，v1 只能显示两行同名；
+        v2 用组头（设备「L1」/ 设备「L2」/ 本地变量）+ 同名行设备 chip 表达归属，并按 <b>VariableId</b> 寻址写入。
+      </p>
+      <p class="vp-sub">
+        依据（Step 0 探针实测，2026-10-29）：全局浮层 <b>2,414 条打开 5.7 s / 实例化 2,416 个容器</b>；
+        运行时下拉 <b>2,414 条打开 4.4 s / 2,414 个容器</b>；目标形态（虚拟化列表）<b>5,000 条只实例化 6 行、过滤 26 ms</b>。
+      </p>
+      <div class="vp-note">
+        本稿是 R111/R126/R128 的<b>设计基线（HTML 媒介）</b>：不进入构建、不部署、不作为第二客户端维护。
+        它<b>不是</b> R191 暂停的 <code>Web\</code> 工程方向。审查通过后按本稿复刻 WPF，验收以"同一屏、同一状态"截图对照。
+      </div>
+      <nav class="vp-nav">
+        <a href="#s0">S0 · 配置页（入口）</a>
+        <a href="#s1">S1 · 弹窗（全局）</a>
+        <a href="#s2">S2 · 弹窗（运行时）</a>
+        <a href="#s3">S3 · 状态集</a>
+        <a href="#s4">S4 · 五态与键盘</a>
+        <a href="#s5">S5 · 设计标注</a>
+      </nav>
+    </header>
+
+    <!-- ================= S0 ================= -->
+    <section id="s0">
+      <h2 class="vp-h2"><span class="vp-id">S0</span>赋值插件配置页：名字列改为只读块 + 点击开窗</h2>
+      <p class="vp-h2-sub">
+        960 × 640（现网配置窗尺寸）。改动只在名字列：整块可点、显示名字 + 类型 + 状态徽标；
+        值列仍是 <code>LinkableValueEditor</code>（🔗 绑定 / ✕ 解绑 / 🔒 常量），<b>一点不动</b>。
+      </p>
+      <div class="vp-stage">
+        <div class="vp-cfg">
+          <div class="vp-cfg-head">
+            <div>
+              <h3>赋值设置<span class="vp-count">2 行</span></h3>
+              <p>每行写一个变量；点行中选中，在右侧查看目标、声明类型与提示。</p>
+            </div>
+            <button class="vp-btn-add" type="button">
+              <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10"/></svg>
+              添加一行
+            </button>
+          </div>
+
+          <div class="vp-cfg-body">
+            <div>
+              <div class="vp-cols">
+                <span>作用域</span><span>变量名</span><span>值（常量 / 上游）</span><span style="text-align:center">自动创建</span>
+              </div>
+
+              <!-- 行 1：全局 -->
+              <div class="vp-row is-selected">
+                <div class="vp-scope-pill is-global"><span>全局</span>
+                  <svg class="vp-caret" style="width:11px;height:11px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l4 4 4-4"/></svg>
+                </div>
+                <div class="vp-name-cell" title="点击选择全局变量（设备 L1）">
+                  <span class="vp-nm">Code128_Result</span>
+                  <span class="vp-chip vp-chip-device">L1</span>
+                  <span class="vp-chip vp-chip-type">Boolean</span>
+                  <svg class="vp-caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 4l4 4-4 4"/></svg>
+                </div>
+                <div class="vp-value-cell">
+                  <div class="vp-value-box">true</div>
+                  <button class="vp-icon-btn" type="button" title="绑定变量">
+                    <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-1 1"/><path d="M9.5 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l1-1"/></svg>
+                  </button>
+                  <button class="vp-icon-btn" type="button" title="清除">
+                    <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                  </button>
+                </div>
+                <div class="vp-lock" title="全局作用域不支持自动创建">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3.5" y="7" width="9" height="6" rx="1.5"/><path d="M5.5 7V5.5a2.5 2.5 0 0 1 5 0V7"/></svg>
+                </div>
+              </div>
+
+              <!-- 行 2：运行时，手填名字 -->
+              <div class="vp-row">
+                <div class="vp-scope-pill"><span>运行</span>
+                  <svg class="vp-caret" style="width:11px;height:11px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l4 4 4-4"/></svg>
+                </div>
+                <div class="vp-name-cell" title="点击选择或手输运行时变量名">
+                  <span class="vp-nm">Loop_Ncc</span>
+                  <span class="vp-chip vp-chip-type">Int32</span>
+                  <span class="vp-chip vp-chip-manual">手填</span>
+                  <svg class="vp-caret" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 4l4 4-4 4"/></svg>
+                </div>
+                <div class="vp-value-cell">
+                  <div class="vp-value-box is-link">Ncc_Score</div>
+                  <button class="vp-icon-btn" type="button" title="绑定变量">
+                    <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6.5 9.5a2.5 2.5 0 0 0 3.5 0l2-2a2.5 2.5 0 0 0-3.5-3.5l-1 1"/><path d="M9.5 6.5a2.5 2.5 0 0 0-3.5 0l-2 2a2.5 2.5 0 0 0 3.5 3.5l1-1"/></svg>
+                  </button>
+                  <button class="vp-icon-btn" type="button" title="解除绑定">
+                    <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+                  </button>
+                </div>
+                <div class="vp-lock" style="color:var(--vp-primary-text)">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="10" height="10" rx="2"/><path d="M6 8l1.6 1.6L10.5 6.4"/></svg>
+                </div>
+              </div>
+            </div>
+
+            <!-- 右栏详情卡 -->
+            <div>
+              <div class="vp-card">
+                <div class="vp-card-head">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2.5l2.5 2.5L5 13.5 2.5 14l.5-2.5z"/></svg>
+                  当前行<span style="margin-left:auto" class="vp-chip vp-chip-scope-global">全局变量</span>
+                </div>
+                <div class="vp-card-title">Code128_Result</div>
+                <p class="vp-card-meta">Boolean · 候选 2,414 个 · 值=常量</p>
+                <div class="vp-tip">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.2v.1"/></svg>
+                  写入设备「L1」的全局变量「Code128_Result」（Boolean）——「值」按它的类型解析（如 Int32 填 21）。
+                </div>
+                <p style="margin:10px 0 0;font-size:10.5px;line-height:1.6;color:var(--vp-text-4)">
+                  变量名只是名字：从选择器里选会落成常量，不会建立绑定；「值」才负责引用上游结果。
+                </p>
+              </div>
+              <div class="vp-card">
+                <div class="vp-card-head">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.2v.1"/></svg>
+                  作用域规则
+                </div>
+                <p style="margin:8px 0 0;font-size:10.5px;line-height:1.65;color:var(--vp-text-4)">
+                  <b style="color:var(--vp-text-2)">运行时变量</b>：由上游「变量定义」节点创建，只在本轮执行内有效；列表里没有的名字也可以直接用（脚本 SetVar 会创建它）。<br>
+                  <b style="color:var(--vp-text-2)">全局变量</b>：变量管理里维护，跨流程、随方案存盘；运行期找不到会明确报错，不会静默新建。
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="vp-cfg-foot">
+            <span>上限 32 行 · 当前 2 行 · 行顺序即执行顺序</span>
+            <span>行顺序即执行顺序</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= S1 ================= -->
+    <section id="s1">
+      <h2 class="vp-h2"><span class="vp-id">S1</span>弹窗主界面 · 全局作用域</h2>
+      <p class="vp-h2-sub">
+        880 × 600。左列表（虚拟化）+ 右详情。作用域只读显示，不在弹窗里切换 —— 切作用域会改变候选语义（闭集 ↔ 开集），应在行上切。
+      </p>
+      <div class="vp-stage">
+        <div class="vp-dlg">
+          <div class="vp-dlg-title">
+            <div class="vp-dlg-icon">
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M2.8 10h14.4M10 3a13 13 0 0 1 0 14M10 3a13 13 0 0 0 0 14"/></svg>
+            </div>
+            <div>
+              <h3>选择全局变量 <span class="vp-chip vp-chip-scope-global">全局</span></h3>
+              <p>写入第 1 行 · 目标作用域：全局变量 · 共 2,414 个 · 3 个来源（2 台设备 + 本地）</p>
+            </div>
+            <button class="vp-dlg-close" type="button" title="关闭">
+              <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
+          </div>
+
+          <div class="vp-toolbar">
+            <div class="vp-search is-focus">
+              <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4L14 14"/></svg>
+              <input placeholder="按变量名 / 类型 / 描述 / 设备筛选" aria-label="搜索变量">
+            </div>
+            <div class="vp-filter">
+              全部类型
+              <svg class="vp-caret" style="width:11px;height:11px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l4 4 4-4"/></svg>
+            </div>
+            <label class="vp-check is-on"><i></i>仅看可写</label>
+          </div>
+
+          <div class="vp-dlg-body">
+            <div class="vp-list">
+              <div class="vp-list-head">
+                <span>按设备分组 · 共 2,414 个</span>
+                <span>设备 → 本地变量</span>
+              </div>
+              <div class="vp-list-body">
+                <div class="vp-group">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3.5" width="11" height="9" rx="2"/><path d="M5 12.5V14M11 12.5V14"/></svg>
+                  设备「L1」<span class="vp-group-meta">Modbus TCP</span><span class="vp-group-dot"></span>
+                  <span class="vp-group-count">1,208 个</span>
+                </div>
+                <div class="vp-item is-selected is-focus">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Code128_Result</span></div>
+                    <div class="vp-item-note">Code128 读取 · 判定（true=OK）</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Code128_Text</span></div>
+                    <div class="vp-item-note">Code128 读取 · 条码内容</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">String</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Alarm[90]</span><span class="vp-chip vp-chip-device is-dup">L1</span></div>
+                    <div class="vp-item-note">报警位 · 同名变量，另一台设备也有</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+
+                <div class="vp-group">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="3.5" width="11" height="9" rx="2"/><path d="M5 12.5V14M11 12.5V14"/></svg>
+                  设备「L2」<span class="vp-group-meta">S7-1200</span><span class="vp-group-dot"></span>
+                  <span class="vp-group-count">1,196 个</span>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Alarm[90]</span><span class="vp-chip vp-chip-device is-dup">L2</span></div>
+                    <div class="vp-item-note">报警位 · 同名变量，另一台设备也有</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Code128_Score</span></div>
+                    <div class="vp-item-note">Code128 读取 · 识别分数</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Double</span></div>
+                </div>
+
+                <div class="vp-group">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="10" height="10" rx="2"/><path d="M6 8h4"/></svg>
+                  本地变量<span class="vp-group-meta">随方案存盘</span>
+                  <span class="vp-group-count">10 个</span>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Motion_Enable</span></div>
+                    <div class="vp-item-note">本地变量 · 使能标志</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+                <div class="vp-scrollbar"></div>
+              </div>
+            </div>
+
+            <div class="vp-detail">
+              <h4>Code128_Result</h4>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span class="vp-chip vp-chip-type">Boolean</span>
+                <span class="vp-chip vp-chip-writable">可写</span>
+                <span class="vp-chip vp-chip-scope-global">全局</span>
+              </div>
+              <dl class="vp-kv">
+                <dt>来源</dt><dd>设备「L1」· Modbus TCP</dd>
+                <dt>描述</dt><dd>Code128 读取 · 判定（true=OK）</dd>
+                <dt>候选</dt><dd>2,414 个（3 个来源）</dd>
+              </dl>
+              <div class="vp-divider"></div>
+              <div class="vp-tip">
+                <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.2v.1"/></svg>
+                写入时按声明类型解析：Boolean 只接受 true / false。
+              </div>
+              <div class="vp-tip is-warn" style="margin-top:8px">
+                <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2.6l6 11H2z"/><path d="M8 6.6v3.2M8 11.6v.1"/></svg>
+                这里选的是<b>名字</b>，不会建立绑定；要引用上游结果，请到「值」那一列点 🔗。
+              </div>
+            </div>
+          </div>
+
+          <div class="vp-dlg-foot">
+            <span class="vp-foot-hint">
+              共 <b>2,414</b> 个 · <span class="vp-kbd">↑</span><span class="vp-kbd">↓</span> 选择 · <span class="vp-kbd">Enter</span> 确定 · <span class="vp-kbd">Esc</span> 取消
+            </span>
+            <div class="vp-foot-actions">
+              <button class="vp-btn" type="button">取消</button>
+              <button class="vp-btn is-primary" type="button">确定</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= S2 ================= -->
+    <section id="s2">
+      <h2 class="vp-h2"><span class="vp-id">S2</span>弹窗变体 · 运行时作用域（名字空间是开集）</h2>
+      <p class="vp-h2-sub">
+        运行时名字只能静态枚举上游「变量定义」声明的那批；脚本 <code>Context.SetVar</code> 造的名字静态不可见。
+        所以右侧必须有<b>「列表里没有？直接使用这个名字」</b>出口 —— 少了它等于堵死 R190 的合法用法。
+      </p>
+      <div class="vp-stage">
+        <div class="vp-dlg">
+          <div class="vp-dlg-title">
+            <div class="vp-dlg-icon is-runtime">
+              <svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.6v2.2M10 15.2v2.2M2.6 10h2.2M15.2 10h2.2M4.8 4.8l1.6 1.6M13.6 13.6l1.6 1.6M15.2 4.8l-1.6 1.6M6.4 13.6l-1.6 1.6"/></svg>
+            </div>
+            <div>
+              <h3>选择运行时变量 <span class="vp-chip vp-chip-scope-runtime">运行时</span></h3>
+              <p>写入第 2 行 · 上游已声明 6 个 · 本行当前名字不在其中</p>
+            </div>
+            <button class="vp-dlg-close" type="button" title="关闭">
+              <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
+          </div>
+
+          <div class="vp-toolbar">
+            <div class="vp-search">
+              <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4L14 14"/></svg>
+              <input placeholder="按变量名 / 类型 / 描述筛选" aria-label="搜索运行时变量">
+            </div>
+            <div class="vp-filter">
+              全部类型
+              <svg class="vp-caret" style="width:11px;height:11px" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6l4 4 4-4"/></svg>
+            </div>
+          </div>
+
+          <div class="vp-dlg-body">
+            <div class="vp-list">
+              <div class="vp-list-head">
+                <span>上游「变量定义」声明 · 6 个</span>
+                <span>按执行顺序</span>
+              </div>
+              <div class="vp-list-body">
+                <div class="vp-item is-selected">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Ncc_Result</span></div>
+                    <div class="vp-item-note">由上游「变量定义 #2」声明</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Ncc_Reason</span></div>
+                    <div class="vp-item-note">由上游「变量定义 #2」声明</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">String</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Ncc_Score</span></div>
+                    <div class="vp-item-note">由上游「变量定义 #2」声明</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Double</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Loop_Ncc</span></div>
+                    <div class="vp-item-note">由上游「变量定义 #3」声明</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Pcb_Result</span></div>
+                    <div class="vp-item-note">由上游「变量定义 #4」声明</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+                <div class="vp-item">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Pcb_Angle</span></div>
+                    <div class="vp-item-note">由上游「变量定义 #4」声明</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Double</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="vp-detail">
+              <h4>Ncc_Result</h4>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span class="vp-chip vp-chip-type">Boolean</span>
+                <span class="vp-chip vp-chip-scope-runtime">运行时</span>
+              </div>
+              <dl class="vp-kv">
+                <dt>来源</dt><dd>上游「变量定义 #2」</dd>
+                <dt>作用域</dt><dd>本轮执行内有效，跑完即弃</dd>
+              </dl>
+              <div class="vp-divider"></div>
+              <div class="vp-freeform">
+                <div class="vp-fl-label">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M11 2.5l2.5 2.5L5 13.5 2.5 14l.5-2.5z"/></svg>
+                  列表里没有？直接使用这个名字
+                </div>
+                <p>运行期由「变量定义」或脚本 <code>SetVar</code> 创建；拼错会新建另一个变量，名字由你负责。</p>
+                <div class="vp-fl-row">
+                  <input value="Loop_Ncc_Total" aria-label="直接使用名字">
+                  <button class="vp-btn is-ghost" type="button">使用</button>
+                </div>
+                <div class="vp-tip" style="margin-top:8px">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.2v.1"/></svg>
+                  本行已勾选「自动创建」：不存在的名字会在运行期新建（类型由值决定）。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="vp-dlg-foot">
+            <span class="vp-foot-hint">
+              共 <b>6</b> 个 · 也可以直接用列表外的名字 · <span class="vp-kbd">Enter</span> 确定 · <span class="vp-kbd">Esc</span> 取消
+            </span>
+            <div class="vp-foot-actions">
+              <button class="vp-btn" type="button">取消</button>
+              <button class="vp-btn is-primary" type="button">确定</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= S3 ================= -->
+    <section id="s3">
+      <h2 class="vp-h2"><span class="vp-id">S3</span>状态集：无结果 / 空态 / 失效 / 大列表</h2>
+      <p class="vp-h2-sub">四态都必须给"下一步去哪儿"，不许一片白。</p>
+      <div class="vp-states">
+        <div class="vp-state">
+          <div class="vp-state-cap">
+            <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4L14 14"/></svg>
+            搜索无结果
+          </div>
+          <div class="vp-state-body">
+            <div class="vp-empty">
+              <div class="vp-empty-ico">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.4"/><path d="M13 13l3.4 3.4"/></svg>
+              </div>
+              <h5>没有匹配「abc」的变量</h5>
+              <p>试试更短的关键字，或清空搜索查看全部 2,414 个。</p>
+              <button class="vp-btn is-ghost" type="button" style="margin-top:10px">清除搜索</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="vp-state">
+          <div class="vp-state-cap">
+            <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.2"/><path d="M8 2v1.8M8 12.2V14M2 8h1.8M12.2 8H14"/></svg>
+            空态（运行时，上游未声明）
+          </div>
+          <div class="vp-state-body">
+            <div class="vp-empty">
+              <div class="vp-empty-ico">
+                <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3.4" y="3.4" width="13.2" height="13.2" rx="3"/><path d="M7 10h6"/></svg>
+              </div>
+              <h5>上游还没有声明任何运行时变量</h5>
+              <p>在上游「变量定义」节点里声明后再回来；也可以直接在右侧用列表外的名字。</p>
+            </div>
+            <div class="vp-fl-row" style="margin-top:auto">
+              <input placeholder="直接使用这个名字" aria-label="直接使用名字">
+              <button class="vp-btn is-ghost" type="button">使用</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="vp-state">
+          <div class="vp-state-cap">
+            <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2.6l6 11H2z"/><path d="M8 6.6v3.2M8 11.6v.1"/></svg>
+            当前名字已失效（全局）
+          </div>
+          <div class="vp-state-body">
+            <div class="vp-item is-invalid" style="border-radius:8px;border:1px solid var(--vp-danger-border)">
+              <div class="vp-item-main">
+                <div class="vp-item-line1"><span class="vp-item-name">Code128_Old</span><span class="vp-chip vp-chip-invalid">已失效</span></div>
+                <div class="vp-item-note">变量管理里没有这个名字 · 运行期会报「找不到全局变量」</div>
+              </div>
+            </div>
+            <div class="vp-tip is-danger" style="margin-top:10px">
+              <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.2v.1"/></svg>
+              失效项<b>不会被静默替换或清空</b>：保留它，运行期会明确报错；要修就改选一个存在的变量。
+            </div>
+            <div style="display:flex;gap:8px;margin-top:auto;padding-top:10px">
+              <button class="vp-btn" type="button">保留原名字</button>
+              <button class="vp-btn is-primary" type="button">改选其它变量</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="vp-state">
+          <div class="vp-state-cap">
+            <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h10M3 8h10M3 12h6"/></svg>
+            大列表（2,414 条）
+          </div>
+          <div class="vp-state-body" style="padding:0">
+            <div class="vp-list-head" style="border-top:0">
+              <span>全部 · 2,414 个</span><span>滚动或输入以缩小范围</span>
+            </div>
+            <div style="position:relative;height:156px;overflow:hidden">
+              <div class="vp-item"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">Alarm_Count</span></div><div class="vp-item-note">报警 · 累计数量</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div></div>
+              <div class="vp-item"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">Alarm_Level</span></div><div class="vp-item-note">报警 · 当前等级</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div></div>
+              <div class="vp-item"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">Alarm_Text</span></div><div class="vp-item-note">报警 · 文案</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">String</span></div></div>
+              <div class="vp-scrollbar"></div>
+            </div>
+            <div style="padding:8px 10px;border-top:1px solid var(--vp-border-soft);font-size:10.5px;color:var(--vp-text-3)">
+              列表按需渲染：滚动时才创建可见行，条数不影响打开速度。
+            </div>
+          </div>
+        </div>
+        <div class="vp-state" style="grid-column:span 2">
+          <div class="vp-state-cap">
+            <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2.5" y="3.5" width="11" height="9" rx="2"/><path d="M2.5 7h11"/></svg>
+            同名跨设备（L1 与 L2 都有 Alarm[90]）
+          </div>
+          <div class="vp-state-body" style="min-height:0">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <div class="vp-item" style="border:1px solid var(--vp-border);border-radius:8px">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Alarm[90]</span><span class="vp-chip vp-chip-device is-dup">L1</span></div>
+                    <div class="vp-item-note">设备「L1」· Modbus TCP</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+                <div class="vp-item is-selected" style="margin-top:8px;border-radius:8px">
+                  <div class="vp-item-main">
+                    <div class="vp-item-line1"><span class="vp-item-name">Alarm[90]</span><span class="vp-chip vp-chip-device is-dup">L2</span></div>
+                    <div class="vp-item-note">设备「L2」· S7-1200</div>
+                  </div>
+                  <div class="vp-item-tail"><span class="vp-chip vp-chip-type">Boolean</span></div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div class="vp-tip is-warn">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2.6l6 11H2z"/><path d="M8 6.6v3.2M8 11.6v.1"/></svg>
+                  两行同名但属于<b>不同设备</b>：按变量 Id 区分，选中哪一行就写哪一台；改名不影响已选结果。
+                </div>
+                <div class="vp-tip">
+                  <svg class="vp-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.2v.1"/></svg>
+                  旧方案（只存名字、没存 Id）遇到同名会在运行期明确报「变量名在 2 个变量上重复（设备 L1 / 设备 L2）」，<b>不会写错设备</b>；重选一次即补上 Id。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= S4 ================= -->
+    <section id="s4">
+      <h2 class="vp-h2"><span class="vp-id">S4</span>五态与键盘</h2>
+      <p class="vp-h2-sub">候选行五态 + 按钮四态；焦点必须可见（R115）。</p>
+      <div class="vp-stage" style="display:block">
+        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--vp-text-2);margin-bottom:8px">候选行</div>
+            <div style="border:1px solid var(--vp-border);border-radius:10px;overflow:hidden;background:#fff">
+              <div class="vp-item"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">默认</span></div><div class="vp-item-note">正常态：白底，行名 13/600</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div></div>
+              <div class="vp-item" style="background:var(--vp-surface-2)"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">悬停</span></div><div class="vp-item-note">悬停：Surface-2 底，光标手型</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div></div>
+              <div class="vp-item is-focus"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">键盘聚焦</span></div><div class="vp-item-note">聚焦：2px 主色描边（内缩，不撑布局）</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div></div>
+              <div class="vp-item is-selected"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">选中</span></div><div class="vp-item-note">选中：Primary-Soft 底 + 左侧 3px 主色条</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">Int32</span></div></div>
+              <div class="vp-item is-invalid"><div class="vp-item-main"><div class="vp-item-line1"><span class="vp-item-name">失效</span><span class="vp-chip vp-chip-invalid">已失效</span></div><div class="vp-item-note">失效：Danger-Soft 底、不可选、红字</div></div><div class="vp-item-tail"><span class="vp-chip vp-chip-type">未知</span></div></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--vp-text-2);margin-bottom:8px">按钮与键盘</div>
+            <div style="border:1px solid var(--vp-border);border-radius:10px;background:#fff;padding:12px">
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                <button class="vp-btn is-primary" type="button">确定</button>
+                <button class="vp-btn is-primary" type="button" style="background:var(--vp-primary-strong);border-color:var(--vp-primary-strong)">悬停/按下</button>
+                <button class="vp-btn is-primary" type="button" style="outline:2px solid var(--vp-primary);outline-offset:2px">聚焦</button>
+                <button class="vp-btn is-primary" type="button" disabled>禁用</button>
+              </div>
+              <div class="vp-divider" style="margin:12px 0"></div>
+              <table class="vp-t">
+                <tr><th style="width:120px">按键</th><th>动作</th></tr>
+                <tr><td><span class="vp-kbd">↑</span><span class="vp-kbd">↓</span></td><td>在候选间移动（跳过失效项）</td></tr>
+                <tr><td><span class="vp-kbd">PgUp</span><span class="vp-kbd">PgDn</span></td><td>翻一屏</td></tr>
+                <tr><td><span class="vp-kbd">Home</span><span class="vp-kbd">End</span></td><td>首 / 末项</td></tr>
+                <tr><td><span class="vp-kbd">Enter</span></td><td>确定当前高亮项并关闭</td></tr>
+                <tr><td><span class="vp-kbd">Esc</span></td><td>有搜索词时先清搜索；无搜索词时关闭（取消）</td></tr>
+                <tr><td><span class="vp-kbd">Ctrl</span>+<span class="vp-kbd">F</span></td><td>聚焦搜索框</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= S5 ================= -->
+    <section id="s5">
+      <h2 class="vp-h2"><span class="vp-id">S5</span>设计标注（R111 六项）</h2>
+      <p class="vp-h2-sub">WPF 复刻时逐项对照；差异只能出现在"平台强制项"，且必须写进 README 的已知偏差。</p>
+      <div class="vp-spec">
+        <div class="vp-spec-card">
+          <h4><span>1</span>布局</h4>
+          <table class="vp-t">
+            <tr><th style="width:110px">区域</th><th>尺寸</th></tr>
+            <tr><td>弹窗</td><td>880 × 600（默认）；最小 760 × 520</td></tr>
+            <tr><td>标题栏</td><td>高 64；图标 36×36 圆角 10；标题 15/600；副标题 11/400</td></tr>
+            <tr><td>工具行</td><td>高 50（30 控件 + 上下 10）；搜索占 1fr，类型筛选 Auto，复选 Auto</td></tr>
+            <tr><td>主体</td><td>两栏：列表 1fr（≥ 420）/ 详情 300；栏间距 12；内边距 12/16</td></tr>
+            <tr><td>列表</td><td>行高 52（两行文字：13/600 + 10.5/400）；分组头 28（sticky，贴顶滚动）；列表可视高 336（≈ 6 行 + 组头）</td></tr>
+            <tr><td>底栏</td><td>高 50；左侧提示 11/400；右侧按钮 30 高、间距 8</td></tr>
+          </table>
+        </div>
+        <div class="vp-spec-card">
+          <h4><span>2</span>间距</h4>
+          <table class="vp-t">
+            <tr><th style="width:110px">位置</th><th>值</th></tr>
+            <tr><td>窗口外距</td><td>16 / 18（标题栏与底栏），主体 12 / 16</td></tr>
+            <tr><td>区块间距</td><td>8（紧密）/ 12（同组）/ 16（跨组）</td></tr>
+            <tr><td>行内</td><td>左 12 / 右 10；图标与文字 7；名字与类型 7</td></tr>
+            <tr><td>圆角</td><td>窗口 16；卡片 10；输入/按钮 7；chip 5；列表 10</td></tr>
+            <tr><td>描边</td><td>默认 1px Border；聚焦 2px Primary（内缩）；选中左条 3px</td></tr>
+          </table>
+        </div>
+        <div class="vp-spec-card">
+          <h4><span>3</span>配色（令牌）</h4>
+          <table class="vp-t">
+            <tr><th style="width:120px">令牌</th><th>值</th></tr>
+            <tr><td><span class="vp-swatch" style="background:#FFFFFF"></span>Surface</td><td>#FFFFFF / Surface-2 #F8FAFC / Surface-3 #F1F5F9</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#E2E8F0"></span>Border</td><td>#E2E8F0 / soft #EEF2F7 / strong #CBD5E1</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#0F172A"></span>Text</td><td>#0F172A / 2 #475569 / 3 #94A3B8 / 4 #64748B</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#0EA5E9"></span>Primary</td><td>#0EA5E9 / strong #0284C7 / soft #F0F9FF / light #E0F2FE / border #BAE6FD</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#EF4444"></span>Danger</td><td>#EF4444 / text #B91C1C / soft #FEF2F2 / border #FECACA</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#F59E0B"></span>Warning</td><td>#F59E0B / text #B45309 / soft #FFF4E5 / border #FDE68A</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#22C55E"></span>Success</td><td>#22C55E / text #15803D / soft #F0FDF4 / border #BBF7D0</td></tr>
+            <tr><td><span class="vp-swatch" style="background:#8B5CF6"></span>Runtime</td><td>#8B5CF6 / soft #F5F3FF / text #6D28D9</td></tr>
+          </table>
+        </div>
+        <div class="vp-spec-card">
+          <h4><span>4</span>字号 / 字重</h4>
+          <table class="vp-t">
+            <tr><th style="width:110px">元素</th><th>规格</th></tr>
+            <tr><td>弹窗标题</td><td>15 / 600</td></tr>
+            <tr><td>副标题 · 计数</td><td>11 / 400（计数用 600）</td></tr>
+            <tr><td>行名</td><td>13 / 600</td></tr>
+            <tr><td>行描述</td><td>10.5 / 400 / Text-3</td></tr>
+            <tr><td>类型 chip</td><td>10 / 600</td></tr>
+            <tr><td>详情标题</td><td>15 / 600</td></tr>
+            <tr><td>kv 与说明</td><td>11 / 400；说明 10.5 / 400 / Text-4</td></tr>
+            <tr><td>底栏提示</td><td>11 / 400；数字 600</td></tr>
+            <tr><td>按钮</td><td>11.5 / 600</td></tr>
+          </table>
+        </div>
+        <div class="vp-spec-card">
+          <h4><span>5</span>五态</h4>
+          <ul class="vp-ul">
+            <li><b>候选行</b>：默认 / 悬停（Surface-2）/ 聚焦（2px Primary 内缩描边）/ 选中（Primary-Soft + 左条）/ 失效（Danger-Soft + 红字 + 不可选）。</li>
+            <li><b>按钮</b>：默认 / 悬停（Primary-Strong）/ 按下（同悬停 + 内阴影由平台给）/ 聚焦（2px 外描边）/ 禁用（40% 透明 + 禁点）。</li>
+            <li><b>搜索框</b>：默认 / 聚焦（Primary 描边 + 2px 光晕）/ 有内容（右侧出现清除 ✕）/ 禁用不出现。</li>
+            <li><b>输入（运行时手输）</b>：默认 / 聚焦 / 非法（红边 + 行内原因，如"名字不能含空格"）。</li>
+          </ul>
+        </div>
+        <div class="vp-spec-card">
+          <h4><span>6</span>交互细节</h4>
+          <ul class="vp-ul">
+            <li><b>打开</b>：点行内名字块（整块，含键盘 Space/Enter）→ 弹窗；当前名字若在列表里则选中并滚到可见；不在列表里则出现在顶部"已失效"项。</li>
+            <li><b>搜索</b>：输入即过滤（150 ms 去抖不必加，过滤本身 26 ms / 5,000 条）；高亮命中片段；<b>同时匹配设备名</b>（输入 "L2" 可只留 L2 的变量），结果<b>保留分组</b>不扁平化。</li>
+            <li><b>分组</b>：按设备（连接名）→ 本地变量；组头 28px 吸顶，显示 设备名 + 协议 + 在线点 + 计数；组内按名字排序。</li>
+            <li><b>同名消歧</b>：同一名字在多台设备上存在时，行内出现设备 chip（Warning 色）；只在一台上存在时不重复显示（组头已表达设备）。</li>
+            <li><b>类型筛选</b>：下拉选项来自候选类型去重；与搜索是"与"关系。</li>
+            <li><b>确定</b>：写回名字并关闭；未改动时确定等同取消（不写）。</li>
+            <li><b>运行时手输</b>：输入非空且不在列表 → 「使用」可用；点击后直接写回并关闭（不要求再点确定）。</li>
+            <li><b>失效项</b>：可选（用于"保留原名字"），确定时原样写回；不自动替换、不静默清空。</li>
+            <li><b>关闭</b>：Esc 两段式（先清搜索再关窗）；点遮罩不关闭（防误触丢选择）。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

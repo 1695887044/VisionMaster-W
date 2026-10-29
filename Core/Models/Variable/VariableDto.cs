@@ -154,10 +154,15 @@ namespace VisionMaster.Models
 
             var typeName = protocol switch
             {
-                CommunicationType.ModbusTcp => "ModbusAddress",
+                // Modbus RTU 与 TCP 共用 ModbusAddress（只是链路不同）。漏掉 RTU 是既有缺陷：
+                // 串口变量保存后重开 AddressConfig 为 null，当前值永不刷新，且只有一行 Debug 日志。
+                CommunicationType.ModbusTcp or CommunicationType.ModbusRtu => "ModbusAddress",
                 CommunicationType.SiemensS7 => "S7Address",
                 CommunicationType.MitsubishiMc => "McAddress",
                 CommunicationType.OmronFins => "FinsAddress",
+                // 漏这一支的后果：方案存得下、重开时 AddressConfig 为 null，
+                // NetworkVariableBridge 只 Warn 一句「未接入轮询」，所有 EasyNet 变量永远不刷新
+                CommunicationType.EasyNet => "EasyNetAddress",
                 _ => null
             };
             if (typeName == null) return null;

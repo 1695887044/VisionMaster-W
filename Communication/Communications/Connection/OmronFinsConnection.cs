@@ -41,7 +41,11 @@ namespace VisionMaster.Communications
                 // 上位机节点号由 PLC 在建连时协商；默认 1，多连接场景由 HSL 内部处理
                 SA1 = 1,
                 ConnectTimeOut = config.TimeoutMs,
-                ReceiveTimeOut = config.ResponseTimeoutMs > 0 ? config.ResponseTimeoutMs : config.ReadTimeoutMs,
+                // 响应超时优先、0 = 跟随通用「读超时」（专属字段优先的口径，见 OmronFinsConfig）。
+                // 旧默认值写死 5000 时这里永远走第一个分支，用户改「读超时」对 FINS 毫无作用。
+                ReceiveTimeOut = Math.Max(100, config.ResponseTimeoutMs > 0
+                    ? config.ResponseTimeoutMs
+                    : config.ReadTimeoutMs),
             };
 
             if (config.EnableKeepAlive && config.KeepAliveIntervalMs > 0)

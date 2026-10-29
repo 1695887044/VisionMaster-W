@@ -32,6 +32,9 @@ namespace FlowCanvasChecks
             NoneOnMainWarns();
             MissingResultStepWarns();
             ReadOnlyBlocksSave();
+            VariableSearchFilters();
+            ReadOnlyHasSingleHint();
+            MultipleResultStepsAreFlagged();
         }
 
         // ---------------------------------------------------------------- ① 模式
@@ -197,8 +200,8 @@ namespace FlowCanvasChecks
 
             vm.SelectedMode = vm.Modes.First(m => m.Kind == FlowResultSourceKind.None);
 
-            Program.Check("DLG-15 线级汇总来源选「不参与」→ 允许保存但给警告（Q3）",
-                vm.CanSave && vm.HasWarning && vm.WarningText.Contains("线级汇总来源")
+            Program.Check("DLG-15 线级来源选「不参与」→ 允许保存但给警告（Q3）",
+                vm.CanSave && vm.HasWarning && vm.WarningText.Contains("线级来源")
                 && vm.IsLineVerdictSource,
                 $"canSave={vm.CanSave} warning={vm.WarningText} isLine={vm.IsLineVerdictSource}");
         }
@@ -239,6 +242,110 @@ namespace FlowCanvasChecks
                 vm.IsReadOnly && !vm.IsEditable && !vm.CanSave
                 && vm.ReadOnlyText.StartsWith("只读：", StringComparison.Ordinal),
                 $"readonly={vm.IsReadOnly} editable={vm.IsEditable} text={vm.ReadOnlyText}");
+        }
+
+        // ---------------------------------------------------------------- ⑥ 变量搜索
+
+        private static void VariableSearchFilters()
+        {
+            var (vm, _, workspace) = NewVm();
+            workspace.GlobalVariables.Add(
+                VariableFactory.CreateLocal("DLG_SearchOnly", typeof(bool), "", true));
+            var flagVar = VariableFactory.CreateLocal("DLG_Flag", typeof(bool), "", false);
+            workspace.GlobalVariables.Add(flagVar);
+            vm.OnDialogOpened(NewParams("DLG_工位"));
+
+            int all = vm.Variables.Count;
+            int filteredAll = vm.FilteredVariables.Count;
+
+            vm.VariableFilter = "SearchOnly";
+
+            Program.Check("DLG-18 变量搜索按名字过滤（空串 = 全量）",
+                all > 0 && filteredAll == all
+                && vm.FilteredVariables.Count == 1
+                && vm.FilteredVariables[0].Name == "DLG_SearchOnly"
+                && vm.HasVariableFilter,
+                $"all={all}/{filteredAll} filtered={vm.FilteredVariables.Count}");
+
+            var flag = vm.Variables.First(v => v.VariableId == flagVar.VariableId);
+            vm.SelectedVariable = flag;
+            vm.VariableFilter = "SearchOnly";
+
+            Program.Check("DLG-19 过滤时已选变量保留在候选里（不会边打字边丢选择）",
+                vm.FilteredVariables.Any(v => v.VariableId == flag.VariableId)
+                && ReferenceEquals(vm.SelectedVariable, flag),
+                $"filtered={vm.FilteredVariables.Count} selected={vm.SelectedVariable?.Name}");
+
+            vm.VariableFilter = string.Empty;
+            Program.Check("DLG-20 清空搜索恢复全量、清空命令可用性跟随",
+                vm.FilteredVariables.Count == all
+                && !vm.HasVariableFilter
+                && !vm.ClearVariableFilterCommand.CanExecute(),
+                $"filtered={vm.FilteredVariables.Count} all={all}");
+
+            vm.SelectedVariable = null;
+            vm.VariableFilter = "NoSuchVariable_ZZZ";
+            Program.Check("DLG-21 无匹配 → HasNoVariableMatch=true、候选为空",
+                vm.FilteredVariables.Count == 0 && vm.HasNoVariableMatch,
+                $"filtered={vm.FilteredVariables.Count} noMatch={vm.HasNoVariableMatch}");
+        }
+
+        // ---------------------------------------------------------------- ⑦ 只读单行提示
+
+        private static void ReadOnlyHasSingleHint()
+        {
+            var workspace = new WorkspaceContext();
+            var solution = new SolutionModel();
+            solution.Flows.Clear();
+            var flow = new FlowModel { FlowName = "DLG_只读2", IsEnabled = true };
+            solution.Flows.Add(flow);
+            workspace.SwitchSolution(solution);
+
+            var vm = new FlowResultSourceDialogViewModel(workspace, new DialogPluginProvider(), new DenyAccess());
+            vm.OnDialogOpened(NewParams(flow.FlowName));
+            vm.SelectedMode = vm.Modes.First(m => m.Kind == FlowResultSourceKind.Variable);
+
+            Program.Check("DLG-22 只读时只显示一行提示（ValidationText 不再重复「只读」）",
+                vm.IsReadOnly
+                && vm.ValidationText.Length == 0
+                && !vm.HasValidationError
+                && !vm.HasVariableError
+                && vm.ReadOnlyText.StartsWith("只读：", StringComparison.Ordinal),
+                $"validation='{vm.ValidationText}' readonly='{vm.ReadOnlyText}'");
+        }
+
+        // ---------------------------------------------------------------- ⑧ 多个结果输出
+
+        private static void MultipleResultStepsAreFlagged()
+        {
+            var workspace = new WorkspaceContext();
+            var solution = new SolutionModel();
+            solution.Flows.Clear();
+            var flow = new FlowModel { FlowName = "DLG_双结果", IsEnabled = true };
+            flow.Steps.Add(new ActionStep("R1", "结果输出", "stub.result", "结果输出"));
+            flow.Steps.Add(new ActionStep("R2", "结果输出2", "stub.result", "结果输出2"));
+            solution.Flows.Add(flow);
+            workspace.SwitchSolution(solution);
+
+            var vm = new FlowResultSourceDialogViewModel(workspace, new DialogPluginProvider(), new AllowAccess());
+            vm.OnDialogOpened(NewParams(flow.FlowName));
+
+            Program.Check("DLG-23 两个结果输出步骤 → 计数/列表/歧义标记齐备",
+                vm.ResultStepCount == 2
+                && vm.HasMultipleResultSteps
+                && vm.ResultStepListText.Contains("结果输出2")
+                && !vm.AutoUsesResultStep,
+                $"count={vm.ResultStepCount} list={vm.ResultStepListText} autoUses={vm.AutoUsesResultStep}");
+
+            vm.SelectedMode = vm.Modes.First(m => m.Kind == FlowResultSourceKind.ResultStep);
+            Program.Check("DLG-24 结果输出步骤模式在多步时阻断保存并给原因",
+                !vm.CanSave && vm.ValidationText.Contains("只能保留一个"),
+                $"canSave={vm.CanSave} text={vm.ValidationText}");
+
+            vm.SelectedMode = vm.Modes.First(m => m.Kind == FlowResultSourceKind.Auto);
+            Program.Check("DLG-25 自动模式多步不阻断，但提示跳过结果步骤走回退链",
+                vm.CanSave && vm.HasWarning && vm.WarningText.Contains("回退链"),
+                $"canSave={vm.CanSave} warning={vm.WarningText}");
         }
 
         // ---------------------------------------------------------------- 夹具

@@ -64,7 +64,20 @@ namespace UI.Behaviors
         {
             if (d is not TreeView tree) return;
             if (_updatingFromTreeView) return;   // 树自己写进来的，不需要推回去
-            if (e.NewValue == null) return;
+
+            // 外部把当前选中项清空（切流程 / 选中分支卡片 / 删掉最后一步）：**树上的高亮必须一起清掉**。
+            // 这里原先直接 return，而 TreeView.SelectedItem 是只读的——高亮就留在旧行上不动，
+            // 于是出现"某行高亮着、但它不是命令靶"的脱钩态：再点这一行不触发 SelectedItemChanged
+            // （它本来就选着），双击则拿 null 当靶静默不弹窗
+            //（2026-10-29 真机：流程栏双击算子不弹参数窗，双击画布正常）。
+            if (e.NewValue == null)
+            {
+                tree.Dispatcher.BeginInvoke(
+                    new Action(() => ClearSelectionFromViewModel(tree)),
+                    System.Windows.Threading.DispatcherPriority.Background);
+                return;
+            }
+
             if (ReferenceEquals(e.NewValue, tree.SelectedItem)) return;
 
             // 容器生成要等布局完成，直接在 DP 回调里走一遍 UpdateLayout 属"布局过程中触发布局"，
@@ -131,6 +144,45 @@ namespace UI.Behaviors
             return false;
         }
 
+        /// <summary>
+        /// 清掉树上所有容器的选中态（VM 把选中项推成 null 时用，见 OnBindableSelectedItemChanged）。
+        ///
+        /// TreeView.SelectedItem 是只读的，清选中只能逐容器 IsSelected = false；
+        /// 未生成的容器（从未展开过的折叠子树）ContainerFromIndex 返回 null，跳过即可——
+        /// 它们不可能带着可见高亮。清的过程中置 _syncingFromViewModel：这次取消选中是
+        /// "照 VM 的意思办"，不该再回写一次 VM。
+        /// 排队期间用户可能又选了别的东西：以当前 DP 值为准，已经不是 null 就放弃。
+        /// </summary>
+        private static void ClearSelectionFromViewModel(TreeView tree)
+        {
+            if (GetBindableSelectedItem(tree) != null) return;
+
+            _syncingFromViewModel = true;
+            try
+            {
+                ClearSelectionRecursive(tree);
+            }
+            finally
+            {
+                _syncingFromViewModel = false;
+            }
+        }
+
+        private static void ClearSelectionRecursive(ItemsControl host)
+        {
+            for (int i = 0; i < host.Items.Count; i++)
+            {
+                if (host.ItemContainerGenerator.ContainerFromIndex(i) is not TreeViewItem container)
+                    continue;
+
+                if (container.IsSelected)
+                    container.IsSelected = false;
+
+                if (container.HasItems)
+                    ClearSelectionRecursive(container);
+            }
+        }
+
         #endregion
 
         #region 双击命令（双击节点 = 选中该节点 + 执行命令，View 零 code-behind）
@@ -169,8 +221,10 @@ namespace UI.Behaviors
         {
             if (sender is not TreeView treeView) return;
 
-            // 只响应"双击在节点上"：空白区双击不触发
-            var source = e.OriginalSource as DependencyObject;
+            // 只响应"双击在节点上"：空白区双击不触发。
+            // OriginalSource 优先、Source 兜底：真实鼠标输入两者都有，手工 RaiseEvent 回放只有 Source
+            //（MouseDoubleClick 是 Direct 路由，合成事件只能投给挂处理器的树，Source 声明被点处）。
+            var source = (e.OriginalSource ?? e.Source) as DependencyObject;
             if (source == null) return;
 
             // 展开/折叠小箭头上的双击放行给 TreeView 自己，不劫持为"打开配置"
@@ -185,6 +239,14 @@ namespace UI.Behaviors
             // 先选中被双击的节点：BindableSelectedItem 双向绑定会同步 VM 的当前选中项，
             // 命令内部（按选中项取参）拿到的就是这张卡片，而不是上一次选中的节点
             item.IsSelected = true;
+
+            // 但"已经在选中态"时上面这行是幂等的（WPF 不会再发 SelectedItemChanged），
+            // 而当前选中项可能早已和这一行脱钩（VM 推 null 被丢弃 / 反向推送找不到容器）。
+            // 命令按"当前选中项"取参，脱钩状态下会打开别的算子、或因靶为 null 静默不弹窗
+            //（2026-10-29 真机：流程栏双击算子不弹参数窗，双击画布正常）。
+            // 所以这里直接把被点的数据项写进绑定，保证"命令靶 = 用户看到的那一行"。
+            if (!ReferenceEquals(GetBindableSelectedItem(treeView), item.DataContext))
+                SetBindableSelectedItem(treeView, item.DataContext);
 
             if (command.CanExecute(parameter))
                 command.Execute(parameter);

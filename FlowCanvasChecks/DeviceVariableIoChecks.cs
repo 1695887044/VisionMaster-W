@@ -49,6 +49,7 @@ namespace FlowCanvasChecks
             RunFinsRoundTrip();
             RunAreaOptionContract();
             RunBitOffsetRange();
+            RunEasyNetCsvImport();
         }
 
         // ==================================================================
@@ -223,7 +224,7 @@ namespace FlowCanvasChecks
                 new[] { ModbusRow(2, "Conflict", "整数 (int)", "10") },
                 Array.Empty<NetworkVariableModel>(),
                 solution.VariableGroups.ToList());
-            Check("计划：与本地变量撞名报错（方案内变量名唯一）",
+            Check("计划：与本地变量撞名报错（本地变量无设备，仍全方案唯一）",
                 conflictPlan.Items[0].Status == DeviceVariableImportStatus.Error && conflictPlan.Items[0].Note.Contains("本地变量"),
                 conflictPlan.Items[0].Note);
         }
@@ -996,6 +997,146 @@ namespace FlowCanvasChecks
         // ==================================================================
         //  工具
         // ==================================================================
+
+        // ==================================================================
+        //  ⑨ 汇川 EasyNet CSV 直接导入
+        // ==================================================================
+        //
+        // 【背景】汇川 EasyMonitor 导出的 CSV 与本仓 xlsx 不是同一个 schema，而且不同版本导出的
+        // 列数都不一样（16 列 A..P / 13 列 A..M）。适配器只做"翻译"，校验仍归 BuildPlan。
+        // 三条按真实文件踩出来的口径：按表头取列、数组计数>1 才算数组、无 BOM 的 GB18030。
+
+        private static void RunEasyNetCsvImport()
+        {
+            Section("[IO] 汇川 EasyNet CSV 直接导入（表头取列 / 数组计数 / GB18030）");
+
+            // —— 13 列新导出：标量的数组计数写 1，变量组Id 是最后一列 ——
+            var newStyle = string.Join("\r\n", new[]
+            {
+                "#变量导出文件（汇川）",
+                "#列A:名称",
+                "名称,连接,数据类型,长度,数组计数,地址,采集周期,采集模式,上限,下限,初始值,注释,变量组Id",
+                "\"Alarm1[0]\",,\"Bool\",\"1\",\"1\",\"UB 2101060\",\"100ms\",\"1\",,,,\"打标超时\",1",
+                "\"Alarm1[1]\",,\"Bool\",\"1\",\"1\",\"UB 2101061\",\"100ms\",\"1\",,,,\"\",1",
+                "\"Speed\",,\"Int32\",\"4\",\"1\",\"UW 21011B0\",\"200ms\",\"1\",,,,\"\",1",
+                "\"Barcode\",,\"String\",\"50\",\"1\",\"UW 2101200\",\"100ms\",\"1\",,,,\"\",1",
+                "\"Arr\",,\"Int16\",\"2\",\"[0,19]\",\"UW 2101300\",\"100ms\",\"1\",,,,\"\",1",
+            });
+
+            var newPath = TempCsv(newStyle);
+            var connection = CreateEasyNetConnection();
+            var rows = DeviceVariableImportService.ReadRows(newPath, connection.ReadCycleMs);
+
+            Check("CSV：注释行与表头行不算数据行（5 条数据）", rows.Count == 5, $"count={rows.Count}");
+
+            var alarm0 = rows[0];
+            Check("CSV：名称 → 变量名", alarm0.Get(DeviceVariableColumns.Name) == "Alarm1[0]",
+                alarm0.Get(DeviceVariableColumns.Name));
+            Check("CSV：Bool → 布尔 (bool)（用本仓显示名，不是汇川原文）",
+                alarm0.Get(DeviceVariableColumns.DataType) == "布尔 (bool)",
+                alarm0.Get(DeviceVariableColumns.DataType));
+            Check("CSV：地址「UB 2101060」拆成 存储区=U / 偏移量=2101060",
+                alarm0.Get(DeviceVariableColumns.Area) == "U"
+                && alarm0.Get(DeviceVariableColumns.Offset) == "2101060",
+                $"{alarm0.Get(DeviceVariableColumns.Area)} / {alarm0.Get(DeviceVariableColumns.Offset)}");
+            Check("★CSV：GB18030 无 BOM 也能解出中文描述（按 UTF-8 硬解会变成 U+FFFD）",
+                alarm0.Get(DeviceVariableColumns.Description) == "打标超时",
+                alarm0.Get(DeviceVariableColumns.Description));
+            Check("★CSV：数组计数写 1 的标量不能被当成数组",
+                alarm0.Get(DeviceVariableColumns.ElementCount) == "1"
+                && !alarm0.Get(DeviceVariableColumns.DataType).Contains("[]"),
+                $"{alarm0.Get(DeviceVariableColumns.ElementCount)} / {alarm0.Get(DeviceVariableColumns.DataType)}");
+            Check("CSV：变量组Id → 显示分组「汇川组1」",
+                alarm0.Get(DeviceVariableColumns.DisplayGroup) == "汇川组1",
+                alarm0.Get(DeviceVariableColumns.DisplayGroup));
+            Check("★CSV：采集周期与连接读周期一致时不写扫描组（否则每次都弹「未知扫描组」）",
+                alarm0.Get(DeviceVariableColumns.ScanGroup) == "",
+                alarm0.Get(DeviceVariableColumns.ScanGroup));
+            Check("CSV：采集周期与连接读周期不一致时保留原值，交给 BuildPlan 报「回落默认组」",
+                rows[2].Get(DeviceVariableColumns.ScanGroup) == "200ms",
+                rows[2].Get(DeviceVariableColumns.ScanGroup));
+
+            Check("CSV：字符串标量的元素个数 = 「长度」列（总字节数）",
+                rows[3].Get(DeviceVariableColumns.ElementCount) == "50",
+                rows[3].Get(DeviceVariableColumns.ElementCount));
+            Check("CSV：数组计数 [0,19] → 20 个元素 + 数组类型",
+                rows[4].Get(DeviceVariableColumns.ElementCount) == "20"
+                && rows[4].Get(DeviceVariableColumns.DataType) == "短整数数组 (short[])",
+                $"{rows[4].Get(DeviceVariableColumns.ElementCount)} / {rows[4].Get(DeviceVariableColumns.DataType)}");
+
+            var plan = DeviceVariableImportService.BuildPlan(
+                connection, rows, Array.Empty<NetworkVariableModel>(), Array.Empty<IVariable>(),
+                Array.Empty<VariableGroupDescriptor>(), new[] { PollScheduler.DefaultGroupName },
+                autoCreateDisplayGroups: true);
+
+            Check("★CSV → 导入计划：5 条全部新增、0 错误（下游校验一条都没改）",
+                plan.GlobalError == null && plan.NewCount == 5 && plan.ErrorCount == 0,
+                $"global={plan.GlobalError} new={plan.NewCount} err={plan.ErrorCount}");
+
+            Check("CSV → 导入计划：自动建显示分组「汇川组1」",
+                plan.NewDisplayGroups.Contains("汇川组1"),
+                string.Join("、", plan.NewDisplayGroups));
+
+            Check("CSV → 导入计划：「200ms」被列成未知扫描组（回落默认组，用户看得见）",
+                plan.UnknownScanGroups.Contains("200ms"),
+                string.Join("、", plan.UnknownScanGroups));
+
+            // —— 16 列老导出：分组 Id 在倒数第 4 列，后面还跟着索引变量/操作记录/父节点 ——
+            var oldStyle = string.Join("\r\n", new[]
+            {
+                "名称,连接,数据类型,长度,数组计数,地址,采集周期,采集模式,上限,下限,初始值,注释,变量组Id,索引变量,操作记录,父节点",
+                "\"Old1\",,\"Int16\",\"2\",\"1\",\"UW 100\",\"100ms\",\"1\",,,,\"老格式\",3,\"\",\"\",\"\"",
+            });
+
+            var oldPath = TempCsv(oldStyle);
+            var oldRows = DeviceVariableImportService.ReadRows(oldPath, 100);
+            Check("★CSV：16 列老导出的分组 Id 取第 13 列（不是「下限」，也不是「父节点」）",
+                oldRows.Count == 1 && oldRows[0].Get(DeviceVariableColumns.DisplayGroup) == "汇川组3",
+                oldRows.Count == 1 ? oldRows[0].Get(DeviceVariableColumns.DisplayGroup) : "读不到行");
+
+            // —— 非 CSV 后缀仍走 xlsx：这里只钉"分流条件"，xlsx 本身由上面 20 条往返断言守 ——
+            Check("CSV：只按 .csv 后缀分流（大写后缀同样认）",
+                EasyNetCsvReader.IsCsv("a.CSV") && !EasyNetCsvReader.IsCsv("a.xlsx") && !EasyNetCsvReader.IsCsv("a.csvx"),
+                "");
+
+            TryDelete(newPath);
+            TryDelete(oldPath);
+        }
+
+        private static CommunicationConfig CreateEasyNetConnection()
+            => new("PLC-1", new EasyNetConfig
+            {
+                // 手工构造 Config 必须显式赋 Type（默认 0 = ModbusTcp，工厂会取错实现）
+                Type = CommunicationType.EasyNet,
+                IpAddress = "127.0.0.1",
+                Port = 12939,
+            })
+            {
+                ReadCycleMs = 100,
+            };
+
+        /// <summary>写一个 GB18030（无 BOM）的临时 CSV——汇川导出的真实编码。</summary>
+        private static string TempCsv(string text)
+        {
+            try { return TempCsvCore(text); }
+            catch (ArgumentException)
+            {
+                System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+                return TempCsvCore(text);
+            }
+        }
+
+        private static string TempCsvCore(string text)
+        {
+            var path = Path.Combine(Path.GetTempPath(), "vm_io_" + Guid.NewGuid().ToString("N") + ".csv");
+            File.WriteAllBytes(path, System.Text.Encoding.GetEncoding("GB18030").GetBytes(text));
+            return path;
+        }
+
+        private static void TryDelete(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { /* 临时文件，删不掉也不影响断言 */ }
+        }
 
         private static CommunicationConfig CreateConnection()
         {

@@ -46,6 +46,22 @@ namespace VisionMaster.Views
         {
             InitializeComponent();
 
+            // ★ 首帧之前就必须有界：MaxHeight 默认是 Infinity，而本列表嵌在 BindingBodyScroll
+            // 里（外层 ScrollViewer 量它时可用高度是无穷），于是**第一次布局**就会把全部候选
+            // 逐行实例化、一行都不回收。UpdateCandidateMaxHeight 虽然挂在 LayoutUpdated 上，
+            // 但 LayoutUpdated 是"这一轮布局跑完之后"才发的——它只能让第二轮收敛回十来行，
+            // 救不了首帧已经付掉的代价：实测约 4 ms/行，1500 条 ≈ 6 s、9000 条 ≈ 36 s，
+            // 现场表现就是"一打开绑定弹窗就卡死"（变量越多越久，看起来像死机）。
+            // 这里先按最小高度封顶；等 UpdateCandidateMaxHeight 拿到视口高再放宽
+            // （短列表会被它恢复成 Infinity = 设计基线的自然高度，长列表则封在剩余高度）。
+            CandidateList.MaxHeight = CandidateMinHeight;
+
+            // 候选列表的高度上限跟着"它在滚动内容里的位置 + 视口高"走。这两者会随窗口缩放、
+            // 提示条/索引面板出现而变，而**布局完成之后**才知道准确值，所以挂在 LayoutUpdated
+            // 上重算（UpdateCandidateMaxHeight 自带 0.5 差值守卫：值没变就不写属性，
+            // 不会出现"改属性 → 再布局 → 再改"的自激）。
+            LayoutUpdated += (_, __) => UpdateCandidateMaxHeight();
+
             // 与 GlobalVariableView 同一时序：Prism 的 AutoWireViewModel 在
             // InitializeComponent 解析期间就把 DataContext 设好了，DataContextChanged
             // 之后不会再补发，所以构造器里必须直接 Hook 一次。
@@ -54,6 +70,7 @@ namespace VisionMaster.Views
             {
                 HookViewModel();
                 ClampToWorkArea();
+                UpdateCandidateMaxHeight();
             };
             Unloaded += (_, __) => UnhookViewModel();
             HookViewModel();
@@ -64,39 +81,70 @@ namespace VisionMaster.Views
         ///
         /// 现象（2026-10-20 真机）：鼠标悬停在右栏/候选列表上滚轮没反应，必须先点一下。
         /// 原因有两层：
-        /// ① 候选 ListBox 的 ScrollViewer.VerticalScrollBarVisibility=Disabled 后仍会
-        ///    处理 MouseWheel 并标记 Handled，外层 ScrollViewer 收不到；
+        /// ① ListBox 内部的 ScrollViewer 会先处理 MouseWheel 并标记 Handled，外层收不到；
         /// ② WPF 的 ListBox 在未获得键盘焦点时对滚轮的响应不稳定。
         /// 这里在 Preview 阶段找"指针下最近一个可滚动的 ScrollViewer"，直接 LineUp/LineDown，
         /// 谁可滚就滚谁（左/中列表、右栏整体），并标记 Handled 防止二次滚动。
+        ///
+        /// 2026-10-29 补充：候选列表为了虚拟化改成"自己有界、自己滚动"（见
+        /// UpdateCandidateMaxHeight），于是多了嵌套滚动——列表滚到底之后滚轮必须能继续
+        /// 滚外层右栏，否则手感想卡住。所以滚不动就往外面再找一层。
         /// </summary>
         private void OnPreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             if (e.Handled)
                 return;
 
-            var scrollViewer = FindScrollableAncestor(e.OriginalSource as DependencyObject);
-            if (scrollViewer == null)
-                return;
+            var source = e.OriginalSource as DependencyObject;
+            DependencyObject? inner = null;
 
-            // 与 WPF 默认一致：一格滚轮 3 行（ListBox 的逻辑滚动下就是 3 项）。
-            for (int i = 0; i < 3; i++)
+            while (true)
             {
-                if (e.Delta > 0)
-                    scrollViewer.LineUp();
-                else
-                    scrollViewer.LineDown();
+                var scrollViewer = FindScrollableAncestor(source, inner);
+                if (scrollViewer == null)
+                    return;
+
+                double before = scrollViewer.VerticalOffset;
+
+                // 与 WPF 默认一致：一格滚轮 3 行（ListBox 的逻辑滚动下就是 3 项）。
+                for (int i = 0; i < 3; i++)
+                {
+                    if (e.Delta > 0)
+                        scrollViewer.LineUp();
+                    else
+                        scrollViewer.LineDown();
+                }
+                e.Handled = true;
+
+                if (Math.Abs(scrollViewer.VerticalOffset - before) > 0.01)
+                    return;
+
+                // 这一层已经到顶/到底：继续往外一层找可滚的容器
+                inner = scrollViewer;
             }
-            e.Handled = true;
         }
 
-        private static ScrollViewer? FindScrollableAncestor(DependencyObject? source)
+        /// <summary>
+        /// 从 <paramref name="source"/> 往上找最近一个"可竖向滚动"的 ScrollViewer。
+        /// <paramref name="inner"/> 非空时跳过它及其内侧（用于"内层滚不动、换外层"）。
+        /// </summary>
+        private static ScrollViewer? FindScrollableAncestor(
+            DependencyObject? source,
+            DependencyObject? inner = null)
         {
             var current = source;
+            bool skip = inner != null;
             while (current != null)
             {
-                if (current is ScrollViewer sv && sv.ScrollableHeight > 0)
+                if (skip)
+                {
+                    if (ReferenceEquals(current, inner))
+                        skip = false;
+                }
+                else if (current is ScrollViewer sv && sv.ScrollableHeight > 0)
+                {
                     return sv;
+                }
 
                 // TextBlock 里的 Run 是 ContentElement（不是 Visual），
                 // 对它调 VisualTreeHelper.GetParent 会抛 InvalidOperationException；
@@ -486,6 +534,95 @@ namespace VisionMaster.Views
             UpdateCandidateEmptyState();
         }
 
+        // ── 候选列表虚拟化（性能契约） ──────────────────────────────────
+
+        /// <summary>候选列表的高度下限：低于这个值就不值得再压缩（保证至少能看到三四行）。</summary>
+        private const double CandidateMinHeight = 220;
+
+        /// <summary>列表下方留给提示行的高度（不让列表正好顶到视口底、把提示挤出去）。</summary>
+        private const double CandidateFooterReserve = 36;
+
+        /// <summary>候选行高，与 XAML 里 ListBoxItem 的 <c>MinHeight="52"</c> 对应（只用于估算"要不要封顶"）。</summary>
+        private const double CandidateRowHeight = 52;
+
+        /// <summary>
+        /// 内容高度超过可视区多少屏才封顶。
+        /// 3 屏 ≈ 十几行：这么长的列表本来就没法靠滚动挑，封顶后走搜索；
+        /// 更短的列表保持自然高度（与设计基线完全一致），全量实例化也就十几行、几十毫秒。
+        /// </summary>
+        private const double CandidateBoundTriggerScreens = 3;
+
+        /// <summary>
+        /// 给候选列表一个"有界高度"——这是它能否虚拟化的唯一开关。
+        ///
+        /// 【为什么必须有上限】候选列表整块嵌在右栏的 BindingBodyScroll 里，外层 ScrollViewer
+        /// 量它时可用高度是无穷，VirtualizingStackPanel 于是**逐行实例化、一行都不回收**。
+        /// 全局变量动辄两三千条（现场实测 2702），行模板又重（4 个 AncestorType 绑定 +
+        /// 若干胶囊/按钮样式，实测约 4 ms/行），于是打开弹窗、改搜索词、换端口都要把几千行
+        /// 重造一遍：1501 条实测 6.2 s，2702 条更久 —— 这就是"变量一多就卡"。
+        ///
+        /// 【为什么按视口剩余高度算，而不是写死一个数】写死会在候选不多时凭空压出一个内层
+        /// 滚动条（与设计基线不一致）。按剩余高度算，上限永远等于"列表在可视区里还剩多少地方"。
+        ///
+        /// 【为什么还要一道"3 屏"门槛】封顶本身就会改观感（内层滚动条 + 少看几行）。十几行以内
+        /// 的列表整列滚动是基线行为，全量实例化也就几十毫秒，不值得为它改样子；只有内容
+        /// 高度超过 3 屏（这种列表本来就没法靠滚动挑、只能搜索）才封顶并让虚拟化生效。
+        ///
+        /// 只在差值超过 0.5 时才写 MaxHeight：这个值是在布局回调里算出来的，
+        /// 无条件赋值会让"布局 → 改属性 → 布局"自激。
+        /// </summary>
+        private void UpdateCandidateMaxHeight()
+        {
+            if (CandidateList == null || BindingBodyScroll == null)
+                return;
+
+            double viewport = BindingBodyScroll.ViewportHeight;
+            if (viewport <= 0)
+                return;
+
+            double offset;
+            try
+            {
+                // 列表在滚动内容里的纵向偏移：剩余高度 = 视口高 - 偏移。
+                // 未参与布局时 TransformToAncestor 会抛，按"还不知道"直接跳过。
+                offset = BindingBodyScroll.Content is Visual content
+                    ? CandidateList.TransformToAncestor(content).Transform(new Point(0, 0)).Y
+                    : 0;
+            }
+            catch (InvalidOperationException)
+            {
+                return;
+            }
+
+            double remaining = Math.Max(
+                CandidateMinHeight,
+                viewport - Math.Max(0, offset) - CandidateFooterReserve);
+
+            // ★ 条数未知（ItemsSource 还没落地 / 正在换集合）时必须保持现状，不能按"0 条"判成短列表。
+            //
+            // 这一条是实测出来的死结：ItemsSource 绑定要到布局之后才落到 ListBox 上，
+            // 于是第一次 LayoutUpdated 看到的是 Items.Count == 0 → 走"短列表"分支把
+            // MaxHeight 放宽成 Infinity → 紧接着的下一轮布局正好拿到全部候选，
+            // 于是把**每一行**都实例化（现场 9000 个变量实测 122 秒，realized=9001），
+            // 之后再收敛回十来行也已经晚了——那 122 秒是实打实付掉的。
+            // 构造函数已把 MaxHeight 预置成有界值，这里"不知道就什么都不做"才是安全方向：
+            // 空列表本身高度为 0，不会被这条兜底压出观感差异。
+            if (CandidateList.Items.Count == 0)
+                return;
+
+            double wanted = CandidateList.Items.Count * CandidateRowHeight;
+            if (wanted <= remaining * CandidateBoundTriggerScreens)
+            {
+                // 不封顶：恢复自然高度（= 设计基线的整列滚动）
+                if (!double.IsPositiveInfinity(CandidateList.MaxHeight))
+                    CandidateList.MaxHeight = double.PositiveInfinity;
+                return;
+            }
+
+            if (Math.Abs(CandidateList.MaxHeight - remaining) > 0.5)
+                CandidateList.MaxHeight = remaining;
+        }
+
         private void UpdateCounts()
         {
             if (_vm == null)
@@ -654,6 +791,7 @@ namespace VisionMaster.Views
         {
             base.OnRenderSizeChanged(sizeInfo);
             ApplyResponsiveColumns(sizeInfo.NewSize.Width);
+            UpdateCandidateMaxHeight();
         }
 
         /// <summary>
@@ -914,17 +1052,34 @@ namespace VisionMaster.Views
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
-            string linked = values.Length > 0 ? Text(values[0]) : string.Empty;
-            string nodeName = values.Length > 1 ? Text(values[1]) : string.Empty;
-            string portName = values.Length > 2 ? Text(values[2]) : string.Empty;
-            return IsBound(linked, nodeName, portName) ? Visibility.Visible : Visibility.Collapsed;
+            // 顺序：绑定端口的 BoundVariableId → 候选的 VariableId → 显示串 → 节点名 → 端口名
+            Guid boundId = values.Length > 0 ? Id(values[0]) : Guid.Empty;
+            Guid candidateId = values.Length > 1 ? Id(values[1]) : Guid.Empty;
+            string linked = values.Length > 2 ? Text(values[2]) : string.Empty;
+            string nodeName = values.Length > 3 ? Text(values[3]) : string.Empty;
+            string portName = values.Length > 4 ? Text(values[4]) : string.Empty;
+            return IsBound(boundId, candidateId, linked, nodeName, portName)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
 
-        internal static bool IsBound(string linked, string nodeName, string portName)
+        /// <summary>
+        /// 「这一行就是当前绑定的那个」判定。
+        ///
+        /// **Id 优先**：多设备允许同名点位之后，两台设备的 <c>A</c> 会拼出同一个显示串，
+        /// 按字符串比较会让两行同时亮「已绑定」——用户看不出自己绑的是哪一台。
+        /// 任一侧没有身份（旧方案没存 Id / 步骤端口 / 运行时变量）才退回改造前的名字串口径。
+        /// </summary>
+        internal static bool IsBound(
+            Guid boundVariableId, Guid candidateVariableId,
+            string linked, string nodeName, string portName)
         {
+            if (boundVariableId != Guid.Empty && candidateVariableId != Guid.Empty)
+                return boundVariableId == candidateVariableId;
+
             if (string.IsNullOrWhiteSpace(linked) || string.IsNullOrWhiteSpace(portName))
                 return false;
 
@@ -939,6 +1094,9 @@ namespace VisionMaster.Views
             return string.Equals(linked, $"Runtime.{portName}", StringComparison.Ordinal);
         }
 
+        private static Guid Id(object value)
+            => value is Guid guid ? guid : Guid.Empty;
+
         private static string Text(object value)
             => value == null || ReferenceEquals(value, DependencyProperty.UnsetValue)
                 ? string.Empty
@@ -950,18 +1108,24 @@ namespace VisionMaster.Views
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
         {
+            // 顺序：IsBindable → BoundVariableId → 候选 VariableId → 显示串 → 节点名 → 端口名
             bool bindable = values.Length > 0 && values[0] is bool b0 && b0;
-            string linked = values.Length > 1 ? Text(values[1]) : string.Empty;
-            string nodeName = values.Length > 2 ? Text(values[2]) : string.Empty;
-            string portName = values.Length > 3 ? Text(values[3]) : string.Empty;
+            Guid boundId = values.Length > 1 ? Id(values[1]) : Guid.Empty;
+            Guid candidateId = values.Length > 2 ? Id(values[2]) : Guid.Empty;
+            string linked = values.Length > 3 ? Text(values[3]) : string.Empty;
+            string nodeName = values.Length > 4 ? Text(values[4]) : string.Empty;
+            string portName = values.Length > 5 ? Text(values[5]) : string.Empty;
 
-            if (!bindable || CandidateBoundVisibilityConverter.IsBound(linked, nodeName, portName))
+            if (!bindable || CandidateBoundVisibilityConverter.IsBound(boundId, candidateId, linked, nodeName, portName))
                 return Visibility.Collapsed;
             return Visibility.Visible;
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
+
+        private static Guid Id(object value)
+            => value is Guid guid ? guid : Guid.Empty;
 
         private static string Text(object value)
             => value == null || ReferenceEquals(value, DependencyProperty.UnsetValue)

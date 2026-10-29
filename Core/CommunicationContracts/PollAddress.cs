@@ -12,7 +12,9 @@ namespace VisionMaster.Communications
         /// <summary>三菱/基恩士/松下 MC（按字编址；位区不批量）</summary>
         Mc,
         /// <summary>欧姆龙 FINS（按字编址；位区不批量）</summary>
-        Fins
+        Fins,
+        /// <summary>汇川 EasyNet（按位编址；字区一个单元 = 1 字 = 2 字节）</summary>
+        EasyNet
     }
 
     /// <summary>
@@ -85,7 +87,10 @@ namespace VisionMaster.Communications
         /// <summary>是否为单 bit 访问（S7 byte.bit / Modbus 位区变量）</summary>
         public bool IsBitAccess { get; init; }
 
-        /// <summary>bit 偏移（0-7），非位访问为 -1</summary>
+        /// <summary>
+        /// 位序号（相对本变量地址单元的位偏移），非位访问为 -1。
+        /// 上限由单元宽度决定：字节单元（S7 <c>M10.3</c>）0~7，字单元（EasyNet <c>D100.12</c>）0~15。
+        /// </summary>
         public int BitOffset { get; init; } = -1;
 
         /// <summary>本变量的段地址（HSL 可解析；十六进制编址区由地址实现提供覆盖串）</summary>
@@ -97,9 +102,19 @@ namespace VisionMaster.Communications
         /// <summary>变量值的字节长度（位区/位访问固定 1 字节切片）</summary>
         public int ValueByteLength => IsBitArea || IsBitAccess
             ? 1
-            : Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins
+            : Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins or PollProtocol.EasyNet
                 ? SpanUnits * 2
                 : SpanUnits;
+
+        /// <summary>
+        /// 本区每个单元占用的字节数（Modbus 寄存器区 / MC / FINS / EasyNet 字区 1 单元 = 2 字节，其余 1:1）。
+        /// 与 <c>ReadSegment.BytesPerUnit</c> 同一口径——读写两条路径的槽位换算必须一致。
+        /// </summary>
+        public int BytesPerUnit =>
+            Protocol is PollProtocol.Modbus or PollProtocol.Mc or PollProtocol.Fins or PollProtocol.EasyNet
+                && !IsBitArea
+                ? 2
+                : 1;
 
         /// <summary>
         /// 单请求单元数上限（来自 HSL ModbusInfo.BuildReadModbusCommand 的分包限制与 S7 PDU 保守值）
@@ -111,7 +126,26 @@ namespace VisionMaster.Communications
             // FINS 单次字读上限按 500 取（HSL 内部 ReadSplits 默认更保守，500 不会触发二次拆分）
             PollProtocol.Mc => 960,
             PollProtocol.Fins => 500,
+            // EasyNet：位区 8000 位 / 字区 500 字（= 8000 位）。两区统一按"单帧 8000 位"封顶。
+            // 实测汇川 H5U 模拟器（h5u_daemon，2026-10-29）：字区 501 字（8016 位）仍成功、
+            // 512 字（8192 位）回错误码 129；位区 8000 位成功、8001 位回错误码 64、8192 位回 129。
+            // 旧值 2000 字/4000 字来自另一台宽松模拟器，在真机上会让大段整段被拒。
+            PollProtocol.EasyNet => IsBitArea ? 8000 : 500,
             _ => 110 // S7：留足 PDU 余量
+        };
+
+        /// <summary>
+        /// 单请求<b>写</b>单元数上限。
+        /// <para>为什么不复用 <see cref="MaxSegmentUnits"/>：那是读上限，两者并不等价——
+        /// Modbus 位区读可到 2000 点，而 FC15 写上限是 1968；写帧还带载荷，PDU 更紧。</para>
+        /// </summary>
+        public int MaxWriteUnits => Protocol switch
+        {
+            PollProtocol.Modbus => IsBitArea ? 1968 : 120,
+            PollProtocol.Mc => 960,
+            PollProtocol.Fins => 500,
+            PollProtocol.EasyNet => IsBitArea ? 8000 : 500,
+            _ => 110 // S7：写 PDU 同样留余量
         };
     }
 }

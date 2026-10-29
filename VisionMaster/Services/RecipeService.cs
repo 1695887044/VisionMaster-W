@@ -525,6 +525,10 @@ namespace VisionMaster.Services
 
                 try
                 {
+                    // 配方下发是一个整体意图：整批合并下发（走插队车道），而不是逐条往返。
+                    // 变量写在这里只"记账"，真正发送在下面的显式 Flush。
+                    using var batch = VisionMaster.Binding.WriteBatchSession.Begin(urgent: true);
+
                     foreach (var item in plan)
                     {
                         if (item.Step != null)
@@ -540,6 +544,12 @@ namespace VisionMaster.Services
                             written.Add(snapshot.First(s => ReferenceEquals(s.Variable, item.Variable)));
                         }
                     }
+
+                    // 终检读的是变量镜像，批没落地就永远是旧值——必须先冲刷再读。
+                    int unconfirmed = batch.Flush();
+                    if (unconfirmed > 0)
+                        throw new InvalidOperationException(
+                            $"{unconfirmed} 笔变量写未确认（设备回执失败或链路中断），配方未完整下发");
 
                     // 终检：逐条回读并按声明类型比较。不一致=失败，不降级为警告。
                     foreach (var item in plan)

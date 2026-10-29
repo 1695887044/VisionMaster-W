@@ -17,11 +17,13 @@ namespace VisionMaster.Communications
         {
             if (variable == null) return null;
 
-            // 首选：结构化配置直接生成
-            if (variable.AddressConfig != null && variable.AddressConfig.TryCreatePollAddress(out var poll))
-                return poll;
+            // 有结构化地址就以它为准：解析不出来就退回单读。
+            // 不能再按旧字符串猜协议——EasyNet 的 "M100" 会被 HSL 的 S7 解析器吃下（MC 位区同理），
+            // 批量段地址会打到另一个协议的区域：轻则该变量永不刷新，重则整条连接被判链路故障。
+            if (variable.AddressConfig != null)
+                return variable.AddressConfig.TryCreatePollAddress(out var poll) ? poll : null;
 
-            // 回退：按旧字符串约定解析
+            // 回退：只有旧方案/手工注册的变量（没有配置对象）才按历史字符串约定解析
             return ParseLegacy(variable.Address, variable.ValueType);
         }
 

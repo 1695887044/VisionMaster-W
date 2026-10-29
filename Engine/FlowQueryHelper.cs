@@ -72,6 +72,10 @@ namespace VisionMaster.Helpers
                             Name = gv.Name,
                             // 带上稳定身份：绑定弹窗据此把 Id 写进连线，改名后连线仍能命中
                             VariableId = gv.VariableId,
+                            // 带上设备：多设备同名点位时，候选行的显示串与「已绑定」判定都要靠它分辨
+                            Device = gv is NetworkVariableModel network
+                                ? (network.ConnectionName ?? string.Empty)
+                                : string.Empty,
                             DataTypeName = gv.DataType.AssemblyQualifiedName,
                             Description = gv.VariableType switch
                             {

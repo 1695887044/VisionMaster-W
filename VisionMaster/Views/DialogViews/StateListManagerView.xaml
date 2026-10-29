@@ -20,6 +20,12 @@
                 <ResourceDictionary Source="/UI;component/Themes/Colors.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
+            <!--
+                「最小」「最大」两列的显隐：只在「范围」模式下出现（见 StateListManagerViewModel.IsRangeMode）。
+                bool → Visibility 用框架自带的 BooleanToVisibilityConverter，就地声明（R30-R32：跨册取不到）。
+            -->
+            <BooleanToVisibilityConverter x:Key="RangeVisibility" />
+
             <Style x:Key="CellBox" TargetType="TextBox">
                 <Setter Property="Height" Value="26" />
                 <Setter Property="Padding" Value="6,3" />
@@ -74,6 +80,8 @@
                 <Grid Margin="0,2">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="190" />
                         <ColumnDefinition Width="116" />
@@ -85,31 +93,50 @@
                         Margin="0,0,6,0"
                         Style="{StaticResource CellBox}"
                         Text="{Binding Value, UpdateSourceTrigger=PropertyChanged}"
-                        ToolTip="写入值（整数）；下拉框/状态图元按该值匹配" />
+                        ToolTip="写入值（整数）；精确值模式按它匹配，位号模式填位号 0~31" />
 
+                    <!--  范围模式才出现；列宽用固定值，列头与行两处必须一致（两张 Grid 各自算 Auto）  -->
                     <TextBox
                         Grid.Column="1"
+                        Width="66"
+                        Margin="0,0,6,0"
+                        Style="{StaticResource CellBox}"
+                        Text="{Binding Min, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="范围下界（含）；只有「范围」模式看它"
+                        Visibility="{Binding DataContext.IsRangeMode, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}, Converter={StaticResource RangeVisibility}}" />
+
+                    <TextBox
+                        Grid.Column="2"
+                        Width="66"
+                        Margin="0,0,6,0"
+                        Style="{StaticResource CellBox}"
+                        Text="{Binding Max, UpdateSourceTrigger=PropertyChanged}"
+                        ToolTip="范围上界（含）；只有「范围」模式看它"
+                        Visibility="{Binding DataContext.IsRangeMode, RelativeSource={RelativeSource AncestorType={x:Type UserControl}}, Converter={StaticResource RangeVisibility}}" />
+
+                    <TextBox
+                        Grid.Column="3"
                         Margin="0,0,6,0"
                         Style="{StaticResource CellBox}"
                         Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="显示文字；改文案不会改变已经配好的值" />
 
                     <TextBox
-                        Grid.Column="2"
+                        Grid.Column="4"
                         Margin="0,0,6,0"
                         Style="{StaticResource CellBox}"
                         Text="{Binding Image, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="状态图片（方案内相对路径，如 Image\pump-run.png）；留空 = 这一档不显示图" />
 
                     <TextBox
-                        Grid.Column="3"
+                        Grid.Column="5"
                         Margin="0,0,6,0"
                         Style="{StaticResource CellBox}"
                         Text="{Binding Color, UpdateSourceTrigger=PropertyChanged}"
                         ToolTip="状态色（#AARRGGBB 文本，例如绿色 22C55E 前补 #）；留空 = 用中性文字色" />
 
                     <Button
-                        Grid.Column="4"
+                        Grid.Column="6"
                         Width="24"
                         Height="24"
                         Padding="0"
@@ -227,6 +254,8 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -266,41 +295,109 @@
                     </StackPanel>
                 </Grid>
 
+                <!--
+                    匹配模式：决定条目怎么和变量值对上。
+                    切换模式不改任何条目（值/最小/最大都留在原地），所以列只做显隐、不做清空。
+                -->
+                <StackPanel Grid.Row="1" Margin="0,10,0,0">
+                    <TextBlock
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaTextBrush}"
+                        Text="匹配模式" />
+                    <ComboBox
+                        Width="240"
+                        Height="26"
+                        Margin="0,5,0,0"
+                        HorizontalAlignment="Left"
+                        Padding="6,2"
+                        DisplayMemberPath="Name"
+                        FontSize="11.5"
+                        ItemsSource="{Binding ModeOptions}"
+                        SelectedValue="{Binding Mode, Mode=TwoWay}"
+                        SelectedValuePath="Value"
+                        ToolTip="精确值 = 与旧版本一致；范围/位/位号见下方说明" />
+                    <TextBlock
+                        Margin="0,5,0,0"
+                        FontSize="10.5"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="{Binding ModeHint}"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+
                 <Border
-                    Grid.Row="1"
-                    Margin="0,14,0,6"
+                    Grid.Row="2"
+                    Margin="0,14,0,0"
                     BorderBrush="{StaticResource ScadaHairlineBrush}"
                     BorderThickness="0,0,0,1" />
 
-                <Grid Grid.Row="1" Margin="0,18,0,0">
+                <Grid Grid.Row="3" Margin="0,3,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="64" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="190" />
                         <ColumnDefinition Width="116" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
+
+                    <!--  「值」列在范围模式下仍然显示（切回精确值时旧值还在），只是不参与匹配  -->
+                    <TextBlock FontSize="10.5" FontWeight="SemiBold" Text="值">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource ScadaSecondaryTextBrush}" />
+                                <Setter Property="ToolTip" Value="精确值模式：变量值等于这一列即命中" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRangeMode}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource ScadaFaintTextBrush}" />
+                                        <Setter Property="ToolTip" Value="范围模式：这一列不参与匹配（保留旧值，切回精确值/位/位号时继续生效）" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsBitIndexMode}" Value="True">
+                                        <Setter Property="ToolTip" Value="位号模式：这里填位号 0~31，该位为 1 时命中" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsExactMode}" Value="True">
+                                        <Setter Property="ToolTip" Value="精确值模式：变量值等于这一列即命中（与 v5 一致）" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
                     <TextBlock
+                        Grid.Column="1"
+                        Width="66"
+                        Margin="6,0,0,0"
                         FontSize="10.5"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource ScadaSecondaryTextBrush}"
-                        Text="值" />
+                        Text="最小"
+                        Visibility="{Binding IsRangeMode, Converter={StaticResource RangeVisibility}}" />
                     <TextBlock
-                        Grid.Column="1"
+                        Grid.Column="2"
+                        Width="66"
+                        Margin="6,0,0,0"
+                        FontSize="10.5"
+                        FontWeight="SemiBold"
+                        Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                        Text="最大"
+                        Visibility="{Binding IsRangeMode, Converter={StaticResource RangeVisibility}}" />
+                    <TextBlock
+                        Grid.Column="3"
                         Margin="6,0,0,0"
                         FontSize="10.5"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource ScadaSecondaryTextBrush}"
                         Text="显示文字" />
                     <TextBlock
-                        Grid.Column="2"
+                        Grid.Column="4"
                         Margin="6,0,0,0"
                         FontSize="10.5"
                         FontWeight="SemiBold"
                         Foreground="{StaticResource ScadaSecondaryTextBrush}"
                         Text="状态图片（相对路径）" />
                     <TextBlock
-                        Grid.Column="3"
+                        Grid.Column="5"
                         Margin="6,0,0,0"
                         FontSize="10.5"
                         FontWeight="SemiBold"
@@ -309,7 +406,7 @@
                 </Grid>
 
                 <ScrollViewer
-                    Grid.Row="2"
+                    Grid.Row="4"
                     Margin="0,2,0,8"
                     VerticalScrollBarVisibility="Auto">
                     <ItemsControl
@@ -317,7 +414,7 @@
                         ItemsSource="{Binding SelectedList.Entries}" />
                 </ScrollViewer>
 
-                <StackPanel Grid.Row="3">
+                <StackPanel Grid.Row="5">
                     <Button
                         HorizontalAlignment="Left"
                         Click="OnAddEntryClick"

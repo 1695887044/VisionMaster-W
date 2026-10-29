@@ -55,10 +55,29 @@ namespace VisionMaster.Binding
         IVariable? FindById(Guid variableId);
 
         /// <summary>
-        /// 按变量名查找（大小写不敏感；同名以集合中靠前者为准）。
+        /// 按变量名查找（大小写不敏感）。**只在名字唯一命中时返回变量**：
+        /// 0 个命中或 <b>多个变量同名（歧义）</b>都返回 <c>null</c>。
+        ///
+        /// 为什么歧义不猜"先出现者"：名字一旦重复（多台设备的同名点位、手改过的 .vms），
+        /// 猜错方向的后果是把值读到/写进另一台设备，而且不报错。宁可返回 null 让调用方
+        /// 报一条明确的歧义原因，也不能静默选一个。
+        /// 需要知道"到底有哪几个"时用 <see cref="FindAllByName"/>。
+        ///
         /// 仅用于兼容旧数据/用户手输，新代码请优先 <see cref="FindById"/>。
         /// </summary>
         IVariable? FindByName(string? name);
+
+        /// <summary>
+        /// 按变量名取<b>全部</b>同名变量（大小写不敏感），用于生成歧义提示与人工排查。
+        ///
+        /// 口径与 <see cref="FindByName"/> 的用户优先规则一致：
+        /// - 用户表里有同名 → 只返回用户表里的那几个（系统变量被遮住，见 <see cref="AttachSystem"/>）；
+        /// - 用户表没有 → 返回系统表里的那几个；
+        /// - 都没有 → 空集合。
+        ///
+        /// 返回的是<b>快照</b>（新数组），调用方可在锁外遍历。
+        /// </summary>
+        IReadOnlyList<IVariable> FindAllByName(string? name);
 
         /// <summary>
         /// 双路查找：先按 Id，命中不了再按 Name。两者都落空返回 null。

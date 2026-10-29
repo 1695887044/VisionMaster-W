@@ -49,6 +49,7 @@ namespace FlowCanvasChecks
             RunCurrentValueEditContract();
             RunNetworkArrayReadOnlyContract();
             RunVariableGroupContract();
+            RunStructureGroupingContract();
         }
 
         // ==================================================================
@@ -63,40 +64,55 @@ namespace FlowCanvasChecks
             var barcode = Root("Barcode", isNetwork: false, sourceLabel: "本地", description: "条码结果");
             barcode.Children.Add(Child(barcode, "[0]", "SN-A"));
             barcode.Children.Add(Child(barcode, "[1]", "SN-B"));
+            barcode.IsExpanded = true;   // 筛选是"按整棵树递归"，折叠的父级不吐子行
 
             var test = Root("Test", isNetwork: true, sourceLabel: "Conn_01", description: "测试点位", address: "x=3;0");
 
-            var displayNodes = new List<VariableNode> { barcode, barcode.Children[0], barcode.Children[1], test };
+            var roots = new List<VariableNode> { barcode, test };
 
-            var local = GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Local", "");
+            var local = GlobalVariableManagerViewModel.FilterTree(roots, "Local", "");
             Check("选中「本地变量」：只剩本地根节点 + 它的数组子行",
                 Names(local) == "Barcode,[0],[1]",
                 "实际：" + Names(local));
 
-            var network = GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Conn_01", "");
+            var network = GlobalVariableManagerViewModel.FilterTree(roots, "Conn_01", "");
             Check("★选中「网络变量」：数组子行不许漏出来（旧实现在这里漏 2 行无主 [0]/[1]）",
                 Names(network) == "Test",
                 "实际：" + Names(network));
 
-            var searched = GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Local", "Test");
+            var searched = GlobalVariableManagerViewModel.FilterTree(roots, "Local", "Test");
             Check("搜索命中的是网络变量时，本地根与它的子行一起消失",
                 Names(searched) == "",
                 "实际：" + Names(searched));
 
-            var searchHitParent = GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Local", "条码");
+            var searchHitParent = GlobalVariableManagerViewModel.FilterTree(roots, "Local", "条码");
             Check("搜索命中数组根（按描述）时，子行跟着一起留下",
                 Names(searchHitParent) == "Barcode,[0],[1]",
                 "实际：" + Names(searchHitParent));
 
-            var searchByAddress = GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Conn_01", "x=3");
+            var searchByAddress = GlobalVariableManagerViewModel.FilterTree(roots, "Conn_01", "x=3");
             Check("搜索按地址命中网络变量",
                 Names(searchByAddress) == "Test",
                 "实际：" + Names(searchByAddress));
 
-            var mismatchedSource = GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Conn_99", "");
+            var mismatchedSource = GlobalVariableManagerViewModel.FilterTree(roots, "Conn_99", "");
             Check("选中不存在的连接：什么都不显示（也不许漏子行）",
                 Names(mismatchedSource) == "",
                 "实际：" + Names(mismatchedSource));
+
+            Check("折叠的父级不吐子行（子行只在父级展开时出现）",
+                Names(GlobalVariableManagerViewModel.FilterTree(
+                    new List<VariableNode> { Collapsed("Collapsed") }, "Local", "")) == "Collapsed",
+                "实际：" + Names(GlobalVariableManagerViewModel.FilterTree(
+                    new List<VariableNode> { Collapsed("Collapsed") }, "Local", "")));
+        }
+
+        /// <summary>造一个带子行但处于折叠态的本地根节点（验证"折叠不吐子行"）。</summary>
+        private static VariableNode Collapsed(string name)
+        {
+            var parent = Root(name, isNetwork: false, sourceLabel: "本地");
+            parent.Children.Add(Child(parent, "[0]", "v"));
+            return parent;
         }
 
         // ==================================================================
@@ -141,15 +157,15 @@ namespace FlowCanvasChecks
             var displayNodes = new List<VariableNode> { local, system, system2 };
 
             Check("「本地变量」不再包含系统变量",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
+                Names(GlobalVariableManagerViewModel.FilterTree(
                     displayNodes, "Local", "")) == "Barcode",
-                "实际：" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(displayNodes, "Local", "")));
+                "实际：" + Names(GlobalVariableManagerViewModel.FilterTree(displayNodes, "Local", "")));
 
             Check("「系统变量」包含全部系统变量（两个都在）",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
+                Names(GlobalVariableManagerViewModel.FilterTree(
                     displayNodes, GlobalVariableManagerViewModel.SystemSourceKey, ""))
                 == "System.Motion.X.Position,System.Camera.Cam0.Online",
-                "实际：" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(
+                "实际：" + Names(GlobalVariableManagerViewModel.FilterTree(
                     displayNodes, GlobalVariableManagerViewModel.SystemSourceKey, "")));
 
             Check("系统变量节点标记为系统维护（删除/改名据此拦）", system.IsSystemOwned,
@@ -1130,7 +1146,7 @@ namespace FlowCanvasChecks
                 new object?[]
                 {
                     node.IsRootNode,
-                    node.IsChildNode,
+                    node.IsArrayElementRow,
                     node.IsArrayRootNode,
                     node.IsEditableNode,
                     node.IsValueReadOnly,
@@ -1496,17 +1512,17 @@ namespace FlowCanvasChecks
             var nodes = new List<VariableNode> { v1, v2, v3 };
 
             Check("[G] 分组筛选：监控分组只回监控点；全部（null）回全部",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "")) == "Temp"
-                && Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", null, "")) == "Temp,Start,Spare",
-                "monitor=" + Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "")));
+                Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", monitor.Id, "")) == "Temp"
+                && Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", null, "")) == "Temp,Start,Spare",
+                "monitor=" + Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", monitor.Id, "")));
 
             Check("[G] 未分组（Guid.Empty）只回未归类的点",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", Guid.Empty, "")) == "Spare",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", Guid.Empty, "")));
+                Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", Guid.Empty, "")) == "Spare",
+                Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", Guid.Empty, "")));
 
             Check("[G] ★搜索跨分组：在监控分组里搜控制分组的点也要搜到",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "Start")) == "Start",
-                Names(GlobalVariableManagerViewModel.FilterDisplayNodes(nodes, "PLC1", monitor.Id, "Start")));
+                Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", monitor.Id, "Start")) == "Start",
+                Names(GlobalVariableManagerViewModel.FilterTree(nodes, "PLC1", monitor.Id, "Start")));
 
             var netVars = new List<NetworkVariableModel>
             {
@@ -1803,6 +1819,148 @@ namespace FlowCanvasChecks
                 && xaml.Contains("GroupEditor.CancelDeleteCommand"),
                 "");
         }
+
+        // ==================================================================
+        //  ⑨ 按名称路径归组（PLC 变量表一个数组元素 / 结构体成员一行 → 折叠成可展开的一行）
+        // ==================================================================
+        //
+        // 【背景】汇川导出的 PLC 变量表是"一个元素一行"：Alarm1[0..99]、Recipes[0].Ints[0..19]
+        // 各占一行，2357 行里真正的一级对象只有 88 个。归组只做**展示**——
+        // 元素地址步长并不等于元素大小（实测 short 元素隔 16 字节、int 隔 32 字节），
+        // 合成一个真数组会读错内存，所以底层仍是一个元素一个 NetworkVariableModel。
+
+        private static void RunStructureGroupingContract()
+        {
+            Section("[G] 变量管理：按名称路径归组（数组 / 结构体折叠）");
+
+            // —— 路径解析 ——
+            bool parsed = GlobalVariableManagerViewModel.TryParseVariablePath(
+                "Recipes[0].Ints[5]", out var segs);
+            Check("路径解析：Recipes[0].Ints[5] → 4 段（名字 / 下标 / 名字 / 下标）",
+                parsed && segs.Count == 4
+                && segs[0] == new GlobalVariableManagerViewModel.VariablePathSegment("Recipes", false)
+                && segs[1] == new GlobalVariableManagerViewModel.VariablePathSegment("[0]", true)
+                && segs[2] == new GlobalVariableManagerViewModel.VariablePathSegment("Ints", false)
+                && segs[3] == new GlobalVariableManagerViewModel.VariablePathSegment("[5]", true),
+                parsed ? string.Join("/", segs.Select(s => s.Text)) : "解析失败");
+
+            Check("路径解析：没有结构的名字解析得出 1 段（但不归组）",
+                GlobalVariableManagerViewModel.TryParseVariablePath("PLCVersion", out var plainSegs)
+                && plainSegs.Count == 1, "");
+
+            Check("路径解析：畸形名字一律拒绝（宁可多一行，也不许把无关变量塞进同一个容器）",
+                !GlobalVariableManagerViewModel.TryParseVariablePath("A[B]", out _)
+                && !GlobalVariableManagerViewModel.TryParseVariablePath("A[0", out _)
+                && !GlobalVariableManagerViewModel.TryParseVariablePath("A..B", out _)
+                && !GlobalVariableManagerViewModel.TryParseVariablePath(".A", out _)
+                && !GlobalVariableManagerViewModel.TryParseVariablePath("A.", out _)
+                && !GlobalVariableManagerViewModel.TryParseVariablePath("", out _),
+                "");
+
+            // —— 归组形状 ——
+            var t0 = NetLeaf("Recipes[0].Title");
+            var i00 = NetLeaf("Recipes[0].Ints[0]");
+            var i01 = NetLeaf("Recipes[0].Ints[1]");
+            var t1 = NetLeaf("Recipes[1].Title");
+            var scalar = NetLeaf("PLCVersion");
+            var localDotted = Root("Local.Thing", isNetwork: false, sourceLabel: "本地");
+            var systemDotted = new VariableNode
+            {
+                Name = "System.Motion.X",
+                Level = 0,
+                IsNetwork = false,
+                SourceLabel = "系统",
+                OriginalModel = new SystemVariableModel(
+                    Guid.NewGuid(), "System.Motion.X", typeof(double), "轴 X 位置（只读）"),
+            };
+
+            var grouped = GlobalVariableManagerViewModel.GroupNetworkVariablesByPath(
+                new List<VariableNode> { t0, i00, i01, t1, scalar, localDotted, systemDotted });
+
+            Check("归组：只归网络变量；本地 / 系统行原样保留、位置不变",
+                Names(grouped) == "Recipes,PLCVersion,Local.Thing,System.Motion.X",
+                "实际：" + Names(grouped));
+
+            // 下面几条按下标取值：先做安全回落，避免一条不成立就把整个断言宿主带崩
+            var recipes = grouped.Count > 0 ? grouped[0] : new VariableNode { Name = "(无)" };
+            Check("归组：顶层是合成容器（无模型 / 按子段显示数组 / 可展开 / 显示 N 项）",
+                recipes.IsSyntheticContainer && recipes.OriginalModel == null
+                && recipes.TypeName == "数组" && recipes.IsContainer
+                && recipes.ShowChildCountBadge && recipes.Level == 0,
+                $"synthetic={recipes.IsSyntheticContainer} type={recipes.TypeName} children={recipes.Children.Count}");
+
+            var lvl1 = recipes.Children.Count > 0 ? recipes.Children[0] : new VariableNode { Name = "(无)" };
+            Check("归组：第二层是 [0]/[1]（成员结构 → 类型显示结构体），第三层是 Title/Ints",
+                recipes.Children.Count == 2
+                && recipes.Children[0].Name == "[0]" && recipes.Children[1].Name == "[1]"
+                && recipes.Children[0].Level == 1 && recipes.Children[0].TypeName == "结构体"
+                && recipes.Children[0].Children.Select(c => c.Name).SequenceEqual(new[] { "Title", "Ints" }),
+                "实际：" + string.Join(",", recipes.Children.Select(c => c.Name))
+                + " / " + string.Join(",", lvl1.Children.Select(c => c.Name))
+                + " / lvl1Type=" + lvl1.TypeName);
+
+            var ints = lvl1.Children.FirstOrDefault(c => c.Name == "Ints") ?? new VariableNode { Name = "(无)" };
+            Check("归组：第四层是 Ints[0]/Ints[1]，层级到 3",
+                ints.IsSyntheticContainer && ints.Children.Count == 2
+                && ints.Children[0].Name == "[0]" && ints.Children[0].Level == 3,
+                $"children={ints.Children.Count} level={ints.Children.FirstOrDefault()?.Level}");
+
+            var groupedLeaf = ints.Children.Count > 1 ? ints.Children[1] : new VariableNode { Name = "(无)" };
+            Check("★归组的成员行仍是可编辑的真变量（不是数组元素行，操作列照常出现）",
+                !groupedLeaf.IsArrayElementRow && groupedLeaf.IsEditableNode
+                && groupedLeaf.OriginalModel != null && groupedLeaf.ShowRowActions,
+                $"element={groupedLeaf.IsArrayElementRow} editable={groupedLeaf.IsEditableNode} actions={groupedLeaf.ShowRowActions}");
+
+            Check("★归组的成员行保留完整名（复制变量名拿到 Recipes[0].Ints[1]，不是 [1]）",
+                groupedLeaf.Name == "[1]" && groupedLeaf.FullName == "Recipes[0].Ints[1]",
+                $"name={groupedLeaf.Name} full={groupedLeaf.FullName}");
+
+            Check("合成容器不可改名 / 删除 / 改分组，也不显示扫描组",
+                !recipes.ShowRowActions && !recipes.ShowGroup && !recipes.ShowScanGroup,
+                $"actions={recipes.ShowRowActions} group={recipes.ShowGroup} scan={recipes.ShowScanGroup}");
+
+            // —— 单链折叠 ——
+            var collapsed = GlobalVariableManagerViewModel.GroupNetworkVariablesByPath(
+                new List<VariableNode> { NetLeaf("MessageLog.Show") });
+            Check("单链折叠：只有一个成员的容器不留空壳（顶层仍是完整名 MessageLog.Show）",
+                collapsed.Count == 1 && collapsed[0].Name == "MessageLog.Show"
+                && !collapsed[0].IsSyntheticContainer && collapsed[0].Level == 0,
+                "实际：" + Names(collapsed));
+
+            // —— 同名既是变量又是容器 ——
+            var conflict = GlobalVariableManagerViewModel.GroupNetworkVariablesByPath(
+                new List<VariableNode> { NetLeaf("Foo"), NetLeaf("Foo.Bar") });
+            Check("★Foo 与 Foo.Bar 并存：复用 Foo 那一行当容器（表里不出现两行同名）",
+                conflict.Count == 1 && conflict[0].OriginalModel != null
+                && conflict[0].Children.Count == 1 && conflict[0].Children[0].Name == "Bar",
+                $"count={conflict.Count} children={conflict.FirstOrDefault()?.Children.Count}");
+
+            // —— 搜索必须命中深层成员，并自动展开命中路径 ——
+            var deepHit = GlobalVariableManagerViewModel.FilterTree(
+                new List<VariableNode> { recipes }, "Conn_01", null, "Ints[1]", out int hitCount);
+            Check("★搜索命中深层成员：父容器与中间层自动展开，兄弟行不铺开",
+                Names(deepHit) == "Recipes,[0],Ints,[1]",
+                "实际：" + Names(deepHit));
+            Check("搜索命中深层成员时，变量计数按真实变量算（1 个）", hitCount == 1, $"count={hitCount}");
+        }
+
+        /// <summary>造一个网络变量叶子行（名称里带结构，用于归组断言）。</summary>
+        private static VariableNode NetLeaf(string name)
+            => new()
+            {
+                OriginalModel = new NetworkVariableModel
+                {
+                    Name = name,
+                    DataType = typeof(short),
+                    ConnectionName = "Conn_01",
+                },
+                Name = name,
+                DataType = typeof(short),
+                TypeName = "Int16",
+                Level = 0,
+                IsNetwork = true,
+                SourceLabel = "Conn_01",
+            };
 
         private static VariableNode Root(string name, bool isNetwork, string sourceLabel, string? description = null, string? address = null)
             => new()

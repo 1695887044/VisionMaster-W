@@ -390,10 +390,17 @@ namespace VisionMaster.Scada
         }
 
         /// <summary>
-        /// 尝试把一条引用参数化：
-        /// - 名字里任意位置含 <c>[index]</c>（<c>Cys[0].HpTime</c> / <c>Control[0]</c>）→ 全替换成 <c>[{i}]</c>；
-        /// - 数组元素（ArrayIndex == index，名字是根名）→ 根名 + <c>[{i}]</c>，下标清 -1；
+        /// 尝试把一条引用参数化（**只动最外层那一组下标**）：
+        /// - 名字里最外层的下标等于 <paramref name="index"/>（<c>Cys[0].HpTime</c> / <c>Recipes[0].Ints[5]</c>）
+        ///   → 只把那一组换成 <c>[{i}]</c>，其余下标原样保留；
+        /// - 数组元素（ArrayIndex == index，名字是不带下标的纯根名）→ 根名 + <c>[{i}]</c>，下标清 -1；
         /// 其它情况原样返回 false（不动用户配置）。
+        ///
+        /// <para>★ 为什么是"最外层"而不是"全替换"：<c>Recipes[0].Ints[0]</c> 里变的是**配方实例号**，
+        /// 里面的 <c>Ints[0]</c> 是结构体成员下标，跨实例必须保持不变。旧实现用
+        /// <c>name.Replace("[0]", "[{i}]")</c> 全量替换，两层一起换 → 实例 1 展开成
+        /// <c>Recipes[1].Ints[1]</c>：变量存在、解析不报错、画面上有值，**读的却是错成员**
+        /// （2026-10-29 探针 P3/P4 实测）。</para>
         /// </summary>
         private static bool TryParameterizeReference(
             string? variableName,
@@ -411,24 +418,20 @@ namespace VisionMaster.Scada
                 return false;
 
             string name = variableName!;
-            string bracket = $"[{index.ToString(CultureInfo.InvariantCulture)}]";
 
-            // 威纶通模板的常见形态：地址/标签名中间带索引（Cys[0].HpTime）。
-            // 这里只替换名字，ArrayIndex 清 -1——展开后的名字自己携带下标。
-            if ((arrayIndex < 0 || arrayIndex == index)
-                && name.Contains(bracket, StringComparison.Ordinal))
+            // ① 名字里带下标：只有"最外层那组 == index"才是这个实例的引用
+            if (TryReadLeadingIndex(name, out int leading, out int open, out int close) && leading == index)
             {
-                int open = name.IndexOf('[');
                 arrayRoot = open > 0 ? name[..open].Trim() : null;
-                newName = name.Replace(bracket, "[{i}]", StringComparison.Ordinal);
+                newName = name[..open] + "[{i}]" + name[(close + 1)..];
                 newArrayIndex = -1;
                 return true;
             }
 
-            if (arrayIndex == index)
+            // ② 纯根名 + ArrayIndex（数组变量的正常形态）。
+            //    带下标的名字不进这一支：它的下标已经说明"这是哪个元素"，再叠一个 [{i}] 只会造出 A[1][{i}] 这种废名。
+            if (arrayIndex == index && name.IndexOf('[') < 0)
             {
-                // 正常数据是"根名 + ArrayIndex"；旧数据/手工编辑可能把下标也写进名字
-                // （Control[0] + ArrayIndex 0），上面那支已经处理过，这里只处理纯根名。
                 arrayRoot = name.Trim();
                 newName = $"{name}[{{i}}]";
                 newArrayIndex = -1;
@@ -436,6 +439,43 @@ namespace VisionMaster.Scada
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// 读名字里**第一组**下标的数值（<c>Recipes[0].Ints[5]</c> → 0）。
+        /// 非数字（<c>{i}</c>、<c>[]</c>、<c>[a]</c>）或没有闭合括号一律返回 false——
+        /// 认不出就不参数化，绝不猜。
+        /// </summary>
+        private static bool TryReadLeadingIndex(string name, out int value, out int open, out int close)
+        {
+            value = 0;
+            open = -1;
+            close = -1;
+
+            int o = name.IndexOf('[');
+            if (o < 0)
+                return false;
+
+            int c = name.IndexOf(']', o + 1);
+            if (c < 0)
+                return false;
+
+            var digits = name.AsSpan(o + 1, c - o - 1).Trim();
+            if (digits.Length == 0)
+                return false;
+
+            foreach (char ch in digits)
+            {
+                if (!char.IsDigit(ch))
+                    return false;
+            }
+
+            if (!int.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out value))
+                return false;
+
+            open = o;
+            close = c;
+            return true;
         }
     }
 }

@@ -40,7 +40,16 @@ namespace VisionMaster.Models
         /// <summary>变量触发：<see cref="FlowModel.TriggerVariable"/> 指定的变量变化时执行（位值 16）</summary>
         Variable = 16,
 
-        /// <summary>子程序调用：允许被其它流程以「调用流程」步骤调用（位值 32）</summary>
+        /// <summary>
+        /// 子程序调用：允许被其它流程以「调用流程」步骤调用（位值 32）。
+        ///
+        /// 【与 <see cref="LineStart"/> 互斥】（2026-10-29 用户裁决）整线成员是<b>顶层入口</b>，
+        /// 自己起一条会话循环；子程序是<b>被调用</b>的，自己不跑。两者同时勾时运行期只有一个会话
+        /// （RuntimeManager 按流程名唯一）+ 一把会话锁：整线在跑，「调用流程」必然失败；
+        /// 反之点「启动整线」又被静默跳过。所以流程管理里勾一个就清另一个
+        /// （<c>FlowManagerViewModel.FlowItem.SetFlag</c>）；历史 .vms 仍可能带着这个组合，
+        /// 界面会标红提示修正（<c>FlowItem.InvokeConflictNote</c>）。
+        /// </summary>
         Subroutine = 32,
 
         /// <summary>HTTP 外部调用：允许经 /flow/{流程名} 接口触发（位值 64；唯一带门禁的位）</summary>
@@ -53,6 +62,9 @@ namespace VisionMaster.Models
         /// 【为什么不叫"主流程"】工位是<b>平级</b>的：某条流程失败 / 卡死只收尾它自己，
         /// 其余照常循环（用户裁决 2026-10-28）。把工位做成主流程的子调用（串行或并行都一样）
         /// 都会让父流程必须"管"子流程，一有故障整线就停——那正是要避免的形态。
+        ///
+        /// 【与 <see cref="Subroutine"/> 互斥】勾了本位就是顶层入口，不能再被「调用流程」拉起
+        /// （理由见 <see cref="Subroutine"/> 的注释）。
         /// </summary>
         LineStart = 128,
     }
@@ -318,9 +330,12 @@ namespace VisionMaster.Models
             => (InvokeType & (FlowInvokeType.Timer | FlowInvokeType.Variable | FlowInvokeType.Http)) != 0;
 
         /// <summary>
-        /// 是否只能作为子程序被其它流程调用：勾了子程序、且没有外部触发、
-        /// 也不是整线成员。最后一条必须有：工位流程通常同时勾「子程序」（供「调用流程」复用）
-        /// 与「随整线启动」，漏判会让它在列表里被标成"只能被调用"，用户就不敢按整线启动了。
+        /// 是否只能作为子程序被其它流程调用：勾了子程序、且没有外部触发、也不是整线成员。
+        ///
+        /// 【"也不是整线成员"这条为什么留着】2026-10-29 起流程管理里「整线」与「子程序」互斥
+        /// （见 <see cref="FlowInvokeType.Subroutine"/> 的注释），新配的数据不会再出现两者并存；
+        /// 但历史 .vms 里可能还带着这个组合。留着这条判据，这类老数据才不会被标成"仅子程序"
+        /// —— 它实际上是被整线启动的工位，标成"只能被调用"会让用户不敢按整线启动。
         /// </summary>
         [JsonIgnore]
         public bool IsSubroutineOnly

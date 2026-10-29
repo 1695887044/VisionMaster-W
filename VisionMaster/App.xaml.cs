@@ -560,7 +560,12 @@ namespace VisionMaster
                 // 方案级监控必须与宿主共用同一个实例；显式传，不靠容器猜可选参数。
                 c.Resolve<ScadaMonitoringHost>(),
                 // 运行态未授权点击：弹登录 → 登录成功后按最新权限重判 → 继续原操作。
-                required => ShowRuntimeAccessLoginPrompt(c, required)));
+                required => ShowRuntimeAccessLoginPrompt(c, required),
+                // v6 语言服务：运行窗口的 @键 靠它解析（不传 = 所有文本按字面量显示）。
+                languages: c.Resolve<IScadaLanguageService>(),
+                // v7：静音出口 + 配方面板命令出口（配方面板靠它们从只读升级为可选/下载/上传/保存）。
+                alarmMute: c.Resolve<IScadaAlarmMute>(),
+                recipeCommands: c.Resolve<IScadaRecipeCommands>()));
             // 方案级监控：报警 + 变量事件 + 节拍，生命周期跟方案走（不再跟 SCADA 运行窗口）。
             containerRegistry.RegisterSingleton<ScadaMonitoringHost>(c => new ScadaMonitoringHost(
                 c.Resolve<ILogService>(),
@@ -572,7 +577,8 @@ namespace VisionMaster
                 ResolveOptional<IScadaAxisCommandSink>(c),
                 c.Resolve<IScadaConfirmationService>(),
                 c.Resolve<IScadaActionDispatcher>(),
-                c.Resolve<AppSettingsService>()));
+                c.Resolve<AppSettingsService>(),
+                c.Resolve<IScadaLanguageService>()));
             containerRegistry.RegisterSingleton<IScadaRuntimeHost>(c => c.Resolve<ScadaRuntimeHost>());
             containerRegistry.RegisterSingleton<IScadaRunHub>(c => c.Resolve<ScadaRuntimeHost>());
             // DataGrid 行数据的只读出口：与运行宿主同一实例（它才拿得到运行窗口画布）。
@@ -634,7 +640,40 @@ namespace VisionMaster
                 // 首次用到分发器时它已经就绪。
                 c.Resolve<RecipeService>(),
                 // 播放声音出口：显式接上，否则动作表里配了「播放声音」只会记“未接入”。
-                c.Resolve<IScadaSoundPlayer>()));
+                c.Resolve<IScadaSoundPlayer>(),
+                // v6「登录」：无条件弹登录窗（换人登录）。
+                // 不能复用 ShowRuntimeAccessLoginPrompt：它开头有"已有权限就直接返回 true"的短路，
+                // 那是给"点不动 → 补权限"用的；动作「登录」的语义是"我要换个账号"，
+                // 走那条短路会出现"点了登录什么都没发生"。
+                _ => ShowRuntimeLoginPromptAlways(c),
+                // v6「注销」：会话状态只有 ScadaAccessPolicy 一份，这里加一层薄适配
+                //（未登录归一成 null、void Logout 包成 bool + 原因）。
+                new ScadaUserSessionAdapter(c.Resolve<ScadaAccessPolicy>()),
+                // v6「切换语言」：按方案当前文档读词表，换方案后现取（抓实例会在换方案后继续读旧文档）。
+                c.Resolve<IScadaLanguageService>(),
+                // v7「确认报警」：与 Web 命令层共用同一个报警命令出口（映射到运行宿主单例）。
+                c.Resolve<IScadaAlarmCommands>(),
+                // v7「静音」：声音服务是每轮运行新建的，适配器每次调用现取（见适配器注释）。
+                c.Resolve<IScadaAlarmMute>()));
+            // 运行态语言出口（v6）：词表 + 当前语言 + 变化通知。全局一份——
+            // 动作「切换语言」、运行窗口、设计期画布必须看到同一个"当前语言"，
+            // 两份实例的表现是"切了语言，画布变了但运行窗口没变"（而且不报错）。
+            // 走工厂 + Func：方案是会被换掉的，抓住 ScadaDocument 实例会在换方案后继续读旧文档，
+            // 症状是"换了方案，@键 全部不解析"。每次现取才不受换方案影响。
+            containerRegistry.RegisterSingleton<IScadaLanguageService>(c =>
+            {
+                var workspace = c.Resolve<IWorkspaceManager>();
+                return new ScadaLanguageService(() => workspace.CurrentSolution?.Scada);
+            });
+            // v7 报警静音出口：适配 ScadaMonitoringHost 持有的声音服务（每轮运行新建，故适配器现取）。
+            containerRegistry.RegisterSingleton<IScadaAlarmMute>(c =>
+                new ScadaAlarmMuteAdapter(c.Resolve<ScadaMonitoringHost>()));
+            // v7 配方面板命令出口：下载/上传走 RecipeService，保存走与主界面同一条 RecipeSaveCoordinator。
+            containerRegistry.RegisterSingleton<IScadaRecipeCommands>(c =>
+                new ScadaRecipeCommands(
+                    c.Resolve<IWorkspaceManager>(),
+                    c.Resolve<RecipeService>(),
+                    ResolveOptional<RecipeSaveCoordinator>(c)));
             // 运行态的切页出口：分发器是长命单例，运行态会话是每次点"运行"现建、关窗口即废，
             // 中间得有人记住"此刻活着的是哪一个会话"。宿主 Start 时 Attach、关窗口收尾时摘掉。
             // 也必须是单例：两份实例各记一个会话，动作落到哪一份上就变成了随机。
@@ -1373,6 +1412,43 @@ namespace VisionMaster
             {
                 // 弹窗起不来不能把运行态点击链带崩：按"没有权限"处理，调用方会给回执。
                 try { container.Resolve<ILogService>().Warn($"[权限] 运行态登录弹窗打开失败：{ex.GetType().Name}：{ex.Message}"); }
+                catch { }
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 动作「登录」专用：<b>无条件</b>弹登录窗（换人登录）。
+        ///
+        /// 与 <see cref="ShowRuntimeAccessLoginPrompt"/> 的唯一区别：不做"已有权限就直接返回 true"的短路。
+        /// 那条短路是给"点不动 → 补权限"用的；动作「登录」的语义是"我要换个账号"，
+        /// 走短路会出现"点了登录什么都没发生"（日志还记一条"已登录"）。
+        ///
+        /// 不传 RequiredPermission：登录窗的 OnDialogOpened 只清输入、不读参数，
+        /// 传了也不会显示成"需要某权限"的提示，反而会误导操作员。
+        /// </summary>
+        private static bool ShowRuntimeLoginPromptAlways(IContainerProvider container)
+        {
+            try
+            {
+                var dialogService = container.Resolve<IDialogService>();
+                bool ok = false;
+                var frame = new DispatcherFrame();
+
+                dialogService.ShowDialog("ScadaLoginView", new DialogParameters(), result =>
+                {
+                    ok = result.Result == ButtonResult.OK;
+                    frame.Continue = false;
+                });
+
+                Dispatcher.PushFrame(frame);
+
+                return ok;
+            }
+            catch (Exception ex)
+            {
+                // 弹窗起不来不能把事件动作链带崩：按"没登录"处理，分发器会记一条跳过。
+                try { container.Resolve<ILogService>().Warn($"[登录动作] 登录弹窗打开失败：{ex.GetType().Name}：{ex.Message}"); }
                 catch { }
                 return false;
             }

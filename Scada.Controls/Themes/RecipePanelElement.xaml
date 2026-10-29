@@ -4,11 +4,22 @@
     xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
 
     <!--
-        配方只读面板的外观（Hmi.RecipePanel）。
+        配方面板的外观（Hmi.RecipePanel）。
 
-        结构：一张卡片 —— 标题行（可空）/ 主行（配方名 · 版本 + 状态胶囊）/ 明细列表 / 空态提示。
-        状态色只认四个键（ok / warn / danger / muted），由控件算好写进 StatusKey，
-        模板用 DataTrigger 判等挑颜色——不在模板里做"文案包含偏离"这类字符串判断。
+        结构（自上而下）：标题行（可空）/ 操作工具条（只在接了配方命令时出现）/ 已选摘要（可空）
+        / 主行（配方名 · 版本 + 状态胶囊）/ 明细列表 / 空态提示。
+
+        状态色只认四个键（ok / warn / danger / muted），由控件算好写进 StatusKey 与
+        OperationStatusKey，模板用 DataTrigger 判等挑颜色——不在模板里做"文案包含偏离"这类字符串判断。
+
+        三条硬约束：
+        ① 显隐一律绑控件算好的 Visibility（ToolbarVisibility / SelectionVisibility）——
+           ControlTemplate.Triggers 里的 DataTrigger 本环境不触发（见 ReportElement 同一条注释）；
+           Style.Triggers 里的 DataTrigger 是好的，颜色档就用它。
+        ② 工具条整条可见性由 ToolbarVisibility 决定：没有 IScadaRecipeCommands 时它 Collapsed，
+           面板与升级前完全一致（只读铭牌）。
+        ③ 下拉/按钮各自带最小模板：断言宿主没有 Application，应用级 Fluent 的隐式样式拿不到，
+           而 Fluent 的白底渐变放在深色卡片上很刺眼（与 AxisPanelElement 同一条理由）。
 
         颜色一律走 ScadaTokens.xaml（本文件 hex=0，R140）；分册就地合并令牌（R30）。
         注意：本文件里的资源顺序即模板可见的顺序（R173：模板只认它之前定义的键）。
@@ -83,6 +94,37 @@
         </Style.Triggers>
     </Style>
 
+    <!--
+        操作状态行（工具条右侧那一行）：成功绿、失败红、进行中/提示灰。
+        与上面的状态胶囊分开取键（OperationStatusKey）——配方自身的状态与"刚才那次操作的结果"
+        是两件事，共用一个键会让「已生效」被「已下载」挤掉颜色。
+    -->
+    <Style x:Key="RecipeOperationTextStyle" TargetType="TextBlock">
+        <Setter Property="Margin" Value="8,0,0,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextMutedBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                <Setter Property="Visibility" Value="Collapsed" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding OperationStatusKey, RelativeSource={RelativeSource TemplatedParent}}" Value="ok">
+                <Setter Property="Foreground" Value="{StaticResource HmiSuccessBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding OperationStatusKey, RelativeSource={RelativeSource TemplatedParent}}" Value="danger">
+                <Setter Property="Foreground" Value="{StaticResource HmiDangerBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <!--  已选摘要：标题下方那行「已选：名字（N 项）」，显隐由控件算（SelectionVisibility）  -->
+    <Style x:Key="RecipeSelectionStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextSecondaryBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
     <!--  明细行：等宽字体（参数值是数字/枚举，等宽才好逐行比对）；汇总行弱化  -->
     <DataTemplate x:Key="RecipeLineTemplate">
         <TextBlock
@@ -116,6 +158,186 @@
         </Style.Triggers>
     </Style>
 
+    <!--
+        工具条按钮：自带最小模板（不吃应用级 Fluent 的隐式 Button 样式：浅色底 + 11,5,11,6 内边距
+        会把 24px 高的工具按钮内容区压扁，R68/R184 同一族）。高度由 MinHeight + Padding 决定。
+        只在本文件内使用——跨分册 StaticResource 是禁止的（R30），所以不复用 ReportToolButton。
+    -->
+    <Style x:Key="RecipeToolButton" TargetType="Button">
+        <Setter Property="MinHeight" Value="24" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="Margin" Value="6,0,0,0" />
+        <Setter Property="FontSize" Value="10.5" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource HmiFocusVisual}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border
+                            x:Name="Chrome"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="4"
+                            SnapsToDevicePixels="True" />
+
+                        <Border
+                            x:Name="HoverLayer"
+                            Background="White"
+                            CornerRadius="4"
+                            IsHitTestVisible="False"
+                            Opacity="0" />
+
+                        <Border
+                            x:Name="PressLayer"
+                            Background="Black"
+                            CornerRadius="4"
+                            IsHitTestVisible="False"
+                            Opacity="0" />
+
+                        <ContentPresenter
+                            Margin="{TemplateBinding Padding}"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="HoverLayer" Property="Opacity" Value="0.10" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PressLayer" Property="Opacity" Value="0.18" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="Cursor" Value="Arrow" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--  下拉项：深色底、选中/悬停提亮（应用级 ComboBoxItem 样式在无 Application 时拿不到）  -->
+    <Style x:Key="RecipeComboItem" TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border
+                        x:Name="Bd"
+                        Padding="{TemplateBinding Padding}"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="4">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HmiBorderStrongBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        配方选择器：自带模板，避开应用级 Fluent 隐式 ComboBox 样式（白底渐变在深色卡片上很刺眼）。
+        模板与 AxisPanelElement 的选择器同构（同一处已踩过的坑：SelectedItem 绑对象，不绑 SelectedValue）。
+        ToggleButton 显式声明 Stretch —— 应用级 Fluent 会把它设成 Left/Center（R148）。
+    -->
+    <Style x:Key="RecipeCombo" TargetType="ComboBox">
+        <Setter Property="Height" Value="24" />
+        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="Foreground" Value="{StaticResource HmiTextBrush}" />
+        <Setter Property="Background" Value="{StaticResource HmiSurfaceRaisedBrush}" />
+        <Setter Property="BorderBrush" Value="{StaticResource HmiBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource RecipeComboItem}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton
+                            x:Name="ToggleButton"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            ClickMode="Press"
+                            Focusable="False"
+                            Foreground="{TemplateBinding Foreground}"
+                            IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ContentPresenter
+                                                Grid.Column="0"
+                                                Margin="8,0,4,0"
+                                                VerticalAlignment="Center"
+                                                Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}"
+                                                ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
+                                            <Path
+                                                Grid.Column="1"
+                                                Margin="0,0,7,0"
+                                                VerticalAlignment="Center"
+                                                Data="M0,0 L4,4 L8,0"
+                                                Stroke="{TemplateBinding Foreground}"
+                                                StrokeEndLineCap="Round"
+                                                StrokeStartLineCap="Round"
+                                                StrokeThickness="1.4" />
+                                        </Grid>
+                                    </Border>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <Popup
+                            x:Name="PART_Popup"
+                            AllowsTransparency="True"
+                            Focusable="False"
+                            IsOpen="{TemplateBinding IsDropDownOpen}"
+                            Placement="Bottom"
+                            PopupAnimation="Slide">
+                            <Border
+                                MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                MaxHeight="220"
+                                Background="{StaticResource HmiSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource HmiBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="{x:Type local:RecipePanelElement}">
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Focusable" Value="False" />
@@ -140,6 +362,8 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
@@ -151,8 +375,69 @@
                                 Style="{StaticResource RecipeTitleStyle}"
                                 Text="{TemplateBinding Title}" />
 
+                            <!--
+                                操作工具条：只有接了配方命令（RuntimeContext.RecipeCommands != null）才出现。
+                                整条显隐绑 ToolbarVisibility（控件算好的 Visibility），不写 ControlTemplate DataTrigger。
+                            -->
+                            <StackPanel
+                                Grid.Row="1"
+                                Margin="0,0,0,6"
+                                Orientation="Horizontal"
+                                Visibility="{TemplateBinding ToolbarVisibility}">
+
+                                <!--  选择：只改面板选中项，不动设备  -->
+                                <ComboBox
+                                    x:Name="PART_RecipeCombo"
+                                    DisplayMemberPath="DisplayText"
+                                    IsEnabled="{TemplateBinding CanSelect}"
+                                    ItemsSource="{TemplateBinding RecipeOptions}"
+                                    SelectedItem="{Binding SelectedOption, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                    Style="{StaticResource RecipeCombo}" />
+
+                                <!--  下载：选中配方 → 设备  -->
+                                <Button
+                                    Command="{Binding DownloadCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Content="下载"
+                                    IsEnabled="{TemplateBinding CanDownload}"
+                                    Style="{StaticResource RecipeToolButton}"
+                                    ToolTip="{Binding PermissionToolTip, RelativeSource={RelativeSource TemplatedParent}}"
+                                    ToolTipService.ShowOnDisabled="True" />
+
+                                <!--  上传：设备当前值 → 覆盖选中配方  -->
+                                <Button
+                                    Command="{Binding UploadCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Content="上传"
+                                    IsEnabled="{TemplateBinding CanUpload}"
+                                    Style="{StaticResource RecipeToolButton}"
+                                    ToolTip="{Binding PermissionToolTip, RelativeSource={RelativeSource TemplatedParent}}"
+                                    ToolTipService.ShowOnDisabled="True" />
+
+                                <!--  保存：方案落盘  -->
+                                <Button
+                                    Command="{Binding SaveCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                    Content="保存"
+                                    IsEnabled="{TemplateBinding CanSave}"
+                                    Style="{StaticResource RecipeToolButton}"
+                                    ToolTip="{Binding PermissionToolTip, RelativeSource={RelativeSource TemplatedParent}}"
+                                    ToolTipService.ShowOnDisabled="True" />
+
+                                <!--  操作状态行：处理中… / 已下载：… / 失败原因（空串时收起）  -->
+                                <TextBlock
+                                    x:Name="PART_OperationStatus"
+                                    Style="{StaticResource RecipeOperationTextStyle}"
+                                    Text="{TemplateBinding OperationStatus}" />
+                            </StackPanel>
+
+                            <!--  已选摘要：标题下方显示所选配方名与条目数（选择不改设备）  -->
+                            <TextBlock
+                                Grid.Row="2"
+                                Margin="0,0,0,4"
+                                Style="{StaticResource RecipeSelectionStyle}"
+                                Text="{TemplateBinding SelectionText}"
+                                Visibility="{TemplateBinding SelectionVisibility}" />
+
                             <!--  主行：配方名 · 版本 + 状态胶囊  -->
-                            <Grid Grid.Row="1">
+                            <Grid Grid.Row="3">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -174,7 +459,7 @@
 
                             <!--  明细列表：滚动条只在真的放不下时出现  -->
                             <ScrollViewer
-                                Grid.Row="2"
+                                Grid.Row="4"
                                 Margin="0,8,0,0"
                                 HorizontalScrollBarVisibility="Disabled"
                                 VerticalScrollBarVisibility="Auto">
@@ -192,7 +477,7 @@
 
                             <!--  空态 / 未接入提示（空串时收起）  -->
                             <TextBlock
-                                Grid.Row="3"
+                                Grid.Row="5"
                                 Margin="0,6,0,0"
                                 Style="{StaticResource RecipeHintStyle}"
                                 Text="{TemplateBinding EmptyHint}" />

@@ -37,6 +37,22 @@ namespace Plugin.Util.Models
             set => SetProperty(ref _variableName, value ?? string.Empty);
         }
 
+        private Guid _variableId = Guid.Empty;
+
+        /// <summary>
+        /// 目标变量的稳定身份（仅 <see cref="Scope"/>=Global 有效）。
+        ///
+        /// 为什么与 <see cref="VariableName"/> 并存：多设备允许同名点位之后（同一设备内唯一），
+        /// 名字已不能唯一定位一个变量。运行期一律"Id 优先、名字兜底"，
+        /// 变量改名也不会把这条赋值打到别的变量上。
+        /// 旧方案没有这个字段 → 反序列化后为 <see cref="Guid.Empty"/>，按名字兜底，行为与改造前一致。
+        /// </summary>
+        public Guid VariableId
+        {
+            get => _variableId;
+            set => SetProperty(ref _variableId, value);
+        }
+
         private string _scope = "Runtime";
 
         /// <summary>
@@ -105,6 +121,7 @@ namespace Plugin.Util.Models
             => new AssignmentRow
             {
                 VariableName = string.Empty,
+                VariableId = Guid.Empty,
                 Scope = Scope,
                 CreateIfNotExists = CreateIfNotExists,
                 Enabled = Enabled,

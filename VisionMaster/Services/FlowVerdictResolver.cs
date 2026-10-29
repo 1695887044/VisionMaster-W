@@ -83,11 +83,15 @@ namespace VisionMaster.Services
                 && string.Equals(f.FlowName, session.FlowName, StringComparison.Ordinal));
         }
 
-        /// <summary>① 结果输出步骤：只认 State=Success 的实例；多个取最后执行。</summary>
+        /// <summary>
+        /// ① 结果输出步骤：**一条流程只允许一个**（2026-10-29 规则）。
+        /// 本轮执行成功的结果输出步骤多于一个 → 记未判定并说明歧义，不再"取最后执行"：
+        /// 最后执行在循环里会变成"最后一个对象说了算"，在顺序两步里会变成"复检覆盖初检"，
+        /// 两种都不是用户配得出的语义。
+        /// </summary>
         private static FlowVerdict ResolveResultStep(FlowSession session)
         {
-            StepModel best = null;
-            long bestStamp = long.MinValue;
+            var executed = new System.Collections.Generic.List<StepModel>();
             var lookup = session.ExecutionEngine?.PluginLookup;
             if (lookup != null)
             {
@@ -96,17 +100,20 @@ namespace VisionMaster.Services
                     if (step == null || step.State != StepState.Success) continue;
                     if (!lookup.TryGetValue(step.StepID, out var plugin)) continue;
                     if (plugin is not IFlowResultSource) continue;
-
-                    long stamp = step.LastRunStartTimestamp ?? long.MinValue;
-                    if (best == null || stamp >= bestStamp)
-                    {
-                        best = step;
-                        bestStamp = stamp;
-                    }
+                    executed.Add(step);
                 }
             }
 
-            if (best != null && lookup != null && lookup.TryGetValue(best.StepID, out var bestPlugin)
+            if (executed.Count > 1)
+            {
+                return Unknown(
+                    $"流程里有 {executed.Count} 个结果输出步骤（只能保留一个）：" +
+                    string.Join("、", executed.Select(s => s.StepName)));
+            }
+
+            if (executed.Count == 1
+                && lookup != null
+                && lookup.TryGetValue(executed[0].StepID, out var bestPlugin)
                 && bestPlugin is IFlowResultSource result)
             {
                 return new FlowVerdict(

@@ -86,6 +86,45 @@ namespace VisionMaster.Scada
             return false;
         }
 
+        /// <summary>
+        /// 正文里未转义索引令牌的个数（<c>{{</c> / <c>}}</c> 不算）。
+        ///
+        /// 用途：一条变量引用里出现**两处以上** <c>{i}</c> 时，说明它很可能是旧版参数化器
+        /// "全量替换"留下的产物（<c>Recipes[{i}].Ints[{i}]</c>），展开后会把成员下标也换成实例号。
+        /// 这里只负责数数，判定与告警在展开器里做。
+        /// </summary>
+        public static int CountIndexTokens(string? text)
+        {
+            if (string.IsNullOrEmpty(text))
+                return 0;
+
+            var source = text!;
+            int count = 0;
+
+            for (int i = 0; i < source.Length; i++)
+            {
+                if (source[i] != '{')
+                    continue;
+
+                // {{ 是字面花括号转义，不算令牌
+                if (i + 1 < source.Length && source[i + 1] == '{')
+                {
+                    i++;
+                    continue;
+                }
+
+                int end = source.IndexOf('}', i + 1);
+
+                if (end > i && TryFormat(source.Substring(i + 1, end - i - 1), 0, out _))
+                {
+                    count++;
+                    i = end;
+                }
+            }
+
+            return count;
+        }
+
         /// <summary>正文里有没有未转义的索引令牌（用于"模板没参数化"的警告）</summary>
         public static bool ContainsIndexToken(string? text)
         {

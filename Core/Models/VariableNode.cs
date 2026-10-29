@@ -88,9 +88,9 @@ namespace VisionMaster.Models
         public Action<VariableNode>? ScanGroupChanged { get; set; }
 
         /// <summary>
-        /// 是否显示「扫描组」列内容（仅网络变量的根节点；数组子节点不显示）
+        /// 是否显示「扫描组」列内容（仅网络变量的根节点；数组子节点与归组成员行不显示）
         /// </summary>
-        public bool ShowScanGroup => IsRootNode && IsNetwork;
+        public bool ShowScanGroup => IsRootNode && IsNetwork && !IsSyntheticContainer;
 
         // ==================================================================
         //  显示分组（方案级分类；只做归类与筛选，不参与采集/轮询/写入）
@@ -126,9 +126,9 @@ namespace VisionMaster.Models
         public Action<VariableNode>? GroupChanged { get; set; }
 
         /// <summary>
-        /// 是否显示「分组」列内容（仅网络变量的根节点；数组子节点不显示）
+        /// 是否显示「分组」列内容（仅网络变量的根节点；数组子节点与归组成员行不显示）
         /// </summary>
-        public bool ShowGroup => IsRootNode && IsNetwork;
+        public bool ShowGroup => IsRootNode && IsNetwork && !IsSyntheticContainer;
 
         /// <summary>
         /// 变量名称
@@ -149,11 +149,13 @@ namespace VisionMaster.Models
 
         /// <summary>
         /// 操作列是否显示。
-        /// <para>根行照旧；复合系统变量的字段行也要显示——否则"复制变量名"这一格
-        /// 对字段行整块不可见（命令本身支持子行，但入口被藏了，用户拿不到完整路径）。
-        /// 重命名/删除按钮另有 <c>IsSystemOwned</c> 触发器自行隐藏，字段行只会剩复制与"只读"chip。</para>
+        /// <para>判据是「这一行背后有没有一个真变量」：根行、复合系统变量的字段行、
+        /// 以及按名称路径归组后的成员行都显示——否则归组一开，"复制变量名"就整块消失。
+        /// 数组元素行（<see cref="IsArrayElementRow"/>）与合成容器不给操作：
+        /// 元素行的寻址是"父变量 + 下标"，没有独立名字可复制；合成容器没有模型可操作。</para>
+        /// <para>重命名/删除按钮另有 <c>IsSystemOwned</c> 触发器自行隐藏。</para>
         /// </summary>
-        public bool ShowRowActions => IsRootNode || !string.IsNullOrEmpty(FullName);
+        public bool ShowRowActions => !IsSyntheticContainer && !IsArrayElementRow && OriginalModel != null;
 
         /// <summary>
         /// 数据类型
@@ -208,7 +210,7 @@ namespace VisionMaster.Models
         public bool IsContainer => Children.Count > 0;
 
         /// <summary>
-        /// 层级（0为根节点，1为子节点）
+        /// 层级（0 = 顶层行；数组元素行与按名称归组的成员行都 ≥ 1，且可以更深）
         /// </summary>
         public int Level { get; set; }
 
@@ -218,9 +220,37 @@ namespace VisionMaster.Models
         public bool IsRootNode => Level == 0;
 
         /// <summary>
-        /// 是否为子节点
+        /// 是否为子节点（含按名称路径归组后的深层成员行）
         /// </summary>
-        public bool IsChildNode => Level == 1;
+        public bool IsChildNode => Level > 0;
+
+        /// <summary>
+        /// 是否为数组元素行（父数组的第 <see cref="ElementIndex"/> 项）。
+        ///
+        /// 与 <see cref="IsChildNode"/> 刻意分开：按名称路径归组后，普通变量行也会落在
+        /// 第 1 层甚至更深，但它们不是数组元素——仍然可编辑、可改名、可删除。
+        /// 数组元素行的判据只有一个：<see cref="ElementIndex"/> 有值。
+        /// </summary>
+        public bool IsArrayElementRow => ElementIndex >= 0;
+
+        /// <summary>
+        /// 合成容器：没有自己的变量模型，只把「名称里编码了结构」的若干行归到一起
+        /// （<c>Recipes</c> / <c>Recipes[0]</c> / <c>Recipes[0].Ints</c>）。
+        ///
+        /// 它不参与采集、不参与写入、不可改名/删除/改分组——真实变量永远是它的叶子行。
+        /// 归组只发生在展示层：底层仍是一个元素一个 <c>NetworkVariableModel</c>，
+        /// 地址与轮询语义完全不变（PLC 导出的元素步长并不等于元素大小，合成真数组会读错内存）。
+        /// </summary>
+        public bool IsSyntheticContainer { get; set; }
+
+        /// <summary>
+        /// 展开态记忆用的稳定键：合成容器按名称路径（<c>Recipes/[0]/Ints</c>），
+        /// 真实变量由基类按 VariableId / 名称生成。为空表示不记忆（数组元素行）。
+        /// </summary>
+        public string? ExpandKey { get; set; }
+
+        /// <summary>容器行是否显示「N 项」徽标：真数组根与合成容器都显示。</summary>
+        public bool ShowChildCountBadge => IsContainer && (IsArrayRootNode || IsSyntheticContainer);
 
         /// <summary>
         /// 是否为可编辑节点（根节点、非数组、且初始值能用文本表达）
@@ -233,7 +263,7 @@ namespace VisionMaster.Models
         /// 系统变量（运动/IO 等）同样排除：它们的初始值由设备/宿主决定，改这一格没有落点
         /// （<c>DefaultValue</c> 写进去也不会回灌到设备），只能给"可编辑"的假象。
         /// </summary>
-        public bool IsEditableNode => Level == 0 && DataType != null && !DataType.IsArray
+        public bool IsEditableNode => !IsArrayElementRow && !IsSyntheticContainer && DataType != null && !DataType.IsArray
             && !IsImageType(DataType) && !IsSystemOwned;
 
         /// <summary>系统维护的变量（系统变量 / IO 点变量）：值可读，定义不可编辑。</summary>
@@ -244,9 +274,11 @@ namespace VisionMaster.Models
         private static bool IsImageType(Type type) => typeof(HImage).IsAssignableFrom(type);
 
         /// <summary>
-        /// 是否为数组根节点
+        /// 是否为数组根节点（数组变量的那一行，展开后是 <c>[i]</c> 元素行）。
+        /// <para>判据用 <see cref="IsArrayElementRow"/> 而不是层级：按名称路径归组后，
+        /// 数组变量本身也可能落在第 1 层（例如 <c>X[0].Arr</c>），它的元素行仍然是它的子行。</para>
         /// </summary>
-        public bool IsArrayRootNode => Level == 0 && DataType != null && DataType.IsArray;
+        public bool IsArrayRootNode => !IsArrayElementRow && DataType != null && DataType.IsArray;
 
         /// <summary>
         /// 网络数组是否可整组写入：只读存储区（离散输入 / S7 输入映像 I）不给入口。

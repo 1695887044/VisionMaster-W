@@ -224,6 +224,25 @@ namespace VisionMaster.Communications
         void WriteVariable(string connectionName, string address, object value);
 
         /// <summary>
+        /// <para>批量写：把 N 个写请求规划成 M 个段（只合<b>严格连续</b>的同区地址），
+        /// 作为一次设备往返序列下发，返回逐项 + 逐段结果。</para>
+        /// <para><b>为什么需要它</b>：单值写是一次阻塞往返，N 个变量就是 N 次往返。
+        /// 合并后"1 帧写 N 个连续值"——这是写路径唯一能减少往返的地方。</para>
+        /// <para><b>失败粒度是段</b>：设备只回"这一帧成功/失败"，分不出帧内哪一项。
+        /// 段失败即停，后续项标 <c>Attempted=false</c>（"没发出去"与"发了失败"必须能分开）。</para>
+        /// <para><b>绝不填空隙</b>：跳着写的地址各自成段，不用本地镜像把中间寄存器补上——
+        /// 那会把 PLC 正在改的值回滚成旧值。</para>
+        /// </summary>
+        /// <returns>全部项都成功时为 true；细节看 <paramref name="result"/></returns>
+        /// <param name="urgent">true = 走插队车道（最高优先级，插在轮询与常规读写之前）。
+        /// 步骤勾了"等待完成"时用它：批仍然合并，但排队位置提前，且调用方等回执。</param>
+        bool TryWriteBatch(
+            string connectionName,
+            IReadOnlyList<BatchWriteItem> items,
+            bool urgent,
+            out BatchWriteResult result);
+
+        /// <summary>
         /// <para>从指定的通讯地址读取数据。</para>
         /// <para>这是一个同步读取操作，会阻塞直到数据返回或超时。</para>
         /// </summary>
@@ -358,16 +377,15 @@ namespace VisionMaster.Communications
         /// <param name="value">要写入的值</param>
         /// <param name="valueType">值的类型</param>
         /// <remarks>
-        /// <para>队列写入的优点：</para>
-        /// <list type="bullet">
-        ///   <item>不会阻塞调用线程</item>
-        ///   <item>可以合并连续的写入请求</item>
-        ///   <item>提高批量写入的效率</item>
-        /// </list>
+        /// <para><b>本方法不会合并写入请求</b>：每次调用就是一个独立的队列条目，各发一帧。</para>
+        /// <para>旧文档曾写"可以合并连续的写入请求 / 快速连续调用会被合并"，与实现不符
+        /// （实现只是逐条入队，见 <c>AdvancedCommunicationManager.TriggerWrite</c>），已于 2026-10-29 更正。
+        /// 需要把多个写压成一帧，必须走显式批量入口（规划中），不能指望连续调用自动合并。</para>
+        /// <para>队列写入的优点：不阻塞调用线程；写命令优先于读命令与轮询执行（独立写车道）。</para>
         /// </remarks>
         /// <example>
         /// <code>
-        /// // 快速连续调用会被合并
+        /// // 两次调用 = 两个队列条目 = 两帧，不会自动合并
         /// manager.TriggerWrite("PLC_1", "40001", (short)100, typeof(short));
         /// manager.TriggerWrite("PLC_1", "40002", (short)200, typeof(short));
         /// </code>

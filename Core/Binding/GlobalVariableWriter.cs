@@ -59,6 +59,14 @@ namespace VisionMaster.Binding
             var variable = _workspace.VariableRegistry?.FindByName(key);
             if (variable == null)
             {
+                // 重名与"不存在"必须分开说：名字在多台设备上重复时按名寻址本身无解，
+                // 报"找不到变量"会把用户引向"是不是被删了"的错误方向。
+                if (VariableNameAmbiguity.TryExplain(_workspace.VariableRegistry, key, out var ambiguity))
+                {
+                    error = ambiguity;
+                    return false;
+                }
+
                 error = $"找不到全局变量「{key}」，请先在变量管理里新建同名变量";
                 return false;
             }
@@ -70,6 +78,11 @@ namespace VisionMaster.Binding
         public bool TryRead(Guid variableId, string fallbackName, out object? value, out string? error)
         {
             value = null;
+
+            // 写后读：会话里若有未提交的写，先冲刷再读——否则读到的是旧镜像（静默错值）。
+            // 放在 Resolve 之前：变量不存在时也先把账上的写落地，避免"读失败把写一起吞掉"。
+            WriteBatchSession.FlushCurrent();
+
             var variable = Resolve(variableId, fallbackName, out error);
             if (variable == null)
                 return false;
@@ -107,6 +120,14 @@ namespace VisionMaster.Binding
 
             if (variable == null)
             {
+                // Id 没命中且名字重名：这条引用已经无法自愈（自愈要求"按名唯一命中"），
+                // 必须把歧义讲清楚，否则用户只看到"找不到共享变量"而不知道同名有两个。
+                if (VariableNameAmbiguity.TryExplain(registry, fallbackName, out var ambiguity))
+                {
+                    error = ambiguity;
+                    return null;
+                }
+
                 var name = string.IsNullOrWhiteSpace(fallbackName) ? "（未记录名字）" : $"「{fallbackName.Trim()}」";
                 error = $"找不到共享变量 {name}（Id={variableId}），请检查变量管理，或重新选择该声明";
             }

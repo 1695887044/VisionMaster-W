@@ -17,6 +17,12 @@ namespace VisionMaster.Services
     /// 为什么值仍是流程名（不是 Id）：<see cref="FlowInvoker"/> 按名 Ordinal 查找
     /// （与 HTTP 路由、运行状态镜像同一口径）；改成 Id 会与既有 .vms、日志、HTTP 路径全部脱节。
     /// 显示文本只加状态后缀，不参与寻址（见 <see cref="StepConfigOption"/> 的值/显示分离）。
+    ///
+    /// 【候选集为什么按"位"过滤，而不是按"仅子程序"】2026-10-29 起流程管理里「整线」与「子程序」
+    /// 互斥（<c>FlowManagerViewModel.FlowItem.SetFlag</c> 勾一个清另一个），新配的数据不会再并存；
+    /// 但历史 .vms 里可能还带着 160（整线 + 子程序）。若这里改用 <see cref="FlowModel.IsSubroutineOnly"/>
+    /// 过滤，那些已经配好的值会从下拉里消失、界面显示成空白——用户看到的是"配置丢了"，
+    /// 而不是"它为什么不能调"。所以仍按位过滤，只在显示文本上标出原因（见 <see cref="Describe"/>）。
     /// </summary>
     internal static class SubroutineFlowOptions
     {
@@ -69,12 +75,20 @@ namespace VisionMaster.Services
                 .ToList();
         }
 
-        /// <summary>把"选了会失败"的原因写进显示文本；正常流程返回 null（显示纯名字）。</summary>
+        /// <summary>
+        /// 把"选了会失败 / 会互相打架"的原因写进显示文本；正常流程返回 null（显示纯名字）。
+        ///
+        /// 优先级：当前流程 → 已禁用 → 步序已加密 → 整线成员。前三条是硬门禁（选了必然失败），
+        /// 最后一条只在"整线正在跑"时才失败——但它是 2026-10-29 起界面互斥的那个组合
+        /// （见 <see cref="FlowInvokeType.Subroutine"/> 注释），历史 .vms 里仍可能存在，
+        /// 不标出来用户就会问"为什么列表里混进了不是子流程的流程"。
+        /// </summary>
         private static string? Describe(FlowModel flow, bool isCurrent)
         {
             if (isCurrent) return "当前流程，不能调用自己";
             if (!flow.IsEnabled) return "已禁用";
             if (flow.StepsEncrypted) return "步序已加密";
+            if (flow.IsLineStartMember) return "整线成员，整线运行时不可调用";
             return null;
         }
 

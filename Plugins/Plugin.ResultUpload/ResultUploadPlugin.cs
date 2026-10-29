@@ -37,7 +37,7 @@ namespace Plugin.ResultUpload
         Description = "把检测结果 POST 成 JSON 上报：MES 字段表 / 钉钉·企业微信机器人 / 自定义报文，异步队列不占节拍",
         ShortName = "\uf093")]
     [ParallelSafe] // 二期真并行：UploadQueue 单消费线程 + SpoolLock
-    public partial class ResultUploadPlugin : VisionPluginBase, IPluginCustomViewProvider
+    public partial class ResultUploadPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
     {
         #region 端口
 
@@ -232,12 +232,46 @@ namespace Plugin.ResultUpload
 
         public override void OnConfirm(IStepConfigData stepData)
         {
+            CaptureVariableIds();
             // 改名迁移排在 base 之前：base 会给"未链接"的端口写 InputValues 固定值，
             // 迁完新名才算已链接，才不会留下一条脏的固定值。
             MigrateLinksOnRename(stepData);
             base.OnConfirm(stepData);
             SnapshotPortNames();
         }
+
+        /// <summary>
+        /// 把「来源=变量」各字段的目标 Id 落进配置（Id 优先、名字兜底，见 <see cref="VariableOptionResolver"/>）。
+        ///
+        /// 为什么要捕获：多设备允许同名点位之后（同一设备内唯一），名字不再能唯一定位一个变量；
+        /// 运行期只有拿到 Id 才能在变量改名后仍然上报同一个变量。
+        /// 重名时留空 → 运行期明确报歧义（字段按空值上报 + 限次 WARN），而不是静默取另一台设备的值。
+        /// </summary>
+        private void CaptureVariableIds()
+        {
+            var options = _configContext?.Variables;
+            if (options == null || Fields == null) return;
+
+            foreach (var field in Fields)
+            {
+                if (field == null || field.Source != FieldSource.Variable) continue;
+                field.VariableId = VariableOptionResolver.CaptureId(
+                    options, field.VariableId, field.VariableName, "Global");
+            }
+        }
+
+        /// <summary>
+        /// 宿主在配置窗口打开后推一次上下文快照。
+        /// 本插件原本不实现 <see cref="IPluginConfigContextProvider"/>（变量名是自由文本），
+        /// 2026-10-29 起实现它只为拿 <see cref="PluginConfigContext.Variables"/>：
+        /// 确认配置时按名字把目标变量的稳定 Id 捕获下来，运行期才能"Id 优先"。
+        /// </summary>
+        public void SetConfigContext(PluginConfigContext context)
+        {
+            _configContext = context;
+        }
+
+        private PluginConfigContext _configContext;
 
         /// <summary>
         /// 本步骤的有效名字（用于 {步骤名} 占位符）：
@@ -686,8 +720,9 @@ namespace Plugin.ResultUpload
                         v = Inputs.TryGetValue(f.Name.Trim(), out var p) ? p.GetActualValue() : null;
                         break;
                     case FieldSource.Variable:
-                        // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）
-                        v = TryResolveVariable(context, f.VariableName, out var resolved) ? resolved : null;
+                        // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）；
+                        // 共享变量那条按 Id 优先（多设备同名点位只有 Id 能唯一定位）
+                        v = TryResolveVariable(context, f.VariableId, f.VariableName, out var resolved) ? resolved : null;
                         break;
                     case FieldSource.BuiltIn:
                         // 步骤名用 EffectiveStepName（InstanceName 未注入时退回 StepData.StepName），防上报出去是"未赋值"
@@ -721,15 +756,19 @@ namespace Plugin.ResultUpload
         /// </list>
         /// <para>缺名不抛异常：字段照发（值 null/空串），并按名字限次 WARN（走宿主日志）。</para>
         /// </summary>
-        private bool TryResolveVariable(IExecutionContext context, string name, out object value)
+        private bool TryResolveVariable(IExecutionContext context, Guid variableId, string name, out object value)
         {
             value = null;
             if (context == null) return false; // 配置面板预览/测试发送没有上下文：按空值处理，不提示
 
             string key = name?.Trim();
-            if (string.IsNullOrEmpty(key)) return false;
-
-            if (context.LocalVariables != null && context.LocalVariables.TryGetValue(key, out var local))
+            if (string.IsNullOrEmpty(key))
+            {
+                // 只存了 Id（旧名字被清空/改名）：仍按 Id 取，取不到就算了
+                if (variableId == Guid.Empty) return false;
+                key = string.Empty;
+            }
+            else if (context.LocalVariables != null && context.LocalVariables.TryGetValue(key, out var local))
             {
                 // 键存在就到此为止（哪怕值是 null）：局部变量遮蔽同名全局变量是既定语义。
                 value = local;
@@ -737,13 +776,14 @@ namespace Plugin.ResultUpload
             }
 
             if (context.SharedVariables != null &&
-                context.SharedVariables.TryRead(Guid.Empty, key, out var shared, out _))
+                context.SharedVariables.TryRead(variableId, key, out var shared, out _))
             {
                 value = shared;
                 return true;
             }
 
-            WarnMissingVariable(context, key);
+            if (key.Length > 0)
+                WarnMissingVariable(context, key);
             return false;
         }
 

@@ -145,6 +145,25 @@ namespace VisionMaster.Communications
         }
     }
 
+    /// <summary>
+    /// 汇川 EasyNet（Easy 系列专用 TCP）连接工厂
+    /// </summary>
+    public class EasyNetConnectionFactory : IConnectionFactory
+    {
+        public CommunicationType SupportedType => CommunicationType.EasyNet;
+        public string Description => "汇川 EasyNet（Easy 系列专用 TCP，默认 12939）连接工厂";
+
+        public ICommunicationConnection Create(CommunicationConfig config)
+        {
+            return new EasyNetConnection((EasyNetConfig)config.Config);
+        }
+
+        public bool Supports(ConnectionConfigBase config)
+        {
+            return config is EasyNetConfig;
+        }
+    }
+
     #region 内建驱动（字符串 Id 形态，供外部驱动统一注册）
 
     /// <summary>Modbus TCP 驱动：一个 host:port 一条 TCP，站号可逐帧指定（富地址 <c>s=N;</c>）。</summary>
@@ -219,6 +238,18 @@ namespace VisionMaster.Communications
             => new FreeProtocolConnection((FreeProtocolConfig)config);
     }
 
+    /// <summary>汇川 EasyNet 驱动：一个 PLC 一条 TCP，位寻址 + 22 字节专用报文。</summary>
+    public sealed class EasyNetDriverFactory : ICommunicationDriverFactory
+    {
+        public string DriverId => "inovance.easynet";
+        public string DisplayName => "汇川 EasyNet";
+        public string Description => "汇川 Easy 系列 PLC 专用 TCP 协议（默认端口 12939，位寻址）";
+        public Type? ConfigType => typeof(EasyNetConfig);
+
+        public ICommunicationConnection Create(ConnectionConfigBase config)
+            => new EasyNetConnection((EasyNetConfig)config);
+    }
+
     #endregion
 
     /// <summary>
@@ -252,6 +283,7 @@ namespace VisionMaster.Communications
             Register(new MitsubishiMcConnectionFactory());
             Register(new OmronFinsConnectionFactory());
             Register(new FreeProtocolConnectionFactory());
+            Register(new EasyNetConnectionFactory());
 
             // 同一批协议再以字符串 Id 注册一遍：外部驱动走这张表，内建驱动也必须在里面，
             // 否则"可用协议清单"会出现两套（枚举一份、驱动一份），迟早不一致。
@@ -261,6 +293,7 @@ namespace VisionMaster.Communications
             Drivers.Register(new MitsubishiMcDriverFactory());
             Drivers.Register(new OmronFinsDriverFactory());
             Drivers.Register(new FreeProtocolDriverFactory());
+            Drivers.Register(new EasyNetDriverFactory());
         }
 
         public void Register(IConnectionFactory factory)

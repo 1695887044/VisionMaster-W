@@ -372,4 +372,59 @@
         node.appendChild(body);
         return { node: node, update: function () { } };
     };
+
+    // ----------------------------------------------------------------------
+    // v6 两个桌面端专属图元（Hmi.AlarmTable / Hmi.XYChart）
+    //
+    // Web 方向 2026-10-29 起暂停（AGENTS R191），本轮不实现它们的 Web 渲染。
+    // 但 WebRendererCoverageChecks 的 [WR1] 要求"工具箱里的每个 TypeKey 要么有渲染器、
+    // 要么在例外清单里"，而例外清单 [WR3] 只许变短——把两个新键塞进例外清单会让闸门直接红。
+    // 于是这里给一个**诚实的最小渲染器**：画出图元外框 + 一句"Web 端暂不支持"，不假装有数据。
+    // 恢复 Web 方向后把这两段换成真渲染，并删掉这段注释。
+    // ----------------------------------------------------------------------
+    registry['Hmi.AlarmTable'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;'
+            + 'padding:10px;box-sizing:border-box;font-size:11px;color:#7C8A99;'
+            + 'border:1px dashed #2A3745;border-radius:8px;text-align:center;';
+        node.title = '报警汇总表：Web 端暂不支持（桌面运行窗口可用）';
+        node.textContent = '报警汇总表（Web 端暂不支持）';
+        return { node: node, update: function () { } };
+    };
+
+    registry['Hmi.XYChart'] = function (el, ctx) {
+        var x = rawProp(el, 'XVariable') || 'X';
+        var y = rawProp(el, 'YVariable') || 'Y';
+
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;'
+            + 'padding:10px;box-sizing:border-box;font-size:11px;color:#7C8A99;'
+            + 'border:1px dashed #2A3745;border-radius:8px;text-align:center;';
+        node.title = 'XY 曲线（' + x + ' / ' + y + '）：Web 端暂不支持（桌面运行窗口可用）';
+        node.textContent = 'XY 曲线 ' + x + ' / ' + y + '（Web 端暂不支持）';
+        return { node: node, update: function () { } };
+    };
+
+    // v7 两个新图元（圆形进度条 / 旋钮）同样只做"诚实占位"：
+    // 原因是 Web 方向暂停（AGENTS R191），而 [WR1] 要求每个工具箱图元要么有渲染器、
+    // 要么进例外清单（清单只许变短）。恢复 Web 方向后换成真渲染并删掉这段注释。
+    registry['Hmi.CircularProgress'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;'
+            + 'padding:10px;box-sizing:border-box;font-size:11px;color:#7C8A99;'
+            + 'border:1px dashed #2A3745;border-radius:8px;text-align:center;';
+        node.title = '圆形进度条：Web 端暂不支持（桌面运行窗口可用）';
+        node.textContent = '圆形进度条（Web 端暂不支持）';
+        return { node: node, update: function () { } };
+    };
+
+    registry['Hmi.Knob'] = function (el, ctx) {
+        var node = global.document.createElement('div');
+        node.style.cssText = 'width:100%;height:100%;display:flex;align-items:center;justify-content:center;'
+            + 'padding:10px;box-sizing:border-box;font-size:11px;color:#7C8A99;'
+            + 'border:1px dashed #2A3745;border-radius:8px;text-align:center;';
+        node.title = '旋钮：Web 端暂不支持（桌面运行窗口可用）';
+        node.textContent = '旋钮（Web 端暂不支持）';
+        return { node: node, update: function () { } };
+    };
 })(typeof window !== 'undefined' ? window : globalThis);

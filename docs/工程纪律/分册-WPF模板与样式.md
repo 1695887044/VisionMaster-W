@@ -36,7 +36,7 @@
 |---|---|
 | R68 | **写了 `Width`/`Height` 的图标字符按钮（✕ × ＋ ↑、FA 私有区码点）必须挂 `Style` 或显式 `Padding`**——否则吃 Fluent 的 `11,5,11,6`（30×30 只剩 6×17，24×24 内容区归零）。不定宽不算违规。守门：`GlyphButtonClipCheck` GB0~GB5（进常规 gate；GB4 把"Padding 写大了"也过账；GB2 反向钉住解析器）。算术前提由 `HelpProbe.RunGlyphClipChecks` 四档钉住。 |
 | R69 | **量"文字被切"不许看内层 `TextBlock.ActualWidth`**：需求宽用**不受约束的参照 `TextBlock`**（`Measure(infinite)`）；判据用算式"内容区 = 实得尺寸 − 生效 `Padding` − `BorderThickness`"。`Application.Current.Resources[typeof(Button)]` 读不到 Padding Setter，必须取按钮自己的生效值。 |
-| R70 | **标题栏按钮 `Path` 几何不许有零长度线段**（`M x y L x y` 起=终 = 那笔不画）。改 `Shell.xaml` 必须同步 `ShellCopy.xaml`。守门：`RunShellLayoutChecks()` 末尾两条（同一判据跑原件 + 副本）。数据级扫描，与资源级闸正交。 |
+| R70 | **标题栏按钮 `Path` 几何不许有零长度线段**（`M x y L x y` 起=终 = 那笔不画）。改 `Shell.xaml` 必须同步 `ShellCopy.xaml`。守门：`RunShellLayoutChecks()` 里同一判据跑原件 + 副本（条数以方法内 `Check(` 为准）。数据级扫描，与资源级闸正交。 |
 
 ## 33. 模板里的 ToggleButton 对齐（R148）
 

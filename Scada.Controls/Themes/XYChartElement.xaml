@@ -1,0 +1,47 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="clr-namespace:VisionMaster.Scada.Controls">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="/VM.Scada.Controls;component/Themes/ScadaTokens.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!--
+        XY 曲线：卡片底 + 一块自绘面（XYChartSurface）。
+
+        为什么曲线画在子元素上、不画在本控件的 OnRender 里：
+        WPF 里<b>模板子元素画在控件自身 OnRender 之上</b>（实测：控件 OnRender 里铺满的矩形
+        被模板 Border 的不透明底色整个盖住）。卡片底必须留在模板里（Fill / Stroke / 圆角与
+        其余图元同一口径），所以"纯 OnRender 画图"落在 Border 里面的那块绘制面上，
+        与多曲线趋势（MultiTrendElement + TrendSurface）同一条做法。
+
+        模板里<b>一个算术都没有</b>：网格、坐标轴、刻度数字、折线、采样点全在
+        XYChartElement.PaintChart 里按实时尺寸算。
+
+        刻意不写 ControlTemplate.Triggers 的 DataTrigger：本环境下它不触发（写了是死代码），
+        "设计期 / 未接入 / 变量未解析"这些分支由控件代码按状态画提示文字。
+    -->
+    <Style TargetType="{x:Type local:XYChartElement}">
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="{x:Type local:XYChartElement}">
+                    <Border
+                        Background="{TemplateBinding Fill}"
+                        BorderBrush="{TemplateBinding Stroke}"
+                        BorderThickness="{TemplateBinding StrokeThickness}"
+                        CornerRadius="{Binding CornerRadius, RelativeSource={RelativeSource TemplatedParent}, Converter={StaticResource DoubleToCornerRadius}}">
+                        <!--  绘制面往里让 2px：圆角边框不会啃掉坐标轴与刻度数字  -->
+                        <local:XYChartSurface
+                            x:Name="ChartSurface"
+                            Margin="2"
+                            ClipToBounds="True" />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

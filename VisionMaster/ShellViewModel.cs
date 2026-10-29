@@ -95,11 +95,8 @@ namespace VisionMaster
         /// </summary>
         private readonly FlowEngineService _flowEngineService;
 
-        /// <summary>流程运行统计来源：底栏 KPI 的唯一数据源（每流程一份，按 FlowId 归属）</summary>
+        /// <summary>流程运行统计来源：工位浮窗 / 轮次下钻 / 范围胶囊的数据源（每流程一份，按 FlowId 归属）</summary>
         private readonly FlowRuntimeVariableSource _flowStats;
-
-        /// <summary>SCADA 监控宿主：底栏「告警」读它的未确认产线告警数（不是日志警告）</summary>
-        private readonly ScadaMonitoringHost _monitoringHost;
 
         /// <summary>工位浮窗的行缓存：按 FlowId 增量更新，不整表重建（否则 200ms 刷一次会丢滚动/焦点）</summary>
         private readonly Dictionary<Guid, FlowStatsRow> _flowRows = new();
@@ -257,33 +254,10 @@ namespace VisionMaster
             set { SetProperty(ref field, value); }
         }
 
-        // 生产 KPI：数据来自 FlowRuntimeVariableSource（订阅引擎每轮事件）。
-        // 多流程并发时不再给"一个全局数"：节拍取在跑流程的瓶颈，OK/NG 取主流程的线级汇总，
-        // 未判定单独一桶；没有数据时显示"—"（不拿 0 冒充真实计数）。
-        public string CycleTimeText
-        {
-            get => field;
-            private set => SetProperty(ref field, value);
-        } = "—";
-
-        public string OkCountText
-        {
-            get => field;
-            private set => SetProperty(ref field, value);
-        } = "—";
-
-        public string NgCountText
-        {
-            get => field;
-            private set => SetProperty(ref field, value);
-        } = "—";
-
-        /// <summary>未判定轮次合计（判定步骤跳过 / 未配置 / 类型不符；不混进 NG）</summary>
-        public string UnknownCountText
-        {
-            get => field;
-            private set => SetProperty(ref field, value);
-        } = "0";
+        // 生产 KPI（节拍 / OK / NG / 未判定 / 告警）已于 2026-10-29 按用户决策从底栏下线：
+        // 多流程并发时这几个"全局数"没有稳定口径（线级来源要额外认领），
+        // 逐流程的判定与节拍在「N 条在跑」浮窗和轮次下钻里看；告警数在 SCADA 报警页看。
+        // 数据源 FlowRuntimeVariableSource / System.Flow.* 保持不变（SCADA、脚本、报表仍在用）。
 
         /// <summary>在跑的生产流程数（不含 Home/End/调试）</summary>
         public string RunningFlowCountText
@@ -318,13 +292,6 @@ namespace VisionMaster
 
         public DelegateCommand<FlowStatsRow> SelectFlowCommand { get; }
         public DelegateCommand ShowAllFlowsCommand { get; }
-
-        /// <summary>告警 KPI：SCADA 未确认产线告警数（≠ 日志警告）；未加载方案时显示 —</summary>
-        public string AlarmCountText
-        {
-            get => field;
-            private set => SetProperty(ref field, value);
-        } = "—";
 
         /// <summary>
         /// 流程统计变化：来源在引擎/定时器线程上触发，这里封送到 UI 线程并合并到 Background，
@@ -405,49 +372,15 @@ namespace VisionMaster
 
             RunningFlowCountText = running.Count == 0 ? "未运行" : $"{running.Count} 条在跑";
 
+            // 底栏只保留"统计范围"文案：节拍 / OK / NG / 未判定 / 告警 已下线（2026-10-29 用户决策）。
+            // 逐流程的节拍与判定在「N 条在跑」浮窗（FlowStatsRows）和轮次下钻里看。
             if (_selectedFlowId.HasValue && byId.TryGetValue(_selectedFlowId.Value, out var sel))
             {
                 ScopeText = $"{sel.FlowName} · {sel.Role}";
-                CycleTimeText = sel.HasRound ? $"{sel.CycleTimeMs:N0} ms" : "—";
-                OkCountText = sel.HasRound ? sel.OkCount.ToString("N0") : "—";
-                NgCountText = sel.HasRound ? sel.NgCount.ToString("N0") : "—";
-                UnknownCountText = sel.UnknownCount.ToString("N0");
             }
             else
             {
                 ScopeText = $"全部在跑 · {running.Count} 条";
-
-                // 「全部」口径：节拍取在跑流程的瓶颈（最大值），不取平均、不求和。
-                // 都停下来时回落到"最近完成过轮次"的流程——否则跑完一轮节拍立刻变 —，
-                // 用户看到的 OK/NG 还在、节拍却消失。
-                var bottleneckPool = running.Where(s => s.HasRound).ToList();
-                if (bottleneckPool.Count == 0)
-                    bottleneckPool = included.Where(s => s.HasRound).ToList();
-                var bottleneck = bottleneckPool.OrderByDescending(s => s.CycleTimeMs).FirstOrDefault();
-                CycleTimeText = bottleneck.HasRound ? $"{bottleneck.CycleTimeMs:N0} ms" : "—";
-
-                // OK/NG 取「线级判定来源」那一条的汇总；串联线不把各工位相加。
-                // 来源由 SolutionModel.ResolveLineVerdictFlow 解析：显式配置（结果源弹窗里勾
-                // "作为线级汇总来源"）优先，否则第一条勾「整线」的启用流程；都没有就显示「—」。
-                // 未判定同样取线级：各工位自己的未判定在工位浮窗里逐行看，底栏不把辅助子程序的轮次累进来。
-                var lineFlow = Workspace?.CurrentSolution?.ResolveLineVerdictFlow();
-                bool lineHasRound = false;
-                long lineOk = 0, lineNg = 0, lineUnknown = 0;
-                if (lineFlow != null
-                    && Guid.TryParse(lineFlow.FlowID, out var lineFlowId)
-                    && byId.TryGetValue(lineFlowId, out var lineCandidate))
-                {
-                    lineHasRound = lineCandidate.HasRound;
-                    lineOk = lineCandidate.OkCount;
-                    lineNg = lineCandidate.NgCount;
-                    lineUnknown = lineCandidate.UnknownCount;
-                }
-
-                OkCountText = lineHasRound ? lineOk.ToString("N0") : "—";
-                NgCountText = lineHasRound ? lineNg.ToString("N0") : "—";
-                UnknownCountText = lineHasRound
-                    ? lineUnknown.ToString("N0")
-                    : included.Sum(s => s.UnknownCount).ToString("N0");
             }
 
             FlowStatsToolTip = running.Count == 0
@@ -1047,8 +980,7 @@ namespace VisionMaster
             SolutionSessionCoordinator sessionCoordinator,
             FlowEngineService flowEngineService,
             Services.CommunicationSolutionBinder communicationBinder,
-            FlowRuntimeVariableSource flowStats,
-            ScadaMonitoringHost monitoringHost
+            FlowRuntimeVariableSource flowStats
         )
         {
             StartBackgroundMonitoring();
@@ -1097,7 +1029,6 @@ namespace VisionMaster
             // 底栏 KPI：订阅流程运行统计（来源在引擎/定时器线程，RefreshFlowKpis 内部封送 UI 线程）。
             this._flowStats = flowStats;
             _flowStats.Changed += OnFlowStatsChanged;
-            this._monitoringHost = monitoringHost;
             RefreshFlowKpis();
 
             // 空闲超时登出要"说一声"。挂在这里（而不是弹窗里）是因为主窗口是唯一
@@ -2107,15 +2038,6 @@ namespace VisionMaster
                             ThreadCountStr = $"THD: {metrics.ThreadCount}";
                             HandleCountStr = $"HDL: {metrics.HandleCount}";
                             CurrentTimeText = DateTime.Now.ToString(" HH:mm:ss");
-                            try
-                            {
-                                AlarmCountText = _monitoringHost?.Context?.Alarms?.UnacknowledgedCount.ToString("N0") ?? "—";
-                            }
-                            catch
-                            {
-                                // 方案切换/监控宿主释放的窗口：告警数读不到就显示占位，不影响其它状态采样。
-                                AlarmCountText = "—";
-                            }
                         }
                         catch (OperationCanceledException)
                         {

@@ -47,7 +47,25 @@ namespace VisionMaster.Models
                 // 这样引用了运行时变量的 InputPort 在插件内 GetTypedValue() 时能取到最新值
                 BindContextAwarePorts(context);
 
-                bool ok = ExternalPlugin.Execute(context);
+                bool ok;
+                using (var batch = VisionMaster.Binding.WriteBatchSession.Begin())
+                {
+                    ok = ExternalPlugin.Execute(context);
+
+                    // 步骤边界冲刷：本步骤内的 N 次变量写在这里合并成 M 帧一次发出。
+                    // 放在 Execute 之后、判成败之前——写失败也要先落地，才能报进本步骤。
+                    // 跨步骤永不合并：下一步开的是新会话，两批必然分成两帧（保住步骤间的先后语义）。
+                    if (!batch.IsEmpty)
+                    {
+                        int failed = batch.Flush();
+                        if (failed > 0)
+                        {
+                            context.Logger?.Warn(
+                                $"步骤[{ExternalPlugin.InstanceName}]有 {failed} 笔变量写未确认（设备回执失败或链路中断）");
+                        }
+                    }
+                }
+
                 if (!ok)
                 {
                     // 插件业务失败（RunAlgorithm 不抛异常、写 Success=false）：

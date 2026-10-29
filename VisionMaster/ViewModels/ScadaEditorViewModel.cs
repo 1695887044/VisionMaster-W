@@ -116,6 +116,7 @@ namespace VisionMaster.ViewModels
             RemovePageCommand = new DelegateCommand(OnRemovePage, CanRemovePage);
             RunPageCommand = new DelegateCommand(OnRunPage, CanRunPage);
             OpenAlarmConfigCommand = new DelegateCommand(OnOpenAlarmConfig, CanOpenAlarmConfig);
+            OpenLanguagesCommand = new DelegateCommand(OnOpenLanguages, () => Document != _fallback);
             UndoCommand = new DelegateCommand(OnUndo, () => ScadaEditHistory.CanUndo);
             RedoCommand = new DelegateCommand(OnRedo, () => ScadaEditHistory.CanRedo);
 
@@ -465,6 +466,32 @@ namespace VisionMaster.ViewModels
         }
 
         /// <summary>
+        /// 「多语言…」：打开方案级语言表管理器（键 → 各语言译文）。
+        ///
+        /// 与属性面板的「管理文本列表…」同一分工：管理器编辑的是<b>副本</b>，确认后才
+        /// <c>Commit()</c> 原地写回（已存在的语言表 CopyFrom、新增的 Add，订阅不断）。
+        /// 写回之后要让画布按新语言重铺一遍——入口见 <see cref="ResolveText"/> 的注释：
+        /// 重新通知那个属性即可，不需要另建一套订阅。
+        /// </summary>
+        private void OnOpenLanguages()
+        {
+            var view = new VisionMaster.Views.DialogViews.LanguageManagerView
+            {
+                DataContext = new LanguageManagerViewModel(Document),
+            };
+
+            if (!UI.CustomControl.EasyDialog.ShowSync("多语言", view))
+                return;
+
+            view.Commit();
+
+            // 语言表 / 当前语言变了 → 重刷画布文本。ResolveText 每次取值都是新委托，
+            // 重新通知后 XAML 绑定把新委托推进 ScadaCanvas.TextResolver，
+            // DP 回调逐个转发给控件，控件的 setter 于是 Refresh() 一遍。
+            RaisePropertyChanged(nameof(ResolveText));
+        }
+
+        /// <summary>
         /// 方案图片原始字节解析器（相对路径 → 文件内容），交给画布注入给 Hmi.Gif。
         /// 动图必须自己逐帧解码，位图那条通道只剩首帧；失败返回 null（图元显示占位）。
         /// </summary>
@@ -483,6 +510,18 @@ namespace VisionMaster.ViewModels
         /// </summary>
         public Func<Guid, ScadaStateList?> ResolveStateList
             => id => Document.StateLists.FirstOrDefault(list => list.StateListId == id);
+
+        /// <summary>
+        /// 设计期文本解析器（<c>@键</c> → 当前语言的文字），交给画布注入给每个图元控件。
+        ///
+        /// 每次取值都返回一个<b>新委托</b>（与 <see cref="ResolveImageAsset"/> 同一写法）：这不是浪费，
+        /// 而是"语言表改完后重刷画布"的开关——<c>RaisePropertyChanged(nameof(ResolveText))</c>
+        /// 让 XAML 绑定重读这个属性，新委托推进 <c>ScadaCanvas.TextResolver</c> DP，
+        /// DP 回调再逐个转发给控件，控件的 setter 于是 Refresh() 一遍、按新语言重铺文本。
+        /// 委托内部<b>现读</b>文档的 Languages / CurrentLanguageId，所以不需要另建订阅。
+        /// </summary>
+        public Func<string, string> ResolveText
+            => text => ScadaTextCatalog.Resolve(text, Document.Languages, Document.CurrentLanguageId);
 
         /// <summary>
         /// 画面解析器（Id → 画面），交给画布注入给 Hmi.SubPage。
@@ -865,6 +904,15 @@ namespace VisionMaster.ViewModels
         /// 所以入口放在组态工具栏、数据仍落 <see cref="ScadaDocument.Alarms"/>。
         /// </summary>
         public DelegateCommand OpenAlarmConfigCommand { get; }
+
+        /// <summary>
+        /// 打开方案级「多语言」管理器（语言表：键 → 各语言译文）。
+        ///
+        /// 与报警配置同一层：语言表是多张画面共用的方案内容，不是当前页属性，
+        /// 所以入口在组态工具栏的"…"菜单里、数据仍落 <see cref="ScadaDocument.Languages"/>。
+        /// 管理器编辑的是副本，确认后才 <c>Commit</c> 写回文档（见 <c>LanguageManagerViewModel</c>）。
+        /// </summary>
+        public DelegateCommand OpenLanguagesCommand { get; }
 
         /// <summary>撤销一步编辑（Ctrl+Z）。可用性直接问 <see cref="ScadaEditHistory"/>，本类不自己记栈深</summary>
         public DelegateCommand UndoCommand { get; }
@@ -2904,6 +2952,7 @@ namespace VisionMaster.ViewModels
             AddBasePageCommand.RaiseCanExecuteChanged();
             AddPopupPageCommand.RaiseCanExecuteChanged();
             RunPageCommand.RaiseCanExecuteChanged();
+            OpenLanguagesCommand.RaiseCanExecuteChanged();
 
             var pages = Pages;
             SelectedPage = pages.Count > 0 ? pages[0] : null;

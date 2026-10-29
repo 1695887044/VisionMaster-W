@@ -71,6 +71,17 @@ namespace VisionMaster.ViewModels
             ScadaActionType.NavigateBack => 3,
             ScadaActionType.OpenPopup => 4,
             ScadaActionType.ClosePopup => 5,
+            // v6 登录/注销：紧跟"导航"这一族。两者改的都是"此刻谁在操作 / 看到什么"，
+            // 与切画面同属"把界面切到另一种状态"，排在流程与设备动作之前——它们是操作员
+            // 进入运行态后最先要找的两条。组内按枚举值（Logon=29 < Logoff=30）自然成序。
+            ScadaActionType.Logon => 6,
+            ScadaActionType.Logoff => 7,
+            // v7 确认报警 / 静音：与登录/注销同属"操作员与报警/会话"这一族——它们改的是
+            // "此刻谁在操作 / 报警响不响"，都属于操作员进运行态后最先要找的动作，
+            // 排在流程与设备动作之前、紧跟 Logoff。确认排在静音之前，因为现场的处理顺序
+            // 就是"先确认、再静音"（静音只是让声音停一会儿，报警本身还在）。
+            ScadaActionType.AcknowledgeAlarm => 8,
+            ScadaActionType.MuteAlarm => 9,
             ScadaActionType.StartFlow => 10,
             ScadaActionType.PauseFlow => 11,
             ScadaActionType.ResumeFlow => 12,
@@ -90,6 +101,11 @@ namespace VisionMaster.ViewModels
             ScadaActionType.ApplyRecipe => 30,
             // 播放声音：副作用类，排在最后；它不改变任何变量/设备状态。
             ScadaActionType.PlaySound => 31,
+            // v6 切换语言 / 延时：同样只产生副作用（换词表 / 改后面动作的时序），
+            // 排在动作表尾部——它们几乎总是配在一串动作的最后一条或倒数第二条上。
+            // 组内按枚举值（SetLanguage=31 < Delay=32）自然成序。
+            ScadaActionType.SetLanguage => 32,
+            ScadaActionType.Delay => 33,
             _ => 100,
         };
 

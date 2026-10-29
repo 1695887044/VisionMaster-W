@@ -524,6 +524,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             // 选中新配置
             SelectedConfig = newConfig;
+
+            ShowReadTimeoutAdvisory(newConfig);
         }
 
         /// <summary>
@@ -638,6 +640,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
             MarkCommunicationDirty();
             RefreshView(); // 参与搜索的字段（IP/端口/协议）可能变了，刷新筛选结果
+
+            ShowReadTimeoutAdvisory(config);
+        }
+
+        /// <summary>
+        /// 读超时 vs 扫描周期体检的**提示出口**：保存成功后弹一次 toast，不阻断保存。
+        /// <para>规则与日志出口（<c>AdvancedCommunicationManager.RebuildPollPlan</c>）共用
+        /// <see cref="ReadTimeoutAdvisor"/>，避免"日志说有问题、弹窗说没问题"的两套判定漂移。</para>
+        /// <para>为什么只是提示不改值：读超时的合理取值取决于现场（网关、无线、低速串口差异很大），
+        /// 自动改会把用户明确填过的数字悄悄换掉；给数字和建议区间，让人自己决定。</para>
+        /// </summary>
+        private void ShowReadTimeoutAdvisory(CommunicationConfig? config)
+        {
+            string? advice = ReadTimeoutAdvisor.Describe(config);
+            if (advice != null)
+                Notifier.ShowWarning(advice);
         }
 
         /// <summary>

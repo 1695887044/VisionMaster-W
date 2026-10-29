@@ -156,7 +156,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
     //  草稿只活在一次弹窗里（取消 = 整份丢弃），不落盘。
     // ==================================================================
 
-    /// <summary>协议专属地址参数的公共基类（本仓四种协议没有真正共用的可编辑字段）。</summary>
+    /// <summary>协议专属地址参数的公共基类（本仓五种协议没有真正共用的可编辑字段）。</summary>
     public abstract class ProtocolAddressDraft : BindableBase { }
 
     /// <summary>
@@ -246,6 +246,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
             Group = new[] { "网络参数" },
             Order = 0,
             Description = "布尔量按位访问时用：D100.0（0-15）；非布尔类型忽略")]
+        [RangeValidation(0, 15, "位偏移必须在 0 ~ 15 之间")]
+        public int BitOffset
+        {
+            get => _bitOffset;
+            set => SetProperty(ref _bitOffset, value);
+        }
+    }
+
+    /// <summary>
+    /// 汇川 EasyNet：只有字区 D/R/W 有字内位（0~15，D100.5 形态）。
+    /// <para>位区 M/S/B/X/Y 与 U 区本身就是位地址，位偏移由地址表达（<c>TryBuildAddress</c>
+    /// 对这两类强制 -1）；U 区数值必须字对齐，未对齐会由地址校验明确报错。</para>
+    /// </summary>
+    public sealed class EasyNetAddressDraft : ProtocolAddressDraft
+    {
+        private int _bitOffset;
+
+        /// <summary>位偏移（0~15，仅 D/R/W 的布尔量有效）</summary>
+        [SuperDisplay(
+            Name = "位偏移（0-15）",
+            Group = new[] { "网络参数" },
+            Order = 0,
+            Description = "仅 D/R/W 的布尔量按位访问时用：D100.5（0-15）；位区与 U 区直接填位地址，忽略本字段")]
         [RangeValidation(0, 15, "位偏移必须在 0 ~ 15 之间")]
         public int BitOffset
         {
@@ -735,11 +758,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
         /// <summary>字符串数组：每个元素的固定字节数（0 = 不适用）</summary>
         public int ElementByteLength => Elements is StringArrayElementDraft sa ? sa.ElementByteLength : 0;
 
-        /// <summary>位偏移（只有 S7 / FINS 用；Modbus 地址串不含位号，MC 由存储区表达）</summary>
+        /// <summary>位偏移（只有 S7 / FINS / EasyNet 字区用；Modbus 地址串不含位号，MC 由存储区表达）</summary>
         public int BitOffset => AddressDraft switch
         {
             S7AddressDraft s7 => s7.BitOffset,
             FinsAddressDraft fins => fins.BitOffset,
+            EasyNetAddressDraft easy => easy.BitOffset,
             _ => 0,
         };
 
@@ -803,6 +827,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     CommunicationType.SiemensS7 => new S7AddressDraft(),
                     CommunicationType.MitsubishiMc => new McAddressDraft(),
                     CommunicationType.OmronFins => new FinsAddressDraft(),
+                    CommunicationType.EasyNet => new EasyNetAddressDraft(),
                     _ => _unknownAddressDraft,
                 };
                 _addressDrafts[protocol.Value] = draft;

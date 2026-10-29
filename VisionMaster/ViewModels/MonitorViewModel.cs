@@ -461,7 +461,9 @@ namespace VisionMaster.ViewModels
                 var varName = portName.Substring(7);
 
                 // 用户手输的是名字：查注册表换取稳定 Id 再落盘。
-                // 查不到也照样添加（监视栏会以失效项变色提示），只是这时的 Id 只能为空
+                // 查不到也照样添加（监视栏会以失效项变色提示），只是这时的 Id 只能为空。
+                // 重名时 FindByName 同样返回 null（不猜先出现者），条目会显示"（重名 N 个）"，
+                // 由用户自己在变量管理里改名区分——这里不能替他选一个。
                 var variable = _workspace.VariableRegistry.FindByName(varName);
                 if (!IsWatchingGlobalVariable(variable?.VariableId ?? Guid.Empty, varName))
                 {
@@ -617,9 +619,14 @@ namespace VisionMaster.ViewModels
                 }
                 else
                 {
-                    // 变量不存在：保留条目并标记失效（变色提示），等用户清理或变量重新创建
-                    DisplayPorts.Add(new WatchPortWrapper(
-                        config, config.GlobalVariableName ?? "(未知变量)", "全局", null));
+                    // 变量不存在：保留条目并标记失效（变色提示），等用户清理或变量重新创建。
+                    // 但"重名"与"不存在"必须分开说：名字在 N 个变量上重复时按名寻址本身无法确定
+                    // 目标（FindByName 返回 null），显示成"(未知变量)"会让人以为变量被删了。
+                    var sameName = _workspace.VariableRegistry.FindAllByName(config.GlobalVariableName);
+                    var label = sameName.Count > 1
+                        ? $"{config.GlobalVariableName}（重名 {sameName.Count} 个）"
+                        : config.GlobalVariableName ?? "(未知变量)";
+                    DisplayPorts.Add(new WatchPortWrapper(config, label, "全局", null));
                 }
             }
             else

@@ -164,7 +164,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
         }
 
-        /// <summary>明细表当前可见的根行数（分组/搜索过滤后），卡片头徽标与状态条用它。</summary>
+        /// <summary>明细表当前作用域里的变量数（分组/搜索过滤后，与展开与否无关），卡片头徽标与状态条用它。</summary>
         private int _visibleRootCount;
         public int VisibleRootCount
         {
@@ -386,6 +386,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             CommunicationType.OmronFins => "欧姆龙 FINS",
             CommunicationType.FreeProtocol => "自由协议",
             CommunicationType.OpcUa => "OPC UA",
+            CommunicationType.EasyNet => "汇川 EasyNet",
             _ => protocol.ToString(),
         };
 
@@ -517,109 +518,150 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         public ObservableCollection<VariableNode> FilteredDisplayNodes { get; } = new();
 
-        protected override void UpdateFlatList()
+        private bool _groupByStructure = true;
+        /// <summary>
+        /// 是否按变量名里的结构（<c>[i]</c> / <c>.成员</c>）把网络变量归组成可折叠的行。
+        ///
+        /// 只影响**展示**：底层仍是一个元素一个 <c>NetworkVariableModel</c>，地址、轮询、
+        /// 导入导出语义完全不变。PLC 导出的元素步长并不等于元素大小（实测 short 元素隔 16 字节、
+        /// int 隔 32 字节），把它们合成一个真数组会读错内存，所以归组只能停在展示层。
+        /// </summary>
+        public bool GroupByStructure
         {
-            base.UpdateFlatList();
+            get => _groupByStructure;
+            set
+            {
+                if (!SetProperty(ref _groupByStructure, value)) return;
+                RefreshTree();
+            }
+        }
+
+        protected override void RefreshDisplay()
+        {
             UpdateFilteredList();
         }
 
         private void UpdateFilteredList()
         {
             FilteredDisplayNodes.Clear();
-            foreach (var node in FilterDisplayNodes(
-                         DisplayNodes, _selectedSourceKey, _selectedGroupId, SearchText?.Trim() ?? ""))
+
+            int variableCount = 0;
+            foreach (var row in FilterTree(
+                         _realTree, _selectedSourceKey, _selectedGroupId, SearchText?.Trim() ?? "",
+                         out variableCount))
             {
-                FilteredDisplayNodes.Add(node);
+                FilteredDisplayNodes.Add(row);
             }
 
-            // 卡片头徽标 / 状态条用的是"当前作用域里可见的根行数"：
-            // 分组筛选与搜索都会改变它，不能继续绑来源总数。
-            RefreshVisibleRootCount();
+            // 卡片头徽标 / 状态条用的是"当前作用域里有多少个变量"（与展开与否无关）：
+            // 归组后顶层行数 ≠ 变量数，不能再用行数冒充。
+            VisibleRootCount = variableCount;
             RaisePropertyChanged(nameof(IsSearching));
             RaisePropertyChanged(nameof(IsGroupScope));
             RaisePropertyChanged(nameof(SelectedScopeLabel));
         }
 
         /// <summary>
-        /// 重算当前可见根行数（卡片头 / 状态条徽标）。
+        /// 重算当前可见变量数（卡片头 / 状态条徽标）。
         /// 正常路径由 <see cref="UpdateFilteredList"/> 调用；直接改写 FilteredDisplayNodes 的
         /// 夹具（视图冒烟）也用它同步徽标，避免渲染出"0 个变量"。
         /// </summary>
         public void RefreshVisibleRootCount()
-            => VisibleRootCount = FilteredDisplayNodes.Count(n => n.IsRootNode);
+            => VisibleRootCount = FilteredDisplayNodes.Count(n => !n.IsSyntheticContainer && !n.IsArrayElementRow && n.OriginalModel != null);
 
         /// <summary>
-        /// 明细表的筛选：来源（本地 / 某条连接）+ 显示分组 + 搜索。
+        /// 明细表的筛选：来源（本地 / 某条连接）+ 显示分组 + 搜索，**在整棵树上递归**。
         ///
-        /// 抽成**纯函数**是为了能直接被断言（VM 的构造函数要通信管理器、桥接器、弹窗服务，
-        /// 在冒烟里凑齐这些依赖不划算；而这段逻辑恰恰是最容易出错、也最该守住的一段）。
+        /// 为什么从"扁平表 + 游标"改成"整棵树递归"：按名称路径归组后会出现
+        /// <c>Recipes → [0] → Ints → [0]</c> 这样的四层结构，折叠时子行根本不在扁平表里，
+        /// 搜索 <c>Ints[5]</c> 会连一行都匹配不到（旧实现只往下看一层）。
         ///
-        /// ★ 子节点必须跟随父级 —— 这条是 2026-10-11 修复的核心：
-        /// 旧实现只对"根节点"判来源、判搜索，子节点（数组元素行）无条件加进列表。
-        /// 后果是切到"网络变量"时，本地数组变量的 [0]/[1] 会以
-        /// "没有变量名、没有来源、类型还被列宽截断"的残行留在表里，既看不懂也不能操作。
-        /// DisplayNodes 是"根 + 它的子节点紧随其后"的扁平表（见基类 UpdateFlatList），
-        /// 所以一个游标量就足以表达"跟随父级"。
+        /// 三条口径：
+        /// ① 来源 / 分组只看顶层行，子行跟随父级（切到某连接时不许漏出别处的残行）；
+        /// ② 搜索跨分组，且**按整棵子树判命中**——命中深层成员时父容器要留下；
+        /// ③ 搜索时自动展开命中路径，否则用户只看到一堆折叠的容器、不知道点哪个。
         ///
-        /// ★ 搜索必须跨分组：在「监控分组」里搜一个属于「控制分组」的点，也要能搜到；
-        /// 否则用户的第一反应是"明明有这个变量却搜不到"。搜索时忽略分组过滤，
-        /// 由界面的「搜索范围：全部分组」提示当前口径。
+        /// 抽成纯函数是为了能直接被断言（VM 构造要通信管理器 / 桥接器 / 弹窗服务）。
         /// </summary>
-        public static List<VariableNode> FilterDisplayNodes(
-            IEnumerable<VariableNode> displayNodes, string sourceKey, string query)
-            => FilterDisplayNodes(displayNodes, sourceKey, null, query);
+        public static List<VariableNode> FilterTree(
+            IEnumerable<VariableNode> roots, string sourceKey, string query)
+            => FilterTree(roots, sourceKey, null, query, out _);
 
-        public static List<VariableNode> FilterDisplayNodes(
-            IEnumerable<VariableNode> displayNodes, string sourceKey, Guid? groupId, string query)
+        public static List<VariableNode> FilterTree(
+            IEnumerable<VariableNode> roots, string sourceKey, Guid? groupId, string query)
+            => FilterTree(roots, sourceKey, groupId, query, out _);
+
+        public static List<VariableNode> FilterTree(
+            IEnumerable<VariableNode> roots, string sourceKey, Guid? groupId, string query,
+            out int variableCount)
         {
-            var result = new List<VariableNode>();
-            bool rootAccepted = false;
+            var rows = new List<VariableNode>();
+            int count = 0;
             bool searching = !string.IsNullOrEmpty(query);
 
-            foreach (var node in displayNodes)
+            if (roots != null)
             {
-                if (node.IsRootNode)
+                foreach (var root in roots)
                 {
-                    // 来源：本地分组只显本地变量；系统分组只显系统/IO 变量；连接分组只显该连接的变量。
-                    // "本地"必须显式排除系统变量——它们也在 GlobalVariables 集合里，
-                    // 不排除就会以"可以编辑/删除"的样子混进本地池。
-                    bool matchSource = sourceKey switch
-                    {
-                        "Local" => !node.IsNetwork && !node.IsSystemOwned,
-                        SystemSourceKey => node.IsSystemOwned,
-                        _ => node.IsNetwork && node.SourceLabel == sourceKey
-                    };
+                    bool accepted = MatchSource(root, sourceKey)
+                                    && MatchGroup(root, groupId, searching)
+                                    && (!searching || SubtreeMatches(root, query));
 
-                    // 分组：只对网络变量生效；本地/系统没有分组维度。
-                    // 搜索时忽略分组（跨分组搜索），见方法注释。
-                    bool matchGroup = searching
-                        || groupId == null
-                        || !node.IsNetwork
-                        || node.GroupId == groupId.Value;
-
-                    // 搜索：名称 / 描述 / 地址，任一命中即可。
-                    // **复合变量的字段名也算**：否则搜 "Position" 搜不到 System.Motion.X
-                    // （父行描述里没有字段名），用户会以为系统变量没建出来。
-                    // 命中字段时只保留父行（折叠状态下子行不在 DisplayNodes 里），展开即可看到。
-                    bool matchSearch = !searching
-                        || MatchesSearchText(node, query)
-                        || node.Children.Any(child => MatchesSearchText(child, query));
-
-                    rootAccepted = matchSource && matchGroup && matchSearch;
-                    if (!rootAccepted) continue;
+                    Walk(root, accepted, true, false);
                 }
-                else if (!rootAccepted)
-                {
-                    continue;   // 数组元素行跟随父级
-                }
-
-                result.Add(node);
             }
 
-            return result;
+            variableCount = count;
+            return rows;
+
+            void Walk(VariableNode node, bool accepted, bool parentExpanded, bool ancestorMatched)
+            {
+                if (!accepted) return;
+
+                // 搜索剪枝的口径：**父级已经命中时不再剪**（命中变量的元素/成员是上下文，
+                // 搜"条码"命中数组根时它的 [0]/[1] 要跟着留下）；父级没命中就只留命中路径，
+                // 否则搜 Alarm1[37] 会把 100 个兄弟行一起铺开。
+                bool selfMatch = searching && MatchesSearchText(node, query);
+                if (searching && !ancestorMatched && !selfMatch && !SubtreeMatches(node, query)) return;
+
+                // 变量数按"真实变量行"算（合成容器不是变量；数组元素行是同一变量的第 i 项）
+                if (!node.IsSyntheticContainer && !node.IsArrayElementRow && node.OriginalModel != null)
+                    count++;
+
+                bool emit = parentExpanded;
+                if (emit) rows.Add(node);
+
+                bool expanded = searching ? node.IsContainer : node.IsExpanded;
+                foreach (var child in node.Children)
+                    Walk(child, true, emit && expanded, ancestorMatched || selfMatch);
+            }
         }
 
-        /// <summary>搜索命中判据（根行与字段行共用）：名称 / 完整名 / 描述 / 地址。</summary>
+        private static bool MatchSource(VariableNode node, string sourceKey) => sourceKey switch
+        {
+            // "本地"必须显式排除系统变量——它们也在 GlobalVariables 集合里，
+            // 不排除就会以"可以编辑/删除"的样子混进本地池。
+            "Local" => !node.IsNetwork && !node.IsSystemOwned,
+            SystemSourceKey => node.IsSystemOwned,
+            _ => node.IsNetwork && node.SourceLabel == sourceKey
+        };
+
+        /// <summary>分组：只对网络变量生效；本地/系统没有分组维度；搜索时忽略分组（跨分组搜索）。</summary>
+        private static bool MatchGroup(VariableNode node, Guid? groupId, bool searching)
+            => searching || groupId == null || !node.IsNetwork || node.GroupId == groupId.Value;
+
+        /// <summary>整棵子树里有没有命中（深层成员命中时父容器必须留下）。</summary>
+        private static bool SubtreeMatches(VariableNode node, string query)
+        {
+            if (MatchesSearchText(node, query)) return true;
+            foreach (var child in node.Children)
+            {
+                if (SubtreeMatches(child, query)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>搜索命中判据（任意层级共用）：名称 / 完整名 / 描述 / 地址。</summary>
         private static bool MatchesSearchText(VariableNode node, string query)
             => node.Name.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0
                || (node.FullName?.IndexOf(query, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
@@ -737,6 +779,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 map[area] = EnumDisplayName(area);
             foreach (FinsArea area in Enum.GetValues(typeof(FinsArea)))
                 map[area] = EnumDisplayName(area);
+            foreach (EasyNetArea area in Enum.GetValues(typeof(EasyNetArea)))
+                map[area] = EnumDisplayName(area);
 
             return map;
         }
@@ -772,6 +816,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     => AllowedMcAreas(McVendorOf(connection)).Select(a => AreaDisplayNames[a]).ToList(),
                 CommunicationType.OmronFins
                     => Enum.GetValues(typeof(FinsArea)).Cast<FinsArea>().Select(a => AreaDisplayNames[a]).ToList(),
+                CommunicationType.EasyNet
+                    => Enum.GetValues(typeof(EasyNetArea)).Cast<EasyNetArea>().Select(a => AreaDisplayNames[a]).ToList(),
                 _ => Array.Empty<string>(),
             };
         }
@@ -801,6 +847,7 @@ namespace VisionMaster.ViewModels.DialogViewModels
             CommunicationType.SiemensS7 => AreaDisplayNames[S7Area.M],
             CommunicationType.MitsubishiMc => AreaDisplayNames[AllowedMcAreas(McVendorOf(connection)).First()],
             CommunicationType.OmronFins => AreaDisplayNames[FinsArea.D],
+            CommunicationType.EasyNet => AreaDisplayNames[EasyNetArea.D],
             _ => string.Empty,
         };
 
@@ -827,6 +874,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     => AllowedMcAreas(McVendorOf(connection)).Select(a => (Enum)a),
                 CommunicationType.OmronFins
                     => Enum.GetValues(typeof(FinsArea)).Cast<FinsArea>().Select(a => (Enum)a),
+                CommunicationType.EasyNet
+                    => Enum.GetValues(typeof(EasyNetArea)).Cast<EasyNetArea>().Select(a => (Enum)a),
                 _ => Enumerable.Empty<Enum>(),
             };
 
@@ -847,6 +896,10 @@ namespace VisionMaster.ViewModels.DialogViewModels
         internal static bool IsCoilOrDiscreteArea(Enum? area)
             => area is ModbusArea.Coils or ModbusArea.DiscreteInputs;
 
+        /// <summary>EasyNet 的字区（只有 D/R/W 有 ".位号" 形态；位区与 U 区本身就是位地址）</summary>
+        internal static bool IsEasyNetWordArea(Enum? area)
+            => area is EasyNetArea.D or EasyNetArea.R or EasyNetArea.W;
+
         #endregion
 
         /// <summary>
@@ -861,11 +914,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
         internal static readonly List<DataTypeOption> AllTypes = new()
         {
             new DataTypeOption { DisplayName = "整数 (int)", ActualType = typeof(int) },
+            // 16 位整数：汇川等变量表有大量 Int16 点，映成 int 会按 4 字节读把邻位值一起读进来
+            new DataTypeOption { DisplayName = "短整数 (short)", ActualType = typeof(short) },
             new DataTypeOption { DisplayName = "小数 (double)", ActualType = typeof(double) },
             new DataTypeOption { DisplayName = "单精度 (float)", ActualType = typeof(float) },
             new DataTypeOption { DisplayName = "文本 (string)", ActualType = typeof(string) },
             new DataTypeOption { DisplayName = "布尔 (bool)", ActualType = typeof(bool) },
             new DataTypeOption { DisplayName = "整数数组 (int[])", ActualType = typeof(int[]) },
+            new DataTypeOption { DisplayName = "短整数数组 (short[])", ActualType = typeof(short[]) },
             new DataTypeOption { DisplayName = "小数数组 (double[])", ActualType = typeof(double[]) },
             new DataTypeOption { DisplayName = "单精度数组 (float[])", ActualType = typeof(float[]) },
             new DataTypeOption { DisplayName = "文本数组 (string[])", ActualType = typeof(string[]) },
@@ -974,10 +1030,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             WriteArrayCommand = new DelegateCommand<VariableNode>(ExecuteWriteArray);
             CopyNameCommand = new DelegateCommand<VariableNode>(
                 n => Clipboard.SetText(n?.FullName ?? n?.Name ?? ""),
-                n => n != null && (n.IsRootNode || !string.IsNullOrEmpty(n.FullName)));
+                n => n != null && n.OriginalModel != null && !n.IsArrayElementRow && !n.IsSyntheticContainer);
             RenameCommand = new DelegateCommand<VariableNode>(
                 RenameVariable,
-                n => n != null && n.IsRootNode && n.OriginalModel != null && !IsSystemVariable(n.OriginalModel));
+                n => n != null && n.OriginalModel != null && !n.IsArrayElementRow && !n.IsSyntheticContainer
+                     && !IsSystemVariable(n.OriginalModel));
 
             ToggleSourceExpandCommand = new DelegateCommand<VariableSourceNode>(ToggleSourceExpand);
             OpenGroupManagerCommand = new DelegateCommand(() => GroupEditor.Open());
@@ -1198,7 +1255,9 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "Excel 工作簿 (*.xlsx)|*.xlsx",
+                // 本仓 xlsx 与汇川 EasyMonitor 导出的 CSV 都收：CSV 由 EasyNetCsvReader 翻译成同一套行模型，
+                // 用户不必再手工转一次格式。
+                Filter = "变量表 (*.xlsx;*.csv)|*.xlsx;*.csv|Excel 工作簿 (*.xlsx)|*.xlsx|汇川变量表 (*.csv)|*.csv",
                 Title = "选择变量表",
                 CheckFileExists = true,
             };
@@ -1304,6 +1363,296 @@ namespace VisionMaster.ViewModels.DialogViewModels
         protected override bool ShouldCreateChildNodes(IVariable gv)
             => base.ShouldCreateChildNodes(gv) || gv is ISystemVariableContainer { Fields.Count: > 0 };
 
+        #region 按名称路径归组（纯展示层，不动地址 / 轮询 / 导入导出）
+
+        /// <summary>
+        /// 树建好后的归组：把名称里编码了结构的网络变量折叠成可展开的容器行
+        /// （<c>Recipes</c> → <c>[0]</c> → <c>Ints</c> → <c>[5]</c>）。
+        /// 关掉 <see cref="GroupByStructure"/> 时原样返回。
+        /// </summary>
+        protected override List<VariableNode> PostProcessTree(List<VariableNode> roots)
+            => GroupByStructure ? GroupNetworkVariablesByPath(roots) : roots;
+
+        /// <summary>变量名里的一段路径：名字段（<c>Recipes</c>）或下标段（<c>[0]</c>）。</summary>
+        public readonly record struct VariablePathSegment(string Text, bool IsIndex);
+
+        /// <summary>
+        /// 把变量名解析成路径片段：<c>Recipes[0].Ints[5]</c> → Recipes / [0] / Ints / [5]。
+        /// <para>解析不了一律返回 false（未闭合的 <c>[</c>、空段、尾随 <c>.</c> 等），
+        /// 调用方按"不归组"处理——宁可多一行，也不能把两个无关变量塞进同一个容器。</para>
+        /// </summary>
+        public static bool TryParseVariablePath(string? name, out List<VariablePathSegment> segments)
+        {
+            segments = new List<VariablePathSegment>();
+            if (string.IsNullOrWhiteSpace(name)) return false;
+
+            int i = 0;
+            while (i < name.Length)
+            {
+                char c = name[i];
+
+                if (c == '[')
+                {
+                    int close = name.IndexOf(']', i + 1);
+                    if (close < 0) return false;
+
+                    var digits = name.Substring(i + 1, close - i - 1).Trim();
+                    if (digits.Length == 0) return false;
+                    foreach (var ch in digits)
+                    {
+                        if (!char.IsDigit(ch)) return false;
+                    }
+
+                    segments.Add(new VariablePathSegment("[" + digits + "]", true));
+                    i = close + 1;
+                }
+                else if (c == '.')
+                {
+                    // 走到这里还遇到 '.' 说明是空段（".Foo" / "Foo..Bar"）
+                    return false;
+                }
+                else
+                {
+                    int end = i;
+                    while (end < name.Length && name[end] != '.' && name[end] != '[') end++;
+
+                    var text = name.Substring(i, end - i);
+                    if (text.Length == 0) return false;
+                    segments.Add(new VariablePathSegment(text, false));
+                    i = end;
+                }
+
+                // 段后分隔符：'.' 必须跟着下一段（尾随 '.' 判畸形）
+                if (i < name.Length && name[i] == '.')
+                {
+                    i++;
+                    if (i >= name.Length) return false;
+                }
+            }
+
+            return segments.Count > 0;
+        }
+
+        /// <summary>路径前缀树：同一段名字下的变量归到同一个容器。</summary>
+        private sealed class VariablePathNode
+        {
+            public string Label = string.Empty;
+            public bool IsIndex;
+            public VariableNode? Leaf;
+            public readonly List<VariablePathNode> Children = new();
+
+            public VariablePathNode? Find(string label, bool isIndex)
+                => Children.FirstOrDefault(c => c.IsIndex == isIndex && c.Label == label);
+        }
+
+        /// <summary>
+        /// 把"名称里编码了结构"的网络变量归组成可折叠的容器行（纯函数，供断言直接钉住）。
+        ///
+        /// 三条边界：
+        /// ① **只归组网络变量**：本地变量的名字是用户随手起的；系统变量本来就有
+        ///    <c>System.Motion.X</c> 这样的层级且已由 <see cref="ISystemVariableContainer"/>
+        ///    展开，再套一层只会重复；
+        /// ② 名字里没有 <c>[i]</c> / <c>.</c> 的行**原样保留、位置不变**；
+        /// ③ **单链折叠**：<c>MessageLog</c> 只有一个成员 <c>Show</c> 时不留只含一行的空壳，
+        ///    直接把原变量行提上来（显示名仍是完整名 <c>MessageLog.Show</c>）。
+        /// </summary>
+        public static List<VariableNode> GroupNetworkVariablesByPath(IEnumerable<VariableNode> roots)
+        {
+            if (roots == null) return new List<VariableNode>();
+
+            var source = roots as IReadOnlyList<VariableNode> ?? roots.ToList();
+
+            // 预扫：某个变量的名字本身就是别人的前缀（Foo 与 Foo.Bar 并存）时，
+            // 那一段也得进树，否则表里会出现两行同名。正常情况下这个集合是空的。
+            var prefixes = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var node in source)
+            {
+                if (!TryGetGroupPath(node, null, out var parsed)) continue;
+
+                string acc = string.Empty;
+                for (int i = 0; i < parsed.Count - 1; i++)
+                {
+                    acc = string.IsNullOrEmpty(acc)
+                        ? parsed[i].Text
+                        : acc + (parsed[i].IsIndex ? parsed[i].Text : "." + parsed[i].Text);
+                    prefixes.Add(acc);
+                }
+            }
+
+            var order = new List<object>();                 // VariableNode（不归组）或 VariablePathNode（顶层容器）
+            var tops = new Dictionary<string, VariablePathNode>(StringComparer.Ordinal);
+
+            foreach (var node in source)
+            {
+                if (!TryGetGroupPath(node, prefixes, out var segments))
+                {
+                    order.Add(node);
+                    continue;
+                }
+
+                VariablePathNode? current = null;
+                string key = string.Empty;
+
+                foreach (var segment in segments)
+                {
+                    key = string.IsNullOrEmpty(key)
+                        ? segment.Text
+                        : key + (segment.IsIndex ? segment.Text : "." + segment.Text);
+
+                    if (current == null)
+                    {
+                        if (!tops.TryGetValue(key, out var top))
+                        {
+                            top = new VariablePathNode { Label = segment.Text, IsIndex = segment.IsIndex };
+                            tops[key] = top;
+                            order.Add(top);
+                        }
+                        current = top;
+                        continue;
+                    }
+
+                    var child = current.Find(segment.Text, segment.IsIndex);
+                    if (child == null)
+                    {
+                        child = new VariablePathNode { Label = segment.Text, IsIndex = segment.IsIndex };
+                        current.Children.Add(child);
+                    }
+                    current = child;
+                }
+
+                // 变量名全局唯一（VariableNameRules 拦重名），这条只是"别把行弄丢"的兜底：
+                // 真撞上了就把旧行原样留在顶层，新行进容器。
+                if (current!.Leaf != null) order.Add(current.Leaf);
+                current.Leaf = node;
+            }
+
+            var result = new List<VariableNode>(order.Count);
+            foreach (var item in order)
+            {
+                if (item is VariableNode plain)
+                {
+                    result.Add(plain);
+                    continue;
+                }
+
+                var container = MaterializeTop((VariablePathNode)item);
+                if (container != null) result.Add(container);
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// 这一行要不要进归组树。
+        /// <paramref name="prefixes"/> 为 null 时只做"名字里有结构"的判定（预扫用）；
+        /// 非 null 时还接受"名字本身是别人的前缀"的单段名字。
+        /// </summary>
+        private static bool TryGetGroupPath(
+            VariableNode node, HashSet<string>? prefixes, out List<VariablePathSegment> segments)
+        {
+            segments = null!;
+            if (node == null || node.IsSyntheticContainer) return false;
+            if (!node.IsNetwork || node.IsSystemOwned) return false;
+            if (!TryParseVariablePath(node.Name, out var parsed)) return false;
+            if (parsed.Count < 2 && (prefixes == null || !prefixes.Contains(node.Name))) return false;
+            segments = parsed;
+            return true;
+        }
+
+        private static VariableNode? MaterializeTop(VariablePathNode node)
+        {
+            if (TryCollapseSingleLeaf(node, out var leaf))
+            {
+                // 单链折叠：把原变量行提上来，名字仍是完整名（FullName 不动）
+                ApplyLevel(leaf!, 0, null);
+                return leaf;
+            }
+
+            return Materialize(node, 0, string.Empty);
+        }
+
+        /// <summary>整棵子树是否只有一个叶子（穿过任意层单子节点后落到一个没有成员的变量）。</summary>
+        private static bool TryCollapseSingleLeaf(VariablePathNode node, out VariableNode? leaf)
+        {
+            leaf = null;
+            var current = node;
+            while (current.Leaf == null && current.Children.Count == 1)
+                current = current.Children[0];
+
+            if (current.Leaf != null && current.Children.Count == 0)
+            {
+                leaf = current.Leaf;
+                return true;
+            }
+            return false;
+        }
+
+        private static VariableNode Materialize(VariablePathNode node, int level, string parentKey)
+        {
+            string key = string.IsNullOrEmpty(parentKey)
+                ? node.Label
+                : parentKey + (node.IsIndex ? node.Label : "." + node.Label);
+
+            if (node.Leaf != null)
+            {
+                // 路径本身就是一个真实变量（Foo 与 Foo.Bar 同时存在）：直接拿那一行当容器，
+                // 不另造一个同名空壳——否则表里会出现两行一模一样的名字。
+                var leaf = node.Leaf;
+                string originalName = leaf.Name;
+                leaf.Name = node.Label;
+                leaf.FullName = originalName;
+                ApplyLevel(leaf, level, key);
+
+                foreach (var child in node.Children)
+                    leaf.Children.Add(Materialize(child, level + 1, key));
+
+                return leaf;
+            }
+
+            var exemplar = FirstLeaf(node);
+            var container = new VariableNode
+            {
+                Name = node.Label,
+                TypeName = node.Children.All(c => c.IsIndex) ? "数组" : "结构体",
+                Level = level,
+                IsNetwork = true,
+                IsConnected = exemplar?.IsConnected ?? false,
+                SourceLabel = exemplar?.SourceLabel,
+                GroupId = exemplar?.GroupId ?? Guid.Empty,
+                IsSyntheticContainer = true,
+                ExpandKey = key,
+            };
+
+            foreach (var child in node.Children)
+                container.Children.Add(Materialize(child, level + 1, key));
+
+            return container;
+        }
+
+        private static VariableNode? FirstLeaf(VariablePathNode node)
+        {
+            if (node.Leaf != null) return node.Leaf;
+            foreach (var child in node.Children)
+            {
+                var found = FirstLeaf(child);
+                if (found != null) return found;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 重排层级：归组后真实变量可能落在第 3 层，它自己的数组元素行要跟着下移；
+        /// 只有被归组的那一行拿到展开态键，元素行不拿（否则同一条键会记到 N 行上）。
+        /// </summary>
+        private static void ApplyLevel(VariableNode node, int level, string? expandKey)
+        {
+            node.Level = level;
+            if (!string.IsNullOrEmpty(expandKey)) node.ExpandKey = expandKey;
+            foreach (var child in node.Children)
+                ApplyLevel(child, level + 1, null);
+        }
+
+        #endregion
+
         /// <summary>
         /// 复合系统变量的字段行：<c>Name</c> 是短名（<c>Position</c>），<c>FullName</c> 是完整路径
         /// （<c>System.Motion.X.Position</c>）。显示用短名（挂在父行下面已经说明了归属），
@@ -1367,10 +1716,12 @@ namespace VisionMaster.ViewModels.DialogViewModels
             var model = node?.OriginalModel;
             if (model == null) return;
 
-            var root = NodesOf(model).FirstOrDefault(n => n.IsRootNode);
-            if (root == null) return;
+            // 取该变量最靠上的那个展示行：数组元素行也挂在同一个模型上，但它自己没有子行。
+            // 按名称路径归组后这个变量可能已经不是顶层行，不能再按 IsRootNode 找。
+            var owner = NodesOf(model).FirstOrDefault();
+            if (owner == null) return;
 
-            if (ShouldRebuildArrayRows(model, root.Children.Count))
+            if (ShouldRebuildArrayRows(model, owner.Children.Count))
                 RefreshTree();
         }
 
@@ -1422,14 +1773,22 @@ namespace VisionMaster.ViewModels.DialogViewModels
             return Math.Max(currentLength, baselineLength) != currentChildCount;
         }
 
-        /// <summary>枚举某变量在当前树里的全部展示节点（根 + 数组元素行；子行与根共享同一模型）</summary>
+        /// <summary>枚举某变量在当前树里的全部展示节点（含按名称路径归组后的深层行；子行与根共享同一模型）</summary>
         private IEnumerable<VariableNode> NodesOf(IVariable gv)
         {
-            foreach (var root in _realTree)
+            foreach (var node in EnumerateNodes(_realTree))
             {
-                if (!ReferenceEquals(root.OriginalModel, gv)) continue;
-                yield return root;
-                foreach (var child in root.Children)
+                if (ReferenceEquals(node.OriginalModel, gv)) yield return node;
+            }
+        }
+
+        /// <summary>深度优先枚举整棵树（任意层级）。</summary>
+        private static IEnumerable<VariableNode> EnumerateNodes(IEnumerable<VariableNode> nodes)
+        {
+            foreach (var node in nodes)
+            {
+                yield return node;
+                foreach (var child in EnumerateNodes(node.Children))
                     yield return child;
             }
         }
@@ -1452,7 +1811,25 @@ namespace VisionMaster.ViewModels.DialogViewModels
         private void OnConnectionStateChangedHandler(object? sender, ConnectionStateChangedEventArgs e)
             => VisionMaster.Helpers.SafeDispatch.BeginInvoke(RefreshSourceStates);
 
-        private void OnVariablesChangedForCountsHandler(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => RefreshSourceCounts();
+        private void OnVariablesChangedForCountsHandler(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e) => QueueSourceCountsRefresh();
+
+        private bool _sourceCountsQueued;
+
+        /// <summary>
+        /// 与基类 QueueTreeRefresh 同口径的合并刷新：RefreshSourceCounts 要对每个来源/分组
+        /// 全量扫一遍 GlobalVariables，批量导入 2357 条时逐条执行是 O(N²)（实测 UI 线程卡一分钟）。
+        /// 同一轮调度只扫一次，徽标计数拿到的是最终状态。
+        /// </summary>
+        private void QueueSourceCountsRefresh()
+        {
+            if (_sourceCountsQueued) return;
+            _sourceCountsQueued = true;
+            VisionMaster.Helpers.SafeDispatch.BeginInvoke(() =>
+            {
+                _sourceCountsQueued = false;
+                RefreshSourceCounts();
+            });
+        }
 
         #region 新建变量（左栏来源决定种类 → 弹窗录入）
 
@@ -1500,10 +1877,18 @@ namespace VisionMaster.ViewModels.DialogViewModels
             }
 
             // C3：查重改大小写不敏感——监视栏/搜索匹配均为 OrdinalIgnoreCase，
-            // 旧口径(Ordinal)允许 Var 与 var 共存，两套匹配规则互相矛盾
-            if (_workspace.GlobalVariables.Any(s => s.Name.Equals(draft.VariableName, StringComparison.OrdinalIgnoreCase)))
+            // 旧口径(Ordinal)允许 Var 与 var 共存，两套匹配规则互相矛盾。
+            // 2026-10-29：唯一性口径改为"**同一设备内唯一**"（不同连接允许同名点位），
+            // 判据与导入 / 改名共用 VariableNameScope；本地变量仍然全方案唯一。
+            var scopeConnection = (draft as NetworkVariableDraft)?.ConnectionName;
+            var nameBlocker = VisionMaster.Binding.VariableNameScope.FindBlocker(
+                _workspace.GlobalVariables, draft.VariableName, scopeConnection);
+            if (nameBlocker != null)
             {
-                EasyDialog.ShowSync(title: "提示", message: "底层引擎已存在同名变量，请更换名称！");
+                EasyDialog.ShowSync(
+                    title: "提示",
+                    message: $"变量名已被{VisionMaster.Binding.VariableNameScope.DescribeScope(nameBlocker)}使用"
+                             + "（同一设备内变量名必须唯一），请更换名称！");
                 return;
             }
 
@@ -1692,10 +2077,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     }
                 }
                 else if (elementType != typeof(string) && elementType != typeof(int)
+                         && elementType != typeof(short)
                          && elementType != typeof(double) && elementType != typeof(float))
                 {
                     EasyDialog.ShowSync(
-                        $"网络数组暂不支持元素类型 {elementType.Name}（可用 int / double / float / string / bool）！",
+                        $"网络数组暂不支持元素类型 {elementType.Name}（可用 int / short / double / float / string / bool）！",
                         "提示");
                     return;
                 }
@@ -1845,9 +2231,11 @@ namespace VisionMaster.ViewModels.DialogViewModels
             // MC 的位访问由"存储区"表达（M/X/Y/...），地址串里没有 ".位号" 形态；
             // 若把草稿里的位偏移带进去，既不会进地址，还会让基类 Validate 对
             // "0-7" 做无意义的范围校验（用户填 12 会被拒，而该字段对 MC 根本无效）。
+            // EasyNet 只有字区 D/R/W 有 ".位号" 形态；位区（M/S/B/X/Y）与 U 区本身就是位地址。
             int effectiveBitOffset = targetType == typeof(bool) && bitOffset >= 0
                 && !IsCoilOrDiscreteArea(area)
                 && protocol != CommunicationType.MitsubishiMc
+                && (protocol != CommunicationType.EasyNet || IsEasyNetWordArea(area))
                 ? bitOffset
                 : -1;
 
@@ -1941,6 +2329,24 @@ namespace VisionMaster.ViewModels.DialogViewModels
                     };
                     ApplyConversion(fins, enableConversion, scale, engineeringOffset, unit);
                     address = fins;
+                    return true;
+                }
+
+                case CommunicationType.EasyNet:
+                {
+                    var easyNet = new EasyNetAddress
+                    {
+                        Area = (EasyNetArea)area,
+                        // D/R/W 填字号、M/S/B/X/Y 填位号、U 填十六进制位地址（与汇川导出文件同口径）
+                        Offset = offset ?? "0",
+                        DataType = dataType,
+                        BitOffset = effectiveBitOffset,
+                        Length = length,
+                        ElementByteLength = perElementBytes,
+                        AddressOffset = addressOffset
+                    };
+                    ApplyConversion(easyNet, enableConversion, scale, engineeringOffset, unit);
+                    address = easyNet;
                     return true;
                 }
 

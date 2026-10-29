@@ -117,7 +117,10 @@ namespace VisionMaster.Binding
                     {
                         if (item == null) continue;
 
-                        // 身份/名字冲突：先注册的提供方优先（与 VariableRegistry 的“先出现者赢”同口径）
+                        // 身份/名字冲突：先注册的提供方优先。
+                        // 注意这是**本层自己的**合并规则（同名项根本不会进系统集合）；
+                        // VariableRegistry 自 2026-10-29 起对名字不再"先出现者赢"——
+                        // 它保留全部同名并在按名解析时报歧义，两处口径不同，别互相引用。
                         if (item.VariableId != Guid.Empty && !seenIds.Add(item.VariableId))
                             continue;
                         if (!string.IsNullOrEmpty(item.Name) && !seenNames.Add(item.Name))

@@ -80,6 +80,8 @@ namespace ScadaChecks
         {
             Console.OutputEncoding = System.Text.Encoding.UTF8;
             bool stress = args.Any(a => a.Equals("--stress", StringComparison.OrdinalIgnoreCase));
+            // v6 专项压测：只在显式传 --stress-v6 时跑，不进常规闸门（它会跑万级循环，拖慢 gate）。
+            bool stressV6 = args.Any(a => a.Equals("--stress-v6", StringComparison.OrdinalIgnoreCase));
 
             // 断言框架只捕得住"主线程同步抛出的异常"。Prism 的 DialogCloseListener.Invoke 是 async void，
             // 里面的异常会经 Task.ThrowAsync 甩到线程池，绕过 Check 直接把进程打死——那时既没有红条，
@@ -147,6 +149,20 @@ namespace ScadaChecks
             ReportImportChecks.Run();
             ChartChecks.Run();
             AlarmScrollChecks.Run();
+            // v6 新增五组：两个新图元 + 四个新动作 + 文本列表三种模式 + 多语言。
+            // 每组的断言文件各自独立，Main 只负责按顺序调一次（与既有分组同一口径）。
+            XYChartChecks.Run();
+            AlarmTableChecks.Run();
+            ActionV6Checks.Run();
+            StateListModeChecks.Run();
+            LanguageChecks.Run();
+            // v6 四项修复的常驻回归（首拍基线 / 延时日志幂等 / 容量整数化 / 位号提示）
+            V6RegressionChecks.Run();
+            // v7：两个新图元 + 配方面板升级 + 报警确认/静音动作
+            CircularProgressChecks.Run();
+            KnobChecks.Run();
+            RecipePanelUpgradeChecks.Run();
+            AlarmActionChecks.Run();
             P1FixChecks.Run();
             StateTokenChecks.Run();
             // B3：旧角色制 [US]/[UC] 段已由 SolutionUserChecks 的 [SL]/[SL-g]/[SL-b] 取代。
@@ -178,6 +194,7 @@ namespace ScadaChecks
             DataGridChecks();
             ClipboardAndTemplateChecks();
             TemplateExpansionChecks();
+            StructIndexParameterizationChecks();
             AlarmChecks();
             AlarmHistoryChecks();
             AlarmBannerChecks();
@@ -201,6 +218,8 @@ namespace ScadaChecks
             if (stress) StressScadaDocument();
             if (stress) PerformanceBaseline();
             if (stress) SoakRuntimeBinder();
+            if (stressV6) V6StressChecks.Run();
+            if (stress) StressStructIndexParameterization();
 
             Phase2UiChecks();
             ScadaMultiBasePopupChecks.Run();
@@ -554,7 +573,9 @@ namespace ScadaChecks
                 && registry.FindByName("SneakyRename") == null, "");
             registry.NotifyRenamed(target, "GoodCount");
 
-            // --- 重名保护：摘旧名键前必须验明该键确实指向被改名对象 ---
+            // --- 重名保护：名字重复时按名解析**不猜**，必须返回 null 并给得出全部候选 ---
+            // （2026-10-29 契约变更：原口径是"同名以集合中靠前者为准"，那会让多设备同名点位
+            //   静默绑到第一台设备。现在 FindByName 只在唯一命中时返回，歧义交给 FindAllByName 暴露。）
             var w2 = new WorkspaceContext();
             w2.GlobalVariables.Clear();
             var first = VariableFactory.CreateLocal("Dup", typeof(int), "先出现者", 1);
@@ -563,11 +584,24 @@ namespace ScadaChecks
             w2.GlobalVariables.Add(second);
             var registry2 = w2.VariableRegistry;
 
-            Check("重名以集合中靠前者为准（增量与重建两条路径一致）",
-                ReferenceEquals(registry2.FindByName("Dup"), first), "");
+            var dupMatches = registry2.FindAllByName("Dup");
+            Check("重名时按名解析返回 null（不猜先出现者）",
+                registry2.FindByName("Dup") == null, "");
+            Check("重名时 FindAllByName 返回全部候选（增量路径）",
+                dupMatches.Count == 2
+                && dupMatches.Contains(first)
+                && dupMatches.Contains(second),
+                $"count={dupMatches.Count}");
+
+            // 重建路径必须与增量路径给出同一份索引（两条路径不一致比解析失败更难查）
+            registry2.Rebuild();
+            Check("重名时 FindAllByName 返回全部候选（重建路径一致）",
+                registry2.FindAllByName("Dup").Count == 2
+                && registry2.FindByName("Dup") == null,
+                $"count={registry2.FindAllByName("Dup").Count}");
 
             Rename(registry2, second, "Dup2");
-            Check("重名场景下改名不误删他人的名字键",
+            Check("重名场景下改名不误删他人的名字键（改名后恢复唯一命中）",
                 ReferenceEquals(registry2.FindByName("Dup"), first), "");
             Check("重名场景下改名者以新名入索引",
                 ReferenceEquals(registry2.FindByName("Dup2"), second), "");
@@ -2476,8 +2510,10 @@ namespace ScadaChecks
                 "Hmi.RecipePanel", "Hmi.StateView", "Hmi.SubPage",
                 "Hmi.BitTable", "Hmi.IoMonitor", "Hmi.VariableMonitor",
                 "Hmi.Report", "Hmi.Symbol", "Hmi.PipeRun", "Hmi.BarChart", "Hmi.PieChart",
+                "Hmi.AlarmTable", "Hmi.XYChart",
+                "Hmi.CircularProgress", "Hmi.Knob",
             };
-            Check("50 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势、配方只读面板、状态图元、嵌入画面、多边形/贝塞尔/动态画线/GIF、位表与两个监视预设、报表、工艺符号、管道连线）",
+            Check("54 个内置图元全部注册（含容器图元 Hmi.Panel、轴控台/轴面板/旧点位表、罐体/KPI 看板、Phase 2 输入四件套、数据表格、模拟量滑块、本地图片、线、运行计时、二维码/条码、多曲线趋势、配方只读面板、状态图元、嵌入画面、多边形/贝塞尔/动态画线/GIF、位表与两个监视预设、报表、工艺符号、管道连线、报警汇总表、XY 曲线、圆形进度条、旋钮）",
                 builtIns.All(ElementRegistry.IsRegistered),
                 string.Join("、", ElementRegistry.All.Select(d => d.TypeKey)));
 
@@ -5704,9 +5740,9 @@ namespace ScadaChecks
             var startBtn = Named("Hmi.Button", "启动");
             editor.SelectedElement = startBtn;
             var buttonDescriptor = ElementRegistry.Find("Hmi.Button")!;
-            Check("按钮：14 条属性 + 2 条事件 + 5 条动画 + 2 条通用关系 = 23 行 7 组（组序取自目录，不是按字典序凑的）",
+            Check("按钮：14 条属性 + 4 条事件（按下/释放 + 激活/取消激活）+ 5 条动画 + 2 条通用关系 = 27 行 7 组（组序取自目录，不是按字典序凑的）",
                 Total(panel) == buttonDescriptor.Properties.Count + buttonDescriptor.Events.Count + AnimationRows + UniversalRows
-                && buttonDescriptor.Events.Count == 2
+                && buttonDescriptor.Events.Count == 4
                 && string.Join("/", panel.Groups.Select(g => g.Name)) == "基本/外观/文本/布局/交互/事件/动画",
                 $"{Total(panel)} 行 / " + string.Join("/", panel.Groups.Select(g => g.Name)));
 
@@ -5845,10 +5881,16 @@ namespace ScadaChecks
                     ScadaActionType.SetBit, ScadaActionType.ResetBit, ScadaActionType.ToggleBit,
                     ScadaActionType.Navigate,
                     ScadaActionType.NavigateBack, ScadaActionType.OpenPopup, ScadaActionType.ClosePopup,
+                    // v6：登录/注销紧跟导航族（"此刻谁在操作"与"看到哪一页"同属界面状态切换）
+                    ScadaActionType.Logon, ScadaActionType.Logoff,
+                    // v7：确认报警/静音同属"操作员与报警/会话"这一族
+                    ScadaActionType.AcknowledgeAlarm, ScadaActionType.MuteAlarm,
                     ScadaActionType.StartFlow, ScadaActionType.PauseFlow, ScadaActionType.ResumeFlow,
                     ScadaActionType.StopFlow, ScadaActionType.RunFlowOnce,
                     ScadaActionType.ApplyRecipe,
                     ScadaActionType.PlaySound,
+                    // v6：切换语言/延时都是纯副作用，排在尾部（SpeakText 走默认档 100，仍在最后）
+                    ScadaActionType.SetLanguage, ScadaActionType.Delay,
                     ScadaActionType.SpeakText,
                 }),
                 string.Join("/", eventRow.ActionTypeChoices.Select(o => o.DisplayName)));
@@ -10115,20 +10157,26 @@ namespace ScadaChecks
                         && declared != ScadaEventType.InputCompleted
                         && declared != ScadaEventType.ObjectChanged
                         && declared != ScadaEventType.Opened
-                        && declared != ScadaEventType.Closed)
+                        && declared != ScadaEventType.Closed
+                        // v6：激活/取消激活由基类 ApplyAnimationEnable 在「启用对象」真翻转时发，
+                        // 触发源唯一且已接通（见 ScadaElementBase.ApplyAnimationEnable）。
+                        && declared != ScadaEventType.Activated
+                        && declared != ScadaEventType.Deactivated)
                         premature.Add($"{descriptor.TypeKey} → {declared}");
                 }
             }
 
-            Check("图元描述符只声明当前真能触发的事件（Pressed/Released/InputCompleted + 对象更改/打开/关闭）：清单里不许有发不出来的事件",
+            Check("图元描述符只声明当前真能触发的事件（Pressed/Released/InputCompleted + 对象更改/打开/关闭 + 激活/取消激活）：清单里不许有发不出来的事件",
                 premature.Count == 0, string.Join(" | ", premature));
 
             // 反向一条：能触发的事件必须有人声明。少了它，上面那条只要把所有声明都删掉就"通过"了。
             var declaredTypes = ElementRegistry.All.SelectMany(d => d.Events).Distinct().ToList();
-            Check("能触发的事件必须至少被一条描述符声明（输入完成时只开给可输入的图元，且正是 Hmi.IOField 那一条）",
+            Check("能触发的事件必须至少被一条描述符声明（输入完成时只开给可输入的图元，且 Hmi.IOField 只声明它 + 激活/取消激活）",
                 declaredTypes.Contains(ScadaEventType.Pressed) && declaredTypes.Contains(ScadaEventType.Released)
                 && declaredTypes.Contains(ScadaEventType.InputCompleted)
-                && ElementRegistry.Find("Hmi.IOField")!.Events.Count == 1
+                && declaredTypes.Contains(ScadaEventType.Activated)
+                && declaredTypes.Contains(ScadaEventType.Deactivated)
+                && ElementRegistry.Find("Hmi.IOField")!.Events.Count == 3
                 && ElementRegistry.Find("Hmi.IOField")!.Events[0] == ScadaEventType.InputCompleted
                 && ElementRegistry.Find("Hmi.Rectangle")!.Events.Count == 0,
                 $"声明到的事件：{string.Join(" / ", declaredTypes)}");

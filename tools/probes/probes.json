@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-10-26",
+  "updated": "2026-10-29",
   "note": "探针登记表：dir/project 均相对本文件所在目录。运行中的任务必须通过 run-probe.ps1 或本表解析路径，禁止按记忆拼旧路径。",
   "probes": [
     {
@@ -130,6 +130,20 @@
       "project": "ZoomProbe.csproj",
       "runMode": "dotnet",
       "description": "画布滚轮缩放探针（2026-10-27）：真窗口 + 真 ImageDisplay，逐步打印 part 跨度与窗口非黑像素占比；场景 D 验证缩放下限（铺满即止 / 缩过头弹回 / 放大上限）。输出走 stdout，退出码恒 0，结论看日志行"
+    },
+    {
+      "name": "StructBindingProbe",
+      "dir": "_StructBindingProbe",
+      "project": "_StructBindingProbe.csproj",
+      "runMode": "dotnet",
+      "description": "PLC 结构体（Recipes[0].Title / Recipes[0].Ints[5]）进 SCADA 模板的可行性探针：单层成员路径可参数化、嵌套下标被 {i} 一并替换导致静默错绑、结构体根不是变量、TemplateStrictRoots 不拦绑定、变量选择器无作用域参数（输出 RESULT: ALL_OK）"
+    },
+    {
+      "name": "VariablePickerProbe",
+      "dir": "_VariablePickerProbe",
+      "project": "_VariablePickerProbe.csproj",
+      "runMode": "dotnet",
+      "description": "变量名选择 Step 0 探针（2026-10-29）：赋值插件全局浮层实例化容器数/耗时（S1）、运行时 ComboBox 是否虚拟化（S2）、LinkableValueEditor 封闭集合下拉 10k 选项（S3）、虚拟化目标形态原型（S4）、32 行全量重建的二次项（S5）；判据取容器数不取耗时，S1 为反向断言（输出 RESULT: ALL_OK）"
     }
   ]
 }

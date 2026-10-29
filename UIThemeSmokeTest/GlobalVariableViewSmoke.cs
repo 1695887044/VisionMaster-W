@@ -468,6 +468,44 @@ namespace UIThemeSmokeTest
                         && shrinkRoot.ArraySummaryTooltip == "1 · 2 · 3",
                         $"ok={shrinkOk} err={shrinkError} root={shrinkRoot != null} " +
                         $"children={shrinkRoot?.Children.Count} tooltip={shrinkRoot?.ArraySummaryTooltip}");
+
+                    // 批量导入回归（2026-10-29 实测：2357 点导入 UI 卡一分钟）：
+                    // 旧实现每条 Add 都 SafeDispatch 一次全量 RefreshTree，N 条 = N 次 O(N) 重建（O(N²)）。
+                    // 判据：① 批量 Add 本身必须很快（合并刷新在集合变更结束后才执行）；
+                    //       ② 一次 Pump 之后列表必须反映全部变量（不能为了快而丢刷新）。
+                    using (var bulk = new Fixture())
+                    {
+                        bulk.Vm.OnDialogOpened(new DialogParameters());
+                        var bulkSource = bulk.Vm.SourceNodes.FirstOrDefault(s => s.Key == "Local")
+                                         ?? bulk.Vm.SourceNodes.FirstOrDefault();
+                        if (bulkSource != null) bulk.Vm.SelectedSource = bulkSource;
+
+                        const int bulkCount = 2357;
+                        var swBulk = System.Diagnostics.Stopwatch.StartNew();
+                        for (int i = 0; i < bulkCount; i++)
+                        {
+                            bulk.Workspace.GlobalVariables.Add(new FakeVariable
+                            {
+                                Name = "Bulk_" + i.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                DataType = typeof(short),
+                            });
+                        }
+                        swBulk.Stop();
+                        long addMs = swBulk.ElapsedMilliseconds;
+
+                        // 合并后的那一次全量重建发生在泵消息时：必须一起量，
+                        // 只报 Add 循环的 3ms 会掩盖真正的 UI 成本。
+                        var swPump = System.Diagnostics.Stopwatch.StartNew();
+                        Pump(host);
+                        swPump.Stop();
+
+                        Check("批量 2357 条 Add + 一次重建（< 15s，旧实现约一分钟）",
+                            addMs + swPump.ElapsedMilliseconds < 15000,
+                            $"add={addMs}ms rebuild={swPump.ElapsedMilliseconds}ms");
+                        Check("批量 Add 后列表一次刷新到齐",
+                            bulk.Vm.FilteredDisplayNodes.Count(n => n.IsRootNode) >= bulkCount,
+                            $"rows={bulk.Vm.FilteredDisplayNodes.Count}");
+                    }
                 }
                 finally
                 {

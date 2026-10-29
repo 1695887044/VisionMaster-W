@@ -116,7 +116,12 @@ namespace VisionMaster.Scada.Controls
                 DefaultWidth = 88,
                 DefaultHeight = 32,
                 Description = "操作员按下的动作入口；按下/释放各是一个事件钩子，点下去干什么在属性面板「事件」里配",
-                Events = new[] { ScadaEventType.Pressed, ScadaEventType.Released },
+                // 按下/释放由画布代发；激活/取消激活由基类在「启用对象」动画真翻转时发（v6）。
+                Events = new[]
+                {
+                    ScadaEventType.Pressed, ScadaEventType.Released,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
                 Properties = GeometryProperties.WithGroups(
                     TextProperties.Text("文字", "按钮"),
                     AppearanceProperties.Fill("#FF2D7DD2"),
@@ -156,6 +161,7 @@ namespace VisionMaster.Scada.Controls
                 {
                     ScadaEventType.Pressed, ScadaEventType.Released,
                     ScadaEventType.ObjectChanged, ScadaEventType.Opened, ScadaEventType.Closed,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
                 },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(BitButtonElement)),
@@ -217,7 +223,11 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 48,
                 Description = "连续量拖动即写：拖动只改显示，松手写一次变量（也可选 100ms 节流）；写失败回弹并显示原因。" +
                               "把「当前值」绑到变量上即可；量程、步长、走向、只读/读写、写入前确认都在属性面板",
-                Events = new[] { ScadaEventType.InputCompleted, ScadaEventType.ObjectChanged },
+                Events = new[]
+                {
+                    ScadaEventType.InputCompleted, ScadaEventType.ObjectChanged,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(SliderElement)),
                     AppearanceProperties.Fill("#FF2D7DD2", "已填充那一段的颜色"),
@@ -241,7 +251,11 @@ namespace VisionMaster.Scada.Controls
                               "模式选「InputOutput」后，运行态点一下框子就能就地改数并写回变量（还需当前角色的权限够，见属性面板「交互」那一行）",
                 // 手册 7.5.2 把"输入完成时"挂在数字IO域 / 字符IO域 / 日期时间域上；本库当前只有
                 // 这一个可输入图元，所以只在这一条描述符上声明。将来加了字符域/日期域，各自加一行即可。
-                Events = new[] { ScadaEventType.InputCompleted },
+                Events = new[]
+                {
+                    ScadaEventType.InputCompleted,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(IOFieldElement)),
                     TextProperties.Text("说明字",
@@ -593,7 +607,12 @@ namespace VisionMaster.Scada.Controls
                 Description = "30 种工艺符号（塔/釜/换热器/压缩机/风机/过滤器/分离器/罐/球罐/六种阀门/管道连接件/仪表）。" +
                               "状态可绑变量（停止/运行/故障三色，故障可闪），位号与读数可绑；" +
                               "默认只读，打开「允许点击」才发按下/释放事件",
-                Events = new[] { ScadaEventType.Pressed, ScadaEventType.Released },
+                // 按下/释放由画布代发；激活/取消激活由基类在「启用对象」动画真翻转时发（v6）。
+                Events = new[]
+                {
+                    ScadaEventType.Pressed, ScadaEventType.Released,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(ProcessSymbolElement)),
                     AppearanceProperties.Stroke("#FF9AA5B1", displayName: "轮廓色",
@@ -887,6 +906,7 @@ namespace VisionMaster.Scada.Controls
                 Events = new[]
                 {
                     ScadaEventType.ObjectChanged, ScadaEventType.Opened, ScadaEventType.Closed,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
                 },
                 // 刻意不声明 Pressed：画布在运行态已对命中的图元统一发一次 Pressed（见 ScadaCanvas.Interaction），
                 // 本控件又按契约在“档位写成功”时发一次。两条同时可配会让同一个动作执行两遍；
@@ -912,7 +932,11 @@ namespace VisionMaster.Scada.Controls
                 DefaultHeight = 32,
                 Description = "字符串输入域：绑一个字符串变量，点一下就地编辑，回车/失焦提交、Esc 放弃；" +
                               "提交时按 trim 后的长度校验（超长不写入），空串表示清除文本。批号、操作备注、配方名用它",
-                Events = new[] { ScadaEventType.InputCompleted },
+                Events = new[]
+                {
+                    ScadaEventType.InputCompleted,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(TextFieldElement)),
                     AppearanceProperties.Fill("#FF151C23", "输入框底色；深色运行画面用 surface 档"),
@@ -938,7 +962,11 @@ namespace VisionMaster.Scada.Controls
                 Description = "枚举型下拉：绑一个 int 变量，用「选项映射」（0=手动;1=自动;2=检修）把数值翻译成显示名。" +
                               "用户选择后写回变量；运行态变量变化只更新显示、不回写（否则会形成回写环）。" +
                               "把「呈现方式」切到 Text 就是只读状态文本：不写变量、不带 chevron/原始值",
-                Events = new[] { ScadaEventType.ObjectChanged },
+                Events = new[]
+                {
+                    ScadaEventType.ObjectChanged,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.WithVisibility(
                         ScadaPropertyCatalog.Collect(typeof(ComboBoxElement)),
@@ -1060,6 +1088,7 @@ namespace VisionMaster.Scada.Controls
                 Events = new[]
                 {
                     ScadaEventType.ObjectChanged, ScadaEventType.Opened, ScadaEventType.Closed,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
                 },
                 Properties = GeometryProperties.WithGroups(
                     ScadaPropertyCatalog.Collect(typeof(StateViewElement)),
@@ -1112,6 +1141,33 @@ namespace VisionMaster.Scada.Controls
                     TextProperties.Foreground("#FFFFFFFF"),
                     TextProperties.FontSize(),
                     TextProperties.FontWeight("SemiBold")),
+            },
+
+            // ---- 报警汇总表（v6，设计基线 docs/UI设计基线/scada-chart-alarmtable/）----
+            //
+            // 与「报警条」的分工：条 = 知道有事（只读、滚动）；表 = 处理掉（逐条确认 + 全部确认）。
+            // 表自己不发事件：确认是一次写操作，不是"图元状态变了"，配事件钩子会把
+            // "确认"变成可编程的副作用，反而绕开权限与审计。
+            new()
+            {
+                TypeKey = "Hmi.AlarmTable",
+                DisplayName = "报警汇总表",
+                ControlType = typeof(AlarmTableElement),
+                Category = "报警",
+                DefaultWidth = 560,
+                DefaultHeight = 280,
+                Description = "当前报警清单 + 逐条确认：时间 / 报警名 / 级别 / 状态 / 确认，按严重度排好（引擎给的次序），" +
+                              "每拍重读但只在数据变了时重建行；允许逐条确认关掉即退化成只读表",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(AlarmTableElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.Text("标题", "报警汇总",
+                        description: "工具条左侧那一行字；留空则工具条只剩计数与「全部确认」"),
+                    TextProperties.Foreground("#FFE6EEF7"),
+                    TextProperties.FontSize()),
             },
 
             // ---- 数据表格（2026-10-21，设计基线 docs/UI设计基线/scada-datagrid/）----
@@ -1421,6 +1477,94 @@ namespace VisionMaster.Scada.Controls
                     AppearanceProperties.CornerRadius("6"),
                     TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
                         description: "配方名与明细的主色；标题与状态用同一支色的弱化档")),
+            },
+
+            // ---- XY 曲线（v6）----
+            //
+            // 与「多曲线趋势」的分工：趋势是"值随时间怎么变"（X 恒为时间），
+            // XY 是"两个量互相对照"（X 也是一个变量）——视觉测量里的位置—压力、角度—扭矩用它。
+            new()
+            {
+                TypeKey = "Hmi.XYChart",
+                DisplayName = "XY 曲线",
+                ControlType = typeof(XYChartElement),
+                Category = "图表",
+                DefaultWidth = 420,
+                DefaultHeight = 300,
+                Description = "两个变量互相对照的轨迹（位置—压力、角度—扭矩、温度—湿度）：每拍取一对值追加一点，" +
+                              "变量不变不长点；自动量程留 5% 边距，也可固定 X/Y 量程。变量解析不到画提示，不冒充 0",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(XYChartElement)),
+                    AppearanceProperties.Fill("#FF151C23"),
+                    AppearanceProperties.Stroke("#FF2A3745"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("8")),
+            },
+
+            // ---- 圆形进度条（v7）----
+            //
+            // 与「进度条」「棒图」的分工：那两条是线性读数，圆环是"一眼看占比"（OEE、液位、完成率）。
+            // 与「旋钮」共用同一套 StartAngle/SweepAngle/颜色默认值，两者绑同一变量时视觉上就是联动的。
+            new()
+            {
+                TypeKey = "Hmi.CircularProgress",
+                DisplayName = "圆形进度条",
+                ControlType = typeof(CircularProgressElement),
+                Category = "数值",
+                DefaultWidth = 160,
+                DefaultHeight = 160,
+                Description = "一个数值在圆环上的可视化身：进度弧 = (当前值 − 最小值) ÷ (最大值 − 最小值)，" +
+                              "起止角与环宽可调，圆心显示读数；把「当前值」绑到变量上即可（完成率、液位、压力占比）",
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(CircularProgressElement)),
+                    AppearanceProperties.Fill("#00000000",
+                        "卡片底色；默认全透明——只要圆环时不必管它，要卡片再填色"),
+                    AppearanceProperties.Stroke("#00000000",
+                        "卡片边框色；默认透明（与底色一起决定要不要卡片）"),
+                    AppearanceProperties.StrokeThickness(),
+                    AppearanceProperties.CornerRadius("0"),
+                    TextProperties.Text("单位",
+                        description: "圆心读数下方的一行小字（单位/说明，如「MPa」「完成率」）；留空则只显数值"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色",
+                        description: "默认浅色：运行画面是深色底，深色字会糊成一片"),
+                    TextProperties.FontSize("24"),
+                    TextProperties.FontWeight("SemiBold",
+                        description: "默认 SemiBold：读数是这个图元唯一要一眼扫到的信息")),
+            },
+
+            // ---- 旋钮（v7）----
+            //
+            // 唯一"拖一下就写值"的连续量操作件。写值口径与「模拟量滑块」完全一致：
+            // 拖动只改显示、松手写一次；写失败回弹并给原因。
+            new()
+            {
+                TypeKey = "Hmi.Knob",
+                DisplayName = "旋钮",
+                ControlType = typeof(KnobElement),
+                Category = "操作",
+                DefaultWidth = 140,
+                DefaultHeight = 140,
+                Description = "连续量的旋钮操作件：一圈刻度 + 一段进度弧 + 一根指针。拖动只改显示、松手写一次变量，" +
+                              "滚轮/方向键立即写；写失败回弹并显示原因。把「当前值」绑到变量上即可；" +
+                              "与圆形进度条绑同一个变量，两者即联动",
+                Events = new[]
+                {
+                    ScadaEventType.InputCompleted, ScadaEventType.ObjectChanged,
+                    ScadaEventType.Activated, ScadaEventType.Deactivated,
+                },
+                Properties = GeometryProperties.WithGroups(
+                    ScadaPropertyCatalog.Collect(typeof(KnobElement)),
+                    AppearanceProperties.Fill("#FF151C23", "面板底色（中心盘面用的是「轨道色」，不是这一项）",
+                        displayName: "面板底色"),
+                    AppearanceProperties.Stroke("#FF2A3745", "面板边框，也是中心盘面的描边色", displayName: "边框色"),
+                    AppearanceProperties.StrokeThickness(displayName: "边框粗细"),
+                    AppearanceProperties.CornerRadius("8"),
+                    TextProperties.Text("说明字",
+                        description: "画在读数下方的一行小字（单位/位号，如「rpm」「1#主轴」）；留空则只显读数"),
+                    TextProperties.Foreground("#FFE6EEF7", displayName: "文字颜色"),
+                    TextProperties.FontSize("13", displayName: "字号",
+                        description: "读数用这个字号，说明字取它的 0.8 倍"),
+                    TextProperties.FontWeight(displayName: "字重")),
             },
         };
     }

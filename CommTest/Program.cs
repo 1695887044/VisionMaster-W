@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text;
 using VisionMaster;
 using VisionMaster.Communications;
 using VisionMaster.Models;
@@ -25,8 +27,21 @@ namespace CommTest
             Console.WriteLine("Modbus TCP: 127.0.0.1:502 | Siemens S7: 127.0.0.1:108 (S1200)");
             Console.WriteLine();
 
+            // 只跑 EasyNet 基准（Modbus/S7 模拟器不在线时也能单独验证 12939）：
+            //   set EASYNET_ONLY=1 && CommTest.exe
+            if ((Environment.GetEnvironmentVariable("EASYNET_ONLY") ?? string.Empty).Trim() == "1")
+            {
+                RunEndianUnitChecks();
+                RunEasyNetBench();
+                Finish();
+                return;
+            }
+
             // 纯单元断言先行：模拟器离线也要能验证字节序转换层（历史 bug 的回归防线）
             RunEndianUnitChecks();
+
+            // EasyNet 只读基准：独立于 Modbus/S7 模拟器，先跑（12939 不在时自动跳过）
+            RunEasyNetBench();
 
             using var manager = new AdvancedCommunicationManager { AutoReconnectEnabled = false };
 
@@ -268,6 +283,328 @@ namespace CommTest
         }
 
         /// <summary>
+        /// [E] EasyNet 批量读实时基准（只读）：把汇川导出的变量表（12.csv）整表接入轮询，
+        /// 量"首轮全量刷新耗时 / 实测周期 / 段数"，验证 2400 点规模的时效性。
+        /// <para>只读：全程不调用任何 Write，模拟器/PLC 状态不变。</para>
+        /// <para>变量表缺失时退回内置小样本，保证没有桌面文件也能跑通链路。</para>
+        /// </summary>
+        private static void RunEasyNetBench()
+        {
+            const string host = "127.0.0.1";
+            int port = int.TryParse(Environment.GetEnvironmentVariable("EASYNET_PORT"), out int envPort)
+                       && envPort > 0 ? envPort : 12939;
+
+            Console.WriteLine();
+            Console.WriteLine($"---- [E] EasyNet 批量读基准（{host}:{port}，只读） ----");
+
+            const string csvPath = @"C:\Users\16958\Desktop\12.csv";
+            string sample = (Environment.GetEnvironmentVariable("EASYNET_SAMPLE") ?? string.Empty).Trim().ToLowerInvariant();
+            List<EasyNetSpec> specs = sample == "classic"
+                ? ClassicEasyNetSpecs()
+                : File.Exists(csvPath) ? LoadEasyNetSpecs(csvPath) : DefaultEasyNetSpecs();
+
+            bool allowWrite = (Environment.GetEnvironmentVariable("EASYNET_ALLOW_WRITE") ?? string.Empty).Trim() == "1";
+
+            if (specs.Count == 0)
+            {
+                Console.WriteLine("  [跳过] 没有可用的点位定义");
+                return;
+            }
+
+            Console.WriteLine($"  点位定义 {specs.Count} 条（{(sample == "classic" ? "classic 样本" : File.Exists(csvPath) ? csvPath : "内置样本")}）" +
+                              (allowWrite ? "；含写回读" : "；只读"));
+
+            // 周期可调：EASYNET_CYCLE_MS=50 可量"更快的刷新是否还有余量"（默认 100，与现场变量表一致）
+            int cycleMs = int.TryParse(Environment.GetEnvironmentVariable("EASYNET_CYCLE_MS"), out int envCycle)
+                          && envCycle > 0 ? envCycle : 100;
+
+            // 多扫描组：EASYNET_GROUPS=100,200,500 → 默认组取第一个值，其余建自定义组 G200/G500；
+            // 变量按序号轮转分到各组（验证多周期调度：快组不被慢组拖累、慢组不被快组压垮）
+            var groupCycles = new List<int>();
+            string groupsText = (Environment.GetEnvironmentVariable("EASYNET_GROUPS") ?? string.Empty).Trim();
+            if (groupsText.Length > 0)
+            {
+                foreach (string part in groupsText.Split(','))
+                {
+                    if (int.TryParse(part.Trim(), out int g) && g > 0) groupCycles.Add(g);
+                }
+            }
+            if (groupCycles.Count > 0) cycleMs = groupCycles[0];
+
+            bool blockMode = string.Equals(
+                (Environment.GetEnvironmentVariable("EASYNET_GROUP_MODE") ?? string.Empty).Trim(),
+                "block", StringComparison.OrdinalIgnoreCase);
+
+            using var manager = new AdvancedCommunicationManager { AutoReconnectEnabled = false };
+            var cfg = new CommunicationConfig("EasyNet_Bench", new EasyNetConfig
+            {
+                // 各 Config 子类都不覆写 Type（默认 0 = ModbusTcp）：手工构造必须显式赋，
+                // 否则 CommunicationConfig 构造器会把 Protocol 设成 ModbusTcp，工厂按枚举取错实现
+                Type = CommunicationType.EasyNet,
+                IpAddress = host,
+                Port = port
+            })
+            {
+                ReadCycleMs = cycleMs
+            };
+
+            for (int g = 1; g < groupCycles.Count; g++)
+                cfg.ScanGroups.Add(new ScanGroupConfig { Name = $"G{groupCycles[g]}", IntervalMs = groupCycles[g] });
+
+            try
+            {
+                manager.AddConnection(cfg);
+            }
+            catch (Exception ex)
+            {
+                Check("EasyNet 建连接", false, ex.Message);
+                return;
+            }
+
+            var vars = new List<CommunicationVariable>(specs.Count);
+            int index = 0;
+            foreach (EasyNetSpec spec in specs)
+            {
+                var address = new EasyNetAddress
+                {
+                    Area = spec.Area,
+                    Offset = spec.Offset,
+                    DataType = spec.DataType,
+                    Length = spec.Length
+                };
+
+                // 多组时分配：默认按序号轮转（slot=0 进默认组，其余进 G<周期>）；
+                // EASYNET_GROUP_MODE=block 改为按地址块连续切分——现场真实用法是按区段分组，
+                // 轮转会把连续地址打散、段数暴涨（实测 29 段 → 80 段）。
+                string groupName = string.Empty;
+                if (groupCycles.Count > 1)
+                {
+                    int slot = blockMode
+                        ? Math.Min(groupCycles.Count - 1, index * groupCycles.Count / Math.Max(1, specs.Count))
+                        : index % groupCycles.Count;
+                    if (slot > 0) groupName = $"G{groupCycles[slot]}";
+                }
+
+                vars.Add(new CommunicationVariable
+                {
+                    ConnectionName = cfg.ConnectionName,
+                    // 同名变量在管理器里是按名去重的；加序号保证 CSV 里的重名/重址都各自成点
+                    VariableName = $"EZ_{index++}_{spec.Name}",
+                    Address = address.Address,
+                    AddressConfig = address,
+                    ValueType = spec.ClrType.AssemblyQualifiedName,
+                    AccessMode = VariableAccessMode.ReadOnly,
+                    ScanGroup = groupName
+                });
+            }
+
+            int published = 0;
+            foreach (CommunicationVariable variable in vars)
+                variable.ValueChanged += (_, _) => Interlocked.Increment(ref published);
+
+            foreach (CommunicationVariable variable in vars)
+                manager.RegisterVariable(variable);
+
+            var sw = Stopwatch.StartNew();
+            bool connected = manager.Connect(cfg.ConnectionName);
+            Check($"EasyNet Connect({host}:{port})", connected,
+                connected ? "已连接" : "连接失败——确认模拟器在 12939");
+            if (!connected)
+            {
+                manager.RemoveConnection(cfg.ConnectionName);
+                return;
+            }
+
+            // 首次值无论是否变化都会强制推送，故"全部变量各推一次"= 第一轮全量刷新完成
+            DateTime deadline = DateTime.UtcNow.AddSeconds(15);
+            while (Volatile.Read(ref published) < vars.Count && DateTime.UtcNow < deadline)
+                Thread.Sleep(20);
+            sw.Stop();
+
+            int good = vars.Count(v => v.Quality == VariableQuality.Good);
+            int uncertain = vars.Count(v => v.Quality == VariableQuality.Uncertain);
+            int bad = vars.Count(v => v.Quality == VariableQuality.Bad);
+
+            Check($"首轮全量刷新 {vars.Count} 点", published >= vars.Count,
+                $"{published}/{vars.Count}，用时 {sw.ElapsedMilliseconds} ms");
+            Check("首轮质量全部 Good", good == vars.Count,
+                $"Good={good} Uncertain={uncertain} Bad={bad}");
+
+            // 采样 5 秒看稳态周期（AvgActualMs 是相邻两次开跑的指数滑动平均）
+            Thread.Sleep(5000);
+            IReadOnlyList<ScanGroupStats> stats = manager.GetScanGroupStats(cfg.ConnectionName);
+            Check("扫描组已编译", stats.Count > 0, stats.Count == 0 ? "无扫描组" : "");
+
+            if (stats.Count > 0)
+            {
+                // 多组时逐组打印：快组与慢组各自的目标/实测/达成率，用来判断"慢组会不会拖累快组"
+                foreach (ScanGroupStats group in stats)
+                {
+                    Console.WriteLine(
+                        $"  组={group.GroupName} 变量={group.VariableCount} 段={group.SegmentCount} 兜底={group.FallbackCount} " +
+                        $"目标={group.TargetIntervalMs}ms 实测={group.AvgActualMs}ms 达成率={group.AchieveRate:P0} 坏段={group.FaultedSegmentCount}");
+                }
+
+                // 判据按各自目标放宽：慢组（500ms）的实测必然 > 500，不能用一个固定上限
+                bool allReasonable = stats.All(s => s.AvgActualMs > 0 && s.AvgActualMs < s.TargetIntervalMs * 2 + 100);
+                Check("每组稳态实测周期都在目标 2 倍 + 100ms 以内", allReasonable,
+                    string.Join("；", stats.Select(s => $"{s.GroupName}:{s.AvgActualMs}/{s.TargetIntervalMs}")));
+            }
+
+            if (allowWrite)
+                RunEasyNetWriteSmoke(manager, cfg.ConnectionName);
+
+            manager.DisconnectAll();
+            manager.RemoveConnection(cfg.ConnectionName);
+        }
+
+        /// <summary>
+        /// 写入回读（只对可控的参考服务器开）：位写 / 字写 / 字节块写各一条。
+        /// 用户现场的模拟器是只读的，故默认不跑；`EASYNET_ALLOW_WRITE=1` 才执行。
+        /// </summary>
+        private static void RunEasyNetWriteSmoke(AdvancedCommunicationManager manager, string connectionName)
+        {
+            try
+            {
+                manager.Write(connectionName, "D100", (short)0x1234);
+                short back = manager.Read<short>(connectionName, "D100");
+                Check("写回读 D100 (Int16)", back == 0x1234, $"期望 0x1234 实际 0x{back:X4}");
+
+                manager.Write(connectionName, "M0", new[] { true, false, true, true });
+                bool[] bits = manager.GetConnection(connectionName)!.ReadBits("M0", 4);
+                Check("写回读 M0 (4 位)", bits.Length == 4 && bits[0] && !bits[1] && bits[2] && bits[3],
+                    $"[{string.Join(',', bits)}]");
+
+                byte[] payload = Encoding.ASCII.GetBytes("EZ-OK\0\0\0");
+                manager.Write(connectionName, "D300", payload);
+                byte[] raw = manager.GetConnection(connectionName)!.ReadBytes("D300", (ushort)payload.Length);
+                Check("写回读 D300 (8 字节)", Encoding.ASCII.GetString(raw).TrimEnd('\0') == "EZ-OK",
+                    $"实际「{Encoding.ASCII.GetString(raw).TrimEnd('\0')}」");
+            }
+            catch (Exception ex)
+            {
+                Check("EasyNet 写回读", false, ex.Message);
+            }
+        }
+
+        private sealed record EasyNetSpec(
+            string Name, string Offset, DataValueType DataType, Type ClrType, int Length,
+            EasyNetArea Area = EasyNetArea.U);
+
+        /// <summary>
+        /// 解析汇川导出的变量表：列 A=名称、C=数据类型、D=长度、F=地址（"UB 2100070" / "UW 21001C0"）。
+        /// <para>只取前 6 列——注释列在第 12 列，里面可能有逗号，但不会影响前面的列。</para>
+        /// </summary>
+        private static List<EasyNetSpec> LoadEasyNetSpecs(string path)
+        {
+            var list = new List<EasyNetSpec>();
+
+            foreach (string raw in ReadCsvLines(path))
+            {
+                string line = raw.Trim();
+                if (line.Length == 0 || line.StartsWith("#", StringComparison.Ordinal)) continue;
+
+                // 汇川导出是**带引号**的 CSV，且变量名里可能含逗号（Sv_CacheArys[0,0]）——
+                // 按逗号切分会整体错位（地址列被挤到别的下标，整表解析成 0 条）。改为按列语义逐项匹配。
+                var nameMatch = System.Text.RegularExpressions.Regex.Match(line, "^\"([^\"]*)\"");
+                var addrMatch = System.Text.RegularExpressions.Regex.Match(line, ",\"(U[BW]? ?[0-9A-Fa-f]+)\"");
+                var typeMatch = System.Text.RegularExpressions.Regex.Match(line, ",\"([A-Za-z][A-Za-z0-9]*)\",\"(\\d+)\",\"(\\d+)\"");
+                if (!nameMatch.Success || !addrMatch.Success || !typeMatch.Success) continue;
+
+                string name = nameMatch.Groups[1].Value;
+                string address = addrMatch.Groups[1].Value.Trim();
+                string type = typeMatch.Groups[1].Value.ToLowerInvariant();
+                int length = int.TryParse(typeMatch.Groups[2].Value, out int n) ? Math.Max(1, n) : 1;
+
+                string body;
+                if (address.StartsWith("UB", StringComparison.OrdinalIgnoreCase)
+                    || address.StartsWith("UW", StringComparison.OrdinalIgnoreCase))
+                    body = address.Substring(2);
+                else
+                    body = address.Substring(1);
+
+                string offset = body.Trim();
+                if (offset.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+                    offset = offset.Substring(2);
+                if (offset.Length == 0) continue;
+
+                switch (type)
+                {
+                    case "bool":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.Boolean, typeof(bool), 1));
+                        break;
+                    case "int16":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.Int16, typeof(short), 1));
+                        break;
+                    case "uint16":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.UInt16, typeof(ushort), 1));
+                        break;
+                    case "int32":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.Int32, typeof(int), 1));
+                        break;
+                    case "uint32":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.UInt32, typeof(uint), 1));
+                        break;
+                    case "float":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.Float, typeof(float), 1));
+                        break;
+                    case "double":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.Double, typeof(double), 1));
+                        break;
+                    case "string":
+                        list.Add(new EasyNetSpec(name, offset, DataValueType.String, typeof(string), length));
+                        break;
+                }
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// 汇川导出是**无 BOM 的 GB18030**：按 UTF-8 硬解会把整表中文读成 U+FFFD/错字。
+        /// 先按严格 UTF-8 试解（纯 ASCII / 真 UTF-8 走这条），失败回落 GB18030。
+        /// </summary>
+        private static string[] ReadCsvLines(string path)
+        {
+            var bytes = File.ReadAllBytes(path);
+            if (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
+                return new UTF8Encoding(false).GetString(bytes[3..]).Replace("\r\n", "\n").Split('\n');
+
+            try
+            {
+                return new UTF8Encoding(false, true).GetString(bytes).Replace("\r\n", "\n").Split('\n');
+            }
+            catch
+            {
+                try { Encoding.RegisterProvider(CodePagesEncodingProvider.Instance); } catch { /* 已注册 */ }
+                return Encoding.GetEncoding("GB18030").GetString(bytes).Replace("\r\n", "\n").Split('\n');
+            }
+        }
+
+        /// <summary>没有 12.csv 时的最小样本（覆盖位/字/字符串三种解码路径）。</summary>
+        private static List<EasyNetSpec> DefaultEasyNetSpecs() => new()
+        {
+            new EasyNetSpec("Bit0", "2100070", DataValueType.Boolean, typeof(bool), 1),
+            new EasyNetSpec("Bit1", "2100071", DataValueType.Boolean, typeof(bool), 1),
+            new EasyNetSpec("Int32", "21001C0", DataValueType.Int32, typeof(int), 1),
+            new EasyNetSpec("Float", "501FE0", DataValueType.Float, typeof(float), 1),
+            new EasyNetSpec("String", "5044C0", DataValueType.String, typeof(string), 50),
+        };
+
+        /// <summary>
+        /// 传统区样本（D/M 区）：给参考实现 EasyNetServer 用——它按原版路由，U 区地址
+        /// （0x2xxxxxx）会落到 M/S 区并越界报错，不能拿 CSV 那批 U 地址去打它。
+        /// </summary>
+        private static List<EasyNetSpec> ClassicEasyNetSpecs() => new()
+        {
+            new EasyNetSpec("D100", "100", DataValueType.Int16, typeof(short), 1, EasyNetArea.D),
+            new EasyNetSpec("D200", "200", DataValueType.Int32, typeof(int), 1, EasyNetArea.D),
+            new EasyNetSpec("M0", "0", DataValueType.Boolean, typeof(bool), 1, EasyNetArea.M),
+            new EasyNetSpec("M1", "1", DataValueType.Boolean, typeof(bool), 1, EasyNetArea.M),
+            new EasyNetSpec("D300", "300", DataValueType.String, typeof(string), 8, EasyNetArea.D),
+        };
+
+        /// <summary>
         /// 注入通信管理器：NetworkVariableModel.CommunicationManager 是私有字段且全库无赋值点
         /// （UI 链路同样缺失此注入），测试用反射补上；后续应在 UI 建变量处正式注入
         /// </summary>
@@ -296,7 +633,9 @@ namespace CommTest
                 var helper = asm.GetType("VisionMaster.Communications.HslHelper")
                     ?? throw new Exception("找不到 HslHelper（改名了？）");
                 var getValueArray = helper.GetMethod("GetValueArray")!;
-                var convertTo = helper.GetMethod("ConvertTo")!;
+                // HslHelper 有 byte[] 与 ReadOnlySpan<byte> 两个 ConvertTo 重载，按名取会 AmbiguousMatch；
+                // 显式指定参数类型（byte[] 版是断言用的稳定入口）
+                var convertTo = helper.GetMethod("ConvertTo", new[] { typeof(byte[]), typeof(ByteOrderFormat) })!;
                 var toDataFormat = helper.GetMethod("ToDataFormat")!;
 
                 // ---- 写侧编码（兜底路径 GetValueArray，恒定大端）----

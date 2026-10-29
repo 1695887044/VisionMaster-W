@@ -633,8 +633,17 @@ namespace VisionMaster.Services
     {
         private const string DataSheetName = "变量表";
 
-        public static List<DeviceVariableRawRow> ReadRows(string path)
+        /// <param name="connectionCycleMs">
+        /// 连接的读周期（毫秒）。只有 CSV 会用到：汇川的「采集周期」与它一致时不当扫描组处理
+        /// （见 <see cref="EasyNetCsvReader"/>），xlsx 路径忽略此参数。
+        /// </param>
+        public static List<DeviceVariableRawRow> ReadRows(string path, int? connectionCycleMs = null)
         {
+            // 汇川 EasyMonitor 导出的 CSV 直接吃：它和本仓 xlsx 不是同一个 schema，
+            // 由 EasyNetCsvReader 翻译成同一套行模型，下游 BuildPlan 一条校验都不用改。
+            if (EasyNetCsvReader.IsCsv(path))
+                return EasyNetCsvReader.ReadRows(path, connectionCycleMs);
+
             var sheets = MiniExcel.GetSheetNames(path).ToList();
             // 明确要求「变量表」页：回落到第一张表时，若第一张是「说明」，
             // 会得到"缺少必需列"的误导错误（看起来像模板坏了）。
@@ -695,10 +704,19 @@ namespace VisionMaster.Services
                 if (!string.IsNullOrWhiteSpace(variable.Name))
                     existingByName[variable.Name.Trim()] = variable;
 
-            var allByName = new Dictionary<string, IVariable>(StringComparer.OrdinalIgnoreCase);
+            // 名字 → 全部同名变量（多值）：2026-10-29 起唯一性口径是"同一设备内唯一"，
+            // 不同连接允许同名点位，所以这里不能只留一个候选（否则会误判成"没冲突"或"冲突了别的设备"）。
+            var allByName = new Dictionary<string, List<IVariable>>(StringComparer.OrdinalIgnoreCase);
             foreach (var variable in allVariables)
-                if (!string.IsNullOrWhiteSpace(variable.Name))
-                    allByName[variable.Name.Trim()] = variable;
+            {
+                if (string.IsNullOrWhiteSpace(variable.Name))
+                    continue;
+
+                var key = variable.Name.Trim();
+                if (!allByName.TryGetValue(key, out var list))
+                    allByName[key] = list = new List<IVariable>();
+                list.Add(variable);
+            }
 
             var groupsByName = new Dictionary<string, VariableGroupDescriptor>(StringComparer.OrdinalIgnoreCase);
             foreach (var group in groups)
@@ -758,13 +776,28 @@ namespace VisionMaster.Services
                 seenNames[name] = row.RowNumber;
 
                 existingByName.TryGetValue(name, out var existing);
-                if (allByName.TryGetValue(name, out var other) && !ReferenceEquals(other, existing))
+                if (allByName.TryGetValue(name, out var sameName))
                 {
-                    var source = other is NetworkVariableModel network
-                        ? $"设备「{network.ConnectionName}」"
-                        : other.VariableType == VariableType.Local ? "本地变量" : "系统变量";
-                    Fail($"变量名已被{source}使用（方案内变量名必须唯一）。");
-                    continue;
+                    // 同一设备内唯一：同连接的网络变量、任何本地/系统变量都算冲突；
+                    // 别的设备的同名点位放行（这正是多设备同型号产线需要的）。
+                    IVariable? blocker = null;
+                    foreach (var other in sameName)
+                    {
+                        if (ReferenceEquals(other, existing))
+                            continue;
+                        if (!VisionMaster.Binding.VariableNameScope.Conflicts(connection.ConnectionName, other))
+                            continue;
+
+                        blocker = other;
+                        break;
+                    }
+
+                    if (blocker != null)
+                    {
+                        Fail($"变量名已被{VisionMaster.Binding.VariableNameScope.DescribeScope(blocker)}使用"
+                             + "（同一设备内变量名必须唯一）。");
+                        continue;
+                    }
                 }
 
                 var typeName = row.Get(DeviceVariableColumns.DataType).Trim();
@@ -805,9 +838,11 @@ namespace VisionMaster.Services
                         Fail($"位偏移：{bitError}");
                         continue;
                     }
-                    // 上限按协议：FINS 的字是 16 位（0~15），Modbus / S7 / MC 是字节内位（0~7）。
+                    // 上限按协议：FINS 与 EasyNet 字区是字内位（0~15），Modbus / S7 / MC 是字节内位（0~7）。
                     // 不能一律放行 15——地址对象的 BitOffset setter 会把 S7 的 15 静默钳成 7。
-                    var maxBitOffset = connection.Protocol == CommunicationType.OmronFins ? 15 : 7;
+                    var maxBitOffset = connection.Protocol is CommunicationType.OmronFins or CommunicationType.EasyNet
+                        ? 15
+                        : 7;
                     if (bitOffset < 0 || bitOffset > maxBitOffset)
                     {
                         Fail($"位偏移必须在 0 ~ {maxBitOffset} 之间（留空 = 不使用位访问；" +
@@ -820,9 +855,11 @@ namespace VisionMaster.Services
                         continue;
                     }
                     if (connection.Protocol == CommunicationType.MitsubishiMc
-                        || GlobalVariableManagerViewModel.IsCoilOrDiscreteArea(area))
+                        || GlobalVariableManagerViewModel.IsCoilOrDiscreteArea(area)
+                        || (connection.Protocol == CommunicationType.EasyNet
+                            && !GlobalVariableManagerViewModel.IsEasyNetWordArea(area)))
                     {
-                        Fail("位偏移对 MC / 线圈 / 离散输入不适用。");
+                        Fail("位偏移对 MC / 线圈 / 离散输入 / EasyNet 位区与 U 区不适用（这些区本身就是位地址）。");
                         continue;
                     }
                 }
@@ -960,9 +997,10 @@ namespace VisionMaster.Services
                         }
                     }
                     else if (elementType != typeof(string) && elementType != typeof(int)
+                             && elementType != typeof(short)
                              && elementType != typeof(double) && elementType != typeof(float))
                     {
-                        Fail($"网络数组不支持元素类型 {elementType.Name}（可用 int / double / float / string / bool）。");
+                        Fail($"网络数组不支持元素类型 {elementType.Name}（可用 int / short / double / float / string / bool）。");
                         continue;
                     }
 
@@ -1329,7 +1367,21 @@ namespace VisionMaster.Services
             // 弹窗是模态的，但外部仍可能在这期间删变量/改方案：落地前轻量复核，
             // 避免把更新打在已移除的对象上、或新增一个已被占用的名字。
             // 撞名检查必须并上系统变量：注册表是 Global + System 两源合并的。
-            var allVariables = variables.Concat(workspace.SystemVariables).ToList();
+            // 2026-10-29：口径与 BuildPlan 一致（**同一设备内唯一**）——别的设备的同名点位不算占用。
+            // 用"名字 → 变量列表"字典而不是扁平 HashSet：查名字仍是 O(1)，
+            // 命中后只扫极小的同名列表（不会退化成 2357 行 × 2357 变量的全量比较）。
+            var allByName = new Dictionary<string, List<IVariable>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var variable in variables.Concat(workspace.SystemVariables))
+            {
+                var key = (variable.Name ?? string.Empty).Trim();
+                if (key.Length == 0)
+                    continue;
+
+                if (!allByName.TryGetValue(key, out var list))
+                    allByName[key] = list = new List<IVariable>();
+                list.Add(variable);
+            }
+
             foreach (var item in plan.Items)
             {
                 if (item.Status is not (DeviceVariableImportStatus.New or DeviceVariableImportStatus.Update)) continue;
@@ -1338,8 +1390,8 @@ namespace VisionMaster.Services
                     if (item.Existing == null || !variables.Contains(item.Existing))
                         throw new InvalidOperationException($"变量「{item.Name}」已不在当前方案中，请重新预览。");
                 }
-                else if (allVariables.Any(v => string.Equals(
-                             (v.Name ?? string.Empty).Trim(), item.Name, StringComparison.OrdinalIgnoreCase)))
+                else if (allByName.TryGetValue(item.Name, out var sameName)
+                         && sameName.Any(v => VisionMaster.Binding.VariableNameScope.Conflicts(plan.ConnectionName, v)))
                 {
                     throw new InvalidOperationException($"变量名「{item.Name}」已被占用，请重新预览。");
                 }
@@ -1559,6 +1611,7 @@ namespace VisionMaster.Services
             CommunicationType.SiemensS7 => typeof(S7Address),
             CommunicationType.MitsubishiMc => typeof(McAddress),
             CommunicationType.OmronFins => typeof(FinsAddress),
+            CommunicationType.EasyNet => typeof(EasyNetAddress),
             _ => null
         };
 

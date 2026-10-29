@@ -425,6 +425,33 @@ namespace VisionMaster.Plugins.Util
                 && string.Equals(o.Scope, scope ?? string.Empty, StringComparison.OrdinalIgnoreCase));
         }
 
+        /// <summary>
+        /// 按行解析目标变量：**Id 优先、名字兜底**（与运行期同一口径）。
+        ///
+        /// 界面上的类型/提示/失效徽标都走这里：多设备同名点位之后，只按名字查会把
+        /// "绑定的是 L2 那个"显示成 L1 的类型；变量改名后按名字也查不到，会误报"已失效"。
+        /// </summary>
+        public VariableOption? FindVariable(AssignmentRow row)
+        {
+            if (row == null) return null;
+
+            var options = _configContext?.Variables;
+            var scope = string.Equals(row.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)
+                ? ScopeGlobal
+                : ScopeRuntime;
+
+            if (row.VariableId != Guid.Empty && options != null)
+            {
+                var byId = options.FirstOrDefault(o =>
+                    o != null
+                    && o.VariableId == row.VariableId
+                    && string.Equals(o.Scope, scope, StringComparison.OrdinalIgnoreCase));
+                if (byId != null) return byId;
+            }
+
+            return FindVariable(row.VariableName, row.Scope);
+        }
+
         public List<NameCandidate> BuildCandidates(AssignmentRow row)
         {
             var result = new List<NameCandidate>();
@@ -432,20 +459,44 @@ namespace VisionMaster.Plugins.Util
             if (row == null || options == null) return result;
 
             var scope = string.Equals(row.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase) ? ScopeGlobal : ScopeRuntime;
+            var currentName = (row.VariableName ?? string.Empty).Trim();
+            var currentFound = false;
+
+            // 去重键：Id 优先（有身份的候选天然唯一）；没有 Id 的（运行时变量）按名字 + 设备。
+            // 只按名字去重会让多设备的同名点位**在候选里消失**——用户以为没建，其实是被吞了。
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var option in options)
             {
                 if (option == null || string.IsNullOrWhiteSpace(option.Name)) continue;
                 if (!string.Equals(option.Scope, scope, StringComparison.OrdinalIgnoreCase)) continue;
-                if (!seen.Add(option.Name)) continue;
-                result.Add(new NameCandidate(option.Name, option.TypeName ?? string.Empty, option.Description ?? string.Empty));
+
+                if (!currentFound
+                    && (row.VariableId != Guid.Empty && option.VariableId == row.VariableId
+                        || string.Equals(option.Name, currentName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    currentFound = true;
+                }
+
+                var key = option.VariableId != Guid.Empty
+                    ? "id:" + option.VariableId.ToString("N")
+                    : "name:" + option.Name + "\n" + (option.Device ?? string.Empty);
+                if (!seen.Add(key)) continue;
+
+                result.Add(new NameCandidate(
+                    option.Name,
+                    option.TypeName ?? string.Empty,
+                    option.Description ?? string.Empty,
+                    isInvalid: false,
+                    variableId: option.VariableId,
+                    device: option.Device ?? string.Empty));
             }
 
             if (string.Equals(scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)
-                && !string.IsNullOrWhiteSpace(row.VariableName)
-                && !seen.Contains(row.VariableName))
+                && currentName.Length > 0
+                && !currentFound)
             {
-                result.Insert(0, new NameCandidate(row.VariableName, "已失效", "变量管理里没有这个名字", true));
+                result.Insert(0, new NameCandidate(
+                    currentName, "已失效", "变量管理里没有这个名字", true, row.VariableId));
             }
 
             return result;
@@ -466,12 +517,17 @@ namespace VisionMaster.Plugins.Util
                     : "还没填名字。作用域=运行时变量时，名字通常来自上游「变量定义」节点。"), "Error");
             }
 
-            var current = FindVariable(name, row!.Scope);
+            var current = FindVariable(row!);
             if (current != null)
             {
+                // 多设备同名点位：提示里必须带设备，否则用户看到"写入全局变量「A」"也无从判断是哪一台
+                var typeText = string.IsNullOrWhiteSpace(current.Device)
+                    ? current.TypeName
+                    : $"{current.TypeName} · 设备 {current.Device}";
+
                 return (prefix + (isGlobal
-                    ? $"写入全局变量「{current.Name}」（{current.TypeName}）——「值」按它的类型解析（如 Int32 填 21）。"
-                    : $"写入运行时变量「{current.Name}」（{current.TypeName}）· {current.Description}。"), "Info");
+                    ? $"写入全局变量「{current.Name}」（{typeText}）——「值」按它的类型解析（如 Int32 填 21）。"
+                    : $"写入运行时变量「{current.Name}」（{typeText}）· {current.Description}。"), "Info");
             }
 
             var other = FindVariable(name, isGlobal ? ScopeRuntime : ScopeGlobal);
@@ -498,7 +554,7 @@ namespace VisionMaster.Plugins.Util
 
         public string GetTypeText(AssignmentRow row)
         {
-            var current = FindVariable(row?.VariableName, row?.Scope);
+            var current = FindVariable(row);
             if (current != null) return current.TypeName ?? string.Empty;
             if (string.Equals(row?.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)) return "已失效";
             return string.IsNullOrWhiteSpace(row?.VariableName) ? "类型未知" : "手填";
@@ -690,12 +746,44 @@ namespace VisionMaster.Plugins.Util
 
         public override void OnConfirm(IStepConfigData stepData)
         {
+            CaptureVariableIds();
             RebuildDynamicInputs();
             base.OnConfirm(stepData); // 写端口 + Rows JSON 快照
             DropOrphanLinks(stepData);
             StripNonConstantValues(stepData);
             RemoveLegacyNameLink(stepData);
             RefreshAllRows();
+        }
+
+        /// <summary>
+        /// 把「全局变量」行的目标 Id 落进配置（Id 优先、名字兜底）。
+        ///
+        /// 为什么要捕获：多设备允许同名点位之后（同一设备内唯一），名字不再能唯一定位一个变量；
+        /// 运行期只有拿到 Id 才能在变量改名后仍然打到同一个变量上。
+        /// 规则（与运行期解析同序）：
+        /// - 已有 Id 且能在候选里找到 → 保留（变量改名后行里的旧名字不动，Id 仍然有效）；
+        /// - Id 找不到（变量被删）或为空 → 按名字在候选里**唯一**命中时补上；
+        ///   重名时留空，运行期会明确报歧义，而不是替用户选一台设备。
+        /// </summary>
+        private void CaptureVariableIds()
+        {
+            var options = _configContext?.Variables;
+            if (options == null) return;
+
+            foreach (var row in Rows)
+            {
+                if (row == null) continue;
+
+                if (!string.Equals(row.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase))
+                {
+                    // 运行时变量每轮由「变量定义」重新创建，没有稳定身份
+                    row.VariableId = Guid.Empty;
+                    continue;
+                }
+
+                row.VariableId = VariableOptionResolver.CaptureId(
+                    options, row.VariableId, row.VariableName, ScopeGlobal);
+            }
         }
 
         public override void OnCancel()
@@ -985,7 +1073,7 @@ namespace VisionMaster.Plugins.Util
 
                 try
                 {
-                    if (TryAssign(context, name, scope, create, value, out var error))
+                    if (TryAssign(context, name, row.VariableId, scope, create, value, out var error))
                     {
                         successCount++;
                         context.Logger.Info(string.Equals(scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)
@@ -1030,7 +1118,7 @@ namespace VisionMaster.Plugins.Util
             try
             {
                 var existed = context.LocalVariables.ContainsKey(varName);
-                if (!TryAssign(context, varName, scope, create, value, out var error))
+                if (!TryAssign(context, varName, Guid.Empty, scope, create, value, out var error))
                 {
                     Success.Value = false;
                     ErrorMessage.Value = error;
@@ -1069,6 +1157,7 @@ namespace VisionMaster.Plugins.Util
         private bool TryAssign(
             IExecutionContext context,
             string varName,
+            Guid variableId,
             string scope,
             bool create,
             object? value,
@@ -1076,7 +1165,7 @@ namespace VisionMaster.Plugins.Util
         {
             error = string.Empty;
 
-            if (string.IsNullOrWhiteSpace(varName))
+            if (string.IsNullOrWhiteSpace(varName) && variableId == Guid.Empty)
             {
                 error = "变量名称不能为空";
                 return false;
@@ -1091,14 +1180,16 @@ namespace VisionMaster.Plugins.Util
 
             if (isGlobal)
             {
-                var writer = context.GlobalVariables;
-                if (writer == null)
+                // Id 优先、名字兜底：多设备同名点位只有 Id 能唯一定位；
+                // 旧配置（Id 为空）走名字，与改造前行为一致。
+                var access = context.SharedVariables;
+                if (access == null)
                 {
                     error = "当前执行环境不支持写全局变量";
                     return false;
                 }
 
-                if (!writer.TryWrite(varName, value, out var writeError))
+                if (!access.TryWrite(variableId, varName, value, out var writeError))
                 {
                     error = string.IsNullOrWhiteSpace(writeError)
                         ? $"写全局变量 {varName} 失败"

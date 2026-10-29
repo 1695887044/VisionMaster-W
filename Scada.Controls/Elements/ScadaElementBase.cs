@@ -258,7 +258,59 @@ namespace VisionMaster.Scada.Controls
         public static object? ConvertFromString(Type targetType, string text)
         {
             ArgumentNullException.ThrowIfNull(targetType);
-            return TypeDescriptor.GetConverter(targetType).ConvertFromInvariantString(text);
+
+            try
+            {
+                return TypeDescriptor.GetConverter(targetType).ConvertFromInvariantString(text);
+            }
+            catch (Exception) when (TryConvertIntegerLike(targetType, text, out var tolerant))
+            {
+                // 整数目标值写了小数（手改 .vms 里的 "200.0"、或从别的软件导出的数值）：
+                // 严格转换会抛，调用方（ApplyTargetProperty）只能"保持现状"——用户以为改成了 5000，
+                // 实际还停在默认值，而且不报错。这里做一次四舍五入的宽容转换，
+                // 只在**严格转换已经失败**且目标是 int/long 时生效，不影响任何合法输入。
+                return tolerant;
+            }
+        }
+
+        /// <summary>
+        /// 整数目标的宽容解析：只有"文本本身是数值、只是带了小数/指数写法"才算成功。
+        /// 超出目标类型范围、NaN、无穷、非数值一律返回 false（让原异常照常抛给调用方）。
+        /// </summary>
+        private static bool TryConvertIntegerLike(Type targetType, string? text, out object? value)
+        {
+            value = null;
+
+            if (string.IsNullOrWhiteSpace(text))
+                return false;
+
+            if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+                return false;
+
+            if (double.IsNaN(number) || double.IsInfinity(number))
+                return false;
+
+            var rounded = Math.Round(number, MidpointRounding.AwayFromZero);
+
+            if (targetType == typeof(int))
+            {
+                if (rounded < int.MinValue || rounded > int.MaxValue)
+                    return false;
+
+                value = (int)rounded;
+                return true;
+            }
+
+            if (targetType == typeof(long))
+            {
+                if (rounded < long.MinValue || rounded > long.MaxValue)
+                    return false;
+
+                value = (long)rounded;
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>
@@ -391,6 +443,55 @@ namespace VisionMaster.Scada.Controls
             return StateListResolver?.Invoke(id);
         }
 
+        private Func<string, string>? _textResolver;
+
+        /// <summary>
+        /// 设计期文本解析器（把 <c>@键</c> 换成当前语言的文字）。与 <see cref="StateListResolver"/> 同一范式：
+        /// 画布/编辑器注入，控件不反向抓方案文档。
+        ///
+        /// 为什么设计期也需要它：工程师在编辑器里就要看见"配好语言后长什么样"，
+        /// 否则只能靠脑补 <c>@btn.start</c> 背后是哪几个字。运行态优先走
+        /// <see cref="RuntimeContext"/> 的 <see cref="ScadaRuntimeContext.Languages"/>（它会随「切换语言」动作实时变），
+        /// 这个解析器只在没有运行上下文时兜底。
+        /// </summary>
+        public Func<string, string>? TextResolver
+        {
+            get => _textResolver;
+            set
+            {
+                if (ReferenceEquals(_textResolver, value))
+                    return;
+
+                _textResolver = value;
+                OnTextResolverChanged();
+            }
+        }
+
+        /// <summary>文本解析器变更（含首次注入）时调用：重铺一遍属性，让 <c>@键</c> 立刻按新语言显示</summary>
+        protected virtual void OnTextResolverChanged() => Refresh();
+
+        /// <summary>
+        /// 文本属性的唯一解析入口：只有以 <c>@</c> 开头的值会被当作文案键（见 <see cref="ScadaTextCatalog"/>），
+        /// 其余值（颜色、数值、枚举名、普通中文）原样返回。
+        ///
+        /// 三级回落：运行态语言服务 → 设计期注入的解析器 → 仅做 <c>@@</c> 转义还原。
+        /// 只在 <see cref="RefreshCore"/> 铺属性时调用，<b>不</b>碰绑定送来的运行值——
+        /// 数据不该被当文案翻。
+        /// </summary>
+        protected string ResolveText(string? text)
+        {
+            if (string.IsNullOrEmpty(text) || text[0] != ScadaTextCatalog.Marker)
+                return text ?? string.Empty;
+
+            if (RuntimeContext?.Languages is { } languages)
+                return languages.Resolve(text);
+
+            if (_textResolver is { } resolver)
+                return resolver(text);
+
+            return ScadaTextCatalog.Unescape(text);
+        }
+
         private Func<Guid, ScadaPage?>? _pageResolver;
 
         /// <summary>
@@ -515,7 +616,11 @@ namespace VisionMaster.Scada.Controls
         /// <c>false</c> = 动画要求隐藏。<b>只活在控件上</b>，与运行值同一个口径（停止运行即作废）。
         /// </summary>
         private bool? _animationVisibility;
-        private bool _animationEnabled = true;
+        /// <summary>
+        /// 启用态。<c>null</c> = 这一轮还没建立基线（控件刚造出来 / 刚换运行上下文）。
+        /// 用可空而不是 bool：首拍只落状态、不发事件（见 <see cref="ApplyAnimationEnable"/>）。
+        /// </summary>
+        private bool? _animationEnabled;
 
         private void ApplyLayerVisibility()
         {
@@ -601,6 +706,14 @@ namespace VisionMaster.Scada.Controls
             // 的条件判断，而不是在这里无条件 += / -=。
             SyncBeatSubscription();
 
+            // 语言服务同样要挂/摘：动作「切换语言」在运行中改当前语言，控件得立刻重铺文本。
+            // 与节拍不同，这里无条件挂——语言变化的频率是"人点一下"，不是每拍。
+            if (oldContext?.Languages is { } oldLanguages)
+                oldLanguages.Changed -= OnLanguagesChanged;
+
+            if (newContext?.Languages is { } newLanguages)
+                newLanguages.Changed += OnLanguagesChanged;
+
             if (newContext is null)
             {
                 // 运行态收工：动画留下的透明度/可见性一并作废（位置与颜色由 Refresh 重铺，
@@ -609,6 +722,9 @@ namespace VisionMaster.Scada.Controls
                 ApplyLayerVisibility();
             }
         }
+
+        /// <summary>语言切换 → 重铺一遍属性（<c>@键</c> 按新语言重新解析）</summary>
+        private void OnLanguagesChanged() => Refresh();
 
         #region 运行态写值（S6 数据泵的落点）
 
@@ -866,7 +982,12 @@ namespace VisionMaster.Scada.Controls
         private void ResetAnimationVisuals()
         {
             _animationVisibility = null;
-            _animationEnabled = true;
+
+            // 置回"未知"而不是 true：下一拍「启用对象」会重新建立基线。
+            // 置 true 的话，"上一轮停在禁用、这一轮起手也禁用"会被当成同值而不发事件，
+            // 更糟的是"上一轮停在启用、这一轮起手禁用"会被当成一次真翻转，
+            // 于是同一个画面在两轮运行里行为不同——现场无从复现。
+            _animationEnabled = null;
             IsHitTestVisible = true;
             IsEnabled = true;
             Opacity = 1d;
@@ -887,12 +1008,36 @@ namespace VisionMaster.Scada.Controls
             if (_animationEnabled == enabled)
                 return;
 
+            // 首拍只建立基线、不算一次翻转（F1 修复）。
+            //
+            // 为什么：控件一造出来并不知道"这一轮运行开始时该是启用还是禁用"。
+            // 若把初值当成"启用"，那么"启动即禁用"的画面在每次点运行的第一个数据拍上
+            // 都会发一次 Deactivated——把"失能时清标志位/发提示"配在取消激活上的用户，
+            // 每次运行都会收到一次没人操作过的误报，而且现场很难往"首拍基线"上想。
+            //
+            // 语义：本事件表达的是"操作员在场时，这个控件的可用性变了"；
+            // 运行开始那一刻没有人在操作，所以首拍只落状态、不发事件。
+            // 基线在 ResetAnimationVisuals（换运行上下文 / 设计期刷新）里清空，见那边的注释。
+            bool isBaseline = _animationEnabled is null;
+
             _animationEnabled = enabled;
 
             IsHitTestVisible = enabled;
             IsEnabled = enabled;
             Opacity = enabled ? 1d : 0.55d;
             ToolTip = enabled ? null : (string.IsNullOrWhiteSpace(reason) ? "当前不可用" : reason);
+
+            // 「激活 / 取消激活」的唯一触发点（手册 7.5.2：按钮被激活/被取消激活）。
+            //
+            // 为什么发在这里：这是全仓唯一一处"启用态真翻转"的地方（上面那句早退保证了边沿语义），
+            // 数据泵每拍刷值不会重复发。ResetAnimationVisuals 把 _animationEnabled 置回 null
+            // （"未知"）且不经过本方法——于是"停止运行/设计期刷新"既不算一次取消激活，
+            // 也不会让"失能时清标志位"这类配置在停机瞬间误动作。
+            //
+            // 只在运行态发：设计期画布没有运行窗口的事件处理器，发了也只是空转；
+            // 显式判一下，避免将来有人在设计期挂处理器时收到一堆假事件。
+            if (!isBaseline && RuntimeContext != null)
+                RaiseScadaEvent(enabled ? ScadaEventType.Activated : ScadaEventType.Deactivated);
         }
 
         private void ApplyAnimationVisibility(bool? visible)
@@ -1390,6 +1535,11 @@ namespace VisionMaster.Scada.Controls
                     continue; // 已由 ApplyGeometry 落地
 
                 var text = ElementValueAccess.Read(Element, property);
+
+                // 文本解析的唯一入口：@键 → 当前语言的文字（见 ResolveText）。
+                // 放在这里而不是各个图元里：按钮文字、报警条标题、报表表头、空态提示……
+                // 所有文本属性走同一条通道，新增图元不必记得做多语言。
+                text = ResolveText(text);
 
                 if (property.TargetProperty is { } target)
                     ApplyTargetProperty(target, text);

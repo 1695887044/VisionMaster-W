@@ -28,6 +28,9 @@ namespace VisionMaster.Scada
             ScadaEventType.Opened => "打开",
             ScadaEventType.Closed => "关闭",
             ScadaEventType.ScheduleFired => "计划表触发",
+            // 与手册 7.5.2 的「激活 / 取消激活（按钮）」同词：这两个词在面板、日志、审计里必须一致。
+            ScadaEventType.Activated => "激活",
+            ScadaEventType.Deactivated => "取消激活",
             _ => $"未知事件({(int)type})",
         };
     }

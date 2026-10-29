@@ -245,8 +245,76 @@ namespace Core.Interfaces
         /// </summary>
         public bool CanWrite { get; set; }
 
-        /// <summary>下拉框显示文本：名字（类型）</summary>
-        public string Caption => string.IsNullOrWhiteSpace(TypeName) ? Name : $"{Name}（{TypeName}）";
+        /// <summary>
+        /// 所属设备（网络变量的连接名）；本地变量、运行时变量为空串。
+        ///
+        /// 为什么必须带出来：多设备允许同名点位之后（同一设备内唯一），
+        /// 下拉里若只有名字，两台设备的 <c>Alarm[90]</c> 就是两条一模一样的候选，
+        /// 用户等于没得选——而选错设备的后果是把值写到另一台设备上。
+        /// </summary>
+        public string Device { get; set; } = string.Empty;
+
+        /// <summary>下拉框显示文本：名字（类型）；有设备时补「· 设备」</summary>
+        public string Caption
+        {
+            get
+            {
+                var head = string.IsNullOrWhiteSpace(TypeName) ? Name : $"{Name}（{TypeName}）";
+                return string.IsNullOrWhiteSpace(Device) ? head : $"{head} · {Device}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 把"配置里存的目标变量"落到稳定 Id：**Id 优先、名字兜底**。
+    ///
+    /// 三个插件（变量赋值 / 数据记录 / 结果上报）在确认配置时都用它，口径只有一份：
+    /// - 已有 Id 且能在候选里找到 → 保留（变量改名后行里的旧名字不动，Id 仍然有效）；
+    /// - Id 找不到（变量被删）或为空 → 按名字在候选里**唯一**命中时补上；
+    ///   重名时留空，运行期会明确报歧义，而不是替用户选一台设备。
+    /// </summary>
+    public static class VariableOptionResolver
+    {
+        /// <summary>解析目标 Id；无法唯一确定时返回 <see cref="Guid.Empty"/>（= 按名字兜底）。</summary>
+        public static Guid CaptureId(
+            IReadOnlyList<VariableOption>? options, Guid currentId, string? name, string scope)
+        {
+            // 没有候选快照（运行期 / 无宿主 / 断言夹具）：不动配置，保留原 Id
+            if (options == null)
+                return currentId;
+
+            if (currentId != Guid.Empty)
+            {
+                for (var i = 0; i < options.Count; i++)
+                {
+                    var option = options[i];
+                    if (option != null && option.VariableId == currentId)
+                        return currentId;
+                }
+            }
+
+            var key = (name ?? string.Empty).Trim();
+            if (key.Length == 0)
+                return Guid.Empty;
+
+            var found = Guid.Empty;
+            var count = 0;
+            for (var i = 0; i < options.Count; i++)
+            {
+                var option = options[i];
+                if (option == null)
+                    continue;
+                if (!string.Equals(option.Scope ?? string.Empty, scope ?? string.Empty, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (!string.Equals((option.Name ?? string.Empty).Trim(), key, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                found = option.VariableId;
+                count++;
+            }
+
+            return count == 1 ? found : Guid.Empty;
+        }
     }
 
     /// <summary>

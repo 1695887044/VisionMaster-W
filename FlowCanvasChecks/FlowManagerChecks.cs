@@ -191,15 +191,46 @@ namespace FlowCanvasChecks
             var manual = new FlowItem(new FlowModel { FlowName = "Manual", InvokeType = FlowInvokeType.Manual });
             Check("一位都没勾 → 「手动」", manual.DerivedNote == "手动", $"「{manual.DerivedNote}」");
 
-            // 工位流程通常同时勾「子程序」+「整线」：漏判会让它在列表里被标成"只能被调用"，
-            // 用户就不敢按整线启动了（FlowModel.IsSubroutineOnly 注释里的原话）
+            // 历史 .vms 可能带着「子程序 + 整线」（2026-10-29 起界面互斥，新配的数据不会再有）。
+            // 这条老数据不能标成"仅子程序"——它其实是被整线启动的工位；
+            // 但矛盾也必须说出来，否则两条胶囊都亮着，用户看不出整线在跑时为什么调不动它。
             var subAndLine = new FlowItem(new FlowModel
             {
                 FlowName = "Station",
                 InvokeType = FlowInvokeType.Subroutine | FlowInvokeType.LineStart,
             });
-            Check("★子程序 + 整线 → 不出「仅子程序」（工位不能被标成只能被调用）",
-                subAndLine.DerivedNote.Length == 0, $"「{subAndLine.DerivedNote}」");
+            Check("★子程序 + 整线（历史数据）→ 不出「仅子程序」，改出互斥警告",
+                subAndLine.DerivedNote.Length == 0
+                && subAndLine.InvokeConflictNote.Length > 0
+                && subAndLine.InvokeWarningText == subAndLine.InvokeConflictNote,
+                $"Derived=「{subAndLine.DerivedNote}」Conflict=「{subAndLine.InvokeConflictNote}」");
+
+            // ---- 互斥：勾一个清另一个（2026-10-29 用户裁决）----
+            // 判据来自运行期：一个流程名只有一个会话 + 一把会话锁，两个入口同时勾必然互相挤掉。
+            var toggler = new FlowItem(new FlowModel
+            {
+                FlowName = "Toggle",
+                InvokeType = FlowInvokeType.Subroutine | FlowInvokeType.Timer,
+                TimerIntervalMs = 500,
+            });
+            toggler.IsLineStartInvoke = true;
+            Check("★勾「整线」自动清「子程序」，且不误伤其它位（定时仍在）",
+                toggler.IsLineStartInvoke && !toggler.IsSubroutineInvoke && toggler.IsTimerInvoke
+                && toggler.InvokeConflictNote.Length == 0,
+                $"InvokeType={(int)toggler.Flow.InvokeType}");
+
+            toggler.IsSubroutineInvoke = true;
+            Check("★勾「子程序」自动清「整线」（反向同样成立）",
+                toggler.IsSubroutineInvoke && !toggler.IsLineStartInvoke
+                && toggler.InvokeConflictNote.Length == 0,
+                $"InvokeType={(int)toggler.Flow.InvokeType}");
+
+            // 取消勾选不该连带清另一位，否则"取消整线"会静默把子程序也弄没
+            toggler.IsLineStartInvoke = true;    // 整线 only（互斥清掉子程序）
+            toggler.IsLineStartInvoke = false;   // 再取消整线：应只剩定时
+            Check("取消「整线」不牵连其它位（应只剩定时）",
+                (int)toggler.Flow.InvokeType == (int)FlowInvokeType.Timer,
+                $"InvokeType={(int)toggler.Flow.InvokeType}");
 
             var subAndHttp = new FlowItem(new FlowModel
             {

@@ -232,17 +232,33 @@
                         <StackPanel>
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="当前生效" />
+                                <!--  命中结果输出步骤：主色标签  -->
                                 <Border
                                     Margin="8,0,0,0"
                                     Padding="6,1"
                                     Background="{StaticResource DialogAccentSoftBrush}"
                                     BorderBrush="{StaticResource DialogAccentBorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="3">
+                                    CornerRadius="3"
+                                    Visibility="{Binding AutoUsesResultStep, Converter={ui:BooleanToVisibilityConverter}}">
                                     <TextBlock
                                         FontSize="10.5"
                                         Foreground="{StaticResource DialogAccentTextBrush}"
                                         Text="结果输出步骤" />
+                                </Border>
+                                <!--  没命中或歧义：不要写"结果输出步骤"，那会和下一行的"未找到"自相矛盾  -->
+                                <Border
+                                    Margin="8,0,0,0"
+                                    Padding="6,1"
+                                    Background="{StaticResource DialogWarningSubtleBrush}"
+                                    BorderBrush="{StaticResource DialogWarningBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="3"
+                                    Visibility="{Binding AutoUsesResultStep, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}">
+                                    <TextBlock
+                                        FontSize="10.5"
+                                        Foreground="{StaticResource DialogWarningTextBrush}"
+                                        Text="回退解析" />
                                 </Border>
                             </StackPanel>
                             <TextBlock
@@ -251,6 +267,14 @@
                                 Foreground="{StaticResource DialogTextPrimaryBrush}"
                                 Text="{Binding ResultStepName, StringFormat=步骤：{0}}"
                                 Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <!--  一条流程只允许一个结果输出（2026-10-29）：多于一个时点名全部并标歧义  -->
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                Text="{Binding ResultStepListText, StringFormat=检测到多个结果输出步骤：{0}（只能保留一个）}"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding HasMultipleResultSteps, Converter={ui:BooleanToVisibilityConverter}}" />
                             <TextBlock
                                 Margin="0,6,0,0"
                                 FontSize="11.5"
@@ -309,11 +333,19 @@
                                 Foreground="{StaticResource DialogTextSecondaryBrush}"
                                 Text="{Binding ResultStepLocation, StringFormat=位置：{0}}"
                                 Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}}" />
+                            <!--  一条流程只允许一个结果输出：多于一个时点名全部（保存被阻断）  -->
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogDangerTextBrush}"
+                                Text="{Binding ResultStepListText, StringFormat=检测到多个结果输出步骤：{0}（只能保留一个）}"
+                                TextWrapping="Wrap"
+                                Visibility="{Binding HasMultipleResultSteps, Converter={ui:BooleanToVisibilityConverter}}" />
                             <TextBlock
                                 Margin="0,6,0,0"
                                 FontSize="11.5"
                                 Foreground="{StaticResource DialogWarningTextBrush}"
-                                Text="流程里没有结果输出步骤；保存后该流程 OK/NG 将显示未判定"
+                                Text="流程里没有结果输出步骤；本轮将记未判定"
                                 Visibility="{Binding HasResultStep, Converter={ui:BooleanToVisibilityConverter}, ConverterParameter=Inverse}" />
                         </StackPanel>
                     </Border>
@@ -337,13 +369,56 @@
                     <Border Style="{StaticResource ResultSourceCard}">
                         <StackPanel>
                             <TextBlock Style="{StaticResource ResultSourceFieldLabel}" Text="结果变量（bool / string / int / double）" />
+
+                            <!--  变量多时靠搜索缩小范围：名字 / 类型 / 来源任一命中  -->
+                            <Border Margin="0,6,0,0" Style="{StaticResource DialogSearchChrome}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        Style="{StaticResource DialogSearchIcon}"
+                                        Text="&#xf002;" />
+                                    <TextBox
+                                        Grid.Column="1"
+                                        IsEnabled="{Binding IsEditable}"
+                                        Style="{StaticResource DialogSearchInput}"
+                                        Tag="搜索变量名 / 类型"
+                                        Text="{Binding VariableFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Button
+                                        Grid.Column="2"
+                                        Width="18"
+                                        Height="18"
+                                        VerticalAlignment="Center"
+                                        Command="{Binding ClearVariableFilterCommand}"
+                                        Style="{StaticResource DialogIconButton}"
+                                        ToolTip="清除搜索"
+                                        Visibility="{Binding HasVariableFilter, Converter={ui:BooleanToVisibilityConverter}}">
+                                        <TextBlock
+                                            FontFamily="{StaticResource DialogIconFont}"
+                                            FontSize="9"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            Text="&#xf00d;" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+
                             <ComboBox
                                 Margin="0,6,0,0"
                                 DisplayMemberPath="Display"
                                 IsEnabled="{Binding IsEditable}"
-                                ItemsSource="{Binding Variables}"
+                                ItemsSource="{Binding FilteredVariables}"
                                 SelectedItem="{Binding SelectedVariable}"
                                 Style="{StaticResource DialogCombo}" />
+                            <TextBlock
+                                Margin="0,4,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource DialogTextTertiaryBrush}"
+                                Text="没有匹配的变量；换个关键词或清除搜索"
+                                Visibility="{Binding HasNoVariableMatch, Converter={ui:BooleanToVisibilityConverter}}" />
                             <TextBlock
                                 Margin="0,6,0,0"
                                 FontSize="11"
@@ -536,7 +611,7 @@
                 <CheckBox
                     Grid.Row="1"
                     Margin="0,0,0,6"
-                    Content="作为线级汇总来源：底栏「全部」的 OK / NG 取本流程（不勾时取第一条勾「整线」的流程）"
+                    Content="作为线级来源：「查看最近一轮」优先打开本流程（不勾时取第一条生产流程）"
                     FocusVisualStyle="{StaticResource DialogFocusVisual}"
                     IsChecked="{Binding IsLineVerdictSource}"
                     IsEnabled="{Binding IsEditable}" />

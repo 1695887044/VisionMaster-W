@@ -140,6 +140,12 @@ namespace UIThemeSmokeTest
                         && candidateList.Items.Count == 7
                         && fixture.Vm.DisplayPorts.Count(p => !p.IsBindable) == 6,
                         $"checked={showAll.IsChecked} vm={fixture.Vm.ShowAllPorts} items={candidateList.Items.Count} disabled={fixture.Vm.DisplayPorts.Count(p => !p.IsBindable)}");
+
+                    // 普通数量（十几行以内）必须保持设计基线的样子：不封顶、整列滚动、
+                    // 没有内层滚动条。封顶只该发生在"内容远超可视区"的长列表上。
+                    Check("候选列表：7 条不封顶（普通数量保持基线观感）",
+                        double.IsPositiveInfinity(candidateList.MaxHeight),
+                        $"maxHeight={candidateList.MaxHeight} items={candidateList.Items.Count}");
                     showAll.IsChecked = false;
                     Pump(host);
 
@@ -309,6 +315,91 @@ namespace UIThemeSmokeTest
                     finally
                     {
                         emptyHost.Child = null;
+                    }
+
+                    // 候选列表虚拟化：全局变量上千条时只实例化可见的十来行。
+                    // 判据取自"ListBox 里实际存在几个 ListBoxItem 容器"，不是耗时——耗时是
+                    // 环境相关的，而"几千行全被实例化"才是这条缺陷的唯一可判定表征
+                    // （外层 ScrollViewer 让虚拟化失效，见 UpdateCandidateMaxHeight 的注释）。
+                    using var bulkFixture = new Fixture(bulkObjectVariables: 1500);
+                    var bulkView = new VariableBindingView { DataContext = bulkFixture.Vm };
+                    var bulkCandidates = bulkView.FindName("CandidateList") as ListBox;
+
+                    // 首帧之前高度就必须已经有界：MaxHeight 默认 Infinity 时，**第一次布局**
+                    // 就会把全部候选逐行实例化（实测 ~13 ms/行：1500 条 ≈20 s、9000 条 ≈122 s，
+                    // 现场表现就是"一打开绑定弹窗就卡死"）。LayoutUpdated 是布局结束后才发的，
+                    // 只能让第二轮收敛回十来行，救不了首帧——所以判据取"还没参与布局"这一刻。
+                    Check("候选列表：首帧之前高度已有界（否则打开弹窗就把几千行全实例化）",
+                        bulkCandidates != null && !double.IsPositiveInfinity(bulkCandidates.MaxHeight),
+                        $"maxHeight={bulkCandidates?.MaxHeight}");
+
+                    var bulkHost = new Border
+                    {
+                        Width = 1180,
+                        Height = 760,
+                        Background = Application.Current.TryFindResource("DialogSurfaceBrush") as Brush,
+                        Child = bulkView,
+                    };
+                    bulkHost.Measure(new Size(1180, 760));
+                    bulkHost.Arrange(new Rect(0, 0, 1180, 760));
+                    bulkHost.UpdateLayout();
+
+                    // 这一条才是上面那个死结的回归闸：ItemsSource 是在布局期间才落到 ListBox 上的，
+                    // 于是"第一次 LayoutUpdated 看到 Items.Count == 0 → 判成短列表 → 放宽成 Infinity
+                    // → 下一轮布局把全部候选建出来"。判据取**首轮布局刚结束、Pump 之前**的容器数：
+                    // 出问题那一刻这里是全量（1501/9001），而收尾之后又会收敛回十来行，
+                    // 所以"收敛后只实例化十来行"那条断言根本抓不到它（实测确认过）。
+                    int firstPassRealized = bulkCandidates == null
+                        ? -1
+                        : Descendants<ListBoxItem>(bulkCandidates).Count();
+                    Check("候选列表：首轮布局就只实例化可见行（ItemsSource 落地当帧也不许全量）",
+                        firstPassRealized <= 25,
+                        $"firstPassRealized={firstPassRealized} maxHeight={bulkCandidates?.MaxHeight}");
+
+                    try
+                    {
+                        Pump(bulkHost);
+                        bulkCandidates?.UpdateLayout();
+                        Pump(bulkHost);
+
+                        int totalCandidates = bulkFixture.Vm.DisplayPorts.Count;
+                        int realized = bulkCandidates == null
+                            ? -1
+                            : Descendants<ListBoxItem>(bulkCandidates).Count();
+                        Check("候选列表虚拟化：1501 条候选只实例化可见的十来行（不是全量）",
+                            totalCandidates > 1000
+                            && bulkCandidates?.Items.Count == totalCandidates
+                            && realized > 0
+                            && realized <= 25,
+                            $"total={totalCandidates} items={bulkCandidates?.Items.Count} realized={realized} maxHeight={bulkCandidates?.MaxHeight}");
+
+                        // 虚拟化不等于"看不见"：滚到底必须能实例化最后一条
+                        var lastCandidate = bulkFixture.Vm.DisplayPorts[totalCandidates - 1];
+                        bulkCandidates?.ScrollIntoView(lastCandidate);
+                        Pump(bulkHost);
+                        var lastRow = bulkCandidates == null
+                            ? null
+                            : Descendants<ListBoxItem>(bulkCandidates)
+                                .FirstOrDefault(i => ReferenceEquals(i.DataContext, lastCandidate));
+                        Check("候选列表虚拟化：滚到底能实例化最后一条（没有丢数据）",
+                            lastRow != null,
+                            $"last={lastCandidate?.Name} realized={lastRow != null}");
+
+                        // 搜索后仍要保持在虚拟化状态（换的是同一份 DisplayPorts 的过滤结果）
+                        var bulkSearch = bulkView.FindName("CandidateSearchBox") as TextBox;
+                        if (bulkSearch != null)
+                        {
+                            bulkSearch.Text = "BulkVar_0001";
+                            Pump(bulkHost);
+                        }
+                        Check("候选列表虚拟化：搜索后仍只实例化可见行",
+                            bulkCandidates?.Items.Count == 1
+                            && Descendants<ListBoxItem>(bulkCandidates).Count() == 1,
+                            $"items={bulkCandidates?.Items.Count} realized={Descendants<ListBoxItem>(bulkCandidates).Count()}");
+                    }
+                    finally
+                    {
+                        bulkHost.Child = null;
                     }
 
                     // 视图静态纪律
@@ -529,6 +620,14 @@ namespace UIThemeSmokeTest
                 xaml.Contains("ItemsSource=\"{Binding DisplayDataPort}\"")
                 && xaml.Contains("ItemsSource=\"{Binding TreeNodes}\"")
                 && xaml.Contains("ItemsSource=\"{Binding DisplayPorts}\""), "");
+            // 候选列表必须"可虚拟化"：自身竖向滚动开着（Auto）+ 高度上限由 code-behind 给。
+            // 少任何一条，外层 ScrollViewer 都会以无穷高量它，VirtualizingStackPanel 退化成
+            // 逐行实例化（上千条候选 = 数秒卡顿）。
+            check("候选列表保持虚拟化契约（竖向滚动 Auto + 高度上限由代码给）",
+                xaml.Contains("x:Name=\"CandidateList\"")
+                && xaml.Contains("ScrollViewer.VerticalScrollBarVisibility=\"Auto\"")
+                && code.Contains("UpdateCandidateMaxHeight")
+                && code.Contains("CandidateList.MaxHeight"), "");
             check("滚轮就近滚动接线（PreviewMouseWheel + FindScrollableAncestor）",
                 xaml.Contains("PreviewMouseWheel=\"OnPreviewMouseWheel\"")
                 && code.Contains("FindScrollableAncestor"), "");
@@ -544,7 +643,11 @@ namespace UIThemeSmokeTest
             public ActionStep Step { get; }
             public VariableBindingViewModel Vm { get; }
 
-            public Fixture(bool singleBind = false, bool empty = false, bool noTarget = false)
+            public Fixture(
+                bool singleBind = false,
+                bool empty = false,
+                bool noTarget = false,
+                int bulkObjectVariables = 0)
             {
                 Workspace = new WorkspaceContext();
                 Workspace.GlobalVariables.Clear();
@@ -558,6 +661,11 @@ namespace UIThemeSmokeTest
                     Workspace.GlobalVariables.Add(Fake("IntVar", typeof(int), "整数变量"));
                     Workspace.GlobalVariables.Add(Fake("FlagVar", typeof(bool), "布尔变量"));
                     Workspace.GlobalVariables.Add(Fake("WhenVar", typeof(DateTime), "时间变量"));
+
+                    // object 类型：CanBindTo 双向放行，正好把"几千条候选"全部塞进候选列表，
+                    // 用来验证分页（真实场景是现场导出的上千个全局变量）。
+                    for (int i = 0; i < bulkObjectVariables; i++)
+                        Workspace.GlobalVariables.Add(Fake($"BulkVar_{i:D4}", typeof(object), "批量变量"));
                 }
 
                 var solution = new SolutionModel { SolutionName = "变量绑定冒烟" };

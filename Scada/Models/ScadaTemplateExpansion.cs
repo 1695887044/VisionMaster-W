@@ -174,6 +174,17 @@ namespace VisionMaster.Scada
             // 只做全局 tokenSeen 不够——文字里写了 {i} 会把"变量仍绑同一个"的警告掩盖掉。
             var unparameterizedRefs = new HashSet<string>(StringComparer.Ordinal);
 
+            // 一条引用里出现两处以上 {i}：多半是旧版参数化器"全量替换"留下的产物
+            // （Recipes[{i}].Ints[{i}]）。展开后成员下标也会跟着实例号走，静默绑错成员——
+            // 这里不改模板，只把它列出来让用户看见（改模板是作者的决定）。
+            var multiTokenRefs = new HashSet<string>(StringComparer.Ordinal);
+
+            void NoteReference(string? reference)
+            {
+                if (reference != null && ScadaTemplateTokens.CountIndexTokens(reference) > 1)
+                    multiTokenRefs.Add(reference);
+            }
+
             for (int offset = 0; offset < settings.Count; offset++)
             {
                 int number = settings.StartIndex + offset;
@@ -230,6 +241,8 @@ namespace VisionMaster.Scada
                             unparameterizedRefs.Add(
                                 new ScadaVariableRef(binding.VariableId, binding.VariableName, binding.ArrayIndex).DisplayText);
 
+                        NoteReference(binding.VariableName);
+
                         int referenceNumber = ReferenceNumber(
                             settings, binding.VariableName, binding.ArrayIndex, number);
 
@@ -284,6 +297,8 @@ namespace VisionMaster.Scada
                         else if (animation.IsEnabled && settings.Count > 1)
                             unparameterizedRefs.Add(
                                 new ScadaVariableRef(animation.VariableId, animation.VariableName, animation.ArrayIndex).DisplayText);
+
+                        NoteReference(animation.VariableName);
 
                         int referenceNumber = ReferenceNumber(
                             settings, animation.VariableName, animation.ArrayIndex, number);
@@ -367,6 +382,8 @@ namespace VisionMaster.Scada
                             if (action.Type != ScadaActionType.WriteVariable)
                                 continue;
 
+                            NoteReference(action.VariableName);
+
                             int referenceNumber = ReferenceNumber(
                                 settings, action.VariableName, action.ArrayIndex, number);
 
@@ -425,6 +442,17 @@ namespace VisionMaster.Scada
                 warningList.Add(
                     "模板正文里没有 {i} 令牌：所有实例会显示同一段文字；"
                     + "如果这是有意的（例如多个实例共用一份数据），可以忽略。");
+            }
+
+            if (multiTokenRefs.Count > 0)
+            {
+                string refs = string.Join("、", multiTokenRefs.Take(8));
+                string more = multiTokenRefs.Count > 8 ? $" 等 {multiTokenRefs.Count} 条" : string.Empty;
+
+                warningList.Add(
+                    $"以下引用里有不止一处 {{i}}：{refs}{more}。"
+                    + "其中若有一处其实是结构体成员下标（例如 Recipes[{i}].Ints[{i}] 里的 Ints），"
+                    + "展开后它会跟着实例号一起变，可能绑到错成员；请把成员下标写回固定值。");
             }
 
             plan = new ScadaTemplateExpansionPlan(instances, warningList);

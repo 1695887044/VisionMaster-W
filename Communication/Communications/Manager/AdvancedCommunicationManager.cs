@@ -33,6 +33,10 @@ namespace VisionMaster.Communications
         private readonly ConcurrentDictionary<string, long> _throttleTicks = new();
         private const long ThrottleMs = 5000;
 
+        // 读超时体检：按"结论文本"去重——同一份配置反复重编译（注册变量/改扫描组都会触发）
+        // 只在结论变化时告警一次，否则 2357 个变量注册下来能把日志窗口刷满。
+        private readonly ConcurrentDictionary<string, string> _readTimeoutAdvisory = new();
+
         // ✅ 恢复使用你的 ConnectionFactoryManager
         private readonly ConnectionFactoryManager _factoryManager = ConnectionFactoryManager.Instance;
 
@@ -312,6 +316,9 @@ namespace VisionMaster.Communications
 
             // 移除配置缓存
             _configCache.TryRemove(connectionName, out _);
+
+            // 体检结论跟着连接一起清：否则同名连接删掉再建、配置改好了却因为"结论没变"被静音
+            _readTimeoutAdvisory.TryRemove(connectionName, out _);
 
             // 移除注册的变量。
             // H3：整连接移除必须同步摘除转发 handler——handler 闭包捕获变量对象，
@@ -1036,6 +1043,141 @@ namespace VisionMaster.Communications
             LogInfo(scheduler == null
                 ? $"轮询计划已更新: {connectionName} 变量 {variables.Count} 个，但无可轮询项，已停止轮询"
                 : $"轮询计划已更新: {connectionName} 变量 {variables.Count} 个 → {scheduler.GroupCount} 个扫描组（{scheduler.Describe()}）");
+
+            ReportReadTimeoutAdvisory(connectionName, config);
+        }
+
+        /// <summary>
+        /// <para>批量写：把 N 个写请求规划成 M 个段，作为<b>一个队列条目</b>在连接专属线程上依次下发，返回逐项 + 逐段结果。</para>
+        /// <para><b>合并规则</b>：只合严格连续的同区地址（<c>prev.End == next.Start</c>），空隙一律断开、
+        /// 绝不用本地镜像填充——填空隙等于把 PLC 正在改的寄存器回滚成旧值。详见 <c>WriteBatchPlanner</c>。</para>
+        /// <para><b>失败语义</b>：段是最小可判定单位（设备只回"这一帧成功/失败"），段失败即停、
+        /// 后续段标 <c>Attempted=false</c>；逐项结果按段扇出，所以"第几行失败"实际是"第几行所在段失败"。</para>
+        /// <para><b>阻塞语义</b>：本方法会等整批执行完（一次阻塞换掉 N 次阻塞）。批内部不抛异常，
+        /// 任何失败都体现在结果里——调用方据此回滚，不会被异常打断。</para>
+        /// </summary>
+        /// <returns>全部项都成功时为 true；否则 false（细节看 <paramref name="result"/>）</returns>
+        /// <param name="urgent">true = 走插队车道（最高优先级）；批仍然合并，只是排队位置提前</param>
+        public bool TryWriteBatch(
+            string connectionName,
+            IReadOnlyList<BatchWriteItem> items,
+            bool urgent,
+            out BatchWriteResult result)
+        {
+            if (items == null) throw new ArgumentNullException(nameof(items));
+
+            if (items.Count == 0)
+            {
+                result = new BatchWriteResult(Array.Empty<BatchWriteItemResult>(),
+                    Array.Empty<BatchWriteSegmentResult>(), false);
+                return true;
+            }
+
+            if (string.IsNullOrWhiteSpace(connectionName)
+                || !_workers.TryGetValue(connectionName, out var worker)
+                || !_connections.TryGetValue(connectionName, out var connection))
+            {
+                result = new BatchWriteResult(
+                    items.Select(_ => new BatchWriteItemResult(false, false, $"连接 {connectionName} 不存在")).ToArray(),
+                    Array.Empty<BatchWriteSegmentResult>(), false);
+                return false;
+            }
+
+            var family = WriteFamilyOf(connection);
+            var segments = WriteBatchPlanner.Build(items, family, connection.ByteOrder);
+
+            WriteBatchExecutor.Outcome? outcome = null;
+
+            // 段间让路：命中插队就把剩余段标"未尝试"，批立刻收尾——插队写只等当前这一段跑完。
+            // 让路不是故障（StoppedByLinkFault 保持 false）。
+            var task = urgent
+                ? worker.InvokeUrgentWrite(_ =>
+                {
+                    outcome = WriteBatchExecutor.Run(
+                        segments, items,
+                        (segment, single) =>
+                        {
+                            if (segment.Merged) connection.WriteBytes(segment.Address, segment.Payload!);
+                            else connection.Write(single.Address, single.Value);
+                        },
+                        () => worker.HasUrgentPendingWork,
+                        () => connection is ILinkHealthProbe probe && probe.HasLinkFault);
+                    return true;
+                })
+                : worker.InvokeWrite(_ =>
+                {
+                    outcome = WriteBatchExecutor.Run(
+                        segments, items,
+                        (segment, single) =>
+                        {
+                            if (segment.Merged) connection.WriteBytes(segment.Address, segment.Payload!);
+                            else connection.Write(single.Address, single.Value);
+                        },
+                        () => worker.HasUrgentPendingWork,
+                        () => connection is ILinkHealthProbe probe && probe.HasLinkFault);
+                    return true;
+                });
+
+            // 批内部逐段 try/catch，正常不会抛；这里兜的是队列层异常（队列满 / 已释放 / 连接不存在）
+            try
+            {
+                task.GetAwaiter().GetResult();
+            }
+            catch (Exception ex)
+            {
+                result = new BatchWriteResult(
+                    items.Select(_ => new BatchWriteItemResult(false, false, $"批写提交失败：{ex.Message}")).ToArray(),
+                    Array.Empty<BatchWriteSegmentResult>(), false);
+                return false;
+            }
+
+            if (outcome == null)
+            {
+                result = new BatchWriteResult(
+                    items.Select(_ => new BatchWriteItemResult(false, false, "批写未执行")).ToArray(),
+                    Array.Empty<BatchWriteSegmentResult>(), false);
+                return false;
+            }
+
+            result = new BatchWriteResult(outcome.Items, outcome.Segments, outcome.StoppedByLinkFault);
+            return result.AllSucceeded;
+        }
+
+        /// <summary>连接的写协议族（决定窄类型是否提升为寄存器），与 <c>HslHelper.WriteTyped</c> 同一口径</summary>
+        private static WriteProtocolFamily WriteFamilyOf(ICommunicationConnection connection) => connection.Type switch
+        {
+            CommunicationType.ModbusTcp or CommunicationType.ModbusRtu => WriteProtocolFamily.Modbus,
+            CommunicationType.SiemensS7 => WriteProtocolFamily.SiemensS7,
+            CommunicationType.MitsubishiMc or CommunicationType.OmronFins => WriteProtocolFamily.Word,
+            CommunicationType.EasyNet => WriteProtocolFamily.EasyNet,
+            _ => WriteProtocolFamily.Word,
+        };
+
+        /// <summary>
+        /// 读超时 vs 扫描周期体检的日志出口。
+        /// <para>放在这里而不是每次注册变量时：<see cref="RebuildPollPlan"/> 是"方案加载 / 改扫描组 / 注册变量"
+        /// 三类动作的公共汇聚点，一处挂上就全覆盖。</para>
+        /// <para>按结论文本去重：同一配置反复重编译只记一次；配置改好后结论变 null，条目被清掉，
+        /// 下次再改坏会重新告警（不是"一次告警永久静音"）。</para>
+        /// </summary>
+        private void ReportReadTimeoutAdvisory(string connectionName, CommunicationConfig? config)
+        {
+            string? advice = ReadTimeoutAdvisor.Describe(config);
+
+            if (advice == null)
+            {
+                _readTimeoutAdvisory.TryRemove(connectionName, out _);
+                return;
+            }
+
+            if (_readTimeoutAdvisory.TryGetValue(connectionName, out var previous)
+                && string.Equals(previous, advice, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _readTimeoutAdvisory[connectionName] = advice;
+            LogWarning($"{connectionName}: {advice}");
         }
 
         /// <summary>

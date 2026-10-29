@@ -36,11 +36,16 @@ namespace VisionMaster.Communications
         public byte UnitNumber { get; set; } = 0;
 
         /// <summary>
-        /// <para>获取或设置响应超时时间（毫秒）。</para>
-        /// <para>默认值：5000ms</para>
+        /// <para>获取或设置响应超时时间（毫秒）——FINS 实际生效的读等待。</para>
+        /// <para>默认值：0（跟随通用「读超时」<see cref="ConnectionConfigBase.ReadTimeoutMs"/>，默认 5000ms）。</para>
+        /// <para>为什么默认 0 而不是写死 5000：写死 5000 会把通用「读超时」永久遮蔽——
+        /// 用户在界面上改「读超时」对 FINS 毫无作用（2026-10-29 修正）。
+        /// 专属字段优先、0 = 跟随，与 FreeProtocol 同一口径。</para>
         /// </summary>
-        [SuperDisplay(Name = "响应超时(ms)", Group = new string[] { "FINS专有参数" }, Order = 8, ColSpan = 6)]
-        public int ResponseTimeoutMs { get; set; } = 5000;
+        [SuperDisplay(Name = "响应超时(ms)", Group = new string[] { "FINS专有参数" }, Order = 8, ColSpan = 6,
+            Description = "FINS 实际生效的读等待；0 = 跟随通用「读超时」")]
+        [RangeValidation(0, 60000, "响应超时必须在 0 - 60000 之间（0 = 跟随读超时）")]
+        public int ResponseTimeoutMs { get; set; } = 0;
 
         /// <summary>
         /// <para>初始化欧姆龙 FINS 配置。</para>

@@ -465,6 +465,25 @@ namespace VisionMaster.ViewModels.DialogViewModels
         }
 
         /// <summary>
+        /// 历史数据里的矛盾配置：整线 + 子程序同时勾。
+        ///
+        /// 2026-10-29 起界面互斥（<see cref="SetFlag"/> 勾一个清另一个），新配的数据不会再出现；
+        /// 但旧 .vms 可能带着这个组合，必须显性说出来——否则两条胶囊都亮着，用户看不出
+        /// "为什么整线在跑时 Main 调不动它"。修正方式就是点一下任一胶囊（互斥逻辑会清掉另一位）。
+        /// </summary>
+        public string InvokeConflictNote
+            => HasFlag(FlowInvokeType.LineStart) && HasFlag(FlowInvokeType.Subroutine)
+                ? "整线与子程序互斥：整线成员自己起会话循环，不能再被「调用流程」调用（点一下任一胶囊即可修正）"
+                : string.Empty;
+
+        /// <summary>
+        /// 调用方式那一行显示的警告文本：矛盾配置优先于"未配齐"。
+        /// 两者都是"配了但不生效"，但矛盾会让另一条流程也连带失败，先说它。
+        /// </summary>
+        public string InvokeWarningText
+            => InvokeConflictNote.Length > 0 ? InvokeConflictNote : InvokeConfigNote;
+
+        /// <summary>
         /// 勾了「定时」/「变量」但缺参数 → 这一行永远不会触发（基线 §1.8）。
         ///
         /// 与 <see cref="PendingReasonText"/> 的分工：那个回答"这一位有没有接通运行侧"，
@@ -497,8 +516,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
         {
             get
             {
-                // 有「未配齐」时让位：那条是警告，优先级更高
-                if (InvokeConfigNote.Length > 0) return string.Empty;
+                // 有警告时让位（矛盾配置 / 未配齐）：同一时刻只出一行，行高不被撑成两行
+                if (InvokeWarningText.Length > 0) return string.Empty;
                 if (_flow.IsSubroutineOnly) return "仅子程序";
                 if (_flow.InvokeType == FlowInvokeType.Manual) return "手动";
                 return string.Empty;
@@ -511,11 +530,29 @@ namespace VisionMaster.ViewModels.DialogViewModels
 
         private bool HasFlag(FlowInvokeType flag) => (_flow.InvokeType & flag) != 0;
 
+        /// <summary>
+        /// 设置一位调用方式。**「整线」与「子程序」互斥**（2026-10-29 用户裁决）：
+        /// 勾整线自动清子程序，勾子程序自动清整线。
+        ///
+        /// 【为什么必须互斥】运行期一个流程名只有一个会话（RuntimeManager 按名唯一），
+        /// 执行权是一把会话锁（FlowEngineService.TryOccupySession）。两个入口同时勾时：
+        /// 整线在跑 → 「调用流程」必然失败（FlowInvoker 见 IsRunning 直接拒）；
+        /// Main 正在调它 → 点「启动整线」又被 ShellViewModel 的 IsRunning 判据静默跳过。
+        /// 即"两条路都配上了，但任何时刻只有一条能用，另一条要么报错要么无声跳过"——
+        /// 现场不会去看这段推理，只会说"软件时好时坏"，所以矛盾配置根本不该配得出来。
+        /// </summary>
         private void SetFlag(FlowInvokeType flag, bool on)
         {
-            _flow.InvokeType = on
+            var next = on
                 ? (_flow.InvokeType | flag)
                 : (_flow.InvokeType & ~flag);
+
+            if (on && flag == FlowInvokeType.LineStart)
+                next &= ~FlowInvokeType.Subroutine;
+            else if (on && flag == FlowInvokeType.Subroutine)
+                next &= ~FlowInvokeType.LineStart;
+
+            _flow.InvokeType = next;
             Refresh();
             // 五个胶囊互相独立，但显示文本 / 待接通 / 未配齐提示由整体位集派生：一次改动一并重发
             RaisePropertyChanged(nameof(IsTimerInvoke));
@@ -525,6 +562,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(IsLineStartInvoke));
             RaisePropertyChanged(nameof(PendingReasonText));
             RaisePropertyChanged(nameof(InvokeConfigNote));
+            RaisePropertyChanged(nameof(InvokeConflictNote));
+            RaisePropertyChanged(nameof(InvokeWarningText));
             RaisePropertyChanged(nameof(DerivedNote));
             RaisePropertyChanged(nameof(NeedsInvokeParams));
         }
@@ -665,6 +704,8 @@ namespace VisionMaster.ViewModels.DialogViewModels
             RaisePropertyChanged(nameof(IsLineStartInvoke));
             RaisePropertyChanged(nameof(PendingReasonText));
             RaisePropertyChanged(nameof(InvokeConfigNote));
+            RaisePropertyChanged(nameof(InvokeConflictNote));
+            RaisePropertyChanged(nameof(InvokeWarningText));
             RaisePropertyChanged(nameof(DerivedNote));
             RaisePropertyChanged(nameof(NeedsInvokeParams));
             RaisePropertyChanged(nameof(RoleBadgeText));

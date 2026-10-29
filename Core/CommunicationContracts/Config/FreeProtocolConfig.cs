@@ -42,9 +42,17 @@ namespace VisionMaster.Communications
         [SuperDisplay(Name = "文本编码", Group = new string[] { "自由协议参数" }, Order = 6, ColSpan = 6)]
         public FreeProtocolEncoding Encoding { get; set; } = FreeProtocolEncoding.Ascii;
 
-        /// <summary>等待响应结束符的超时（毫秒）。</summary>
-        [SuperDisplay(Name = "响应超时(ms)", Group = new string[] { "自由协议参数" }, Order = 7, ColSpan = 6)]
-        [RangeValidation(100, 60000, "响应超时必须在 100 - 60000 之间")]
+        /// <summary>
+        /// 等待响应结束符的超时（毫秒）——<b>本协议实际生效的读/写等待</b>。
+        /// <para>填 0 = 跟随通用「读超时」(<see cref="ConnectionConfigBase.ReadTimeoutMs"/>)，与 OmronFins 同一口径
+        /// （专属字段优先、0 = 跟随）。留 0 是"只用通用读超时"的显式写法。</para>
+        /// <para>为什么不用通用读超时直接管读：本协议的"读"是"发命令后逐字节等到结束符"，
+        /// 等待语义由这个专属字段表达更贴切；但读写必须用同一个生效值，
+        /// 否则会出现"改读超时只改了写"的静默错配（2026-10-29 修正）。</para>
+        /// </summary>
+        [SuperDisplay(Name = "响应超时(ms)", Group = new string[] { "自由协议参数" }, Order = 7, ColSpan = 6,
+            Description = "本协议实际生效的读/写等待；0 = 跟随通用「读超时」")]
+        [RangeValidation(0, 60000, "响应超时必须为 0（跟随读超时）或 100 - 60000")]
         public int ResponseTimeoutMs { get; set; } = 1000;
 
         /// <summary>单次响应字节上限（防止对端一直发导致内存膨胀）。</summary>
@@ -75,9 +83,10 @@ namespace VisionMaster.Communications
                 errorMessage = "端口必须在 1 - 65535 之间";
                 return false;
             }
-            if (ResponseTimeoutMs < 100 || ResponseTimeoutMs > 60000)
+            // 0 = 跟随通用「读超时」（专属字段优先、0 = 跟随，与 OmronFins 同一口径）
+            if (ResponseTimeoutMs != 0 && (ResponseTimeoutMs < 100 || ResponseTimeoutMs > 60000))
             {
-                errorMessage = "响应超时必须在 100 - 60000 之间";
+                errorMessage = "响应超时必须为 0（跟随读超时）或 100 - 60000";
                 return false;
             }
             if (MaxResponseBytes < 1 || MaxResponseBytes > 1048576)

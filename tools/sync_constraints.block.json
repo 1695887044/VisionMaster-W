@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "seedHeader": "# Global rules\n\n<!-- agenthub-memory:begin -->\n## Agent memory hub (AgentHub - per-machine project memory)\n- Scope: per-machine project context, decision intent, pitfalls and conventions.\n- Single-source-of-truth rule (Code-First): on-disk code is the only reality;\n  memory is reference only. Read before write. When memory conflicts with the\n  code on disk, the code wins. Retire stale memories with supersedes.\n- Call memory_core at session start; memory_search before answering\n  \"how did we decide this before\"; memory_write after decisions.\n<!-- agenthub-memory:end -->\n",
   "heading": "## 本项目（D:\\C#\\VM）硬约束 — DSH 与 ZCode 共用",
-  "note": "单一事实源是 `{0}`（当前 {1}）。本节由 `tools\\sync_constraints.ps1` 从该文件抽取生成，**不要手改**；改规则只改 AGENTS.md，然后重跑脚本。这里只放「违反即回滚 / 症状静默 / 验收口径」的 8 类，完整 R1–R190 以 AGENTS.md 为准。",
+  "note": "单一事实源是 `{0}`（当前 {1}）。本节由 `tools\\sync_constraints.ps1` 从该文件抽取生成，**不要手改**；改规则只改 AGENTS.md，然后重跑脚本。这里只放「违反即回滚 / 症状静默 / 验收口径」的 9 类，完整 R1–R191 以 AGENTS.md 为准。",
   "footer": "> 本节之外的规则（UI 令牌、WPF 表格、HALCON、SCADA 图元等）不在镜像范围。遇到本仓库任何具体改动，先读 `AGENTS.md` 对应章节再动手。",
   "rules": [
     {
@@ -25,7 +25,7 @@
     {
       "title": "收尾验证只有一个入口（R182）",
       "lines": [
-        "`tools\\run_gates.ps1`：依次跑 `audit_root.ps1` → `audit_artifacts.ps1` → 六个断言宿主（每个先按自己的 csproj 构建再跑），任一红即 exit 1。",
+        "`tools\\run_gates.ps1`：依次跑 `docs_index` → `audit_root.ps1` → `audit_artifacts.ps1` → `audit_docs.ps1`（报告模式）→ `audit_rules.ps1` → `sync_constraints.ps1 -Check` → `vms_verify` → **九个断言宿主**（含 `Web\\ScadaWebChecks`；每个先按自己的 csproj 构建再跑），任一红即 exit 1。",
         "`UIThemeSmokeTest` / `HelpProbe` **不在** `VisionMaster.sln` 里，`dotnet build VisionMaster.sln` 根本不重建它们。",
         "`-SkipBuild` 只用于「刚构建完立刻复跑」，不是日常用法。"
       ]
@@ -74,6 +74,14 @@
         "动态端口两种合法接法：(a) 端口对象挂在行/单元格对象上 → `Port=\"{Binding Port}\"`，行对象随重建整体替换（`Plugin.Database`、`Plugin.Utility.VariableAssignment`）；(b) 端口按名字现取 → `MultiBinding` + 插件自己的 `InputPortConverter`（端口名 + 宿主插件 + `PortsVersion` 三路），每次重建端口后推一格 `PortsVersion`（`Plugin.DataRecord` / `CSharpScript` / `ImageScript` / `JudgeTable` / `ResultDisplay` / `ResultUpload`）。`Port` 可能为 null 的行用 `ContentControl`+`DataTemplate` 按需实例化，不许常驻 + `Visibility`。",
         "**端口取值只许两种形态**（R190）：值型端口 → `LinkableValueEditor`；**只有「运行时变量」来源**允许手输变量名（按名运行期解析，编译期没有可连端口）。不许手打端口名/步骤名/上游输出名代替绑定，也不许自造可编辑框填卡地址/轴名/枚举（封闭集合由控件渲染下拉，R33/§26）。",
         "三条判据（任一命中即违反）：① 插件视图出现「去画布上连线」的引导文案；② 画布节点渲染 `Inputs[0]` / `Outputs[0]` 之外的端口锚点；③ 新增动态输入端口却没有绑定入口。守门：人工评审。"
+      ]
+    },
+    {
+      "title": "Web 方向暂停（R191）",
+      "lines": [
+        "**Web 方向暂停开发（2026-10-29 起，用户决定）**：`Web\\` 下五个工程（`VisionMaster.ScadaWeb` / `ScadaWebChecks` / `ScadaWebChemicalDemo` / `ScadaWebE2E` / `ScadaWebStress`）与 `WebProbe5`/`WebProbe6` 不新增功能、不做架构改造；不新开 Web 设计，不动 `docs\\SCADA运行态Web客户端\\` 的方案与测试矩阵（改错字、补既有偏差可以）。",
+        "收到 Web 需求先回问用户是否恢复，不得自行开工；恢复条件 = 用户明确说「恢复 Web」。",
+        "**不在暂停范围**：既有构建与闸门照跑（`run_gates` 的 `ScadaWebChecks` 仍是九个断言宿主之一，红了照样算红，只允许修红）；R132A 的安全约束（默认只读、逐命令鉴权、审计、运动默认禁用）继续有效。"
       ]
     }
   ]

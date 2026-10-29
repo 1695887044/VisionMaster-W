@@ -72,6 +72,7 @@ namespace Plugin.Util.Models
         {
             if (parameter is not NameCandidate candidate) return;
             if (candidate.IsInvalid) return;
+            Row.VariableId = candidate.VariableId;
             Row.VariableName = candidate.Name;
             IsGlobalNameOpen = false;
         });
@@ -88,6 +89,13 @@ namespace Plugin.Util.Models
         {
             get
             {
+                // Id 优先：多设备同名点位时只有 Id 能指回"选的是哪一台"
+                if (Row.VariableId != Guid.Empty)
+                {
+                    var byId = Candidates.FirstOrDefault(c => c.VariableId == Row.VariableId);
+                    if (byId != null) return byId;
+                }
+
                 var name = Row.VariableName;
                 return Candidates.FirstOrDefault(c => string.Equals(c.Name, name, StringComparison.Ordinal));
             }
@@ -96,6 +104,8 @@ namespace Plugin.Util.Models
                 if (value == null) return;
                 if (!string.Equals(Row.VariableName, value.Name, StringComparison.Ordinal))
                     Row.VariableName = value.Name;
+                if (Row.VariableId != value.VariableId)
+                    Row.VariableId = value.VariableId;
             }
         }
 
@@ -105,12 +115,29 @@ namespace Plugin.Util.Models
         public bool IsGlobal => string.Equals(Row.Scope, VariableAssignmentPlugin.ScopeGlobal, StringComparison.OrdinalIgnoreCase);
         public bool IsRuntime => !IsGlobal;
 
-        public bool IsInvalidGlobal => IsGlobal && !string.IsNullOrWhiteSpace(Row.VariableName) && _plugin.FindVariable(Row.VariableName, VariableAssignmentPlugin.ScopeGlobal) == null;
-        public bool IsManualRuntime => IsRuntime && !string.IsNullOrWhiteSpace(Row.VariableName) && _plugin.FindVariable(Row.VariableName, VariableAssignmentPlugin.ScopeRuntime) == null;
+        public bool IsInvalidGlobal => IsGlobal && !string.IsNullOrWhiteSpace(Row.VariableName) && _plugin.FindVariable(Row) == null;
+        public bool IsManualRuntime => IsRuntime && !string.IsNullOrWhiteSpace(Row.VariableName) && _plugin.FindVariable(Row) == null;
 
         public bool HasLegacyBadge => Row.UsesLegacyValuePort;
 
-        public string DisplayName => string.IsNullOrWhiteSpace(Row.VariableName) ? "未命名变量" : Row.VariableName.Trim();
+        /// <summary>
+        /// 行内 / 右侧标题显示的名字。
+        ///
+        /// 多设备同名点位必须带上设备（<c>Alarm1[48] · L1</c>），否则这一行和右侧标题
+        /// 都只显示裸名字，用户看不出自己绑的是哪一台。设备从当前解析到的候选上取
+        /// （Id 优先），变量改名后仍然指回同一台。
+        /// </summary>
+        public string DisplayName
+        {
+            get
+            {
+                var name = (Row.VariableName ?? string.Empty).Trim();
+                if (name.Length == 0) return "未命名变量";
+
+                var device = (_plugin.FindVariable(Row)?.Device ?? string.Empty).Trim();
+                return device.Length == 0 ? name : name + " · " + device;
+            }
+        }
         public string ScopeText => IsGlobal ? "全局变量" : "运行时变量";
         public string TypeText => _plugin.GetTypeText(Row);
         public string ValueSourceText => _plugin.GetValueSourceText(Row);

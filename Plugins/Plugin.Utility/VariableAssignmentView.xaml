@@ -412,7 +412,7 @@
                                     </Grid.ColumnDefinitions>
                                     <Grid Grid.Column="0">
                                         <TextBlock
-                                            Text="{Binding Row.VariableName}"
+                                            Text="{Binding DisplayName}"
                                             TextTrimming="CharacterEllipsis"
                                             Visibility="{Binding HasName, Converter={StaticResource BoolToVisibility}}">
                                             <TextBlock.Style>
@@ -525,7 +525,7 @@
                                                                     <ColumnDefinition Width="Auto" />
                                                                 </Grid.ColumnDefinitions>
                                                                 <StackPanel Grid.Column="0">
-                                                                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis">
+                                                                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis">
                                                                         <TextBlock.Style>
                                                                             <Style TargetType="TextBlock">
                                                                                 <Setter Property="FontSize" Value="12" />

@@ -550,7 +550,7 @@
                         Padding="0"
                         Click="OnDropDownMenuClick"
                         Style="{StaticResource ScadaIconButton}"
-                        ToolTip="更多：报警配置 / 批量插入模板">
+                        ToolTip="更多：报警配置 / 多语言 / 批量插入模板">
                         <TextBlock
                             VerticalAlignment="Center"
                             FontFamily="{StaticResource DialogIconFont}"
@@ -559,6 +559,8 @@
                         <Button.ContextMenu>
                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
                                 <MenuItem Command="{Binding OpenAlarmConfigCommand}" Header="报警配置…" />
+                                <!--  多语言是方案级配置（语言表：键 → 各语言译文），与报警配置同一层  -->
+                                <MenuItem Command="{Binding OpenLanguagesCommand}" Header="多语言…" />
                                 <MenuItem Command="{Binding BatchInsertTemplateCommand}" Header="批量插入模板…" />
                             </ContextMenu>
                         </Button.ContextMenu>
@@ -603,7 +605,8 @@
                 SelectedElement="{Binding SelectedElement, Mode=TwoWay}"
                 SelectedElements="{Binding SelectedElements, Mode=TwoWay}"
                 ShowGrid="{Binding SelectedPage.ShowGrid}"
-                SnapToGrid="{Binding SelectedPage.SnapToGrid}">
+                SnapToGrid="{Binding SelectedPage.SnapToGrid}"
+                TextResolver="{Binding ResolveText}">
 
                 <!--  Delete / 方向键挂在画布上：画布在鼠标按下时抢焦点（见 ScadaCanvas.OnPreviewMouseLeftButtonDown），  -->
                 <!--  所以"焦点在画面下拉里按方向键"仍然是在切画面，不会被微调抢走——这条只有挂在画布上才成立。  -->

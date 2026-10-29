@@ -48,6 +48,9 @@ namespace VisionMaster.Services
         private readonly IScadaConfirmationService? _confirmations;
         private readonly IScadaActionDispatcher _dispatcher;
         private readonly AppSettingsService _appSettings;
+
+        /// <summary>语言服务（v6）：本宿主的运行上下文也带一份，供子页/嵌入页解析 @键</summary>
+        private readonly IScadaLanguageService? _languages;
         private readonly INotifyPropertyChanged? _workspaceNotifier;
         private readonly object _persistGate = new();
 
@@ -75,7 +78,8 @@ namespace VisionMaster.Services
             IScadaAxisCommandSink? axisCommands,
             IScadaConfirmationService? confirmations,
             IScadaActionDispatcher dispatcher,
-            AppSettingsService appSettings)
+            AppSettingsService appSettings,
+            IScadaLanguageService? languages = null)
         {
             _log = log ?? throw new ArgumentNullException(nameof(log));
             _workspace = workspace ?? throw new ArgumentNullException(nameof(workspace));
@@ -87,6 +91,7 @@ namespace VisionMaster.Services
             _confirmations = confirmations;
             _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
             _appSettings = appSettings ?? throw new ArgumentNullException(nameof(appSettings));
+            _languages = languages;
 
             _workspaceNotifier = workspace as INotifyPropertyChanged;
             if (_workspaceNotifier != null)
@@ -226,9 +231,10 @@ namespace VisionMaster.Services
                 _values,
                 _priorAlarms,
                 history,
-                document.StateLists,
-                reports: reports,
-                reportExporter: new ScadaReportExporter());
+            document.StateLists,
+            reports: reports,
+            reportExporter: new ScadaReportExporter(),
+            languages: _languages);
 
             _active = true;
 

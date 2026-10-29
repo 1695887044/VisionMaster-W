@@ -396,7 +396,10 @@ namespace VisionMaster.Scada.Controls
                 values: source.Values,
                 priorAlarms: source.PriorAlarms,
                 history: source.History,
-                stateLists: source.StateLists);
+                stateLists: source.StateLists,
+                // 语言服务必须一起转发：子页里的 @键 靠它解析，漏传的表现是
+                // "主页文案跟着语言变、嵌进来的子页永远显示 @键"（而且不报错）。
+                languages: source.Languages);
         }
 
         private bool IsKeepLast

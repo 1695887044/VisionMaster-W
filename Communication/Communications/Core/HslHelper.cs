@@ -16,7 +16,9 @@ namespace VisionMaster.Communications
         Modbus,
         SiemensS7,
         /// <summary>字编址协议（MC / FINS）：byte/sbyte 按 16 位字写，bool 走位地址重载</summary>
-        Word
+        Word,
+        /// <summary>EasyNet：位寻址，byte/sbyte 按 1 字节写（不提升为寄存器）——与 S7 的窄类型口径相同</summary>
+        EasyNet
     }
 
     /// <summary>
@@ -69,7 +71,7 @@ namespace VisionMaster.Communications
         /// <para>P-A3：所有四种变换都是**对合**（再算一次即还原），故原地重排与"先复制再重排"结果相同；
         /// 旧实现每次 <c>Clone()</c> 一次堆分配，现改为直接改调用方的栈缓冲。</para>
         /// </summary>
-        private static void ToLogicalBigEndian(Span<byte> v, ByteOrderFormat order)
+        internal static void ToLogicalBigEndian(Span<byte> v, ByteOrderFormat order)
         {
             switch (order)
             {
@@ -272,6 +274,40 @@ namespace VisionMaster.Communications
         }
 
         /// <summary>
+        /// <para>把一个值编码成<b>线路字节</b>（写合并用：一次下发一段连续字节，不能逐个走强类型重载）。</para>
+        /// <para>与 <see cref="WriteTyped"/> 必须逐条对齐，否则合并写会与单值写产生不同结果——这类偏差是静默的
+        /// （设备接受了错误值、不报错），所以两边共用本方法作为唯一编码源。</para>
+        /// <para>推导：<see cref="GetValueArray"/> 产出"逻辑大端序"V；解码侧 <c>V = T(wire)</c>，
+        /// 而四种变换都是对合（再算一次即还原），故 <c>wire = T(V)</c>——对本方法产出的字节再算一次即得线路序。</para>
+        /// <para>窄类型提升规则照抄 <see cref="WriteTyped"/>：Modbus/字编址把 byte/sbyte 提升为一个 16 位寄存器；
+        /// S7 保持 1 字节。字符串与 byte[] 无端序语义，原样下发、绝不重排。</para>
+        /// </summary>
+        public static byte[] EncodeForWire(object value, WriteProtocolFamily family, ByteOrderFormat order)
+        {
+            if (value == null) throw new ArgumentNullException(nameof(value));
+
+            // 无端序语义：原样传输（重排会乱码/错位）
+            if (value is string text) return System.Text.Encoding.ASCII.GetBytes(text);
+            if (value is byte[] raw) return raw;
+
+            byte[] bytes = value switch
+            {
+                // 与 WriteTyped 的窄类型提升一致：Modbus/字编址下 byte/sbyte 占一个 16 位寄存器
+                byte by when family is WriteProtocolFamily.Modbus or WriteProtocolFamily.Word
+                    => GetValueArray((ushort)by),
+                sbyte sb when family is WriteProtocolFamily.Modbus or WriteProtocolFamily.Word
+                    => GetValueArray((short)sb),
+                byte by => new[] { by },
+                sbyte sb => new[] { unchecked((byte)sb) },
+                bool b => new[] { (byte)(b ? 1 : 0) },
+                _ => GetValueArray(value)
+            };
+
+            ToLogicalBigEndian(bytes, order); // 对合：再算一次 = 线路序
+            return bytes;
+        }
+
+        /// <summary>
         /// 将对象值编码为大端字节数组（下发设备用；仅作为强类型分发失败后的兜底路径）
         /// </summary>
         public static byte[] GetValueArray(object value)
@@ -292,6 +328,10 @@ namespace VisionMaster.Communications
                 uint v => BitConverter.GetBytes(v),
                 float v => BitConverter.GetBytes(v),
                 double v => BitConverter.GetBytes(v),
+                // long/ulong 必须显式列出：兜底走 Convert.ToInt64，ulong 超过 long.MaxValue 时直接抛 OverflowException
+                //（2026-10-29 由合并写编码断言抓出：0x99AABBCCDDEEFF11 这类值会让整条写入路径崩掉）
+                long v => BitConverter.GetBytes(v),
+                ulong v => BitConverter.GetBytes(v),
                 _ => BitConverter.GetBytes(Convert.ToInt64(value))
             };
 

@@ -67,6 +67,9 @@ namespace VisionMaster.Scada.Controls
         /// 方案级文本列表（ComboBox 用）；设计期由画布的 <c>StateListResolver</c> 提供，
         /// 运行态走这一份，断言宿主两者都可给。
         /// </param>
+        /// <param name="languages">
+        /// 本轮的语言服务（文本 <c>@键</c> 解析用）；不给则所有文本按字面量显示（等于没配多语言）。
+        /// </param>
         public ScadaRuntimeContext(
             ScadaAlarmEngine alarms,
             ScadaBeatSource beat,
@@ -83,7 +86,10 @@ namespace VisionMaster.Scada.Controls
             IScadaReportSource? reports = null,
             IScadaReportExporter? reportExporter = null,
             IScadaAuditSink? audit = null,
-            Func<string, bool>? accessLoginPrompt = null)
+            Func<string, bool>? accessLoginPrompt = null,
+            IScadaLanguageService? languages = null,
+            IScadaAlarmMute? alarmMute = null,
+            IScadaRecipeCommands? recipeCommands = null)
         {
             Alarms = alarms ?? throw new ArgumentNullException(nameof(alarms));
             Beat = beat ?? throw new ArgumentNullException(nameof(beat));
@@ -101,6 +107,9 @@ namespace VisionMaster.Scada.Controls
             ReportExporter = reportExporter;
             Audit = audit;
             AccessLoginPrompt = accessLoginPrompt;
+            Languages = languages;
+            AlarmMute = alarmMute;
+            RecipeCommands = recipeCommands;
         }
 
         /// <summary>
@@ -205,6 +214,28 @@ namespace VisionMaster.Scada.Controls
         /// 设计期画布的 <c>StateListResolver</c> 优先，运行态没有解析器时回落到这里。
         /// </summary>
         public IReadOnlyList<ScadaStateList> StateLists { get; }
+
+        /// <summary>
+        /// 本轮的语言服务（文本 <c>@键</c> 解析用）。<b>可为 null</b>：
+        /// 没配多语言、或断言宿主没接线时，所有文本按字面量显示（<c>@@</c> 转义仍生效）。
+        ///
+        /// 为什么是服务而不是 <c>IReadOnlyList&lt;ScadaLanguage&gt;</c>：
+        /// 控件除了"有哪些语言"还要知道"现在用哪一种"，而"当前语言"会随动作「切换语言」在运行中变；
+        /// 服务把"词表 + 当前语言 + 变化通知"三件事收在一个对象上，控件订阅一次就够。
+        /// </summary>
+        public IScadaLanguageService? Languages { get; }
+
+        /// <summary>
+        /// 报警静音出口（v7）。<b>可为 null</b>：没接声音服务时静音按钮置灰并给原因，
+        /// 而不是"点了没反应"。
+        /// </summary>
+        public IScadaAlarmMute? AlarmMute { get; }
+
+        /// <summary>
+        /// 配方面板的命令出口（v7：选/下载/上传/保存）。<b>可为 null</b>：
+        /// 没接线时配方面板退化成只读（与升级前行为一致）。
+        /// </summary>
+        public IScadaRecipeCommands? RecipeCommands { get; }
 
         /// <summary>
         /// 活跃子页宿主（SubPage 用）。<b>可为 null</b>：断言/无会话宿主只显示不登记事件。

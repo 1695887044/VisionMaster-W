@@ -352,15 +352,27 @@ namespace VisionMaster.ViewModels
                 ? TypeHelper.ResolveType(SelectedInputPort.Definition.DataTypeName)
                 : typeof(object);
 
+            // 类型名 → Type 的解析按"本次重算"缓存：候选动辄几千条，而变量类型只有几种，
+            // 每条都走一次 Type.GetType（解析不出来还要遍历全部已加载程序集）纯属白烧。
+            // 现场 9000 个变量时这一项就是几百毫秒到数秒。
+            var resolvedTypes = new Dictionary<string, Type>(StringComparer.Ordinal);
+            Type ResolveCached(string typeName)
+            {
+                if (typeName == null)
+                    return typeof(object);
+                if (!resolvedTypes.TryGetValue(typeName, out var cached))
+                {
+                    cached = TypeHelper.ResolveType(typeName);
+                    resolvedTypes[typeName] = cached;
+                }
+                return cached;
+            }
+
             var list = new List<PortDefinition>(source.Count);
             int hiddenByType = 0;
             foreach (var schema in source)
             {
-                // 复制一份再判定：OutputDefinitions 是节点持有的共享对象，
-                // 直接往上面写 IsBindable 会污染节点自身的数据（换端口/换节点后残留上一次的判定）
-                var candidate = CloneForCandidate(schema);
-
-                Type outputType = TypeHelper.ResolveType(candidate.DataTypeName);
+                Type outputType = ResolveCached(schema.DataTypeName);
                 bool ok = TypeHelper.CanBindTo(outputType, targetType);
 
                 if (!ok)
@@ -368,18 +380,22 @@ namespace VisionMaster.ViewModels
                     // 计数与「显示全部」无关：提示条说的是"默认视图还藏了多少个"，
                     // 勾选显示全部后这些项会以置灰形式出现，但"被类型隐藏"的事实不变。
                     hiddenByType++;
-                    candidate.IncompatibleReason =
-                        $"类型不匹配：{Describe(outputType)} 无法绑到 {Describe(targetType)} 端口";
                     // "显示全部"时才把不兼容项摆出来（置灰），默认直接不进列表
                     if (_showAllPorts)
                     {
-                        candidate.IsBindable = false;
-                        list.Add(candidate);
+                        // 复制一份再判定：OutputDefinitions 是节点持有的共享对象，
+                        // 直接往上面写 IsBindable 会污染节点自身的数据（换端口/换节点后残留上一次的判定）。
+                        // 只在真要上屏时才复制——默认视图里被类型隐藏的项不必造对象。
+                        var hidden = CloneForCandidate(schema);
+                        hidden.IsBindable = false;
+                        hidden.IncompatibleReason =
+                            $"类型不匹配：{Describe(outputType)} 无法绑到 {Describe(targetType)} 端口";
+                        list.Add(hidden);
                     }
                     continue;
                 }
 
-                list.Add(candidate);
+                list.Add(CloneForCandidate(schema));
             }
 
             DisplayPorts = new ObservableCollection<PortDefinition>(list);
@@ -400,6 +416,7 @@ namespace VisionMaster.ViewModels
             Description = src.Description,
             DataTypeName = src.DataTypeName,
             VariableId = src.VariableId,
+            Device = src.Device,
             IsFunctionalEnum = src.IsFunctionalEnum,
             PresetOptions = src.PresetOptions,
         };
@@ -725,8 +742,26 @@ namespace VisionMaster.ViewModels
             ArrayIndexText = string.Empty;
         }
 
-        private void DoFinalBind(PortDefinition port, int index = -1)
+        /// <summary>
+        /// 拼一条变量来源的显示地址（纯函数，便于断言）。
+        ///
+        /// 格式：<c>{节点名}.{设备}.{变量名}[{下标}]</c>，无设备时退回 <c>{节点名}.{变量名}</c>。
+        ///
+        /// 为什么设备要插在**变量名之前**而不是之后：
+        /// ① 两台设备的同名点位必须拼出不同地址，否则界面上分不出绑的是哪一台；
+        /// ② 变量改名级联（<c>RebuildVariableDisplayAddress</c>）按**最后一个点**切前缀、
+        ///    只替换名字那一段——设备放在名字后面会被当成前缀的一部分，改名后设备段就丢了。
+        /// </summary>
+        public static string BuildVariableDisplayAddress(string nodeName, PortDefinition port, int index)
         {
+            var name = port?.Name ?? string.Empty;
+            var device = (port?.Device ?? string.Empty).Trim();
+            var qualified = device.Length == 0 ? name : device + "." + name;
+            var head = $"{nodeName}.{qualified}";
+            return index >= 0 ? $"{head}[{index}]" : head;
+        }
+
+        private void DoFinalBind(PortDefinition port, int index = -1)        {
             Guid targetId = SelectedNode.Id;
             // ★ 下标必须写进 TargetPortName：协议规定它就是"端口名（可带 [索引]）"，
             //   编译器只从那里解析下标并生成 ArrayIndexProxyPort。此前下标只进显示串 →
@@ -743,10 +778,7 @@ namespace VisionMaster.ViewModels
             }
             else
             {
-                displayName =
-                    index >= 0
-                        ? $"{SelectedNode.Name}.{port.Name}[{index}]"
-                        : $"{SelectedNode.Name}.{port.Name}";
+                displayName = BuildVariableDisplayAddress(SelectedNode.Name, port, index);
             }
             var linkRef = new LinkReference(kind, targetId, targetPort, displayName)
             {
@@ -880,7 +912,11 @@ namespace VisionMaster.ViewModels
                                 out var existingLink
                             );
                             AddDisplayPort(
-                                new InputPortUIModel(schema, existingLink?.DisplayAddress)
+                                new InputPortUIModel(
+                                    schema,
+                                    existingLink?.DisplayAddress,
+                                    existingLink?.TargetVariableId ?? Guid.Empty
+                                )
                             );
                         }
                     }
@@ -982,7 +1018,8 @@ namespace VisionMaster.ViewModels
                             DataTypeName = variable.DataTypeName,
                             Description = variable.Id.ToString(),
                         },
-                        existingLink?.DisplayAddress
+                        existingLink?.DisplayAddress,
+                        existingLink?.TargetVariableId ?? Guid.Empty
                     )
                 );
             }

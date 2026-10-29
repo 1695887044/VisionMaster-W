@@ -180,10 +180,10 @@ namespace ScadaChecks
                 // ---------------- 描述符 ----------------
 
                 var descriptor = ElementRegistry.Find("Hmi.Symbol");
-                Check("[SY12] 描述符：30 个符号候选 + 2 条事件（按下/释放）",
+                Check("[SY12] 描述符：30 个符号候选 + 4 条事件（按下/释放 + 激活/取消激活）",
                     descriptor != null
                     && descriptor.Properties.First(p => p.Key == "SymbolKind").Choices.Count == 30
-                    && descriptor.Events.Count == 2,
+                    && descriptor.Events.Count == 4,
                     $"choices={descriptor?.Properties.First(p => p.Key == "SymbolKind").Choices.Count} events={descriptor?.Events.Count}");
             }
 

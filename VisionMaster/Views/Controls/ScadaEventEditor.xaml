@@ -937,6 +937,180 @@
                             </TextBlock>
                         </StackPanel>
 
+                        <!--  登录 / 注销（v6）：没有参数可填，但要写清"点了会发生什么"。
+                              这两个动作改的是"此刻谁在操作"，是运行态里最容易让人意外的一类：
+                              用户以为只是个普通按钮，结果会话被结束了。文案必须常显在这条动作上。  -->
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <!--  Text 只由下面的触发器给：写在元素上的本地值会压过样式里的 Setter，
+                                          那样切到另一种动作时就会留着上一条的文案。  -->
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Setter Property="Text" Value="" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="Logon">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Text" Value="运行时弹出登录窗，由操作员当场登录（凭据不存进方案）。" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Type}" Value="Logoff">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Text" Value="运行时结束当前会话，回到未登录（只剩默认权限）。" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!--  切换语言（v6）：只有一个参数——目标语言表的名称。
+                              为什么是手填而不是下拉：运行态的词表由会话提供（IScadaLanguageService），
+                              设计期的属性面板拿不到那份快照；语言表本身在「方案 → 多语言」里维护，
+                              这里再摆一份候选只会与那份清单分叉。名字对不上时执行侧会记一条失败并说明。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="SetLanguage">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <TextBox
+                                Padding="3,2"
+                                BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                FontSize="11"
+                                Text="{Binding LanguageName, UpdateSourceTrigger=PropertyChanged}"
+                                ToolTip="填语言表名称（方案 → 多语言）" />
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="填语言表名称（方案 → 多语言）"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!--  延时（v6）：只有一个参数——毫秒。
+                              语义必须写在界面上：它推的是"同一事件里排在后面的动作"，
+                              配在最后一条上等于什么都没做（执行侧会照实说一句"没有后续动作"）。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="Delay">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox
+                                    Grid.Column="0"
+                                    Padding="3,2"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding DelayMs, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="推迟多少毫秒再执行本条之后的动作；必须大于 0" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="毫秒" />
+                            </Grid>
+
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="只影响本条之后、同一事件里的动作；本条被跳过（没填毫秒 / 非界面线程）时，后面的动作仍会立即执行"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!--  静音（v7）：只有一个参数——分钟数。
+                              没填按 5 分钟（执行侧口径），这件事必须写在界面上：
+                              现场看到"我明明没填，它却静音了"会当成一次故障去查。
+                              "紧急报警不受静音约束"同样是必须常显的一句——静音不等于报警不响。  -->
+                        <StackPanel Margin="0,3,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="MuteAlarm">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox
+                                    Grid.Column="0"
+                                    Padding="3,2"
+                                    BorderBrush="{StaticResource ScadaPanelBorderBrush}"
+                                    FontSize="11"
+                                    Text="{Binding MuteMinutes, UpdateSourceTrigger=PropertyChanged}"
+                                    ToolTip="静音多少分钟；留空按 5 分钟" />
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    FontSize="11"
+                                    Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                    Text="分钟" />
+                            </Grid>
+
+                            <TextBlock
+                                Margin="0,3,0,0"
+                                FontSize="11"
+                                Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                                Text="留空按 5 分钟；紧急报警不受静音约束"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <!--  确认报警（v7）：没有参数，但要把两件事写清——确认的是"全部"，
+                              以及"没有待确认时不算失败"。动作表挂在图元/画面上，它不知道操作员
+                              想确认哪一条（逐条确认是报警汇总表行内按钮的事）；执行侧对 0 条
+                              记 Info 不记 Error，界面这里必须与那句话同口径。  -->
+                        <TextBlock
+                            Margin="0,3,0,0"
+                            FontSize="11"
+                            Foreground="{StaticResource ScadaSecondaryTextBrush}"
+                            TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <!--  Text 只由下面的触发器给：写在元素上的本地值会压过样式里的 Setter，
+                                          那样切到另一种动作时就会留着上一条的文案。  -->
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Setter Property="Text" Value="" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Type}" Value="AcknowledgeAlarm">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Setter Property="Text" Value="确认当前全部待确认报警；没有待确认时不算失败。" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
                         <!--  还没接通的动作：说明"为什么现在配了也不会响"。
                               文案来自领域层（ScadaAction.PendingReason），与运行日志里那句逐字相同，
                               用户才能把"我配的这条"和"日志里那条"对上号。  -->

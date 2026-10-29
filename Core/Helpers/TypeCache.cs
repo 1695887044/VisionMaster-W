@@ -69,6 +69,8 @@ namespace VisionMaster.Helpers
 
             // 数组类型
             RegisterType(typeof(int[]));
+            // short 本体已注册，数组随变量表新增 16 位类型一并注册
+            RegisterType(typeof(short[]));
             RegisterType(typeof(double[]));
             RegisterType(typeof(string[]));
             RegisterType(typeof(bool[]));

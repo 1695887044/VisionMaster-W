@@ -17,4 +17,10 @@
     <ProjectReference Include="..\Core\VM.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 断言宿主要直接验 internal 的编码器（HslHelper.EncodeForWire）与批规划器（WriteBatchPlanner）：
+         这两处是"合并写与单值写是否等价"的唯一证据来源，只能靠断言钉住，不能靠人工评审。 -->
+    <InternalsVisibleTo Include="CommChecks" />
+  </ItemGroup>
+
 </Project>

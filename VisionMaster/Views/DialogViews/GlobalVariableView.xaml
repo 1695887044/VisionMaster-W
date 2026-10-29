@@ -980,6 +980,10 @@
                                                                     <DataTrigger Binding="{Binding IsChildNode}" Value="True">
                                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                                     </DataTrigger>
+                                                                    <!--  合成容器（按名称路径归组）没有真实类型，类型由「类型」列的 tag 表达  -->
+                                                                    <DataTrigger Binding="{Binding IsSyntheticContainer}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                    </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </Border.Style>
@@ -1041,7 +1045,7 @@
                                                         VerticalAlignment="Center"
                                                         Background="{StaticResource DialogTypeArraySoftBrush}"
                                                         CornerRadius="5"
-                                                        Visibility="{Binding IsArrayRootNode, Converter={ui:BooleanToVisibilityConverter}}">
+                                                        Visibility="{Binding ShowChildCountBadge, Converter={ui:BooleanToVisibilityConverter}}">
                                                         <TextBlock
                                                             VerticalAlignment="Center"
                                                             FontSize="9.5"
@@ -1221,7 +1225,7 @@
                                                         <StackPanel.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="EditableRoot">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1297,7 +1301,7 @@
                                                         <StackPanel.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="EditableChild">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1349,7 +1353,7 @@
                                                         <StackPanel.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="ReadOnlyChild">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1376,7 +1380,7 @@
                                                         <Grid.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="ArrayRoot">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1505,7 +1509,7 @@
                                                         <Grid.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="NetworkArrayRoot">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1596,7 +1600,7 @@
                                                         <StackPanel.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="ReadOnlyRoot">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1631,7 +1635,7 @@
                                                         <StackPanel.Visibility>
                                                             <MultiBinding Converter="{StaticResource GlobalVariableValueModeConverter}" ConverterParameter="Image">
                                                                 <Binding Path="IsRootNode" />
-                                                                <Binding Path="IsChildNode" />
+                                                                <Binding Path="IsArrayElementRow" />
                                                                 <Binding Path="IsArrayRootNode" />
                                                                 <Binding Path="IsEditableNode" />
                                                                 <Binding Path="IsValueReadOnly" />
@@ -1931,6 +1935,34 @@
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
+
+                                    <!--
+                                        结构折叠开关（只对网络来源有意义：本地/系统变量的名字里没有 PLC 结构）。
+                                        默认开：PLC 导出的变量表是一个数组元素一行，2357 行里真正的一级对象只有 88 个。
+                                    -->
+                                    <StackPanel
+                                        Orientation="Horizontal"
+                                        Visibility="{Binding IsNetworkSource, Converter={ui:BooleanToVisibilityConverter}}">
+                                        <Border
+                                            Width="1"
+                                            Height="12"
+                                            Margin="10,0"
+                                            VerticalAlignment="Center"
+                                            Background="{StaticResource DialogBorderBrush}" />
+                                        <CheckBox
+                                            x:Name="GroupByStructureToggle"
+                                            VerticalAlignment="Center"
+                                            Content="按数组 / 结构体折叠"
+                                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                                            FontSize="10.5"
+                                            Foreground="{StaticResource DialogTextMutedBrush}"
+                                            IsChecked="{Binding GroupByStructure, Mode=TwoWay}"
+                                            Style="{StaticResource DialogCheckBox}">
+                                            <CheckBox.ToolTip>
+                                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="把变量名里带 [i] / .成员 的网络变量折叠成可展开的一行（Recipes → [0] → Ints → [5]）。只影响显示，不改地址、轮询与导入导出。" />
+                                            </CheckBox.ToolTip>
+                                        </CheckBox>
+                                    </StackPanel>
                                 </StackPanel>
 
                                 <StackPanel

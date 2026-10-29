@@ -1845,14 +1845,18 @@ namespace UIThemeSmokeTest
                     .Where(e => e.Name.LocalName == "TextBlock")
                     .Select(e => (string)e.Attribute("Text") ?? string.Empty)
                     .ToList();
-                Check("状态栏生产 KPI 占位齐全（节拍 / OK / NG / 告警）",
-                    new[] { "节拍", "OK", "NG", "告警" }.All(t => statusTexts.Contains(t)),
-                    string.Join("，", statusTexts.Where(t => t is "节拍" or "OK" or "NG" or "告警")));
-                Check("状态栏新增「未判定」与「N 条在跑」绑定（多流程口径）",
-                    statusTexts.Contains("未判定")
-                    && doc.Descendants().Any(e => ((string)e.Attribute("Text") ?? string.Empty).Contains("UnknownCountText", StringComparison.Ordinal))
-                    && doc.Descendants().Any(e => ((string)e.Attribute("Text") ?? string.Empty).Contains("RunningFlowCountText", StringComparison.Ordinal)),
-                    "未判定 + RunningFlowCountText");
+                // 2026-10-29 用户决策：底栏生产 KPI（节拍/OK/NG/未判定/告警）整条下线。
+                // 断言改成"绑定必须消失"——留着绑定却没控件，说明只删了标签没删数据链。
+                Check("底栏生产 KPI 已下线（五个绑定都不再出现）",
+                    new[] { "CycleTimeText", "OkCountText", "NgCountText", "UnknownCountText", "AlarmCountText" }
+                        .All(b => !doc.Descendants().Any(e =>
+                            ((string)e.Attribute("Text") ?? string.Empty).Contains(b, StringComparison.Ordinal))),
+                    "5 个 KPI 绑定均已移除");
+                Check("状态栏保留范围胶囊与「N 条在跑」（浮窗 / 下钻入口）",
+                    doc.Descendants().Any(e => NameOf(e) == "FlowScopeChip")
+                    && doc.Descendants().Any(e =>
+                        ((string)e.Attribute("Text") ?? string.Empty).Contains("RunningFlowCountText", StringComparison.Ordinal)),
+                    "FlowScopeChip + RunningFlowCountText");
                 Check("工位浮窗与轮次下钻结构齐全（FlowStatsRows / FlowStatsPopup / FlowRoundPopup）",
                     doc.Descendants().Any(e => NameOf(e) == "FlowStatsPopup")
                     && doc.Descendants().Any(e => NameOf(e) == "FlowRoundPopup")
@@ -1909,6 +1913,33 @@ namespace UIThemeSmokeTest
                     resultSourceViewText.Length > 0
                     && !System.Text.RegularExpressions.Regex.IsMatch(resultSourceViewText, @"#[0-9A-Fa-f]{6,8}"),
                     resultSourceViewText.Length == 0 ? "文件不存在" : "无 #RRGGBB");
+
+                // ---- 结果源弹窗：两处"状态必须跟着数据走"的文案/候选（2026-10-29）----
+                // ① 自动模式的"当前生效"标签：没找到结果步骤时不能仍写「结果输出步骤」；
+                // ② 变量下拉必须绑过滤后的候选，且搜索框接 VariableFilter。
+                Check("结果源弹窗：自动模式标签随命中状态切换（结果输出步骤 / 回退解析）",
+                    resultSourceDoc != null
+                    && resultSourceViewText.Contains("回退解析", StringComparison.Ordinal)
+                    && resultSourceDoc.Descendants().Count(e =>
+                        ((string)e.Attribute("Visibility") ?? string.Empty).Contains("HasResultStep", StringComparison.Ordinal)) >= 2,
+                    resultSourceDoc == null ? "XAML 不存在" : "两种标签 + 两个 HasResultStep 绑定");
+
+                // 一条流程只允许一个结果输出（2026-10-29）：标签按"命中且不歧义"切换，
+                // 多于一个时面板里必须出现"只能保留一个"的提示。
+                Check("结果源弹窗：自动标签按 AutoUsesResultStep、多结果步骤有歧义提示",
+                    resultSourceDoc != null
+                    && resultSourceDoc.Descendants().Count(e =>
+                        ((string)e.Attribute("Visibility") ?? string.Empty).Contains("AutoUsesResultStep", StringComparison.Ordinal)) >= 2
+                    && resultSourceViewText.Contains("只能保留一个", StringComparison.Ordinal),
+                    resultSourceDoc == null ? "XAML 不存在" : "AutoUsesResultStep ×2 + 歧义提示");
+
+                Check("结果源弹窗：变量候选走过滤集合 + 搜索框接 VariableFilter",
+                    resultSourceDoc != null
+                    && resultSourceDoc.Descendants().Any(e =>
+                        ((string)e.Attribute("ItemsSource") ?? string.Empty).Contains("FilteredVariables", StringComparison.Ordinal))
+                    && resultSourceDoc.Descendants().Any(e =>
+                        ((string)e.Attribute("Text") ?? string.Empty).Contains("VariableFilter", StringComparison.Ordinal)),
+                    resultSourceDoc == null ? "XAML 不存在" : "FilteredVariables + VariableFilter");
                 Check("状态栏有控制台展开/收起入口（ToggleConsoleCommand）",
                     doc.Descendants().Any(e => ((string)e.Attribute("Command") ?? string.Empty).Contains("ToggleConsoleCommand", StringComparison.Ordinal)),
                     "已接线");

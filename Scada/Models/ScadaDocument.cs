@@ -40,6 +40,8 @@ namespace VisionMaster.Scada
         private ObservableCollection<ScadaVariableEvent> _variableEvents = new();
         private ObservableCollection<ScadaStateList> _stateLists = new();
         private ObservableCollection<ScadaSchedule> _schedules = new();
+        private ObservableCollection<ScadaLanguage> _languages = new();
+        private Guid _currentLanguageId;
 
         /// <summary>
         /// 结构版本号（落盘）。加载到小于 <see cref="CurrentSchemaVersion"/> 的文件时，
@@ -83,6 +85,7 @@ namespace VisionMaster.Scada
             _variableEvents.CollectionChanged += OnVariableEventsChanged;
             _stateLists.CollectionChanged += OnStateListsChanged;
             _schedules.CollectionChanged += OnSchedulesChanged;
+            _languages.CollectionChanged += OnLanguagesChanged;
 
             // 基座集合同样要在<b>字段初始化的那份实例</b>上挂订阅——只在属性 setter 里挂的话，
             // 新建文档（不走反序列化）就永远收不到 CollectionChanged：
@@ -212,6 +215,49 @@ namespace VisionMaster.Scada
         /// <summary>文本列表增删 → 记一条变更（与报警/变量事件同一口径）</summary>
         private void OnStateListsChanged(object? sender, NotifyCollectionChangedEventArgs e)
             => ScadaCollectionRecorder.Record(_stateLists, e);
+
+        /// <summary>
+        /// 方案级语言表（落盘）：图元文本写 <c>@键</c>，按当前语言查这张表（见 <see cref="ScadaTextCatalog"/>）。
+        ///
+        /// 与 <see cref="StateLists"/> 同一套范式（整体替换 + setter 摘旧挂新 + 变更记录）。
+        /// 旧 <c>.vms</c> 没有这个集合时反序列化得到空表，所有文本按字面量显示，行为与 v5 一致。
+        /// </summary>
+        [JsonProperty(ObjectCreationHandling = ObjectCreationHandling.Replace)]
+        public ObservableCollection<ScadaLanguage> Languages
+        {
+            get => _languages;
+            set
+            {
+                var old = _languages;
+                if (old != null)
+                    old.CollectionChanged -= OnLanguagesChanged;
+
+                _languages = value ?? new ObservableCollection<ScadaLanguage>();
+                _languages.CollectionChanged += OnLanguagesChanged;
+            }
+        }
+
+        /// <summary>语言表增删 → 记一条变更</summary>
+        private void OnLanguagesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+            => ScadaCollectionRecorder.Record(_languages, e);
+
+        /// <summary>
+        /// 设计期默认语言（落盘）：运行态起跑时用它，画面上 <c>@键</c> 按它解析。
+        /// <see cref="Guid.Empty"/> = 没选，所有 <c>@键</c> 原样显示（看得见哪个键没配）。
+        /// </summary>
+        public Guid CurrentLanguageId
+        {
+            get => _currentLanguageId;
+            set
+            {
+                if (SetProperty(ref _currentLanguageId, value))
+                    RaisePropertyChanged(nameof(CurrentLanguage));
+            }
+        }
+
+        /// <summary>当前语言的强类型投影（找不到为 null）</summary>
+        [JsonIgnore]
+        public ScadaLanguage? CurrentLanguage => ScadaTextCatalog.FindById(_languages, _currentLanguageId);
 
         /// <summary>
         /// 打开一次可撤销的编辑（D3 统一写入口），用法与 <see cref="ScadaPage.BeginEdit"/> 一致。
@@ -978,6 +1024,111 @@ namespace VisionMaster.Scada
 
         #endregion
 
+        #region 语言表管理（新建 / 删除 / 改名 / 查找 / 设为当前）
+
+        /// <summary>
+        /// 新建一张语言表并加入集合（名字留空则按"语言_N"自动命名）。
+        ///
+        /// 首张语言表自动设为当前语言：方案里只做一种语言时，用户不必再手动选一次
+        /// （"建了词表但没选当前语言 → 画面还是显示 @键"是最常见的第一次踩坑）。
+        /// </summary>
+        public ScadaLanguage AddLanguage(string? name = null)
+        {
+            var language = new ScadaLanguage();
+            var languageName = string.IsNullOrWhiteSpace(name) ? NextLanguageName() : name!.Trim();
+
+            using (BeginEdit($"新建语言 [{languageName}]"))
+            {
+                language.Name = languageName;
+                _languages.Add(language);
+
+                if (_currentLanguageId == Guid.Empty)
+                    CurrentLanguageId = language.LanguageId;
+            }
+
+            return language;
+        }
+
+        /// <summary>删除语言表；删的正好是当前语言时，当前语言回落到剩下的第一张（没有则清空）</summary>
+        public bool TryRemoveLanguage(ScadaLanguage? language, out string error)
+        {
+            error = string.Empty;
+
+            if (language == null || !_languages.Contains(language))
+            {
+                error = "语言表不存在，无法删除";
+                return false;
+            }
+
+            using (BeginEdit($"删除语言 [{language.Name}]"))
+            {
+                _languages.Remove(language);
+
+                if (_currentLanguageId == language.LanguageId)
+                    CurrentLanguageId = _languages.Count > 0 ? _languages[0].LanguageId : Guid.Empty;
+            }
+
+            return true;
+        }
+
+        /// <summary>语言表改名（方案内不许重名，口径与 <see cref="TryRenameAlarm"/> 同构）</summary>
+        public bool TryRenameLanguage(ScadaLanguage? language, string? newName, out string error)
+        {
+            error = string.Empty;
+
+            if (language == null || !_languages.Contains(language))
+            {
+                error = "语言表不存在，无法改名";
+                return false;
+            }
+
+            var target = (newName ?? string.Empty).Trim();
+            if (target.Length == 0)
+            {
+                error = "语言名不能为空";
+                return false;
+            }
+
+            if (string.Equals(language.Name, target, StringComparison.Ordinal))
+                return true;
+
+            if (_languages.Any(l => !ReferenceEquals(l, language)
+                                    && string.Equals(l.Name, target, StringComparison.OrdinalIgnoreCase)))
+            {
+                error = $"已存在同名语言 [{target}]，请更换名称";
+                return false;
+            }
+
+            using (BeginEdit($"语言改名 [{target}]"))
+            {
+                language.Name = target;
+            }
+
+            return true;
+        }
+
+        /// <summary>按稳定身份找语言表（找不到返回 null）</summary>
+        public ScadaLanguage? FindLanguage(Guid languageId)
+            => ScadaTextCatalog.FindById(_languages, languageId);
+
+        /// <summary>按名找语言表（大小写不敏感；仅用于兼容旧数据与用户手输）</summary>
+        public ScadaLanguage? FindLanguageByName(string? name)
+            => ScadaTextCatalog.FindByName(_languages, name);
+
+        /// <summary>取当前未被占用的最小"语言_N"</summary>
+        private string NextLanguageName()
+        {
+            var used = new HashSet<string>(_languages.Select(l => l.Name), StringComparer.OrdinalIgnoreCase);
+
+            int index = 1;
+            while (used.Contains($"语言_{index}"))
+                index++;
+
+            return $"语言_{index}";
+        }
+
+        #endregion
+
         #region 变量事件管理（新建 / 删除 / 查找）
 
         /// <summary>
@@ -1255,6 +1406,24 @@ namespace VisionMaster.Scada
                         continue;
 
                     alarm.AlarmId = Guid.NewGuid();
+                    repaired++;
+                }
+
+                // 语言表与报警同一条口径：只补缺失的稳定 Id，不改任何用户配的内容。
+                // 另外把"当前语言指向一张已经不存在的表"收回到第一张（否则画面上所有 @键 永远不解析，
+                // 用户只会看到一串 @，不知道是语言表没了还是键写错了）。
+                foreach (var language in _languages)
+                {
+                    if (language.LanguageId != Guid.Empty)
+                        continue;
+
+                    language.LanguageId = Guid.NewGuid();
+                    repaired++;
+                }
+
+                if (_currentLanguageId != Guid.Empty && FindLanguage(_currentLanguageId) == null)
+                {
+                    CurrentLanguageId = _languages.Count > 0 ? _languages[0].LanguageId : Guid.Empty;
                     repaired++;
                 }
 
