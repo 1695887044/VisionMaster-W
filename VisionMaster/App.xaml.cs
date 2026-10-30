@@ -142,9 +142,14 @@ namespace VisionMaster
                 SqliteSoftwareOperationLog.DefaultPath,
                 retentionDays: () =>
                 {
-                    // 容器在 CreateShell 之后才可用；早于它时用默认 90 天，不清空任何历史。
-                    try { return Container.Resolve<AppSettingsService>().Current?.AuditRetentionDays ?? 90; }
-                    catch { return 90; }
+                    // 容器在 base.OnStartup（RegisterTypes / CreateShell）之后才可用；
+                    // 而本回调在**首条记录建库**时就会被调一次（下方 SafeRecord「启动」条目），
+                    // 那一刻容器还是 null。
+                    // ⚠ 不能直接写 Container.Resolve<T>()：Prism 的 Resolve<T>() 是扩展方法，
+                    //   provider 为 null 时它自己先抛 NullReferenceException，再被 catch 吃掉——
+                    //   结果虽然正确（回落 90 天），但调试器会按 first-chance 停在那一行
+                    //   （2026-10-30 实测）。走 TryResolveService：先判空，正常路径不产生异常。
+                    return TryResolveService<AppSettingsService>()?.Current.AuditRetentionDays ?? 90;
                 },
                 warn: message => LogServiceSafe(message));
             SoftwareOperationLogHost.Current = operationLog;
@@ -339,6 +344,10 @@ namespace VisionMaster
             {
                 try
                 {
+                    // 先判空再解析：这个提供口在**容器建好之前**就会被调（启动早期第一条日志），
+                    // 直接 ContainerLocator.Container.Resolve(...) 会在 null 上抛 NRE，
+                    // 被下面 catch 吞掉后虽然行为正确，但调试器会 first-chance 中断。
+                    if (ContainerLocator.Container == null) return null;
                     logScopeWorkspace ??= ContainerLocator.Container.Resolve<WorkspaceContext>();
                     return SolutionPaths.GetSolutionRoot(logScopeWorkspace.CurrentSolution?.SolutionFilePath);
                 }
@@ -931,6 +940,12 @@ namespace VisionMaster
                             log.RequestReopen();
                             log.CleanupNow();
                         }
+
+                        // 「日志面板保留条数」也是日志设置的一项：LogView 绑的是
+                        // LogViewModel.PanelMaxRows（= 配置现值）。这是普通属性，不通知就永远
+                        // 停在首次读到的值上——改完设置会表现为"面板还是留 5000 条"。
+                        // 解析失败（未注册 / 退出期）时忽略：面板上限不生效不该让保存流程失败。
+                        try { TryResolveService<LogViewModel>()?.RefreshPanelMaxRows(); } catch { }
                     },
                     // 两个收图服务：Host/Port 是绑定期决定的，只能停掉再起。
                     // 两个各起各的：一个端口被占用不该让另一个也跟着不重开。

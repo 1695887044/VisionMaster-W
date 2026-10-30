@@ -52,8 +52,8 @@ namespace Plugin.CSharpScript
 // 自定义函数统一走 Context：
 //   var img = Context.GetInput<HImage>(""Image"");   // 取上游输入端口
 //   Context.SetOutput(""Count"", 12);                // 写输出端口（供下游连线）
-//   int g = Context.GetGlobal<int>(""imageIndex"");  // 读共享变量（全局/系统，先在左侧「共享变量」表声明）
-//   Context.SetGlobal(""imageIndex"", g + 1);        // 写共享变量（方向=读写；系统变量只读）
+//   int g = Context.GetGlobal<int>(""imageIndex"");  // 读共享变量（校验/确认时自动补进左侧表）
+//   Context.SetGlobal(""imageIndex"", g + 1);        // 写共享变量（自补的行方向=读写；系统变量只读）
 //   Context.SetVar(""temp"", 3.14);                  // 写运行期变量（下游可读）
 //   double v = Context.GetVar<double>(""temp"");     // 读运行期变量
 //   Context.Info(""完成""); Context.ShowImage(img, 1);
@@ -179,6 +179,13 @@ Context.SetOutput(""Result"", ""ok"");
             // 空名字行 = 无效配置：先用锚点名字补回（保住绑定，也避免留下没有端口的孤儿键）。
             // 直接删键会让"清空名字后误点确认/试运行"永久丢绑定；留着空名又会让流程编译失败。
             RestoreEmptyNames();
+
+            // 共享变量自动补表：脚本里写 Context.GetGlobal("imageIndex")，确认时补进表（唯一命中才补）。
+            // 放在重名/空名校验之前——补出来的行不会与输入/输出表重名（两张表独立），
+            // 但它同样必须在**任何写入之前**完成：多设备同名/名字不存在时整表一行都不补。
+            // 失败姿势与 nameError 一致：宿主 catch 后窗口不关、状态栏给原因。
+            string ensureError = EnsureSharedVarsFromScript();
+            if (ensureError != null) throw new InvalidOperationException(ensureError);
 
             // 重名/空名必须在**任何写入之前**拒绝：重名会让端口折叠（先到先得），
             // 另一行的连线随后会被 RemoveOrphanLinks 当孤儿删掉——配置看着正常、运行拿错值。
@@ -881,6 +888,140 @@ Context.SetOutput(""Result"", ""ok"");
             return null;
         }
 
+        /// <summary>把脚本里字面量别名用到、但表里没声明的共享变量补进声明表。</summary>
+        /// <returns>null = 成功（可能补了 0~N 行）；否则为可直接上屏的错误（带行号 + 可执行动作）。</returns>
+        /// <remarks>
+        /// 为什么不是"删表让脚本直连全局变量名"：表挡四件事——
+        /// ① 多设备同名（<c>Alarm[90]</c> 在 A_PLC/B_PLC 各有一个时按名读必然歧义），表里存 VariableId 才能精确寻址；
+        /// ② 改名不断链（按 Id 寻址只保住声明行，脚本正文的键要靠 Alias 固化）；
+        /// ③ 并行写冲突静态检查（<c>FlowCompiler</c> 从 InputValues["SharedVars"] 读写集合）；
+        /// ④ 只读/读写是用户意图（<c>ScriptSharedAccessor.ValidateWritable</c> 的声明级闸门）。
+        /// 自动补表只解决"手点新增"的机械劳动，上述四点一个都不丢。
+        ///
+        /// 原子性：先把所有新增行算完（任何一步出错直接返回错误、**一行都不补**），
+        /// 全部通过后一次性 Add。半补会让表停在"改了一半"的状态且用户看不出哪一半生效。
+        /// </remarks>
+        private string EnsureSharedVarsFromScript()
+        {
+            // 候选快照为空（headless / 宿主未推上下文）：无从判定"这个名字对应哪个变量"，
+            // 保持原行为——不补行、不报错，交给 Validate 的"未声明"分支给出既有提示。
+            if (SharedVarCandidates.Count == 0) return null;
+
+            var uses = ScriptSharedUsageValidator.Extract(ScriptText);
+            if (uses.Count == 0) return null;
+
+            // 已有别名集合：与 ScriptSharedAccessor 同一口径（EffectiveAlias + Ordinal）。
+            var declared = new Dictionary<string, ScriptSharedVarDef>(StringComparer.Ordinal);
+            // 已有 Id → 别名：判"同一变量被声明两次"（按 Id 才是身份，别名只是键）。
+            var declaredById = new Dictionary<Guid, string>();
+            foreach (var def in SharedVars ?? Enumerable.Empty<ScriptSharedVarDef>())
+            {
+                if (def == null) continue;
+                var alias = def.EffectiveAlias;
+                if (string.IsNullOrWhiteSpace(alias)) continue;
+                declared[alias] = def;
+                if (def.VariableId != Guid.Empty) declaredById[def.VariableId] = alias;
+            }
+
+            // 每个别名第一次被写的方法与行号（用于"系统变量被写"的错误定位到写那一行）。
+            var firstWrite = new Dictionary<string, ScriptSharedAliasUse>(StringComparer.Ordinal);
+            foreach (var use in uses)
+            {
+                if (use.Method == "GetGlobal") continue;
+                if (!firstWrite.ContainsKey(use.Alias)) firstWrite[use.Alias] = use;
+            }
+
+            // 名字 → 候选（精确 Ordinal，与 FindSharedCandidate 同口径）。
+            // 一次建索引后按名查表：2000 个别名 × 5000 条候选是 5000 次入桶 + 2000 次查找，
+            // 而不是 10^7 次字符串比较（暴力组 C32.9 的耗时判据靠它）。
+            Dictionary<string, List<VariableOption>> byName = null;
+
+            var pending = new List<(string Alias, ScriptSharedVarDef Def)>();
+            var seenNew = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var use in uses)
+            {
+                if (string.IsNullOrEmpty(use.Alias))
+                    return $"第 {use.Line} 行 第 1 列: 共享变量别名不能为空：{use.Method} 的第一个参数请写变量名";
+
+                if (declared.ContainsKey(use.Alias)) continue;   // 已有行：不重复补、不改方向
+                if (!seenNew.Add(use.Alias)) continue;           // 同一别名出现多次：只补一行
+
+                byName ??= BuildSharedCandidateIndex();
+                if (!byName.TryGetValue(use.Alias, out var matches) || matches.Count == 0)
+                    return $"第 {use.Line} 行 第 1 列: 共享变量「{use.Alias}」不存在：请在变量管理里确认变量名，或检查拼写";
+
+                // 多设备同名：**绝不猜**。挑第一条等于把值写到另一台设备上，且现场看不出来。
+                if (matches.Count > 1)
+                    return SharedAliasAmbiguousError(use, matches);
+
+                var option = matches[0];
+
+                // 系统变量恒只读：脚本里要写就不补行，直接指出"这条路走不通"。
+                if (option.IsSystem && firstWrite.TryGetValue(use.Alias, out var writeUse))
+                    return $"第 {writeUse.Line} 行 第 1 列: 「{use.Alias}」是系统变量（只读），不能调用 {writeUse.Method}"
+                        + "（系统变量只能读；要写请改用全局变量）";
+
+                // 同一变量已经用别的别名声明过：此时按别名看是"新键"，却会落成同一 VariableId 的第二行。
+                // 两个键写同一个值看不出问题，但表里像两个变量、并行写集合也会重复计一条 → 明确拒绝。
+                if (option.VariableId != Guid.Empty
+                    && declaredById.TryGetValue(option.VariableId, out var otherAlias))
+                    return $"第 {use.Line} 行 第 1 列: 变量「{option.Name}」已在共享变量表里以别名「{otherAlias}」声明："
+                        + $"请把脚本里的键改成「{otherAlias}」，或把该行的别名改成「{use.Alias}」（同一变量不能声明两行）";
+
+                bool writable = firstWrite.ContainsKey(use.Alias);
+                var row = new ScriptSharedVarDef
+                {
+                    VariableId = option.VariableId,
+                    Name = option.Name,
+                    // 显式写死别名：以后变量管理里改名不会把脚本键带跑（按 Id 寻址只保住声明行）。
+                    Alias = use.Alias,
+                    TypeName = option.TypeName,
+                    IsSystem = option.IsSystem,
+                    Access = writable ? ScriptSharedAccess.ReadWrite : ScriptSharedAccess.Read,
+                };
+                pending.Add((use.Alias, row));
+                if (option.VariableId != Guid.Empty) declaredById[option.VariableId] = use.Alias;
+            }
+
+            // 全部算完才落表：任何一步返回错误时 SharedVars 一行都没动。
+            foreach (var item in pending) SharedVars.Add(item.Def);
+            return null;
+        }
+
+        /// <summary>候选索引：变量名（Ordinal）→ 同名的全部候选（多设备同名时 &gt;1 条）。</summary>
+        private Dictionary<string, List<VariableOption>> BuildSharedCandidateIndex()
+        {
+            var map = new Dictionary<string, List<VariableOption>>(StringComparer.Ordinal);
+            foreach (var option in SharedVarCandidates)
+            {
+                if (option?.Name == null) continue;
+                if (!map.TryGetValue(option.Name, out var list))
+                    map[option.Name] = list = new List<VariableOption>();
+                list.Add(option);
+            }
+            return map;
+        }
+
+        /// <summary>
+        /// 多设备同名错误文案：完整列出设备名（2~3 台是常态，用户要据此去表里选）。
+        /// 超过 8 台只列前 8 个 + "等 N 台"——200 台同名的暴力场景不让状态栏被撑爆，
+        /// 总数与"去哪选"仍然写清。
+        /// </summary>
+        private static string SharedAliasAmbiguousError(ScriptSharedAliasUse use, List<VariableOption> matches)
+        {
+            const int maxListed = 8;
+            var names = matches
+                .Select(o => string.IsNullOrWhiteSpace(o.Device) ? "本地变量" : "设备 " + o.Device)
+                .ToList();
+            string list = names.Count <= maxListed
+                ? string.Join(" / ", names)
+                : string.Join(" / ", names.Take(maxListed)) + $" 等 {names.Count} 台";
+
+            return $"第 {use.Line} 行 第 1 列: 共享变量「{use.Alias}」在 {matches.Count} 个变量上重复（{list}），"
+                + "请在左侧「共享变量」表里选择一台后再校验";
+        }
+
         /// <summary>校验脚本（不执行）：先查共享变量用法，再强制重编译当前脚本正文。返回 null=通过；否则为带行列号的错误。</summary>
         public string ValidateScript()
         {
@@ -888,6 +1029,11 @@ Context.SetOutput(""Result"", ""ok"");
             // 在编译前报出来最省事（文案与确认时拒绝的完全一致）。
             string nameError = GetVariableNamesError();
             if (nameError != null) return nameError;
+
+            // 共享变量自动补表：脚本里写 Context.GetGlobal("imageIndex") 就能用，
+            // 唯一命中补一行、多设备同名报错（不猜）、找不到报错（带行号）。
+            string ensureError = EnsureSharedVarsFromScript();
+            if (ensureError != null) return ensureError;
 
             // 共享变量用法先查：未声明/只读被写这类错误，Roslyn 只会报"方法不存在/类型不对"，
             // 定位不到"去左侧共享变量表加一行"这个可执行动作。

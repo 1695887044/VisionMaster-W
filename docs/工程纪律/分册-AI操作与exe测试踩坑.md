@@ -149,8 +149,13 @@
 | 构建命令接 `findstr` 过滤 → 无匹配时退出码 1，成功被误判为失败 | C-56 | ✅ |
 | 等"某进程退出"时 `Get-Process -Id` 命中了被复用的 PID（conhost） | C-57 | ✅ |
 | `Select-String -SimpleMatch` 把 `[01]` 当字面量 → 字符类失效 | C-58 | ✅ |
+| 探针改 `Columns[0]`/`Fields[0]`/`Items[0]` 却没生效（改的是插件出厂默认行） | C-59 | ✅ |
+| 自建脚本抓构建输出中文乱码、`0 个错误` 匹配不到 → 成功被判失败 | C-60 | ✅ |
 | 探针反射调用私有方法，`GetMethod` 返回 null 被静默跳过 | E-12 | ✅ |
 | 断言宿主里子线程 `new Application` → 后续检查 `add_Exit` 跨线程崩溃 | E-13 | ✅ |
+| 脚本扫描把**注释里的示例调用**也当成真用法 → 新建步骤一点校验就报"未声明" | C-61 | ✅ |
+| 反射拿 `ValueTuple` 返回值，`GetField("Global")` 返回 null（字段名只有 Item1/Item2） | C-62 | ✅ |
+| 构建红在自己没碰的文件里，且 mtime 就在几十秒前（另一会话正在改） | C-63 / C-41 | ✅ |
 
 ---
 
@@ -1271,6 +1276,96 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 - **规避建议**：`Select-String` 带方括号/点/星号的 pattern 先想清楚走哪种模式；
   拿不准就两条各跑一次对比。
 
+#### C-59 插件出厂自带默认行/列，探针 `[0]` 索引到的是它，不是自己加的那条  [✅]  最近：2026-10-30  复发：1 次
+- **现象**：探针里 `plugin.Columns.Add(...)` 后改 `Columns[0]`，断言全红；打印出来"列名确实改了"，
+  但端口集合里那条根本没消失——实际改的是构造函数预置的那一行（`时间` / `sn` / `r1`）。
+- **触发场景 / 复现**：用"新建插件实例 + Add 我的行"造夹具，然后按索引 0 操作。
+- **原因**：三个插件的构造函数里已经有默认行（`DataRecordPlugin.cs:56-63` 三列、
+  `ResultUploadPlugin.cs:59-65` 三字段、`ResultDisplayPlugin.cs:121-122` 行 `r1`），`Add` 是追加。
+- **解决办法**：造夹具前先 `plugin.Columns.Clear()` / `Fields.Clear()` / `Items.Clear()`。
+- **规避建议**：任何"按索引定位配置行"的探针，先打印一次集合内容再断言。
+
+#### C-60 自建脚本抓 `dotnet build` 输出没设 Encoding → 中文乱码，"0 个错误"永不命中  [✅]  最近：2026-10-30  复发：1 次
+- **现象**：`[Diagnostics.Process]::Start` 抓构建输出，日志里是 `宸叉垚鍔熺敓鎴愩€?`；
+  正则 `0 个错误` 匹配不到 → 一次全绿的构建被判 FAIL，且失败明细一条也打不出来。
+- **触发场景 / 复现**：自建构建脚本 `RedirectStandardOutput = true` 但没设 `StandardOutputEncoding`。
+- **原因**：`ProcessStartInfo` 默认按 `Console.OutputEncoding`（本机 936）解码子进程字节流，
+  而 `dotnet` 吐 UTF-8（与 R183 同一根因，只是这次发生在自建脚本而非 `run_gates`）。
+- **解决办法**：`$psi.StandardOutputEncoding = New-Object Text.UTF8Encoding($false)`，`StandardErrorEncoding` 同样设置。
+- **规避建议**：凡自己写 `Process.Start` 抓输出的脚本，两个 Encoding 都必须显式设 UTF-8。
+
+#### C-61 脚本扫描把**注释里的示例调用**也当成真用法 → 新建步骤一点「校验脚本」就报"未声明"  [✅]  最近：2026-10-30  复发：1 次
+- **现象**：新建 C# 脚本步骤（默认模板里 `//   int g = Context.GetGlobal<int>("imageIndex");`
+  是**注释示例**），什么都不改点「校验脚本」，状态栏报
+  `第 11 行 第 1 列: 共享变量「imageIndex」不存在：请在变量管理里确认变量名，或检查拼写`。
+  用户根本没写这行代码，是模板里的注释被当成了真用法。
+- **触发场景 / 复现**：把"按正则扫 `Context.GetGlobal("x")`"直接用在含注释的脚本正文上；
+  任何带示例注释的脚本（默认模板、帮助里抄来的片段）都会命中。
+- **原因**：正则只看文本形态，不区分代码与注释。`ScriptSharedUsageValidator` 的 `CallPattern` 本来
+  只服务"校验已声明表"（注释里的调用被当成"未声明"只是报错变成假红），但接上"自动补表"以后
+  会**真的往表里加行**或**拒绝掉一次合法校验**，后果从"文案不准"升级成"功能不可用"。
+- **解决办法**：`Extract` 先做一次 C# 注释掩码（`MaskComments`）：`//` 与 `/* */`
+  逐字符替换成**等长空格**（保留换行 → 行号不变），并且**跳过字符串字面量内部**
+  （否则 `"http://x"` 里的 `//` 会被当成注释起点，把后面的代码一起吞掉）。
+  只处理普通串/逐字串（`@""`）/插值串（`$""`、`$@""`），不做语法分析。
+- **规避建议**：任何"扫代码里的字符串字面量"的需求，先问"注释里的示例算不算"；
+  要用等长替换而不是删除（行号/列号是错误文案的一部分）。
+- **相关命令 / 参数**：`ScriptSharedUsageValidator.MaskComments`；
+  回归断言 `C32.11b 只有注释 → 返回 null、不补行`、`C32.25a 未声明文案逐字一致（含行号）`。
+
+#### C-62 反射拿 `ValueTuple` 返回值，`GetField("Global")` 返回 null（字段名只有 Item1/Item2）  [✅]  最近：2026-10-30  复发：1 次
+- **现象**：探针里 `collect.Invoke(null, args)` 取 `CollectParallelWrites` 的返回，
+  `result.GetType().GetField("Global").GetValue(result)` 得到 `null`；
+  随后的 `globalWrites.TryGetValue(...)` 抛 `NullReferenceException`，整组断言被 `Guard` 记成
+  `C32.X 未预期异常` —— 看起来像产品缺陷。
+- **触发场景 / 复现**：反射调用返回 `(Dictionary Runtime, Dictionary Global)` 的方法，
+  按源码里的**元组元素名**取字段。C# 的元组元素名是**编译期语法糖**（`TupleElementNames` 特性），
+  运行时 `System.ValueTuple<T1,T2>` 只有 `Item1` / `Item2`。
+- **原因**：`ValueTuple` 的字段名不参与运行时反射；`GetField("Global")` 正常返回 null。
+- **解决办法**：用 `GetField("Item2")`（并注释写明 `Runtime=Item1 / Global=Item2`）；
+  或先 `GetFields()` 打印一遍确认。
+- **规避建议**：反射返回元组时，**先断言 `GetField(...) != null`** 再取值；
+  与 E-12（反射调私有方法先断言 `GetParameters().Length`）同一条纪律。
+- **相关命令 / 参数**：`C32.23b 补出来的 ReadWrite 行进并行写冲突检查`。
+
+#### C-63 构建红在自己没碰的文件里，且 mtime 就在几十秒前（另一会话正在改）  [✅]  最近：2026-10-30  复发：2 次
+- **现象**：只改 `Plugin.CSharpScript`，跑探针时构建在
+  `Plugins\Plugin.Utility\VariableAssignmentPlugin.cs(1210,25): error CS0103: 当前上下文中不存在名称"PushOutput"`
+  判红；`Get-Item` 显示该文件 mtime 是 **30 秒前**。第一反应是"我的改动把别人代码弄坏了"。
+- **触发场景 / 复现**：多会话共用工作区，另一会话正在同一棵源码树上编辑（保存到一半、
+  或刚删掉一个方法还没补上）。与 C-41 / C-11 同源，但这次是**探针构建**触发而非主解决方案构建。
+- **原因**：`ProjectReference` 会把 `Plugin.Utility` 一起重建；那份源码此刻处于中间态。
+- **解决办法**：① `Get-Item <报错文件>` 看 mtime 与当前时间差；② 与自己本轮改动的文件清单比对，
+  确认不是自己碰过的；③ 等 2~3 分钟再单独 `dotnet build <该工程>.csproj -m:1 -nodeReuse:false`
+  验证它已自愈；④ 恢复后重跑探针。**绝不替对方改**，也不 `--no-build` 绕过去。
+- **规避建议**：构建/跑测归主会话（R181）；报错文件 mtime 在几分钟内 → 先当"并发写入中"处理，
+  不要直接读源码判断"产品缺陷"。判据：`(Get-Date) - (Get-Item <file>).LastWriteTime` < 5 分钟。
+- **相关命令 / 参数**：
+  ```powershell
+  Get-Item 'D:\C#\VM\Plugins\Plugin.Utility\VariableAssignmentPlugin.cs' | Select-Object LastWriteTime,Length
+  Get-Date
+  dotnet build 'Plugins\Plugin.Utility\Plugin.Util.csproj' -c Debug -m:1 -nodeReuse:false
+  ```
+- **2026-10-30 追加实战（同一轮踩 4 次，复发 +3）**：不只是构建红，**闸门里的断言也会假红**。
+  实测三种形态：① `CS0103 不存在名称 PushOutput`（对方删了方法还没补）；
+  ② `CS1929 IReadOnlyDictionary 不包含 Contains`（对方改签名改了一半）；
+  ③ `CS1519 成员声明中的标记"{"无效`（文件写到一半）；
+  ④ 构建通过但 `[A2-v4-4]` / `[A2-v4-9]` 断言红（对方正在改同名断言的期望值）。
+  **关键判别**：`(Get-Date) - (Get-Item <报错文件>).LastWriteTime` 落在几十秒~几分钟内，
+  且该文件**不在自己本轮的改动清单里** → 一律当并发写入中，**不要读源码下"产品缺陷"结论**。
+  **等待判据**（实测有效）：同时满足「无其它 `run_gates`/`dotnet build` 进程」+「相关源文件最小
+  mtime 年龄 > 240 秒」，再重跑；本轮最终等到 692 秒才稳定。
+  **绝不**用 `-SkipBuild` / `--no-build` 绕（那会把对方的红藏起来），也绝不替对方改。
+  ```powershell
+  for($i=0;$i -lt 30;$i++){
+    $g=Get-CimInstance Win32_Process -Filter "Name='powershell.exe' or Name='dotnet.exe'" |
+       Where-Object { $_.ProcessId -ne $PID -and ($_.CommandLine -like '*run_gates*' -or $_.CommandLine -like '*dotnet build*') }
+    $min=(@('<file1>','<file2>') | ForEach-Object { [int](((Get-Date)-(Get-Item $_).LastWriteTime).TotalSeconds) } | Measure-Object -Minimum).Minimum
+    if(-not $g -and $min -gt 240){ 'SETTLED'; break }
+    Start-Sleep -Seconds 30
+  }
+  ```
+
 ### D. 路径与权限
 #### D-01 相对路径按进程当前目录解析  [✅]  最近：2026-10-25  复发：2 次
 - **现象**：`[IO.File]::ReadAllLines('docs\x.md')` 报找不到，文件确实存在。
@@ -1860,4 +1955,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 | 2026-10-29 | 流程栏双击算子不弹参数窗修复（`TreeViewBehavior` 双击写回靶 + null 清高亮、`ProcessViewModel` 接住 `Open` 返回值）：FlowCanvasChecks 4392/0（新增 V11 四条真 TreeView 回放）；构建期撞另一会话写 `ScadaActionDispatcher.cs` 与并发复制 `Modules\`，各补一条变体 | — | C-01（补 `[Diagnostics.Process]` 重定向 936 可救回）、C-41（补 `MSB3073 copy` 并发变体 + VBCSCompiler 不是构建） |
 | 2026-10-29 | 变量绑定弹窗打开卡死（9000 变量）：临时诊断量出"首次 `UpdateLayout` = 122 781 ms / realized=9001，随后收敛回 6"——首帧代价被终态断言掩盖；修法 = 构造器预置有界 `MaxHeight` + `Items.Count == 0` 不放宽，9000 条首帧降到 61 ms；新增两条首帧断言并做变异反证（改坏守卫 → `firstPassRealized=1501` 判红）。`--variable-binding` 41/0 | — | C-39（`& echo %ERRORLEVEL%` 又踩一次：FAIL 那轮仍打印 RUN=0，复发 +1；并补「后台任务整条没跑、任务报 exit 0、日志文件根本不存在」变体） |
 | 2026-10-29 | 多设备同名变量四批改造（重名不猜 / 同设备内唯一 / 三插件存 Id / 绑定弹窗与变量赋值行内显示设备）：探针 127 项 ALL_OK；全程与另一会话的 `run_gates` 并发，ScadaChecks 红在 `ScadaActionType` 被对方扩到 34 个成员上（与本改动无关），复跑还撞 `VM.Scada.Controls.dll`/`AppConfig.json` 文件锁 | C-08（扩到「两个 run_gates 并发」，复发 +1）、A-01（补「错误文本不含锁持有者，手动 copy + Get-Process 定位」） | C-56（findstr 无匹配=退出码 1，构建成功被误判失败，4 次）、C-57（`Get-Process -Id` 命中被复用的 PID，conhost 顶替）、C-58（`Select-String -SimpleMatch` 字符类失效）、E-12（反射定位私有方法必须先断言签名）、C-05（中文 pattern，复发 +1）、C-39（复发 +1）、C-54（gate 期间加文档，复发 +1） |
+| 2026-10-30 | 孤儿连线缺陷下沉 `VisionPluginBase.PruneOrphanLinks` 并接入 5 个动态端口插件（DataRecord / ResultUpload / Database / ImageScript / ResultDisplay）：探针 C30 新增 19 条、总数 196/0，`run_gates` 17 步全绿。写探针时连踩两条：插件出厂默认行让 `[0]` 索引错位（3 处断言假红）、自建构建脚本按 936 解 UTF-8 把成功判成失败 | C-59、C-60 | C-56（构建判据又用 findstr，复发 +1）、E-12（反射调 `PruneOrphanLinks` 先断言 2 参签名） |
+| 2026-10-30 | C# 脚本共享变量表改成「从脚本正文自动生成」：探针 C32 新增 38 条（多设备同名不猜 / 200 台·2000 别名·5000 候选暴力 / 系统变量只读 / 原子性 / 反向文案逐字），探针总数 243/0；FlowCanvasChecks SV32~SV36 端到端 5 条（4418/0）；`run_gates` 17 步全绿。踩三条：注释里的示例被当用法（新建步骤一点校验就假红）、元组字段名不参与运行时反射、并发会话正在改 `Plugin.Utility`/`VariableAssignmentCheck.cs` 导致构建与断言反复假红（等 4 轮共约 40 分钟才稳定） | C-61、C-62、C-63 | C-41（"报错文件 mtime 在几分钟内"的探针构建 + 闸门断言双变体，复发 +3）、E-12（反射先断言签名，两处） |
+| 2026-10-30 | 「变量赋值」→「变量定义与赋值」v4：运行时行产出 `Var_{名}` 输出端口（类型由新 `VariableValueType` 驱动）、执行时双写（变量池 + 端口）、两行同名拒绝。`Core.Interfaces` 新增 `VariableValueType.cs`。FlowCanvasChecks 新增 A2-v4 组 15 条（4418/0），`run_gates` 17 步全绿。写断言时踩三条：① 把 `Var_*`（本步骤**输出**）当成自己的 `LinkedSources` 键去断言（那里只放输入端口名）→ 假红；② 新建运行时行忘勾「自动创建」→ 赋值失败、双写断言假红；③ 改注释时把 `/// <summary>` 与下一行方法签名拼成一行 → 27 条 CS1519 | — | C-59（"默认值让夹具假红"再补一个变体：**默认 `CreateIfNotExists=false`**）、C-08（与子代理并发改 `Plugin.Utility`，`HelpProbe` 锁 `Modules\` 致构建失败，复发 +1） |
 新增条目按模板补齐五段；汇报里写「台账已更新：新增 N 条 / 合并 M 条」。

@@ -458,7 +458,14 @@ namespace VisionMaster.ViewModels.DialogViewModels
                 logChanged = true;
             }
             if (logPanelRows != oldLogPanelRows)
+            {
                 parameterChanges.Add($"日志面板保留条数：{oldLogPanelRows} → {logPanelRows} 条");
+                // 面板上限现在由 LogView 绑 LogViewModel.PanelMaxRows 生效（不再硬编码 2000），
+                // 但那是"一次性求值"的属性——必须让它重发通知，视图才会把新上限推到
+                // LogConsole.MaxItems 并立刻按新值裁一次。走同一条"日志已改"的生效出口，
+                // 代价只是多一次 RequestReopen（置个标志）+ CleanupNow（幂等清理），可忽略。
+                logChanged = true;
+            }
 
             var serviceChanged = false;
             if (Draft.HttpServerEnabled != oldHttp.Enabled)

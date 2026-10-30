@@ -9,7 +9,15 @@ namespace Plugin.DataRecord
     {
         /// <summary>输入端口：列名即动态端口名，由上游步骤连线供值（未连线时可手填默认值）</summary>
         Port,
-        /// <summary>运行期变量：从 context.LocalVariables 按名取值（变量定义/脚本 SetVar 写入的池）</summary>
+        /// <summary>
+        /// 运行期变量：从 context.LocalVariables 按名取值（变量定义/脚本 SetVar 写入的池）。
+        ///
+        /// **2026-10-30 起 UI 不再提供这一档**（方案 B：取值统一走绑定弹窗）。
+        /// 成员**保留、数值不变**是硬要求：旧 `.vms` 里 <c>"Source": 1</c> 必须仍反序列化成它，
+        /// 否则会静默变成 <see cref="BuiltIn"/>（原来"取变量值"的列变成"记时间戳"，不报错只错数据）。
+        /// 运行期读取分支也一并保留，旧配置照旧取值；新配置不会再产生这一档。
+        /// </summary>
+        [Obsolete("UI 已不再提供「变量」档（取值统一走绑定弹窗）。成员与数值必须保留，仅供旧方案反序列化。")]
         Variable,
         /// <summary>内置字段：时间戳/序列号/步骤名/本轮耗时，由插件自动供给</summary>
         BuiltIn

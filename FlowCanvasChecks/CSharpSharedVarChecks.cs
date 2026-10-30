@@ -36,6 +36,7 @@ namespace FlowCanvasChecks
             WriteGuards();
             ParallelWriteCollection();
             InputBindingFilter();
+            AutoDeclareFromScript();
         }
 
         private static (CSharpScriptPlugin Plugin, ActionStep Step) NewStep()
@@ -396,8 +397,103 @@ namespace FlowCanvasChecks
                 editor == null ? "读不到控件源码" : "已透传");
         }
 
-        private static string ReadRepoText(string relativePath)
+        // ---- ⑩ 从脚本正文自动生成共享变量表（2026-10-30） ----
+        /// <summary>
+        /// 端到端：真 CSharpScriptPlugin + 真 ActionStep。
+        /// 用户诉求是"脚本里直接写 GetGlobal，表自动长出来"——这里走**确认**这条路（OnConfirm），
+        /// 因为那才是落 InputValues["SharedVars"]、随 .vms 存盘的入口。
+        /// </summary>
+        private static void AutoDeclareFromScript()
         {
+            var globalId = Guid.NewGuid();
+
+            // ① 脚本写 + 确认 → 表自动长出正确行
+            var (plugin, step) = NewStep();
+            plugin.SetConfigContext(new PluginConfigContext
+            {
+                Variables = new List<VariableOption>
+                {
+                    new() { VariableId = globalId, Name = "imageIndex", Scope = "Global", TypeName = "Int32", CanWrite = true, Device = "A_PLC" },
+                },
+            });
+            plugin.ScriptText = "int g = Context.GetGlobal<int>(\"imageIndex\");\nContext.SetGlobal(\"imageIndex\", g + 1);";
+            plugin.OnConfirm(step);
+
+            Check("SV32 脚本写 GetGlobal/SetGlobal + 确认 → 共享变量表自动补 1 行（Id/别名/读写）",
+                plugin.SharedVars.Count == 1
+                && plugin.SharedVars[0].VariableId == globalId
+                && plugin.SharedVars[0].Alias == "imageIndex"
+                && plugin.SharedVars[0].Access == ScriptSharedAccess.ReadWrite,
+                plugin.SharedVars.Count == 1
+                    ? $"Id={plugin.SharedVars[0].VariableId} alias={plugin.SharedVars[0].Alias} access={plugin.SharedVars[0].Access}"
+                    : $"count={plugin.SharedVars.Count}");
+
+            // ② 补出来的行随 .vms 落盘：InputValues["SharedVars"] 里能看到它
+            var persisted = step.InputValues.TryGetValue("SharedVars", out var raw) ? raw : null;
+            var persistedDefs = persisted as System.Collections.IEnumerable;
+            var persistedList = new List<ScriptSharedVarDef>();
+            if (persistedDefs != null)
+                foreach (var item in persistedDefs)
+                    if (item is ScriptSharedVarDef d) persistedList.Add(d);
+
+            Check("SV33 补出来的行随 .vms 落盘（InputValues[\"SharedVars\"] 含该行且 Id/别名一致）",
+                persistedList.Count == 1
+                && persistedList[0].VariableId == globalId
+                && persistedList[0].Alias == "imageIndex",
+                persistedList.Count == 0
+                    ? "InputValues 里没有 SharedVars"
+                    : $"count={persistedList.Count} id={persistedList[0].VariableId} alias={persistedList[0].Alias}");
+
+            // ③ 重复确认不重复加行（幂等）
+            plugin.OnConfirm(step);
+            plugin.OnConfirm(step);
+            Check("SV34 连续确认 3 次 → 仍然只有 1 行（幂等）",
+                plugin.SharedVars.Count == 1, $"count={plugin.SharedVars.Count}");
+
+            // ④ 多设备同名 → OnConfirm 抛 InvalidOperationException，消息含两台设备名
+            var (multi, multiStep) = NewStep();
+            multi.SetConfigContext(new PluginConfigContext
+            {
+                Variables = new List<VariableOption>
+                {
+                    new() { VariableId = Guid.NewGuid(), Name = "Alarm[90]", Scope = "Global", TypeName = "Boolean", Device = "A_PLC" },
+                    new() { VariableId = Guid.NewGuid(), Name = "Alarm[90]", Scope = "Global", TypeName = "Boolean", Device = "B_PLC" },
+                },
+            });
+            multi.ScriptText = "bool a = Context.GetGlobal<bool>(\"Alarm[90]\");";
+
+            Exception confirmError = null;
+            try { multi.OnConfirm(multiStep); } catch (Exception ex) { confirmError = ex; }
+
+            Check("SV35 多设备同名 → OnConfirm 抛 InvalidOperationException 且消息含 A_PLC / B_PLC",
+                confirmError is InvalidOperationException
+                && confirmError.Message.Contains("A_PLC")
+                && confirmError.Message.Contains("B_PLC")
+                && multi.SharedVars.Count == 0,
+                confirmError == null ? "没有抛异常" : confirmError.GetType().Name + ": " + confirmError.Message);
+
+            // ⑤ 校验脚本按钮同一条路：ValidateScript 也补表（不是只有确认才补）
+            var (validatePlugin, _) = NewStep();
+            validatePlugin.SetConfigContext(new PluginConfigContext
+            {
+                Variables = new List<VariableOption>
+                {
+                    new() { VariableId = globalId, Name = "imageIndex", Scope = "Global", TypeName = "Int32", CanWrite = true },
+                },
+            });
+            validatePlugin.ScriptText = "Context.Info(\"x\");";
+            var original = validatePlugin.ScriptText;
+            validatePlugin.ScriptText = original + "\nint g = Context.GetGlobal<int>(\"imageIndex\");";
+            var validateError = validatePlugin.ValidateScript();
+
+            Check("SV36 「校验脚本」也会补表（表里有该行，且不再报「未声明」）",
+                validatePlugin.SharedVars.Count == 1
+                && validatePlugin.SharedVars[0].Alias == "imageIndex"
+                && (validateError == null || !validateError.Contains("未声明")),
+                $"rows={validatePlugin.SharedVars.Count} err={(validateError ?? "null")}");
+        }
+
+        private static string ReadRepoText(string relativePath)        {
             // 从输出目录向上找仓库根（含 VisionMaster.sln 的那一层）
             var dir = new System.IO.DirectoryInfo(AppContext.BaseDirectory);
             while (dir != null)

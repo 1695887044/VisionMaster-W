@@ -82,6 +82,25 @@ namespace Plugin.Util.Models
             set => SetProperty(ref _createIfNotExists, value);
         }
 
+        private VariableValueType _type = VariableValueType.Object;
+
+        /// <summary>
+        /// 声明类型（决定这一行生成的输出端口的 CLR 类型）。
+        ///
+        /// 规则：**所有 <c>Scope=Runtime</c> 的行都生成 <c>Var_{变量名}</c> 输出端口**，端口类型 = 本字段。
+        /// 默认 <see cref="VariableValueType.Object"/> 对应 <c>OutputPort&lt;object&gt;</c>：
+        /// 保证"新加一行忘记选类型"时端口照样存在（否则用户会以为功能坏了），
+        /// 代价是那一行没有编译期类型校验；选成具体类型就启用 <c>FlowCompiler.TryValidateLink</c> 的闸门。
+        ///
+        /// 旧 `.vms` 没有这个字段 → 反序列化成 Object，旧配置因此多出一个 object 输出端口。
+        /// 这是**新增能力**不是行为回归：没人连它就没有任何影响（不产生连线键、不参与编译检查）。
+        /// </summary>
+        public VariableValueType Type
+        {
+            get => _type;
+            set => SetProperty(ref _type, value);
+        }
+
         private string _valuePortName = string.Empty;
 
         /// <summary>

@@ -322,6 +322,14 @@ namespace Plugin.ResultDisplay
         public override void OnConfirm(IStepConfigData stepData)
         {
             base.OnConfirm(stepData);
+
+            // 清孤儿连线（在 base.OnConfirm 之后）：删行 / 停用结果项会让端口消失，
+            // 但 LinkedSources 里以该 Id 为键的连线没人删 → FlowCompiler 报
+            // "没有名为 X 的输入端口"。
+            // 端口名取的是 DisplayItemDef.Id（Guid，永不改），所以"改名"不会产生孤儿，
+            // 只有"行被删/被停用"才会。
+            PruneOrphanLinks(stepData);
+
             if (stepData?.InputValues == null) return;
 
             foreach (var port in Inputs.Values)

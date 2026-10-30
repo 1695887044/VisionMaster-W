@@ -696,7 +696,7 @@
                                     </StackPanel>
                                 </Button>
                             </Grid>
-                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="全局/系统变量按变量 Id 声明，不占用输入端口；脚本用 Context.GetGlobal(&quot;别名&quot;) 读取。系统变量只读。" />
+                            <TextBlock Style="{StaticResource HelpTextStyle}" Text="全局/系统变量按变量 Id 声明，不占用输入端口；脚本写 Context.GetGlobal(&quot;别名&quot;) 后，点「校验脚本」或「确认」会自动补行（多设备同名会报错，请在表里选一台）。系统变量只读。" />
 
                             <ItemsControl Margin="0,2,0,0" ItemsSource="{Binding SharedVars}">
                                 <ItemsControl.ItemTemplate>

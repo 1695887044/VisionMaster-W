@@ -46,8 +46,8 @@ C#脚本(共享变量 imageIndex, 读写) ⇄ 全局变量 ImageIndex   （按 I
 // 自定义函数统一走 Context：
 //   var img = Context.GetInput<HImage>("Image");   // 取上游输入端口
 //   Context.SetOutput("Count", 12);                // 写输出端口（供下游连线）
-//   int g = Context.GetGlobal<int>("imageIndex");  // 读共享变量（先在左侧「共享变量」表声明）
-//   Context.SetGlobal("imageIndex", g + 1);        // 写共享变量（方向=读写；系统变量只读）
+//   int g = Context.GetGlobal<int>("imageIndex");  // 读共享变量（校验/确认时自动补进左侧表）
+//   Context.SetGlobal("imageIndex", g + 1);        // 写共享变量（自补的行方向=读写；系统变量只读）
 //   Context.SetVar("temp", 3.14);                  // 写运行期变量（下游可读）
 //   double v = Context.GetVar<double>("temp");     // 读运行期变量
 //   Context.Info("完成"); Context.ShowImage(img, 1);

@@ -141,6 +141,27 @@ namespace VisionMaster.ViewModels
         /// <summary>真的没有日志（刚启动 / 已清空），与"筛没了"分开</summary>
         public bool IsEmpty => SystemLogs.Count == 0;
 
+        /// <summary>
+        /// 面板保留条数（绑 <c>LogConsole.MaxItems</c>）。
+        ///
+        /// 为什么要有这个属性：视图里原先硬编码 <c>MaxItems="2000"</c>，而
+        /// <see cref="AppConfigModel.LogPanelMaxRows"/> 默认 5000 且「系统 → 系统参数设置」可改——
+        /// 两个上限并存，"改了配置没生效"（实际卡在 2000）而且没有任何提示。
+        /// 现在两处用**同一个来源**：本属性直接读配置，<see cref="AppendBatch"/> 用它裁剪，
+        /// 视图也绑它，不再有第二个数字。
+        ///
+        /// 口径：0 或负数 = 不限制（<see cref="AppendBatchWithCap"/> 与
+        /// <c>LogConsole.TrimToCapacity</c> 都按这个语义处理）。
+        /// </summary>
+        public int PanelMaxRows => _settings?.Current?.LogPanelMaxRows ?? AppConfigModel.DefaultLogPanelMaxRows;
+
+        /// <summary>
+        /// 配置里的面板保留条数被改过之后调一次：通知 <see cref="PanelMaxRows"/> 重读。
+        /// 通知到视图后，<c>LogConsole.MaxItems</c> 的变更回调会立刻按新上限裁一次
+        /// （调小上限时不必等新日志到达）。宿主在系统设置「确定」后的生效动作里调用。
+        /// </summary>
+        public void RefreshPanelMaxRows() => RaisePropertyChanged(nameof(PanelMaxRows));
+
         private void RaiseFilterCounters()
         {
             RaisePropertyChanged(nameof(FilteredCount));
@@ -297,7 +318,7 @@ namespace VisionMaster.ViewModels
         /// <summary>批量追加（UI 线程）：整批只发一次计数通知。</summary>
         private void AppendBatch(List<LogItem> batch)
         {
-            var maxRows = _settings?.Current?.LogPanelMaxRows ?? AppConfigModel.DefaultLogPanelMaxRows;
+            var maxRows = PanelMaxRows;
 
             _batchDepth++;
             try

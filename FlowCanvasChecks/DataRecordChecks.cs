@@ -8,6 +8,11 @@ using VisionMaster.Services;
 // 裸写 ExecutionContext 会与 System.Threading.ExecutionContext 撞名（两个宿主都启用了隐式 using）
 using ExecutionContext = VisionMaster.Services.ExecutionContext;
 
+// 方案 B（2026-10-30）：`ColumnSource.Variable` 已从 UI 下线并标了 [Obsolete]，
+// 但**成员与数值必须保留**（旧 .vms 的 "Source": 1 要能反序列化），运行期分支也保留。
+// 下面的用例正是钉住"旧配置还能跑"，所以这里显式抑制 CS0618——不是违规，是刻意兼容路径。
+#pragma warning disable CS0618
+
 namespace FlowCanvasChecks
 {
     /// <summary>
@@ -33,9 +38,10 @@ namespace FlowCanvasChecks
             DataPipelineCheckSupport.Section("CSV记录：转义 / 来源 / 模板 / 序号 / 清理 / 存图 / 写盘失败");
 
             DataPipelineCheckSupport.SafeRun("表头/行/转义", HeaderRowsAndEscaping);
-            DataPipelineCheckSupport.SafeRun("运行期变量来源", VariableSource);
-            DataPipelineCheckSupport.SafeRun("变量来源覆盖全局/通讯与数组格式（N2）", VariableSourceCoversSharedRegistry);
+            DataPipelineCheckSupport.SafeRun("运行期变量来源（旧配置兼容）", VariableSource);
+            DataPipelineCheckSupport.SafeRun("变量来源覆盖全局/通讯与数组格式（N2，旧配置兼容）", VariableSourceCoversSharedRegistry);
             DataPipelineCheckSupport.SafeRun("缺名变量 WARN 有上限（N2）", MissingVariableWarnsBounded);
+            DataPipelineCheckSupport.SafeRun("方案B：下拉不再提供「变量」档", SourceDropdownExcludesVariable);
             DataPipelineCheckSupport.SafeRun("目录/文件名模板", TemplateExpansion);
             DataPipelineCheckSupport.SafeRun("序号边车", SequenceSidecar);
             DataPipelineCheckSupport.SafeRun("保留期清理", KeepDaysCleanupOnlyTouchesOwnFiles);
@@ -51,6 +57,36 @@ namespace FlowCanvasChecks
         // ------------------------------------------------------------------
         //  用例
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 方案 B：`ColumnSource.Variable` 必须**从下拉数据源里消失**，但枚举成员与数值不变。
+        ///
+        /// 为什么要单独钉两条：
+        /// ① 只隐藏 UI 不删成员 → 旧 `.vms` 的 `"Source": 1` 仍能反序列化（数据安全）；
+        /// ② 只保留成员不隐藏 UI → 用户还能新建「变量」档，等于方案 B 没做。
+        /// 两个方向都要断言，否则任何一边悄悄退回去都不会红。
+        /// </summary>
+        private static void SourceDropdownExcludesVariable()
+        {
+            var plugin = new DataRecordPlugin();
+            var sources = plugin.ColumnSources.Cast<ColumnSource>().ToList();
+
+            DataPipelineCheckSupport.Check("方案B：数据记录下拉只留「取值（绑定）」与「内置」",
+                sources.Count == 2 && sources.Contains(ColumnSource.Port) && sources.Contains(ColumnSource.BuiltIn),
+                string.Join(",", sources));
+
+            // 枚举数值不许动：Variable 仍是 1、BuiltIn 仍是 2（旧 .vms 靠数值反序列化）
+            DataPipelineCheckSupport.Check("方案B：枚举数值不变（Variable=1 / BuiltIn=2）",
+                (int)ColumnSource.Variable == 1 && (int)ColumnSource.BuiltIn == 2,
+                $"Variable={(int)ColumnSource.Variable} BuiltIn={(int)ColumnSource.BuiltIn}");
+
+            // 旧配置（Source=1）反序列化后仍是 Variable 档，且名字保留
+            var def = Newtonsoft.Json.JsonConvert.DeserializeObject<RecordColumnDef>(
+                "{\"Name\":\"旧列\",\"Source\":1,\"VariableName\":\"Legacy\"}");
+            DataPipelineCheckSupport.Check("方案B：旧 .vms 的 Source:1 仍反序列化成「变量」档",
+                def != null && (int)def.Source == 1 && def.VariableName == "Legacy",
+                def == null ? "null" : $"Source={(int)def.Source} Name={def.VariableName}");
+        }
 
         private static void HeaderRowsAndEscaping()
         {

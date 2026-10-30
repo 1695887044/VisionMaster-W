@@ -159,6 +159,19 @@ namespace Plugin.ImageScript
             RebuildDynamicOutputs();
         }
 
+        /// <summary>
+        /// 确认：先走基类写值，再清孤儿连线。
+        ///
+        /// 输入变量名来自所选过程的接口（<c>InputVars</c>），换过程 / 重导 .hdev 会让整批
+        /// 端口名变化。旧名字上的连线键没人删 → FlowCompiler 报「没有名为 X 的输入端口」，
+        /// 整条流程编译失败，而界面上那条线已经够不到了。
+        /// </summary>
+        public override void OnConfirm(IStepConfigData stepData)
+        {
+            base.OnConfirm(stepData);
+            PruneOrphanLinks(stepData);
+        }
+
         /// <summary>导出 .hdev 前调用：把变量表同步进当前过程的接口列表，保证导出文件接口完整。</summary>
         public void SyncInterfaceForExport()
         {

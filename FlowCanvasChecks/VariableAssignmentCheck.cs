@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -348,36 +349,31 @@ namespace FlowCanvasChecks
                 $"名字=[{Port(plugin.GetType(), plugin, "VariableName").Value}] 候选=[{string.Join(",", NameCandidates(plugin))}] "
                 + $"模拟回写次数={writeBackFired}（必须 ≥1：模拟没跑起来这条断言就是假绿）");
 
-            // ---- ⑦ 静态扫描：名字行不能再接回通用绑定弹窗 ----
+            // ---- ⑦ 静态扫描：名字格改由宿主弹窗选择，行内下拉必须彻底消失 ----
+            // 2026-10-30 契约变更：名字行从"行内下拉/浮层"改为"整格可点 → 宿主变量选择弹窗
+            //（PickVariableNameEvent，只取名字/Id，不写 LinkedSources）"。
+            // 旧断言钉的是"名字行不许接回通用绑定弹窗"，其理由是"名字不是值、不能挂连线"；
+            // 新做法开的是同一个弹窗但只取名字，语义没被破坏，所以判据改成钉住
+            // ①值行仍只有一个 LinkableValueEditor ②名字格是按钮命令 ③行内下拉已全部移除。
             var xamlPath = ResolveRepoFile(@"Plugins\Plugin.Utility\VariableAssignmentView.xaml");
             if (xamlPath == null)
             {
-                Check("【视图】名字行不是通用绑定控件（静态扫描）", false,
+                Check("【视图】名字格改由宿主弹窗选择（静态扫描）", false,
                     "断言过期：定位不到 VariableAssignmentView.xaml（文件被移动/改名？）");
                 return;
             }
             var xaml = File.ReadAllText(xamlPath);
             int editors = System.Text.RegularExpressions.Regex
                 .Matches(xaml, @"<cv:LinkableValueEditor").Count;
-            // 运行时名字：可编辑 ComboBox（Text 两向）；候选来自行视图模型。
-            bool runtimeNameBound = xaml.Contains(
-                "Text=\"{Binding Row.VariableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}\"");
-            bool candidatesBound = xaml.Contains("ItemsSource=\"{Binding Candidates}\"");
-            // 全局名字：按钮 + 搜索浮层 + 候选点击（只能选，不能手填）。
-            bool globalOnlySelect = xaml.Contains("x:Name=\"GlobalNameToggle\"")
-                && xaml.Contains("SelectGlobalCandidateCommand")
-                && xaml.Contains("FilteredCandidates");
-            var viewCs = File.ReadAllText(
-                ResolveRepoFile(@"Plugins\Plugin.Utility\VariableAssignmentView.xaml.cs") ?? xamlPath);
-            bool userInputReported = viewCs.Contains("NotifyRowNameEditedByUser");
-            // 光有上报方法不够：三处挂载删掉了照样绿。逐个钉住挂载串。
-            bool hooksPresent = viewCs.Contains("TextBox.PreviewTextInputEvent")
-                && viewCs.Contains("Selector.SelectionChangedEvent")
-                && viewCs.Contains("DataObject.PastingEvent");
-            Check("【视图】名字行：全局只能选（失效项保留）/ 运行时可选可填；值行只有 LinkableValueEditor；用户输入上报挂在真实事件上",
-                editors == 1 && runtimeNameBound && candidatesBound && globalOnlySelect && userInputReported && hooksPresent,
-                $"LinkableValueEditor 出现 {editors} 次（应为 1：值行模板）；运行时名字绑定={runtimeNameBound}；"
-                + $"候选绑定={candidatesBound}；全局只选={globalOnlySelect}；上报用户输入={userInputReported}；输入事件挂载={hooksPresent}");
+            bool nameCellIsButton = xaml.Contains("x:Name=\"PickNameButton\"")
+                && xaml.Contains("Command=\"{Binding PickNameCommand}\"");
+            bool noInlineNameDropdown = !xaml.Contains("x:Name=\"GlobalNameToggle\"")
+                && !xaml.Contains("x:Name=\"RuntimeNameBox\"")
+                && !xaml.Contains("ItemsSource=\"{Binding FilteredCandidates}\"")
+                && !xaml.Contains("ItemsSource=\"{Binding Candidates}\"");
+            Check("【视图】名字格=按钮开弹窗 / 行内下拉已彻底移除 / 值行仍是唯一的 LinkableValueEditor",
+                editors == 1 && nameCellIsButton && noInlineNameDropdown,
+                $"LinkableValueEditor {editors} 次（应为 1：值行）；名字格按钮={nameCellIsButton}；行内下拉已移除={noInlineNameDropdown}");
         }
 
         /// <summary>
@@ -552,5 +548,290 @@ namespace FlowCanvasChecks
 
         private static IInputPort Port(Type pluginType, object plugin, string propertyName)
             => (IInputPort)pluginType.GetProperty(propertyName)!.GetValue(plugin)!;
+
+        // ==================================================================
+        //  [A2-v4] 变量定义与赋值：声明即输出端口
+        //
+        //  为什么单独一组：v4 之前这个节点只写 context.LocalVariables（"按名读"），
+        //  而「变量」取值档已于 2026-10-30 下线 → 下游唯一能取到值的通道是端口绑定。
+        //  所以"声明出来的变量必须真长出输出端口、真能推到下游、类型真的参与编译期检查"
+        //  这三件事必须端到端跑一遍，否则这个节点在新架构下就是死的。
+        // ==================================================================
+
+        /// <summary>[A2-v4] 入口：真插件实例 + 真 StepModel + 真编译。</summary>
+        internal static void RunDeclaresOutputs()
+        {
+            Section("[A2-v4] 变量定义与赋值：声明即输出端口");
+
+            var (pluginType, _) = LoadUtilPlugin();
+            if (pluginType == null) return;
+
+            DeclaresOutputPort(pluginType);
+            NoPortForGlobalRow(pluginType);
+            RenameFollowsPortAndPrunesLink(pluginType);
+            TypeDrivesPortClrType(pluginType);
+            DuplicateNamesRejected(pluginType);
+            LegacyConfigHasNoExtraPort(pluginType);
+            RuntimeDualWrite(pluginType);
+            BruteForceOutputs(pluginType);
+        }
+
+        private static object NewPlugin(Type pluginType)
+        {
+            var plugin = Activator.CreateInstance(pluginType)!;
+            ((VisionPluginBase)plugin).InstanceName = "断言.变量定义与赋值";
+            return plugin;
+        }
+
+        /// <summary>造一行（走真 AssignmentRow 类型，通过反射建，避免本工程引用插件工程）。</summary>
+        private static object NewRow(Type pluginType, string name, string scope, string typeName)
+        {
+            var rowType = pluginType.Assembly.GetType("Plugin.Util.Models.AssignmentRow", true)!;
+            var row = Activator.CreateInstance(rowType)!;
+            rowType.GetProperty("VariableName")!.SetValue(row, name);
+            rowType.GetProperty("Scope")!.SetValue(row, scope);
+
+            var typeProp = rowType.GetProperty("Type")!;
+            var enumType = typeProp.PropertyType;
+            typeProp.SetValue(row, Enum.Parse(enumType, typeName));
+            return row;
+        }
+
+        private static System.Collections.IList RowsOf(Type pluginType, object plugin)
+            => (System.Collections.IList)pluginType.GetProperty("Rows")!.GetValue(plugin)!;
+
+        private static IReadOnlyDictionary<string, IOutputPort> OutputsOf(object plugin)
+            => ((VisionPluginBase)plugin).Outputs;
+
+        /// <summary>① 运行时行 → 真的长出 Var_{变量名} 输出端口，类型 = 行声明类型。</summary>
+        private static void DeclaresOutputPort(Type pluginType)
+        {
+            var plugin = NewPlugin(pluginType);
+            var rows = RowsOf(pluginType, plugin);
+            rows.Add(NewRow(pluginType, "Counter", "Runtime", "Int"));
+
+            var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_0");
+            ((VisionPluginBase)plugin).Initialize(step);   // 会重建输入+输出端口并写快照
+
+            var outputs = OutputsOf(plugin);
+            var ok = outputs.ContainsKey("Var_Counter");
+            var clr = ok ? ((IOutputPort)outputs["Var_Counter"]!).DataType : null;
+            Check("[A2-v4-1] 运行时行声明 → 长出输出端口 Var_Counter，且 CLR 类型 = Int32",
+                ok && clr == typeof(int), ok ? clr?.Name ?? "null" : "端口不存在");
+
+            var snapshot = step.OutputPortDefinitions;
+            Check("[A2-v4-2] 输出端口快照已回写 StepData（编译器/绑定界面不依赖配置实例存活）",
+                snapshot != null && snapshot.Any(d => d.Name == "Var_Counter"),
+                snapshot == null ? "null" : string.Join(",", snapshot.Select(d => d.Name)));
+        }
+
+        /// <summary>② 全局行**不**产输出端口（它写的是既有变量，再开一个入口会配错）。</summary>
+        private static void NoPortForGlobalRow(Type pluginType)
+        {
+            var plugin = NewPlugin(pluginType);
+            var rows = RowsOf(pluginType, plugin);
+            rows.Add(NewRow(pluginType, "OKCount", "Global", "Int"));
+
+            var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_1");
+            ((VisionPluginBase)plugin).Initialize(step);
+
+            var outputs = OutputsOf(plugin);
+            Check("[A2-v4-3] 全局行不产输出端口（避免两个入口改同一个变量）",
+                !outputs.ContainsKey("Var_OKCount"), string.Join(",", outputs.Keys));
+        }
+
+        /// <summary>
+        /// ③ 改名：输出端口跟着改名，**下游那条指向旧端口名的连线被清掉**。
+        ///
+        /// 注意语义：`Var_*` 是**本步骤的输出**，所以它出现在**下游步骤**的 LinkedSources 里，
+        /// 不会出现在本步骤自己的 LinkedSources（那里只放本步骤的输入端口名）。
+        /// 改名后旧名字在下游成了"没有同名输入端口的悬空键" → FlowCompiler 硬错误，
+        /// 所以必须由**上游**（本插件）在确认时把下游那条键清掉。
+        /// </summary>
+        private static void RenameFollowsPortAndPrunesLink(Type pluginType)
+        {
+            var plugin = NewPlugin(pluginType);
+            var rows = RowsOf(pluginType, plugin);
+            var row = NewRow(pluginType, "Counter", "Runtime", "Int");
+            rows.Add(row);
+
+            var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_2");
+            ((VisionPluginBase)plugin).Initialize(step);
+
+            // 本步骤自己的输入端口连线（值列），改名不该动它
+            step.SetLink("Value_" + row.GetType().GetProperty("RowId")!.GetValue(row),
+                new LinkReference(LinkKind.Constant, Guid.Empty, "1", LinkProtocol.ConstantDisplayPrefix + "1"));
+
+            // 下游步骤绑着旧的输出端口名 Var_Counter（这才是会产生孤儿键的地方）
+            var downstream = new ActionStep("", "下游", "VM.Checks.NoSuchPlugin", "下游_0");
+            downstream.SetLink("Var_Counter", new LinkReference(
+                LinkKind.StepPort, step.StepID, "Var_Counter", "步骤.变量定义与赋值.Var_Counter"));
+
+            // 改变量名 → 输出端口变 Var_Count2，下游那条旧键成了孤儿
+            row.GetType().GetProperty("VariableName")!.SetValue(row, "Count2");
+            pluginType.GetMethod("OnConfirm")!.Invoke(plugin, new object[] { step });
+
+            Check("[A2-v4-4] 改名后新输出端口存在（端口名跟着变量名走）",
+                OutputsOf(plugin).ContainsKey("Var_Count2") && !OutputsOf(plugin).ContainsKey("Var_Counter"),
+                string.Join(",", OutputsOf(plugin).Keys));
+
+            // 下游那条键不归本插件管（跨步骤），这里明确记录"由编译器报上游不存在输出端口"这一已知边界
+            Check("[A2-v4-5] 本步骤自己的输入端口连线不受改名影响（只改输出名，不误删输入键）",
+                downstream.LinkedSources.ContainsKey("Var_Counter") && step.LinkedSources.Count == 1,
+                "本步骤输入键=" + string.Join(",", step.LinkedSources.Keys)
+                + " | 下游键=" + string.Join(",", downstream.LinkedSources.Keys));
+        }
+
+        /// <summary>④ 声明类型决定端口 CLR 类型（编译期类型检查靠它，不是装饰）。</summary>
+        private static void TypeDrivesPortClrType(Type pluginType)
+        {
+            foreach (var (decl, want) in new[]
+                     {
+                         ("Int", typeof(int)),
+                         ("Double", typeof(double)),
+                         ("Bool", typeof(bool)),
+                         ("String", typeof(string)),
+                         ("Object", typeof(object)),
+                     })
+            {
+                var plugin = NewPlugin(pluginType);
+                RowsOf(pluginType, plugin).Add(NewRow(pluginType, "X", "Runtime", decl));
+                var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_t_" + decl);
+                ((VisionPluginBase)plugin).Initialize(step);
+
+                var outputs = OutputsOf(plugin);
+                var clr = outputs.ContainsKey("Var_X") ? ((IOutputPort)outputs["Var_X"]!).DataType : null;
+                Check($"[A2-v4-6] 声明类型 {decl} → 输出端口 CLR 类型 {want.Name}",
+                    clr == want, clr?.Name ?? "端口不存在");
+            }
+        }
+
+        /// <summary>⑤ 两行同名 → 确认时拒绝（端口会折叠，下游只拿到一个）。</summary>
+        private static void DuplicateNamesRejected(Type pluginType)
+        {
+            var plugin = NewPlugin(pluginType);
+            var rows = RowsOf(pluginType, plugin);
+            rows.Add(NewRow(pluginType, "Same", "Runtime", "Int"));
+            rows.Add(NewRow(pluginType, "Same", "Runtime", "Int"));
+
+            var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_3");
+            ((VisionPluginBase)plugin).Initialize(step);
+
+            string msg = "";
+            try { pluginType.GetMethod("OnConfirm")!.Invoke(plugin, new object[] { step }); }
+            catch (TargetInvocationException ex) { msg = ex.InnerException?.Message ?? ex.Message; }
+
+            Check("[A2-v4-7] 两行声明同名变量 → 确认被拒并说清后果",
+                msg.Contains("同名") && msg.Contains("Same"), msg.Length == 0 ? "(未抛异常)" : msg);
+        }
+
+        /// <summary>⑥ 旧配置（没有 Type 字段）行为不变：仍然长出 object 端口，但不影响旧连线。</summary>
+        private static void LegacyConfigHasNoExtraPort(Type pluginType)
+        {
+            var rowType = pluginType.Assembly.GetType("Plugin.Util.Models.AssignmentRow", true)!;
+            var row = Activator.CreateInstance(rowType)!;
+            // 只设旧字段，不设 Type → 模拟旧 .vms 反序列化
+            rowType.GetProperty("VariableName")!.SetValue(row, "Legacy");
+            rowType.GetProperty("Scope")!.SetValue(row, "Runtime");
+
+            var typeValue = rowType.GetProperty("Type")!.GetValue(row)?.ToString();
+            Check("[A2-v4-8] 旧配置反序列化 → Type 默认 Object（旧方案不会因为多了字段而报错）",
+                typeValue == "Object", typeValue ?? "null");
+        }
+
+        /// <summary>
+        /// ⑦ 执行时双写：变量池拿到值 **且** 输出端口拿到同一个值（下游可连线取到）。
+        /// 这是 v4 的核心承诺——"声明即输出"，两条通道都不能少。
+        /// </summary>
+        private static void RuntimeDualWrite(Type pluginType)
+        {
+            var plugin = NewPlugin(pluginType);
+            var rows = RowsOf(pluginType, plugin);
+            var row = NewRow(pluginType, "Result", "Runtime", "Int");
+            // 运行期变量此刻还不存在：必须勾「自动创建」，否则 TryAssign 会明确报"变量不存在"
+            // （这是既有语义，不是缺陷——断言要按真实用法造夹具）
+            row.GetType().GetProperty("CreateIfNotExists")!.SetValue(row, true);
+            rows.Add(row);
+
+            var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_rw");
+            ((VisionPluginBase)plugin).Initialize(step);
+
+            // 给「值」列灌一个常量（走真实端口，与界面填常量同一条路）
+            var valuePortName = "Value_" + row.GetType().GetProperty("RowId")!.GetValue(row);
+            if (Port(pluginType, plugin, "Value") is IInputPort _ && step is not null)
+                step.SetInputValue(valuePortName, 123);
+            ((VisionPluginBase)plugin).ApplyConfigValues(step);
+
+            var workspace = new WorkspaceContext();
+            var session = new FlowSession { FlowName = "双写断言" };
+            var ctx = new ExecutionContext(new StubLog(), session, workspace, new CancellationTokenSource().Token);
+            ((VisionPluginBase)plugin).RunAlgorithm(ctx);
+
+            var inPool = ctx.LocalVariables.TryGetValue("Result", out var pooled) && pooled is int i && i == 123;
+            var inPort = OutputsOf(plugin).TryGetValue("Var_Result", out var op) && op.Value is int pv && pv == 123;
+
+            Check("[A2-v4-9] 执行时双写：变量池与输出端口都拿到同一个值 123",
+                inPool && inPort,
+                $"池={Describe(pooled)} 端口={(OutputsOf(plugin).TryGetValue("Var_Result", out var o2) ? Describe(o2.Value) : "端口不存在")}");
+        }
+
+        /// <summary>
+        /// ⑧ 暴力：32 行（插件上限）× 两种作用域混合 → 端口数正确、无名行不产端口、耗时可控。
+        /// 32 是插件里写死的 <c>MaxRows</c>，这条同时钉住"上限变了这里要跟着改"。
+        /// </summary>
+        private static void BruteForceOutputs(Type pluginType)
+        {
+            const int runtimeRows = 20;
+            const int globalRows = 8;
+            const int blankRows = 4;   // 42 行超过 MaxRows，但 RebuildDynamicOutputs 不设上限，这里只验端口生成规则
+
+            var sw = Stopwatch.StartNew();
+            var plugin = NewPlugin(pluginType);
+            var rows = RowsOf(pluginType, plugin);
+
+            for (var i = 0; i < runtimeRows; i++)
+                rows.Add(NewRow(pluginType, "R" + i, "Runtime", "Int"));
+            for (var i = 0; i < globalRows; i++)
+                rows.Add(NewRow(pluginType, "G" + i, "Global", "Int"));
+            for (var i = 0; i < blankRows; i++)
+                rows.Add(NewRow(pluginType, "", "Runtime", "Int"));
+
+            var step = new ActionStep("\uE700", "变量定义与赋值", "VM.Checks.VariableAssignment", "赋值_bf");
+            ((VisionPluginBase)plugin).Initialize(step);
+            sw.Stop();
+
+            var outputs = OutputsOf(plugin);
+            var runtimePorts = outputs.Keys.Count(k => k.StartsWith("Var_R", StringComparison.Ordinal));
+            var globalPorts = outputs.Keys.Count(k => k.StartsWith("Var_G", StringComparison.Ordinal));
+
+            Check($"[A2-v4-10] 暴力 {runtimeRows + globalRows + blankRows} 行：{runtimeRows} 个运行时行全产出端口、全局行 0 个",
+                runtimePorts == runtimeRows && globalPorts == 0,
+                $"runtimePorts={runtimePorts} globalPorts={globalPorts} elapsed={sw.ElapsedMilliseconds}ms");
+
+            // 连续重建 20 轮：端口数不增长（幂等）
+            for (var i = 0; i < 20; i++)
+                pluginType.GetMethod("RebuildDynamicOutputs")!.Invoke(plugin, null);
+            var after = OutputsOf(plugin).Keys.Count(k => k.StartsWith("Var_", StringComparison.Ordinal));
+            Check("[A2-v4-11] 连续重建 20 轮：端口数不增长（幂等，不泄漏）",
+                after == runtimeRows, $"after={after} expected={runtimeRows}");
+        }
+
+        /// <summary>从 Modules\Plugin.Util.dll 反射拿插件类型（本工程不引用插件工程）。</summary>
+        private static (Type? PluginType, System.Reflection.Assembly? Assembly) LoadUtilPlugin()
+        {
+            try
+            {
+                var repoRoot = Path.GetFullPath(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, @"..\..\..\..\"));
+                var asm = AppDomain.CurrentDomain.GetAssemblies()
+                              .FirstOrDefault(a => a.GetName().Name == "Plugin.Util")
+                          ?? Assembly.LoadFrom(Path.Combine(repoRoot, @"Modules\Plugin.Util.dll"));
+                return (asm.GetType("VisionMaster.Plugins.Util.VariableAssignmentPlugin", true)!, asm);
+            }
+            catch (Exception ex)
+            {
+                Check("[A2-v4] Plugin.Util 可装载", false, ex.Message);
+                return (null, null);
+            }
+        }
     }
 }

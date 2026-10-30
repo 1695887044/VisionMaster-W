@@ -51,7 +51,8 @@ namespace VisionMaster.Helpers
         public static List<ToolItemModel> GetAvailableVariablesTree(
             IEnumerable<IVariable> globals,
             IEnumerable<StepModel> allSteps,
-            StepModel targetStep
+            StepModel targetStep,
+            bool includeUpstreamStepPorts = true
         )
         {
             var treeNodes = new List<ToolItemModel>();
@@ -113,6 +114,12 @@ namespace VisionMaster.Helpers
 
             foreach (var node in upstreamNodes)
             {
+                // 名字选择模式（写名）根本不需要上游端口节点：调用方传 false 直接跳过。
+                // 跳过还有第二个好处——本方法展开上游端口时依赖 PluginProvider（Prism 容器），
+                // 关掉这一段后，无容器的断言宿主也能构造候选树。
+                if (!includeUpstreamStepPorts)
+                    break;
+
                 var data = PluginProvider.ModulePlugins[node.PluginTypeName];
                 if (data == null || data.OutputDefinitions == null || !data.OutputDefinitions.Any())
                     continue;
@@ -197,27 +204,89 @@ namespace VisionMaster.Helpers
 
             foreach (var step in upstreamSteps)
             {
-                if (!TryGetDefinedVariable(step, out var varName, out var dataType))
-                    continue;
-
-                // 同名变量以最后一次定义为准（运行期也是覆盖语义）
-                if (!seenNames.Add(varName))
+                // 一个步骤可能声明多个变量（「变量定义与赋值」一行一个声明），
+                // 所以走"多值"版本；老的单值接口保留给外部调用方（兼容）。
+                foreach (var (varName, dataType) in GetDeclaredVariables(step))
                 {
-                    // 已存在则移除旧的，准备覆盖
-                    var existing = result.Find(p => p.Name == varName);
-                    if (existing != null)
-                        result.Remove(existing);
+                    if (string.IsNullOrWhiteSpace(varName)) continue;
+
+                    // 同名变量以最后一次定义为准（运行期也是覆盖语义）
+                    if (!seenNames.Add(varName))
+                    {
+                        var existing = result.Find(p => p.Name == varName);
+                        if (existing != null)
+                            result.Remove(existing);
+                    }
+
+                    result.Add(new PortDefinition
+                    {
+                        Name = varName,
+                        DataTypeName = dataType.AssemblyQualifiedName,
+                        Description = $"[运行时变量] 由 '{step.StepName}' 声明"
+                    });
                 }
-
-                result.Add(new PortDefinition
-                {
-                    Name = varName,
-                    DataTypeName = dataType.AssemblyQualifiedName,
-                    Description = $"[运行时变量] 由 '{step.StepName}' 定义"
-                });
             }
 
             return result;
+        }
+
+        /// <summary>
+        /// 取一个步骤声明出来的**全部**运行时变量（名字 + 类型）。
+        ///
+        /// 为什么需要多值版本：`TryGetDefinedVariable` 一次只回一个名字，
+        /// 而「变量定义与赋值」一个节点可以声明多行（每行一个变量）。
+        /// 只用单值版本会让第 2 行以后的声明在候选树里全部丢失。
+        /// </summary>
+        public static IEnumerable<(string Name, Type Type)> GetDeclaredVariables(StepModel step)
+        {
+            if (step?.PluginTypeName == null) yield break;
+
+            // 「变量定义与赋值」：Rows 里 Runtime + 自动创建 的行
+            if (step.PluginTypeName.Contains("VariableAssignmentPlugin"))
+            {
+                if (step.InputValues == null) yield break;
+                foreach (var row in ReadRuntimeRows(step.InputValues))
+                    yield return row;
+                yield break;
+            }
+
+            // C# 脚本：OutputVars 全部（多行）
+            if (step.PluginTypeName.Contains("CSharpScriptPlugin"))
+            {
+                if (step.InputValues == null || !step.InputValues.TryGetValue("OutputVars", out var raw) || raw == null)
+                    yield break;
+                foreach (var def in EnumerateObjects(raw))
+                {
+                    var name = (ReadMember(def, "Name") as string ?? string.Empty).Trim();
+                    if (name.Length == 0) continue;
+                    yield return (name, ParseVariableType(ReadMember(def, "Type")?.ToString() ?? "object"));
+                }
+                yield break;
+            }
+
+            // 判定表：每条规则一个输出
+            if (step.PluginTypeName.Contains("JudgeTablePlugin"))
+            {
+                if (step.InputValues == null) yield break;
+                var tableName = (ReadMember(step.InputValues, "TableName") as string ?? string.Empty).Trim();
+                if (tableName.Length == 0) yield break;
+                if (!step.InputValues.TryGetValue("Rules", out var raw) || raw == null) yield break;
+
+                foreach (var rule in EnumerateObjects(raw))
+                {
+                    var ruleName = (ReadMember(rule, "Name") as string ?? string.Empty).Trim();
+                    if (ruleName.Length == 0) continue;
+                    yield return (tableName + "." + ruleName + ".结果", typeof(bool));
+                }
+                yield break;
+            }
+
+            // 历史形态：「变量定义」插件（单值）
+            if (step.PluginTypeName.Contains("VariableDefinitionPlugin"))
+            {
+                if (TryGetDefinedVariable(step, out var name, out var type) && name != null)
+                    yield return (name, type);
+            }
         }
 
         /// <summary>
@@ -244,9 +313,45 @@ namespace VisionMaster.Helpers
             if (step?.PluginTypeName == null || step.InputValues == null)
                 return false;
 
-            // 通过类型名识别变量定义插件，避免反射依赖外部插件 DLL
-            if (!step.PluginTypeName.Contains("VariableDefinitionPlugin"))
+            // ① 「变量定义」插件（历史形态，靠类型名识别，避免反射依赖外部插件 DLL）
+            if (step.PluginTypeName.Contains("VariableDefinitionPlugin"))
+                return TryGetFromVariableDefinition(step, out variableName, out variableType);
+
+            // ② 「变量定义与赋值」（本仓的 v4 形态）：Runtime + 勾了「自动创建」的行就是声明。
+            //    为什么必须认它：v4 之前下游只能靠"按名读 LocalVariables"取这个节点的产出，
+            //    而那条通道（数据记录/结果上报的「变量」档）已于 2026-10-30 下线——
+            //    现在它的产出是 Var_{名} 输出端口，候选树里也必须能选到同一个名字。
+            if (step.PluginTypeName.Contains("VariableAssignmentPlugin"))
+            {
+                // 一行一个声明；这里只取"第一个运行时行"（同名多行会被 OnConfirm 拒绝，
+                // 且 GetRuntimeVariableDefinitions 会对同名做"后者覆盖"）。
+                foreach (var (name, type) in ReadRuntimeRows(step.InputValues))
+                {
+                    variableName = name;
+                    variableType = type;
+                    return true;
+                }
                 return false;
+            }
+
+            // ③ C# 脚本的 OutputVars：真输出端口（同时也写 LocalVariables），
+            //    名字静态可读（:299 落 InputValues["OutputVars"]）。
+            if (step.PluginTypeName.Contains("CSharpScriptPlugin"))
+                return TryGetFromScriptOutputVars(step, out variableName, out variableType);
+
+            // ④ 判定表：规则输出名 = 表名.规则名.结果（由插件算出，静态可预测）
+            if (step.PluginTypeName.Contains("JudgeTablePlugin"))
+                return TryGetFromJudgeTable(step, out variableName, out variableType);
+
+            return false;
+        }
+
+        /// <summary>历史形态：「变量定义」插件的 Name / Type 端口值。</summary>
+        private static bool TryGetFromVariableDefinition(
+            StepModel step, out string variableName, out Type variableType)
+        {
+            variableName = null;
+            variableType = typeof(object);
 
             if (!step.InputValues.TryGetValue("Name", out var nameObj))
                 return false;
@@ -259,6 +364,150 @@ namespace VisionMaster.Helpers
                 variableType = ParseVariableType(typeStr);
 
             return true;
+        }
+
+        /// <summary>
+        /// 从「变量定义与赋值」的 <c>Rows</c> 快照里读运行时声明（名字 + 声明类型）。
+        ///
+        /// <c>Rows</c> 在 <c>InputValues</c> 里有两种形态：刚确认过是
+        /// <c>ObservableCollection&lt;AssignmentRow&gt;</c>，从 .vms 加载未确认时是 JArray。
+        /// 两种都要认（与 FlowCompiler 读 SharedVars 的兼容口径一致）。
+        /// </summary>
+        private static IEnumerable<(string Name, Type Type)> ReadRuntimeRows(
+            IDictionary<string, object> inputValues)
+        {
+            if (!inputValues.TryGetValue("Rows", out var raw) || raw == null)
+                yield break;
+
+            foreach (var row in EnumerateObjects(raw))
+            {
+                if (row == null) continue;
+
+                var scope = ReadMember(row, "Scope") as string;
+                if (!string.Equals(scope, "Runtime", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var name = (ReadMember(row, "VariableName") as string ?? string.Empty).Trim();
+                if (name.Length == 0) continue;
+
+                // 只有勾了「自动创建」的行才真的"声明"出一个变量；
+                // 没勾的行要求上游已经存在同名变量（那是"赋值"，不是"定义"）。
+                var create = ReadMember(row, "CreateIfNotExists");
+                if (create is bool b && !b) continue;
+
+                var typeName = ReadMember(row, "Type")?.ToString();
+                yield return (name, ParseVariableType(typeName ?? VariableValueTypeToName(ReadMember(row, "Type"))));
+            }
+        }
+
+        /// <summary>枚举成员 → <see cref="ParseVariableType"/> 认得的字面量。</summary>
+        private static string VariableValueTypeToName(object raw)
+        {
+            if (raw == null) return "object";
+            // 枚举落盘时是数字，读回来可能是 long / JValue / 字符串成员名
+            var text = raw.ToString();
+            if (int.TryParse(text, out var n))
+            {
+                return n switch
+                {
+                    1 => "int",
+                    2 => "double",
+                    3 => "bool",
+                    4 => "string",
+                    _ => "object",
+                };
+            }
+            return text ?? "object";
+        }
+
+        /// <summary>
+        /// C# 脚本 <c>OutputVars</c>（<c>ObservableCollection&lt;ScriptVarDef&gt;</c> 或 JArray）。
+        /// 只取第一个有名字的输出变量——本方法一次只能回一个名字，候选树按步骤逐个调用。
+        /// </summary>
+        private static bool TryGetFromScriptOutputVars(
+            StepModel step, out string variableName, out Type variableType)
+        {
+            variableName = null;
+            variableType = typeof(object);
+
+            if (!step.InputValues.TryGetValue("OutputVars", out var raw) || raw == null)
+                return false;
+
+            foreach (var def in EnumerateObjects(raw))
+            {
+                var name = (ReadMember(def, "Name") as string ?? string.Empty).Trim();
+                if (name.Length == 0) continue;
+                variableName = name;
+                variableType = ParseVariableType(ReadMember(def, "Type")?.ToString() ?? "object");
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// 判定表规则输出：<c>TableName.RuleName.结果</c>（<c>JudgeTablePlugin.cs:398-412</c> 的算法）。
+        /// 规则表在 <c>InputValues["Rules"]</c> 里（确认时落盘）。
+        /// </summary>
+        private static bool TryGetFromJudgeTable(
+            StepModel step, out string variableName, out Type variableType)
+        {
+            variableName = null;
+            variableType = typeof(object);
+
+            if (!step.InputValues.TryGetValue("Rules", out var raw) || raw == null)
+                return false;
+
+            var tableName = (ReadMember(step.InputValues, "TableName") as string ?? string.Empty).Trim();
+            foreach (var rule in EnumerateObjects(raw))
+            {
+                var name = (ReadMember(rule, "Name") as string ?? string.Empty).Trim();
+                if (name.Length == 0) continue;
+                if (tableName.Length == 0) continue;
+
+                variableName = tableName + "." + name + ".结果";
+                variableType = typeof(bool);   // 判定表输出是 IsOk（bool）
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>把"可能是一堆对象"的原始值摊平成可枚举（兼容集合 / JArray / 单个对象）。</summary>
+        private static IEnumerable<object> EnumerateObjects(object raw)
+        {
+            if (raw is string || raw is System.Collections.IDictionary) yield break;
+            if (raw is System.Collections.IEnumerable list)
+            {
+                foreach (var item in list)
+                {
+                    if (item is Newtonsoft.Json.Linq.JValue jv)
+                    {
+                        yield return jv.Value;
+                        continue;
+                    }
+                    yield return item;
+                }
+                yield break;
+            }
+            yield return raw;
+        }
+
+        /// <summary>按名字读成员（兼容 POCO 属性与 JObject 键；读不到给 null）。</summary>
+        private static object ReadMember(object target, string name)
+        {
+            if (target == null || string.IsNullOrEmpty(name)) return null;
+
+            if (target is Newtonsoft.Json.Linq.JObject jo)
+            {
+                var token = jo[name];
+                if (token == null || token.Type == Newtonsoft.Json.Linq.JTokenType.Null) return null;
+                return token is Newtonsoft.Json.Linq.JValue jv ? jv.Value : token;
+            }
+
+            if (target is System.Collections.IDictionary dict)
+                return dict.Contains(name) ? dict[name] : null;
+
+            var prop = target.GetType().GetProperty(name);
+            return prop?.GetValue(target);
         }
 
         /// <summary>

@@ -184,125 +184,63 @@ namespace Plugin.DataRecord
 
         public override void OnConfirm(IStepConfigData stepData)
         {
-            CaptureVariableIds();
             base.OnConfirm(stepData);
-        }
 
-        /// <summary>
-        /// 把「来源=变量」各列的目标 Id 落进配置（<see cref="VariableOptionResolver.ResolveTarget"/>）。
-        ///
-        /// 文本是真相源：手填的名字按唯一名解析；下拉选的「名字 · 设备」按二元组解析；
-        /// 文本没被改过且已有 Id → 保留（变量改名不断链）。解析完把名字**归一成裸名字**
-        /// （剥掉下拉文本里的设备后缀），否则存进方案的名字会越攒越长。
-        /// </summary>
-        private void CaptureVariableIds()
-        {
-            var options = _configContext?.Variables;
-            if (Columns == null) return;
-
-            foreach (var column in Columns)
-            {
-                if (column == null || column.Source != ColumnSource.Variable) continue;
-
-                var target = VariableOptionResolver.ResolveTarget(
-                    options, column.VariableId, column.VariableName, column.IsTextDirty, "Global");
-                column.VariableId = target.VariableId;
-                column.VariableName = target.Name;
-                column.MarkTextClean();
-            }
+            // 清孤儿连线（**必须在 base.OnConfirm 之后**：基类会给"未链接的端口"写固定值，
+            // 先清会让被删的键被当成未链接，留下一条脏常量覆盖运行期的连线）。
+            //
+            // 列名 / 来源 / 启用 三者任一变化都会让旧端口消失，而 LinkedSources 里挂在旧名上的
+            // 那条键没人删 → FlowCompiler 报「没有名为 X 的输入端口」硬错误，整条流程编译失败，
+            // 界面上既没有同名端口、也够不到那条线。
+            //
+            // 口径：端口没了，连线就必须删——没有第三种选择（留着就是编译错误）。
+            // 代价与"删掉这一列"相同：重新启用要重新绑定。这是可接受的，因为端口本身确实不再存在。
+            PruneOrphanLinks(stepData);
         }
 
         #endregion
 
-        #region 配置界面：变量名候选（宿主快照）
+        #region 配置界面：旧「变量」档的只读提示（方案 B）
 
         private PluginConfigContext _configContext;
 
         /// <summary>
-        /// 「来源=变量」那一行的名字候选（宿主透传快照，见 <see cref="PluginConfigContext.Variables"/>）：
-        /// 全局变量 + 通讯变量 + 系统变量 + 上游「变量定义」声明的运行时变量，去重后只留名字。
+        /// 旧配置提示：**只在存在 <see cref="ColumnSource.Variable"/> 列时才有内容**，
+        /// 提示用户这一档已下线、应改选「取值（绑定）」。
         ///
-        /// 为什么需要候选：这一行要的是**名字**，而插件自己够不到变量管理与流程图纸；
-        /// 手打名字打错的后果很难倒查（运行期表现为"这一格永远是空"）。
-        /// 为什么仍然保留手填：C# 脚本里 SetVar 的名字不在快照里（脚本是自由文本），
-        /// 只给下拉就等于让这类变量没法记账——所以视图里这一行必须是可编辑 ComboBox。
+        /// 为什么保留这条提示而不是静默：旧 `.vms` 打开后那一列仍然按旧口径取值（成员与数值都没删），
+        /// 用户看到的是"这行还能用，但下拉里再也选不到这一档"。不解释一句，用户会以为是程序坏了。
         /// </summary>
-        public ObservableCollection<string> VariableNameCandidates { get; } = new();
-
-        private string _variableHint =
-            "变量列可填：本轮局部变量（变量定义 / 脚本 SetVar）、全局变量、通讯变量、系统变量。";
-
-        /// <summary>
-        /// 变量名行的提示（随当前填的名字变化：命中候选就报作用域与声明类型，没命中就提醒可能是手填的脚本变量）。
-        /// 只做提示，不拦任何输入——名字对不对最终由运行期解析结果说话。
-        /// </summary>
-        public string VariableHint
+        public string LegacyVariableNotice
         {
-            get => _variableHint;
-            private set => SetProperty(ref _variableHint, value);
+            get
+            {
+                var cols = Columns?.Where(c => c != null && IsLegacyVariable(c)).ToList();
+                if (cols == null || cols.Count == 0) return string.Empty;
+                return $"有 {cols.Count} 列仍是旧「变量」档（{string.Join("、", cols.Select(c => c.Name))}）："
+                     + "这一档已下线，取值请改选「取值（绑定）」并在那一格点 🔗 绑定；"
+                     + "旧列在改之前仍按原口径取值。";
+            }
         }
 
         /// <summary>
-        /// 接收宿主透传的变量名快照（<see cref="IPluginConfigContextProvider"/>）。
-        /// 调用时机是配置窗口打开、视图已挂好之后；这里只铺候选与提示，不碰列定义。
+        /// 判"这一列是不是旧「变量」档"。用数值比较而不是直接写 <c>ColumnSource.Variable</c>：
+        /// 后者带 <see cref="ObsoleteAttribute"/>，插件里每写一次就多一条 CS0618 警告；
+        /// 这里明确表达"只在兼容旧数据时读它"。
+        /// </summary>
+        private static bool IsLegacyVariable(RecordColumnDef c) => (int)c.Source == LegacyVariableSourceValue;
+
+        /// <summary>旧「变量」档的枚举数值（硬编码 = 1，见 <see cref="ColumnSource"/> 的注释）。</summary>
+        private const int LegacyVariableSourceValue = 1;
+
+        /// <summary>
+        /// 接收宿主透传的上下文快照（<see cref="IPluginConfigContextProvider"/>）。
+        /// 方案 B 之后这里不再铺变量名候选（那一档已下线），只剩刷新旧配置提示一件事。
         /// </summary>
         public void SetConfigContext(PluginConfigContext context)
         {
             _configContext = context;
-            RefreshVariableCandidates();
-            RefreshVariableHint();
-        }
-
-        private void RefreshVariableCandidates()
-        {
-            VariableNameCandidates.Clear();
-            var options = _configContext?.Variables;
-            if (options == null) return;
-
-            // 去重键 = 名字 + 作用域 + 设备（同一设备内唯一，所以这个三元组天然唯一）：
-            // 只按名字去重会让第二台设备的同名点位在下拉里消失。
-            // 网络变量的候选文本带设备后缀（「名字 · 设备」）——下拉里能分辨，
-            // 确认时 ResolveTarget 会按（名字, 设备）解析并把名字归一成裸名字。
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var option in options)
-            {
-                if (option == null || string.IsNullOrWhiteSpace(option.Name)) continue;
-                if (!seen.Add((option.Scope ?? "") + "\n" + option.Name + "\n" + (option.Device ?? ""))) continue;
-
-                var text = string.IsNullOrWhiteSpace(option.Device)
-                    ? option.Name
-                    : $"{option.Name} · {option.Device}";
-                VariableNameCandidates.Add(text);
-            }
-        }
-
-        private void RefreshVariableHint()
-        {
-            var named = Columns?.FirstOrDefault(c =>
-                c != null && c.Source == ColumnSource.Variable && !string.IsNullOrWhiteSpace(c.VariableName));
-            if (named == null)
-            {
-                VariableHint = "变量列可填：本轮局部变量（变量定义 / 脚本 SetVar）、全局变量、通讯变量、系统变量。";
-                return;
-            }
-
-            string name = named.VariableName.Trim();
-            var option = _configContext?.Variables?.FirstOrDefault(o =>
-                o != null && string.Equals(o.Name, name, StringComparison.Ordinal));
-            if (option == null)
-            {
-                VariableHint = $"「{name}」不在候选快照里：可能是脚本里 SetVar 的运行时名字（照常可用），也可能是拼错了（运行期会留一条 WARN）。";
-                return;
-            }
-
-            string scope = option.Scope switch
-            {
-                "Runtime" => "运行时变量",
-                "System" => "系统变量",
-                _ => "全局变量", // 通讯变量也挂在这张表里（VariableOption 只带作用域，不带变量类型）
-            };
-            string note = string.IsNullOrWhiteSpace(option.Description) ? "" : "｜" + option.Description;
-            VariableHint = $"「{option.Name}」= {scope} · {option.TypeName}{note}";
+            OnPropertyChanged(nameof(LegacyVariableNotice));
         }
 
         #endregion
@@ -385,10 +323,10 @@ namespace Plugin.DataRecord
                 e.PropertyName == nameof(RecordColumnDef.Enabled))
                 RebuildDynamicInputs();
 
-            // 变量名不参与端口重建（它不是端口），只影响名字行的提示
+            // 变量名不参与端口重建（它不是端口），只影响「旧变量档」的提示
             if (e.PropertyName == nameof(RecordColumnDef.VariableName) ||
                 e.PropertyName == nameof(RecordColumnDef.Source))
-                RefreshVariableHint();
+                OnPropertyChanged(nameof(LegacyVariableNotice));
         }
 
         private void OnColumnsCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
@@ -411,8 +349,18 @@ namespace Plugin.DataRecord
         /// <summary>图片端口固定名（const 不能作为绑定路径，视图连线行 MultiBinding 走这个实例属性）。</summary>
         public string ImagePortNameValue => ImagePortName;
 
-        /// <summary>来源枚举值（供视图下拉 ItemsSource）。</summary>
-        public Array ColumnSources => Enum.GetValues(typeof(ColumnSource));
+        /// <summary>
+        /// 来源枚举值（供视图下拉 ItemsSource）。
+        ///
+        /// **过滤掉已废弃的 <see cref="ColumnSource.Variable"/>**（方案 B）——枚举成员保留是为了旧
+        /// `.vms` 的 `"Source": 1` 还能反序列化，但它不该再出现在下拉里。同时把「端口」的显示名
+        /// 改成「取值（绑定）」：这一档已经不是"只能接上游端口"，而是可绑全局/系统/运行时/上游端口。
+        /// </summary>
+        public Array ColumnSources => new[]
+        {
+            ColumnSource.Port,
+            ColumnSource.BuiltIn,
+        };
 
         /// <summary>内置字段枚举值（供视图下拉 ItemsSource）。</summary>
         public Array BuiltInFields => Enum.GetValues(typeof(BuiltInField));
@@ -656,8 +604,11 @@ namespace Plugin.DataRecord
                 case ColumnSource.Port:
                     return Inputs.TryGetValue(col.Name, out var p) ? p.GetActualValue() : null;
                 case ColumnSource.Variable:
+                    // 旧「变量」档（方案 B 已从 UI 下线，仅旧 .vms 还能反序列化出来）。
                     // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）；
-                    // 共享变量那条按 Id 优先（多设备同名点位只有 Id 能唯一定位）
+                    // 共享变量那条按 Id 优先（多设备同名点位只有 Id 能唯一定位）。
+                    // **保留这条分支是刻意的**：删掉它会让旧配置直接落到 default（内置/时间戳），
+                    // 表现为"以前记数值的列，现在记时间"——不报错、只错数据。
                     return TryResolveVariable(context, col.VariableId, col.VariableName, out var v) ? v : null;
                 default: // BuiltIn
                     switch (col.BuiltIn)

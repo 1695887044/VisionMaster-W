@@ -316,17 +316,12 @@
             </Style>
 
             <!--
-                变量名列必须保持「可手填」：C# 脚本里 SetVar 的名字不在宿主候选快照里。
-                注意：共享的 DialogCombo 与 UI 库的隐式 ComboBox 样式都**没有** PART_EditableTextBox，
-                在它们下面 IsEditable=True 是静默无效的（照 ResultDisplayView 的 JudgeCombo 范式）。
-                这里套一个"只设尺寸、不设 Template"的本地样式：显式样式挡掉隐式样式，
-                Template 回落到框架默认模板（含 PART_EditableTextBox），手填才真的能敲进去。
+                原「变量名」可编辑下拉专用样式。方案 B 之后那个下拉已经删掉，
+                这里保留一个空注释位（不留死样式）——需要可手填 ComboBox 时按下面三条来：
+                共享的 DialogCombo 与 UI 库的隐式 ComboBox 样式都**没有** PART_EditableTextBox，
+                在它们下面 IsEditable=True 是静默无效的；要本地套一个"只设尺寸、不设 Template"的样式，
+                显式样式挡掉隐式样式，Template 回落到含 PART_EditableTextBox 的框架默认模板。
             -->
-            <Style x:Key="VariableComboStyle" TargetType="ComboBox">
-                <Setter Property="Height" Value="32" />
-                <Setter Property="FontSize" Value="12" />
-                <Setter Property="VerticalContentAlignment" Value="Center" />
-            </Style>
 
             <Style x:Key="ColumnHeaderTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="10.5" />
@@ -682,11 +677,11 @@
                         <TextBlock
                             Margin="0"
                             Style="{StaticResource HelpTextStyle}"
-                            Text="来源=端口：列名即输入端口名，连线取上游值；来源=变量：先查本轮局部变量，再查全局/通讯/系统变量（读镜像值，不发起设备读）；内置：时间/序号/步骤名/耗时/图片路径。" />
+                            Text="来源=取值（绑定）：列名即输入端口名，在那一格点 🔗 可绑全局变量 / 系统变量 / 运行时变量 / 上游端口（绑定后显示路径）；内置：时间/序号/步骤名/耗时/图片路径。" />
                         <TextBlock
                             Margin="0,3,0,0"
                             Style="{StaticResource HelpTextStyle}"
-                            Text="{Binding DataContext.VariableHint, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                            Text="{Binding DataContext.LegacyVariableNotice, RelativeSource={RelativeSource AncestorType=UserControl}}"
                             TextWrapping="Wrap" />
                     </StackPanel>
 
@@ -758,7 +753,7 @@
                                                     Style="{StaticResource DialogCombo}"
                                                     ItemsSource="{Binding DataContext.ColumnSources, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                     SelectedItem="{Binding Source}"
-                                                    ToolTip="取值来源">
+                                                    ToolTip="取值来源：取值（绑定）=点 🔗 绑全局变量/系统变量/运行时变量/上游端口（绑定后显示路径） / 内置=自动供给">
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate>
                                                             <TextBlock Text="{Binding Converter={StaticResource CnEnum}}" />
@@ -802,21 +797,24 @@
                                                     </ContentControl>
 
                                                     <!--
-                                                        变量名：可编辑 ComboBox（候选来自宿主快照，仍允许手填）。
-                                                        Text 直接写回 RecordColumnDef.VariableName；候选只是名字，不建立连线。
+                                                        旧配置兜底（方案 B）：「变量」档已下线，但旧 .vms 打开时仍可能是这一档。
+                                                        这里显示只读提示 + 原变量名（不给已经不能用的输入框），
+                                                        明确告诉用户改选「取值（绑定）」；运行期仍按旧口径取值。
                                                     -->
-                                                    <ComboBox
-                                                        IsEditable="True"
-                                                        IsTextSearchEnabled="False"
-                                                        ItemsSource="{Binding DataContext.VariableNameCandidates, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        MaxDropDownHeight="280"
-                                                        Style="{StaticResource VariableComboStyle}"
-                                                        Text="{Binding VariableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    <Border
+                                                        Padding="8,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
                                                         Visibility="{Binding Source, Converter={StaticResource SourceVis}, ConverterParameter=Variable}">
-                                                        <ComboBox.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="填变量名，也可点右侧箭头从全局/通讯/系统变量与上游「变量定义」里选；C# 脚本 SetVar 的名字直接手填" />
-                                                        </ComboBox.ToolTip>
-                                                    </ComboBox>
+                                                        <TextBlock
+                                                            Style="{StaticResource HelpTextStyle}"
+                                                            Text="{Binding VariableName, StringFormat=旧配置：{0}（已弃用，请改选「取值（绑定）」）}"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            ToolTip="「变量」档已下线：取值统一走「取值（绑定）」——在那一格点 🔗 直接绑全局变量 / 系统变量 / 运行时变量 / 上游端口。本行保留旧变量名仅供对照，运行期仍按旧口径取值。" />
+                                                    </Border>
 
                                                     <ComboBox
                                                         Height="32"

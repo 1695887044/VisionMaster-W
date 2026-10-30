@@ -5,7 +5,6 @@ using System.IO;
 using VisionMaster.Core;
 using VisionMaster.Models;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -158,11 +157,6 @@ namespace VisionMaster.Services
             PublishLog(LogLevel.Warning, CombineMessages(messages));
         }
 
-        private string GetSource([CallerMemberName] string methodName = null,
-                            [CallerFilePath] string filePath = null)
-        {
-            return $"LogService.{methodName}";
-        }
         private string CombineMessages(string[] messages)
         {
             if (messages == null || messages.Length == 0)
@@ -186,9 +180,52 @@ namespace VisionMaster.Services
         }
         private void PublishLog(LogLevel level, string message, string source = null)
         {
+            // 来源（Source）在这里补：调用方（模块 / 插件 / 宿主）都是 ILogService.Info(...) 这类
+            // 两参调用，从来不传 source —— 之前直接 new LogItem(level, message, null) 把
+            // LogItem 构造函数 "System" 的默认值覆盖成了 null，
+            // 于是面板的「来源胶囊」永远不显示、按来源搜索永远搜不到（2026-10-30 实测）。
+            //
+            // 取值口径：只认**行首的短标签**（`[Comm]` / `[启动自检]` / `[退出链]` / `[ScadaWeb]` …）。
+            // 这类标签是本仓写日志时的事实约定，覆盖了通讯 / 启动自检 / 退出链 / 组态事件 / 各服务
+            // 等所有"宿主侧"日志；步骤流水（`步骤名.插件名 消息`）没有标签，Source 保持 null，
+            // 面板按设计把胶囊整块收起（StepName 已经在正文里）。
+            //
+            // 为什么不做成"给每个调用点加 source 参数"：ILogService 的三个方法都是 params 数组，
+            // 全仓 1000+ 调用点；而模块日志本来就已经写成 `[标签] 消息`，识别一次即可，
+            // 不需要动公共契约（R12）。
+            source ??= DeriveSource(message);
+
             var logItem = new LogItem(level, message, source);
             OnLogReceived?.Invoke(logItem);
             EnqueueToFile(level, message);
+        }
+
+        /// <summary>行首短标签的最大长度（`NetworkCameraServer` 19 个字符，留一点余量）</summary>
+        private const int MaxSourceTagLength = 24;
+
+        /// <summary>
+        /// 从消息行首的 `[标签]` 里取来源；取不到返回 null（面板据此收起来源胶囊）。
+        ///
+        /// 判定要严，避免把数字括起来的东西当标签：
+        ///   · 必须以 '[' 开头、']' 在前 <see cref="MaxSourceTagLength"/> 个字符内；
+        ///   · 标签内不许有空白（`[1/121] 已加载` 这种不是标签，是索引）；
+        ///   · 第一个字符必须是字母或汉字（`[1/121]` / `[0.5s]` 这类纯数字/符号的排除）。
+        /// </summary>
+        private static string? DeriveSource(string? message)
+        {
+            if (string.IsNullOrEmpty(message) || message[0] != '[') return null;
+
+            var end = message.IndexOf(']');
+            if (end <= 1 || end >= MaxSourceTagLength) return null;
+
+            if (!char.IsLetter(message[1])) return null;
+
+            for (var i = 1; i < end; i++)
+            {
+                if (char.IsWhiteSpace(message[i])) return null;
+            }
+
+            return message.Substring(1, end - 1);
         }
 
         /// <summary>入队文件通道（时间戳在入队时固定，避免写盘延迟导致乱序）</summary>

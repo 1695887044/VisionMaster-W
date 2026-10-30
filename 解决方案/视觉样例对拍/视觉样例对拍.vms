@@ -2,7 +2,7 @@
   "SolutionName": "视觉样例对拍",
   "Version": 1.0,
   "Config": {
-    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"7\" ConsoleState=\"Expanded\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"9a39d9e1-6488-438f-8677-be3bd505ff7d\" DockWidth=\"340\" DockMinWidth=\"320\">\r\n      <LayoutAnchorable AutoHideWidth=\"222.5\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"流程导航\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:20\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"156.32161429396865*\">\r\n      <LayoutDocumentPane Id=\"bdda9cd1-4dc6-45ce-8c5c-c8ff49f2b2b6\">\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/29/2026 22:56:38\" />\r\n        <LayoutDocument Title=\"流程画布\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_FlowCanvasView\" CanClose=\"False\" LastActivationTimeStamp=\"10/30/2026 08:54:25\" />\r\n        <LayoutDocument Title=\"运行驾驶舱\" ContentId=\"Panel_RunCockpitView\" CanClose=\"False\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" DockHeight=\"200\" />\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" DockWidth=\"300\" DockMinWidth=\"300\">\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" FloatingLeft=\"748\" FloatingTop=\"480.5\" FloatingWidth=\"952\" FloatingHeight=\"748\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:54:25\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" DockWidth=\"300\" DockMinWidth=\"300\" FloatingWidth=\"952\" FloatingHeight=\"748\" FloatingLeft=\"748\" FloatingTop=\"480.5\" />\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup Id=\"f1404472-b7e7-4181-837e-a2c0a2b7e0ce\" PreviousContainerId=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" />\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图层\" IsSelected=\"True\" ContentId=\"Panel_ScadaLayerView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"1\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"2\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"控制台\" IsSelected=\"True\" ContentId=\"Panel_LogView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"7\" ConsoleState=\"Expanded\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"9a39d9e1-6488-438f-8677-be3bd505ff7d\" DockWidth=\"340\" DockMinWidth=\"320\">\r\n      <LayoutAnchorable AutoHideWidth=\"222.5\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"流程导航\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:34:29\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"156.32161429396865*\">\r\n      <LayoutDocumentPane Id=\"bdda9cd1-4dc6-45ce-8c5c-c8ff49f2b2b6\">\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/30/2026 11:47:57\" />\r\n        <LayoutDocument Title=\"流程画布\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_FlowCanvasView\" CanClose=\"False\" LastActivationTimeStamp=\"10/30/2026 16:35:33\" />\r\n        <LayoutDocument Title=\"运行驾驶舱\" ContentId=\"Panel_RunCockpitView\" CanClose=\"False\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" DockHeight=\"200\" />\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" DockWidth=\"300\" DockMinWidth=\"300\">\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" FloatingLeft=\"748\" FloatingTop=\"480.5\" FloatingWidth=\"952\" FloatingHeight=\"748\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:35:33\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" DockWidth=\"300\" DockMinWidth=\"300\" FloatingWidth=\"952\" FloatingHeight=\"748\" FloatingLeft=\"748\" FloatingTop=\"480.5\" />\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup Id=\"f1404472-b7e7-4181-837e-a2c0a2b7e0ce\" PreviousContainerId=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" />\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:33:41\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图层\" IsSelected=\"True\" ContentId=\"Panel_ScadaLayerView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:33:41\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"1\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:33:41\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"2\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:33:41\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"控制台\" IsSelected=\"True\" ContentId=\"Panel_LogView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 16:33:41\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
     "ImageViewMode": 8
   },
   "Flows": [
@@ -42,9 +42,44 @@
             "X": 0.0,
             "Y": 0.0,
             "Collapsed": false
+          },
+          "aa313ce7-31a6-b78c-deb4-8b0b20174e6a": {
+            "X": 30.0,
+            "Y": 258.0,
+            "Collapsed": false
+          },
+          "a79d9830-a49b-ccc9-8ca8-1ab6c75a2a5b": {
+            "X": 30.0,
+            "Y": 344.0,
+            "Collapsed": false
+          },
+          "3d0fd2dc-959c-17a8-b1b1-15f8b82cb874": {
+            "X": 30.0,
+            "Y": 430.0,
+            "Collapsed": false
+          },
+          "50d97e66-5be3-5f7c-019f-382b3306c76c": {
+            "X": 30.0,
+            "Y": 516.0,
+            "Collapsed": false
+          },
+          "18ac7d59-1963-31db-d0ff-e96ed9a0ff80": {
+            "X": 30.0,
+            "Y": 602.0,
+            "Collapsed": false
+          },
+          "45abea87-8a39-fd49-4ce5-4491470f03b0": {
+            "X": 30.0,
+            "Y": 688.0,
+            "Collapsed": false
+          },
+          "4ef39f28-ae4d-d476-4b3f-2db183737d6c": {
+            "X": 30.0,
+            "Y": 774.0,
+            "Collapsed": false
           }
         },
-        "Count": 4
+        "Count": 11
       },
       "Steps": [
         {
@@ -1076,8 +1111,64 @@
       "StepsEncrypted": false,
       "TriggerMode": 1,
       "Layout": {
-        "Nodes": {},
-        "Count": 0
+        "Nodes": {
+          "bd79efac-4986-4f9b-ae18-2723742cff7b": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Collapsed": false
+          },
+          "8d8b4e34-4a97-4a61-90c9-6bda33582e92": {
+            "X": 30.0,
+            "Y": 104.0,
+            "Collapsed": false
+          },
+          "58f7a162-ac02-4da8-9701-1da26ccaaab3": {
+            "X": 30.0,
+            "Y": 190.0,
+            "Collapsed": false
+          },
+          "52eece60-b03f-464c-9af8-f7310949777f": {
+            "X": 30.0,
+            "Y": 276.0,
+            "Collapsed": false
+          },
+          "371d3958-3e2a-e2b6-8c95-dd1c8c40597a": {
+            "X": 30.0,
+            "Y": 362.0,
+            "Collapsed": false
+          },
+          "721b8324-5989-a7b4-75d8-94342693571c": {
+            "X": 30.0,
+            "Y": 448.0,
+            "Collapsed": false
+          },
+          "d9740252-06df-936c-9a4c-88eb88b5091a": {
+            "X": 30.0,
+            "Y": 534.0,
+            "Collapsed": false
+          },
+          "d9afcde4-fb1f-b312-2c97-42a97cb2fec5": {
+            "X": 30.0,
+            "Y": 620.0,
+            "Collapsed": false
+          },
+          "78fcd3e7-fe55-087e-e10d-ce0493e15033": {
+            "X": 30.0,
+            "Y": 706.0,
+            "Collapsed": false
+          },
+          "efc0b7d2-90cf-370c-6290-8f9bb4979c68": {
+            "X": 30.0,
+            "Y": 792.0,
+            "Collapsed": false
+          },
+          "35a235c5-849a-c2d7-3f30-a4de44ce7831": {
+            "X": 30.0,
+            "Y": 878.0,
+            "Collapsed": false
+          }
+        },
+        "Count": 11
       },
       "Steps": [
         {
@@ -2080,8 +2171,69 @@
       "StepsEncrypted": false,
       "TriggerMode": 1,
       "Layout": {
-        "Nodes": {},
-        "Count": 0
+        "Nodes": {
+          "172431e1-6d89-4647-8cf7-82bc35b2ba63": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Collapsed": false
+          },
+          "199a6336-0e4e-428b-bd14-fcc8f56bcfa4": {
+            "X": 30.0,
+            "Y": 104.0,
+            "Collapsed": false
+          },
+          "cee1079f-41ab-4189-aaf3-3deb544d9767": {
+            "X": 30.0,
+            "Y": 190.0,
+            "Collapsed": false
+          },
+          "ce63e2f8-dc60-4c26-9ed7-f1133f6f9949": {
+            "X": 30.0,
+            "Y": 276.0,
+            "Collapsed": false
+          },
+          "579eea78-a50c-855f-3ee5-6d2e2927c18a": {
+            "X": 30.0,
+            "Y": 362.0,
+            "Collapsed": false
+          },
+          "c35b302b-d2fe-3dff-d043-1b4204d5df4f": {
+            "X": 30.0,
+            "Y": 448.0,
+            "Collapsed": false
+          },
+          "1b43ed5a-14f7-4a99-658d-495beff4c607": {
+            "X": 30.0,
+            "Y": 534.0,
+            "Collapsed": false
+          },
+          "e6cb3071-19bb-b7ae-6dba-695996b28778": {
+            "X": 30.0,
+            "Y": 620.0,
+            "Collapsed": false
+          },
+          "e7d02bde-52c5-7326-8657-bdd7f79b177a": {
+            "X": 30.0,
+            "Y": 706.0,
+            "Collapsed": false
+          },
+          "019919ab-01b3-780e-234b-2d8e8412664c": {
+            "X": 30.0,
+            "Y": 792.0,
+            "Collapsed": false
+          },
+          "2eb05862-b034-0132-5007-90be35303d02": {
+            "X": 30.0,
+            "Y": 878.0,
+            "Collapsed": false
+          },
+          "940dad6f-b181-83a9-fde2-2a52ba9f6522": {
+            "X": 30.0,
+            "Y": 964.0,
+            "Collapsed": false
+          }
+        },
+        "Count": 12
       },
       "Steps": [
         {
@@ -3013,9 +3165,39 @@
             "X": 0.0,
             "Y": 172.0,
             "Collapsed": false
+          },
+          "f40dbbbe-29ea-c2ca-71a7-2d710476d597": {
+            "X": 0.0,
+            "Y": 258.0,
+            "Collapsed": false
+          },
+          "e384597c-2ed6-f1f0-4609-03225b992661": {
+            "X": 0.0,
+            "Y": 344.0,
+            "Collapsed": false
+          },
+          "3b86a8de-6345-aec7-36b4-d4e50d5ae2cb": {
+            "X": 0.0,
+            "Y": 430.0,
+            "Collapsed": false
+          },
+          "379b29fc-0642-66de-6285-deb213979948": {
+            "X": 0.0,
+            "Y": 516.0,
+            "Collapsed": false
+          },
+          "5b898d51-51b8-71ad-4d5f-7ade361f6d09": {
+            "X": 0.0,
+            "Y": 602.0,
+            "Collapsed": false
+          },
+          "0767072a-95b6-12da-9d66-52e974298c35": {
+            "X": 0.0,
+            "Y": 688.0,
+            "Collapsed": false
           }
         },
-        "Count": 3
+        "Count": 9
       },
       "Steps": [
         {
@@ -3514,7 +3696,7 @@
     {
       "FlowID": "51c03971dbb046338a546d336480d75e",
       "FlowName": "测试",
-      "Version": 30,
+      "Version": 54,
       "IsEnabled": true,
       "Role": 0,
       "InvokeType": 0,
@@ -3528,27 +3710,27 @@
       "TriggerMode": 1,
       "Layout": {
         "Nodes": {
-          "da94145d-be65-4eb8-b29a-3b90a113f5c1": {
+          "86de42f5-1ddf-4d9d-a74e-abb1fe56e70e": {
             "X": 0.0,
             "Y": 0.0,
             "Collapsed": false
           },
-          "ec927357-5913-4bbb-b27b-4c34530b0696": {
+          "da94145d-be65-4eb8-b29a-3b90a113f5c1": {
             "X": 0.0,
             "Y": 86.0,
             "Collapsed": false
           },
-          "43ce148e-2448-41b9-a3b6-f9f43038f72b": {
+          "fd6dc4a4-db06-4fd6-94fa-99f82b55143b": {
             "X": 0.0,
             "Y": 172.0,
             "Collapsed": false
           },
-          "5ebf048f-2700-4d0d-bd67-683188107976": {
+          "ea1fa78f-ea09-4c0e-9b1d-f95723d22af2": {
             "X": 0.0,
             "Y": 258.0,
             "Collapsed": false
           },
-          "ea1fa78f-ea09-4c0e-9b1d-f95723d22af2": {
+          "5ebf048f-2700-4d0d-bd67-683188107976": {
             "X": 0.0,
             "Y": 344.0,
             "Collapsed": false
@@ -3557,6 +3739,31 @@
         "Count": 5
       },
       "Steps": [
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "86de42f5-1ddf-4d9d-a74e-abb1fe56e70e",
+          "Icon": "",
+          "PluginName": "图像采集",
+          "Category": "常用工具",
+          "PluginTypeName": "Plugin.ImageAcquisition.ImageAcquisitionPlugin, Plugin.ImageAcquisition, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "图像采集_0",
+          "Description": "图像采集",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 2,
+          "InputValues": {
+            "FilePath": "C:\\Users\\16958\\AppData\\Roaming\\MVTec\\HALCON-23.05-Progress\\examples\\images\\board\\board_01.png",
+            "FolderPath": "",
+            "FileIndex": 0,
+            "FrameTimeoutMs": 0,
+            "Mode": 0,
+            "DisplayViewIndex": 1,
+            "CameraSerial": "",
+            "ImageAssetId": ""
+          },
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
           "StepID": "da94145d-be65-4eb8-b29a-3b90a113f5c1",
@@ -3596,45 +3803,13 @@
         },
         {
           "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "ec927357-5913-4bbb-b27b-4c34530b0696",
-          "Icon": "",
-          "PluginName": "调用流程",
-          "Category": "流程控制",
-          "PluginTypeName": "VisionMaster.Plugins.RunFlow.RunFlowPlugin, Plugin.RunFlow, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "调用流程_0",
-          "Description": "调用流程",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {},
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "43ce148e-2448-41b9-a3b6-f9f43038f72b",
-          "Icon": "",
-          "PluginName": "变量赋值",
-          "Category": "变量操作",
-          "PluginTypeName": "VisionMaster.Plugins.Util.VariableAssignmentPlugin, Plugin.Util, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "变量赋值_1",
-          "Description": "变量赋值",
-          "SortId": 0,
-          "IsDisEnable": false,
-          "State": 0,
-          "InputValues": {},
-          "LinkedSources": {},
-          "OutputPortDefinitions": []
-        },
-        {
-          "$type": "VisionMaster.Models.ActionStep, VM.Core",
-          "StepID": "5ebf048f-2700-4d0d-bd67-683188107976",
-          "Icon": "",
-          "PluginName": "结果上报",
-          "Category": "数据处理",
-          "PluginTypeName": "Plugin.ResultUpload.ResultUploadPlugin, Plugin.ResultUpload, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
-          "StepName": "结果上报_0",
-          "Description": "结果上报",
+          "StepID": "fd6dc4a4-db06-4fd6-94fa-99f82b55143b",
+          "Icon": "",
+          "PluginName": "C#脚本",
+          "Category": "逻辑控制",
+          "PluginTypeName": "Plugin.CSharpScript.CSharpScriptPlugin, Plugin.CSharpScript, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "C#脚本_0",
+          "Description": "C#脚本",
           "SortId": 0,
           "IsDisEnable": false,
           "State": 0,
@@ -3663,6 +3838,22 @@
               "Description": "规则「规则1」的判定结果（同时写运行时变量）"
             }
           ]
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "5ebf048f-2700-4d0d-bd67-683188107976",
+          "Icon": "",
+          "PluginName": "结果上报",
+          "Category": "数据处理",
+          "PluginTypeName": "Plugin.ResultUpload.ResultUploadPlugin, Plugin.ResultUpload, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "结果上报_0",
+          "Description": "结果上报",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {},
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
         }
       ]
     },
@@ -4239,8 +4430,14 @@
       "StepsEncrypted": false,
       "TriggerMode": 1,
       "Layout": {
-        "Nodes": {},
-        "Count": 0
+        "Nodes": {
+          "455226ee-64d6-4f07-0c20-fe4c472439e3": {
+            "X": 0.0,
+            "Y": 0.0,
+            "Collapsed": false
+          }
+        },
+        "Count": 1
       },
       "Steps": [
         {

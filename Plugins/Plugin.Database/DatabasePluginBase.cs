@@ -425,6 +425,11 @@ namespace Plugin.Database
                 throw new InvalidOperationException(error);
 
             base.OnConfirm(stepData);
+
+            // 清孤儿连线（在 base.OnConfirm 之后）：换语句会把参数端口整套换掉，
+            // 旧参数名上的连线键没人删 → FlowCompiler 报"没有名为 X 的输入端口"。
+            // ApplyStatementSchema 只清了 InputValues（见上方 :412-416），连线不归它管。
+            PruneOrphanLinks(stepData);
         }
 
         /// <summary>确认前校验：选型完整、类型匹配、只读档不许写、必填参数有值或已链接。</summary>

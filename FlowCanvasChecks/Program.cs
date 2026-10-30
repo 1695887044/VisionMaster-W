@@ -408,6 +408,8 @@ namespace FlowCanvasChecks
 
             // 变量赋值：运行时 / 全局两种作用域
             VariableAssignmentCheck.Run();
+            // 变量定义与赋值（v4）：声明即输出端口 / 类型驱动 / 改名清孤儿 / 重名拒绝 / 旧配置兼容
+            VariableAssignmentCheck.RunDeclaresOutputs();
 
             // 端口默认值随创建落盘（[PortDefaultOnCreate]）：拖入即生效 vs 运动类必须人工确认
             StepDefaultOnCreateChecks.Run();

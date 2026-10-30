@@ -21506,6 +21506,40 @@ namespace ScadaChecks
                     !textB0.Contains("info-line-marker") && textB0.Contains("error-line-marker"),
                     textB0.Length == 0 ? "文件不存在/为空" : textB0.Replace("\r", "").Replace("\n", " | "));
 
+                // ---------------- ②b 面板来源（LogItem.Source）必须真的有值 ----------------
+                // 原先 PublishLog 恒传 null（覆盖了 LogItem 构造函数的 "System" 默认值），
+                // 于是「来源胶囊」永不显示、按来源搜索一条也搜不到 —— 而且不报任何错。
+                // 现在的口径：行首 `[标签]` 的是宿主/模块日志 → Source=标签；步骤流水（无标签）→ null。
+                var sourceLogs = new List<UI.Models.LogItem>();
+                settings.Current.LogFileLevel = LogFileLevel.Info;
+                settings.Save();
+                using (var log = new LogService(settings))
+                {
+                    log.OnLogReceived += item => { lock (sourceLogs) sourceLogs.Add(item); };
+                    log.Warn("[Comm] 通信故障: PLC2 — 目标计算机积极拒绝");
+                    log.Info("[启动自检] 22/22 项通过");
+                    log.Info("形状匹配_散焦PCB.读取PCB散焦图像 已加载图像 [1/121]: D:\\a.png");
+                    log.Info("[1/121] 已加载图像（这是索引，不是标签）");
+                    Thread.Sleep(300);
+                }
+
+                string SourceOf(string prefix)
+                {
+                    lock (sourceLogs)
+                    {
+                        var hit = sourceLogs.FirstOrDefault(i => i.Message.StartsWith(prefix, StringComparison.Ordinal));
+                        return hit == null ? "(没有这条)" : (hit.Source ?? "null");
+                    }
+                }
+
+                var srcComm = SourceOf("[Comm]");
+                var srcSelfCheck = SourceOf("[启动自检]");
+                var srcStep = SourceOf("形状匹配_散焦PCB.");
+                var srcIndex = SourceOf("[1/121]");
+                Check("面板来源：行首 [标签] 填进 LogItem.Source，步骤流水与纯数字括号保持 null",
+                    srcComm == "Comm" && srcSelfCheck == "启动自检" && srcStep == "null" && srcIndex == "null",
+                    $"Comm={srcComm} / 启动自检={srcSelfCheck} / 步骤流水={srcStep} / 索引={srcIndex}");
+
                 // ---------------- ③ 目录改了要重开写入器 ----------------
                 var logDirC = Path.Combine(tempRoot, "logsC");
                 settings.Current.LogFileLevel = LogFileLevel.Info;
@@ -21548,6 +21582,34 @@ namespace ScadaChecks
                         unlimited, new UI.Models.LogItem(UI.Models.LogLevel.Info, "m" + i), 0);
                 }
                 Check("面板保留条数填 0 = 不限制", unlimited.Count == 5, unlimited.Count.ToString());
+
+                // ---------------- ④a 面板上限必须来自配置（不许视图里再写死一个数字） ----------------
+                // 原先 LogView.xaml 硬编码 MaxItems="2000"，而配置默认 5000 且设置里可改：
+                // 两个上限并存取小 → 改了设置永远被 2000 压住，而且没有任何提示。
+                // 现在唯一来源是 LogViewModel.PanelMaxRows（读 AppConfigModel.LogPanelMaxRows）。
+                var originalPanelRows = settings.Current.LogPanelMaxRows;
+                try
+                {
+                    settings.Current.LogPanelMaxRows = 1234;
+                    var panelVm = new VisionMaster.ViewModels.LogViewModel(null, settings);
+                    var readsConfig = panelVm.PanelMaxRows == 1234;
+
+                    var notified = false;
+                    panelVm.PropertyChanged += (_, e) =>
+                    {
+                        if (e.PropertyName == nameof(VisionMaster.ViewModels.LogViewModel.PanelMaxRows)) notified = true;
+                    };
+                    settings.Current.LogPanelMaxRows = 4321;
+                    panelVm.RefreshPanelMaxRows();
+
+                    Check("面板上限只有一份来源：读配置现值，且改完设置会重发通知（视图据此重设 MaxItems）",
+                        readsConfig && notified && panelVm.PanelMaxRows == 4321,
+                        $"读到={panelVm.PanelMaxRows}（期望 4321）/ 首次读配置={readsConfig} / 有通知={notified}");
+                }
+                finally
+                {
+                    settings.Current.LogPanelMaxRows = originalPanelRows;
+                }
 
                 // ---------------- ④b 批量追加（10Hz 合并投递的落库路径） ----------------
                 // 面板现在按批追加（LogViewModel.FlushPending → AppendBatchWithCap），逐条版仍是

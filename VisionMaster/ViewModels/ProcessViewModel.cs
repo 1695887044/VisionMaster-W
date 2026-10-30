@@ -217,6 +217,7 @@ namespace VisionMaster.ViewModels
             _subscribed = true;
 
             GlobalEventBus.Subscribe<LinkPathEvent>(OnLinkPathEvent);
+            GlobalEventBus.Subscribe<PickVariableNameEvent>(OnPickVariableNameEvent);
             // 用命名方法而非 lambda：GlobalEventBus.Unsubscribe 依赖委托的 Target+Method 匹配
             GlobalEventBus.Subscribe<MainRunState>(OnMainRunStateChanged);
 
@@ -241,6 +242,7 @@ namespace VisionMaster.ViewModels
             _runTimeTimer.Stop();
 
             GlobalEventBus.Unsubscribe<LinkPathEvent>(OnLinkPathEvent);
+            GlobalEventBus.Unsubscribe<PickVariableNameEvent>(OnPickVariableNameEvent);
             GlobalEventBus.Unsubscribe<MainRunState>(OnMainRunStateChanged);
 
             _editGate.Deactivate();
@@ -584,6 +586,48 @@ namespace VisionMaster.ViewModels
                     return;
                 if (result.Parameters.TryGetValue<LinkReference>("BoundLink", out var link))
                     @event.OnBound?.Invoke(link);
+            });
+        }
+
+        /// <summary>
+        /// 「变量名」选择请求（2026-10-30）：与 <see cref="OnLinkPathEvent"/> 共用同一个弹窗与候选树，
+        /// 但**只回传名字与身份**，调用方绝不写 <c>LinkedSources</c>（见
+        /// <see cref="PickVariableNameEvent"/> 的类注释）。
+        ///
+        /// 两个作用域的候选差异靠 AllowGlobals 表达：全局作用域要隐藏"上游端口"以外的非变量来源，
+        /// 运行时作用域保留手输（开集）。
+        /// </summary>
+        private void OnPickVariableNameEvent(PickVariableNameEvent @event)
+        {
+            if (@event == null)
+                return;
+
+            var p = new DialogParameters
+            {
+                { "IsSingleBindMode", true },
+                // 占位端口名：单绑定模式要求有一个"目标端口"，名字选择没有真端口，
+                // 用中性文案，避免界面露出"要绑的端口"这种不存在的东西。
+                { "TargetPortName", "变量名" },
+                { "TargetTypeName", typeof(object).AssemblyQualifiedName },
+                // 全局作用域必须允许全局变量；运行时作用域同样需要（运行期先查局部再查共享表）。
+                { "AllowGlobals", true },
+                // 名字选择只认"变量"，上游端口的 TargetPortName 是端口名，不能当变量名用。
+                { "PickNameMode", true },
+                { "AllowStepPorts", @event.AllowStepPorts },
+                { "ScopeFilter", @event.Scope ?? "Global" },
+                // 运行时变量是开集（脚本 SetVar / 自动创建），必须留手输出口（R190 的唯一例外）；
+                // 全局变量是闭集（必须先在变量管理里存在），不给手填。
+                { "AllowFreeText", @event.AllowFreeText },
+                { "InitialName", @event.CurrentName ?? string.Empty },
+                { "InitialVariableId", @event.CurrentVariableId },
+            };
+
+            dialogService.ShowDialog("DataBindView", p, result =>
+            {
+                if (result.Result != ButtonResult.OK)
+                    return;
+                if (result.Parameters.TryGetValue<LinkReference>("BoundLink", out var link) && link != null)
+                    @event.OnPicked?.Invoke(link);
             });
         }
 

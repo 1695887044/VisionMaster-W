@@ -30,8 +30,10 @@ namespace Plugin.DataRecord
     {
         private static readonly System.Collections.Generic.Dictionary<object, string> Labels = new System.Collections.Generic.Dictionary<object, string>
         {
-            { ColumnSource.Port, "端口" },
-            { ColumnSource.Variable, "变量" },
+            { ColumnSource.Port, "取值（绑定）" },
+            // 旧方案（"Source": 1）仍会反序列化出这一档——标签留着，让打开旧配置的人看得懂
+            // 这是什么，而不是显示成英文 "Variable"。新配置不会再选到它（下拉数据源已过滤）。
+            { ColumnSource.Variable, "变量（已弃用）" },
             { ColumnSource.BuiltIn, "内置" },
             { BuiltInField.Timestamp, "时间戳" },
             { BuiltInField.Sequence, "序列号" },

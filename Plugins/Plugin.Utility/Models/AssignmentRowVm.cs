@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
@@ -10,7 +11,7 @@ using VisionMaster.Plugins.Util;
 namespace Plugin.Util.Models
 {
     /// <summary>
-    /// 「变量赋值」行列表里一行在界面上的视图模型。
+    /// 「变量定义与赋值」行列表里一行在界面上的视图模型。
     ///
     /// 视图的 DataContext 仍是插件实例（宿主靠它取 IPluginConfigView.OnConfirm）；
     /// 行模板的 DataContext 是本类。所有业务判断仍走插件（候选、提示、端口），
@@ -65,6 +66,34 @@ namespace Plugin.Util.Models
         }
 
         public bool HasName => !string.IsNullOrWhiteSpace(Row.VariableName);
+
+        /// <summary>
+        /// 「变量名」格子的点击入口（2026-10-30）：不再用行内下拉，改为开宿主的变量选择弹窗。
+        ///
+        /// 为什么走事件而不是自己开窗：插件只引用 Core.Interfaces + Core.Controls，
+        /// 拿不到 IDialogService。这条通道与值列的 🔗（LinkPathEvent）同一个宿主订阅点，
+        /// 差别只在事件类型——名字选择**不建立连线**（见 PickVariableNameEvent 类注释）。
+        /// </summary>
+        public ICommand PickNameCommand => _pickNameCommand ??= new RelayCommand(_ =>
+        {
+            Core.Events.GlobalEventBus.Publish(new PickVariableNameEvent
+            {
+                Scope = IsGlobal ? VariableAssignmentPlugin.ScopeGlobal : VariableAssignmentPlugin.ScopeRuntime,
+                CurrentName = Row.VariableName ?? string.Empty,
+                CurrentVariableId = Row.VariableId,
+                // 写名场景：上游端口不能当变量名（其 TargetPortName 是端口名）。
+                AllowStepPorts = false,
+                // 全局变量是闭集，必须先在变量管理里存在；运行时是开集，允许手输（R190）。
+                AllowFreeText = IsRuntime,
+                OnPicked = link =>
+                {
+                    if (link == null) return;
+                    Row.VariableName = link.TargetPortName ?? string.Empty;
+                    Row.VariableId = link.TargetVariableId;
+                },
+            });
+        });
+        private ICommand? _pickNameCommand;
 
         private ICommand? _selectGlobalCandidateCommand;
         /// <summary>全局候选点击：落成名字常量并关闭浮层（只能选，不能手填）。</summary>
@@ -142,6 +171,26 @@ namespace Plugin.Util.Models
         public string TypeText => _plugin.GetTypeText(Row);
         public string ValueSourceText => _plugin.GetValueSourceText(Row);
         public string RowIndexText => _plugin.GetRowIndexText(this);
+
+        /// <summary>声明类型候选项（供行内类型下拉 ItemsSource；值=枚举成员名，显示=中文）。</summary>
+        public IReadOnlyList<StepConfigOption> TypeOptions => _plugin.TypeOptions;
+
+        /// <summary>
+        /// 这一行产出的输出端口名（<c>Var_{变量名}</c>）；全局行或未命名行返回空串。
+        /// 视图用它做"下游可绑：xxx"的提示，让用户知道这个名字可以在绑定弹窗里选到。
+        /// </summary>
+        public string OutputPortText
+        {
+            get
+            {
+                if (IsGlobal) return string.Empty;
+                var name = (Row.VariableName ?? string.Empty).Trim();
+                return name.Length == 0 ? string.Empty : VariableAssignmentPlugin.OutputPortPrefix + name;
+            }
+        }
+
+        /// <summary>类型下拉是否可改：全局行写的是既有变量，不产端口 → 类型无意义。</summary>
+        public bool TypeSelectable => IsRuntime;
 
         public string RowMessage => string.Equals(HintLevel, "Info", StringComparison.Ordinal) ? string.Empty : Hint;
         public bool HasRowMessage => !string.IsNullOrEmpty(RowMessage);

@@ -29,8 +29,10 @@ namespace Plugin.ResultUpload
                 { SendTiming.OnlyNG, "仅NG上报" },
                 { SendTiming.OnTrigger, "触发端口" },
                 // 取值来源
-                { FieldSource.Port, "端口" },
-                { FieldSource.Variable, "变量" },
+                { FieldSource.Port, "取值（绑定）" },
+                // 旧方案（"Source": 1）仍会反序列化出这一档——标签留着，让打开旧配置的人看得懂
+                // 这是什么。新配置不会再选到它（下拉数据源已过滤）。
+                { FieldSource.Variable, "变量（已弃用）" },
                 { FieldSource.BuiltIn, "内置" },
                 // 内置字段
                 { BuiltInField.Timestamp, "时间戳" },

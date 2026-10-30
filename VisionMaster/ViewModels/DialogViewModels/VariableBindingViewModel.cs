@@ -208,8 +208,77 @@ namespace VisionMaster.ViewModels
             private set => SetProperty(ref _allowGlobals, value);
         }
 
-        private string _targetStepName = "当前步骤";
+        private bool _pickNameMode;
+        /// <summary>
+        /// 名字选择模式：调用方只要「名字 + 身份」，不建立连线。
+        /// 候选会裁掉"上游端口"（其 TargetPortName 是端口名，不是变量名）。
+        /// </summary>
+        public bool PickNameMode
+        {
+            get => _pickNameMode;
+            private set => SetProperty(ref _pickNameMode, value);
+        }
 
+        private bool _allowStepPorts = true;
+        /// <summary>是否允许上游步骤输出端口进入候选（名字选择模式恒为 false）。</summary>
+        public bool AllowStepPorts
+        {
+            get => _allowStepPorts;
+            private set => SetProperty(ref _allowStepPorts, value);
+        }
+
+        private string _scopeFilter = string.Empty;
+        /// <summary>
+        /// 名字选择模式下的作用域过滤（<c>"Global"</c> / <c>"Runtime"</c>；空 = 不过滤）。
+        ///
+        /// 为什么需要：全局行打开弹窗时会看到一个空的「运行时变量」组，运行时行则要在一万条
+        /// 全局变量里翻——两种都是"看起来能选，其实选了就废"。作用域由调用方明确指定。
+        /// 只在 <see cref="PickNameMode"/> 下生效；其他模式（正常绑定）完全不受影响。
+        /// </summary>
+        public string ScopeFilter
+        {
+            get => _scopeFilter;
+            private set => SetProperty(ref _scopeFilter, value ?? string.Empty);
+        }
+
+        private bool _allowFreeText;
+        /// <summary>
+        /// 名字选择模式下的「手填变量名」出口（运行时变量是开集，R190 的唯一例外）。
+        ///
+        /// 全局变量是闭集（必须先在变量管理里存在），只在运行时作用域为 true。
+        /// 手填产出的仍是 <see cref="LinkReference"/>（<c>Kind=RuntimeVariable</c>），
+        /// 但调用方只取 <c>TargetPortName</c>，**不写 LinkedSources**。
+        /// </summary>
+        public bool AllowFreeText
+        {
+            get => _allowFreeText;
+            private set => SetProperty(ref _allowFreeText, value);
+        }
+
+        private string _freeTextName = string.Empty;
+        /// <summary>「手填变量名」输入框的内容。</summary>
+        public string FreeTextName
+        {
+            get => _freeTextName;
+            set
+            {
+                if (SetProperty(ref _freeTextName, value ?? string.Empty))
+                    RaisePropertyChanged(nameof(CanUseFreeText));
+            }
+        }
+
+        /// <summary>手填名字非空才允许确认。</summary>
+        public bool CanUseFreeText => AllowFreeText && !string.IsNullOrWhiteSpace(FreeTextName);
+
+        /// <summary>
+        /// 确认使用手填的变量名：产出 <c>Kind=RuntimeVariable</c> 的连线引用。
+        ///
+        /// 运行期 <c>RuntimeVariableProxyPort</c> 本来就是"按名从 LocalVariables 取"，
+        /// 所以这条引用不需要落盘成端口——名字选择模式的调用方只取名字与（空的）Id。
+        /// </summary>
+        public DelegateCommand UseFreeTextCommand { get; set; }
+
+        private string _targetStepName = "当前步骤";
         /// <summary>顶部上下文条显示的当前步骤名（单绑定模式固定为「插件视图绑定请求」）。</summary>
         public string TargetStepName
         {
@@ -444,6 +513,7 @@ namespace VisionMaster.ViewModels
             SelectPresetCommand = new DelegateCommand<string>(SelectPresetOption);
             ConfirmArrayBindCommand = new DelegateCommand(ConfirmArrayBind);
             CancelArrayBindCommand = new DelegateCommand(ClearPendingArray);
+            UseFreeTextCommand = new DelegateCommand(UseFreeText);
         }
 
         private void SelectPresetOption(string option)
@@ -816,8 +886,7 @@ namespace VisionMaster.ViewModels
         }
 
         private void Confirm()
-        {
-            if (!string.IsNullOrWhiteSpace(ConstantValue) && SelectedInputPort != null)
+        {            if (!string.IsNullOrWhiteSpace(ConstantValue) && SelectedInputPort != null)
             {
                 // 键必须走 ResolveBindKey（条件节点用的是端口描述而不是端口名），
                 // 与 LoadExistingConstant / DoFinalBind 同一口径。
@@ -851,6 +920,42 @@ namespace VisionMaster.ViewModels
                 p.Add("BoundLink", _lastBoundLink);
             if (_lastBoundPort != null)
                 p.Add("DataTypeName", _lastBoundPort.DataTypeName);
+            RequestClose.Invoke(p, ButtonResult.OK);
+        }
+
+        /// <summary>
+        /// 使用手填的变量名（仅名字选择模式 + 运行时作用域可见）。
+        ///
+        /// 产出 <c>Kind=RuntimeVariable</c> 的引用：运行期 <c>RuntimeVariableProxyPort</c>
+        /// 本来就是"按名从 LocalVariables 取"。**不写 LinkedSources**——
+        /// 单绑定模式的定义就是"只回传、不写模型"（名字选择更是如此：名字不是值）。
+        /// </summary>
+        private void UseFreeText()
+        {
+            if (!CanUseFreeText) return;
+
+            var name = FreeTextName.Trim();
+            var linkRef = new LinkReference(
+                LinkKind.RuntimeVariable,
+                LinkProtocol.RuntimeVariableMarkerGuid,
+                name,
+                $"运行时变量.{name}")
+            {
+                TargetVariableId = Guid.Empty,   // 运行时变量没有稳定身份
+            };
+
+            _lastBoundLink = linkRef;
+            _lastBoundPort = new PortDefinition
+            {
+                Name = name,
+                DataTypeName = typeof(object).AssemblyQualifiedName,
+            };
+
+            var p = new DialogParameters
+            {
+                { "BoundLink", linkRef },
+                { "DataTypeName", typeof(object).AssemblyQualifiedName },
+            };
             RequestClose.Invoke(p, ButtonResult.OK);
         }
 
@@ -971,10 +1076,31 @@ namespace VisionMaster.ViewModels
             var availableVars = FlowQueryHelper.GetAvailableVariablesTree(
                 allVariables,
                 allSteps,
-                _targetStep
+                _targetStep,
+                // 名字选择模式不需要上游端口节点（写名不能拿端口名当变量名），
+                // 关掉后也不必依赖 Prism 容器去展开上游插件的输出端口表。
+                includeUpstreamStepPorts: !(PickNameMode && !AllowStepPorts)
             );
             foreach (var item in FlowQueryHelper.FilterGlobalNodes(availableVars, AllowGlobals))
             {
+                // 名字选择模式：只留"变量来源"的节点（全局 / 运行时），
+                // 上游步骤节点整块摘掉——它的 TargetPortName 是端口名（如 Out），
+                // 当变量名用就是 R33 记的"拿值当名字"，运行期必然找不到变量。
+                if (PickNameMode && !AllowStepPorts
+                    && item != null
+                    && item.DefaultLinkKind == LinkKind.StepPort)
+                {
+                    continue;
+                }
+
+                // 名字选择模式 + 指定了作用域：只留对应来源的节点。
+                // 为什么必须裁：全局行打开弹窗时也会看到一个空的「运行时变量」组，
+                // 运行时行打开则要在一万条全局变量里翻——两者都是"看起来像能选，其实选错就废"。
+                // 作用域由调用方通过 ScopeFilter 明确指定（全局行 = Global / 运行时行 = Runtime），
+                // 不传（null/空）时保持原行为（都列），既有调用方零影响。
+                if (PickNameMode && !IsNodeInScope(item))
+                    continue;
+
                 TreeNodes.Add(item);
             }
 
@@ -1056,6 +1182,25 @@ namespace VisionMaster.ViewModels
                 || !parameters.TryGetValue<bool>("AllowGlobals", out var allowGlobals)
                 || allowGlobals;
 
+            // 名字选择模式（2026-10-30）：调用方只取名字/Id，不写 LinkedSources。
+            // 与绑定模式共用同一个弹窗与候选树，差异只在候选裁剪与标题文案。
+            PickNameMode = parameters != null
+                && parameters.TryGetValue<bool>("PickNameMode", out var pickName)
+                && pickName;
+            AllowStepPorts = parameters == null
+                || !parameters.TryGetValue<bool>("AllowStepPorts", out var allowStepPorts)
+                || allowStepPorts;
+
+            // 名字选择模式的作用域裁剪 + 手输出口（2026-10-30）。
+            // 不传时保持原行为：不过滤、不给手填。
+            ScopeFilter = parameters != null
+                && parameters.TryGetValue<string>("ScopeFilter", out var scopeFilter)
+                    ? (scopeFilter ?? string.Empty).Trim()
+                    : string.Empty;
+            AllowFreeText = parameters != null
+                && parameters.TryGetValue<bool>("AllowFreeText", out var allowFreeText)
+                && allowFreeText;
+
             // 目标步骤：外部显式传入优先（For/条件弹窗的下钻场景），否则退回 Workspace.CurrentStep。
             // 单靠 CurrentStep 会在"下钻进容器"时指错人：它指向的是容器本身，不是被双击的那个步骤。
             _targetStep =
@@ -1071,7 +1216,76 @@ namespace VisionMaster.ViewModels
                 ? "插件视图绑定请求"
                 : _targetStep?.StepName ?? "当前步骤";
 
+            // 名字选择模式：把当前已选的名字/Id 预选上（否则每次开窗都要在几千条里重新找）。
+            // 必须在 BuildTree 之前记下来——BuildTree 会把 SelectedNode 复位到第一个节点。
+            _presetPickVariableId = parameters != null
+                && parameters.TryGetValue<Guid>("InitialVariableId", out var initialId)
+                    ? initialId
+                    : Guid.Empty;
+            _presetPickName = parameters != null
+                && parameters.TryGetValue<string>("InitialName", out var initialName)
+                    ? (initialName ?? string.Empty).Trim()
+                    : string.Empty;
+
             BuildTree(parameters);
+
+            if (PickNameMode)
+                ApplyPickNamePreset();
+        }
+
+        private Guid _presetPickVariableId = Guid.Empty;
+        private string _presetPickName = string.Empty;
+
+        /// <summary>
+        /// 名字选择模式下的作用域裁剪判定：这个候选节点是否属于 <see cref="ScopeFilter"/>。
+        ///
+        /// 判定放在节点粒度（`ModuleGroup`）而不是端口粒度：一组候选就是一个来源，
+        /// 全局组里不会有运行时变量。`ScopeFilter` 为空时一律放行（既有调用方零影响）。
+        /// </summary>
+        private bool IsNodeInScope(ToolItemModel node)
+        {
+            if (node == null) return false;
+            if (string.IsNullOrWhiteSpace(ScopeFilter)) return true;
+            if (!PickNameMode) return true;
+
+            bool wantsGlobal = string.Equals(ScopeFilter, "Global", StringComparison.OrdinalIgnoreCase);
+            bool wantsRuntime = string.Equals(ScopeFilter, "Runtime", StringComparison.OrdinalIgnoreCase);
+            if (!wantsGlobal && !wantsRuntime) return true;   // 不认识的值 → 不过滤
+
+            bool isRuntimeNode = node.DefaultLinkKind == LinkKind.RuntimeVariable
+                                 || string.Equals(node.ModuleGroup, "Runtime", StringComparison.OrdinalIgnoreCase);
+            bool isGlobalNode = node.DefaultLinkKind == LinkKind.GlobalVariable
+                                || string.Equals(node.ModuleGroup, "Global", StringComparison.OrdinalIgnoreCase);
+
+            return wantsRuntime ? isRuntimeNode : isGlobalNode;
+        }
+
+        /// <summary>
+        /// 名字选择模式的预选：Id 优先、名字兜底（与全仓解析口径一致）。
+        /// 找不到就什么都不做——不把 SelectedNode 指向不存在的项，也不清空已有选择。
+        /// </summary>
+        private void ApplyPickNamePreset()
+        {
+            if (_presetPickVariableId == Guid.Empty && _presetPickName.Length == 0)
+                return;
+
+            foreach (var node in TreeNodes)
+            {
+                var match = node?.OutputDefinitions?.FirstOrDefault(p =>
+                    (_presetPickVariableId != Guid.Empty && p.VariableId == _presetPickVariableId)
+                    || (_presetPickVariableId == Guid.Empty
+                        && string.Equals((p.Name ?? string.Empty).Trim(), _presetPickName, StringComparison.OrdinalIgnoreCase)));
+
+                if (match == null)
+                    continue;
+
+                SelectedNode = node;
+                SelectedOutputPort = DisplayPorts.FirstOrDefault(p =>
+                    (_presetPickVariableId != Guid.Empty && p.VariableId == _presetPickVariableId)
+                    || (_presetPickVariableId == Guid.Empty
+                        && string.Equals((p.Name ?? string.Empty).Trim(), _presetPickName, StringComparison.OrdinalIgnoreCase)));
+                return;
+            }
         }
 
         public class PresetOptionItem : BindableBase

@@ -887,7 +887,7 @@
                                                     SelectedItem="{Binding Source}"
                                                     Style="{StaticResource RowComboStyle}">
                                                     <ComboBox.ToolTip>
-                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="取值来源：端口=行内 🔗 连上游输出 / 变量=运行期变量池 / 内置=自动供给" />
+                                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="取值来源：取值（绑定）=点 🔗 绑全局变量/系统变量/运行时变量/上游端口（绑定后显示路径） / 内置=自动供给" />
                                                     </ComboBox.ToolTip>
                                                     <ComboBox.ItemTemplate>
                                                         <DataTemplate>
@@ -897,22 +897,24 @@
                                                 </ComboBox>
                                                 <Grid Grid.Column="3" Margin="4,0,0,0">
                                                     <!--
-                                                        变量名：可编辑 ComboBox（候选来自宿主快照，仍允许手填运行期变量名）。
-                                                        网络变量的候选带「· 设备」后缀——多设备同名点位在下拉里能分辨；
-                                                        确认时按（名字, 设备）解析成稳定 Id，并把名字归一成裸名字。
+                                                        旧配置兜底（方案 B）：「变量」档已下线，但旧 .vms 打开时仍可能是这一档。
+                                                        显示只读提示 + 原变量名（不给已经不能用的输入框），
+                                                        明确告诉用户改选「取值（绑定）」；运行期仍按旧口径取值。
                                                     -->
-                                                    <ComboBox
-                                                        IsEditable="True"
-                                                        IsTextSearchEnabled="False"
-                                                        MaxDropDownHeight="280"
-                                                        Style="{StaticResource RowComboStyle}"
-                                                        ItemsSource="{Binding DataContext.VariableNameOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                        Text="{Binding VariableName, UpdateSourceTrigger=PropertyChanged}"
+                                                    <Border
+                                                        Padding="8,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{StaticResource DialogRowAlternateBrush}"
+                                                        BorderBrush="{StaticResource DialogBorderLightBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
                                                         Visibility="{Binding Source, Converter={StaticResource EnumInVis}, ConverterParameter=Variable}">
-                                                        <ComboBox.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="变量名（运行期变量池的键，如『变量定义』步骤写入的名字）；也可从全局/通讯/系统变量里选（网络变量带设备后缀）" />
-                                                        </ComboBox.ToolTip>
-                                                    </ComboBox>
+                                                        <TextBlock
+                                                            Style="{StaticResource HelpTextStyle}"
+                                                            Text="{Binding VariableName, StringFormat=旧配置：{0}（已弃用，请改选「取值（绑定）」）}"
+                                                            TextTrimming="CharacterEllipsis"
+                                                            ToolTip="「变量」档已下线：取值统一走「取值（绑定）」——点 🔗 直接绑全局变量 / 系统变量 / 运行时变量 / 上游端口，绑定后显示路径。本行保留旧变量名仅供对照，运行期仍按旧口径取值。" />
+                                                    </Border>
                                                     <ComboBox
                                                         ItemsSource="{Binding DataContext.BuiltInFields, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         SelectedItem="{Binding BuiltIn}"
@@ -1010,6 +1012,24 @@
                                     <Style TargetType="TextBlock">
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding StatusMessage}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <!--  旧「变量」档提示（方案 B）：只在旧配置里存在该档时才有内容  -->
+                            <TextBlock
+                                Margin="0,6,0,0"
+                                FontSize="10.5"
+                                Foreground="{StaticResource DialogTextSecondaryBrush}"
+                                Text="{Binding LegacyVariableNotice}"
+                                TextWrapping="Wrap">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding LegacyVariableNotice}" Value="">
                                                 <Setter Property="Visibility" Value="Collapsed" />
                                             </DataTrigger>
                                         </Style.Triggers>

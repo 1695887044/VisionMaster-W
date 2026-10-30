@@ -13,7 +13,7 @@
     mc:Ignorable="d">
 
     <!--
-        「变量赋值」v3 配置视图：一个节点写多个变量。
+        「变量定义与赋值」v4 配置视图：一个节点声明并写多个变量，声明的运行时变量作为输出端口供下游绑定。
 
         设计基线：docs/UI设计基线/variable-assignment/design-v3.html + README.md
         契约：
@@ -398,227 +398,67 @@
                     </Border>
 
                     <Grid Grid.Column="1">
-                        <!--  全局：只能选。按钮显示当前名字；浮层里搜索 + 候选点击（失效项只读）。  -->
-                        <Grid Visibility="{Binding IsGlobal, Converter={StaticResource BoolToVisibility}}">
-                            <ToggleButton
-                                x:Name="GlobalNameToggle"
-                                IsChecked="{Binding IsGlobalNameOpen, Mode=TwoWay}"
-                                Style="{StaticResource GlobalNameToggleStyle}"
-                                ToolTip="全局变量只能从变量管理里选；失效项只读保留，不自动替换">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid Grid.Column="0">
-                                        <TextBlock
-                                            Text="{Binding DisplayName}"
-                                            TextTrimming="CharacterEllipsis"
-                                            Visibility="{Binding HasName, Converter={StaticResource BoolToVisibility}}">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="FontSize" Value="11.5" />
-                                                    <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsInvalidGlobal}" Value="True">
-                                                            <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
-                                                            <Setter Property="FontWeight" Value="SemiBold" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <TextBlock
-                                            FontSize="11.5"
-                                            Foreground="{StaticResource DialogTextMutedBrush}"
-                                            Text="选择全局变量"
-                                            Visibility="{Binding HasName, Converter={StaticResource InverseBoolToVisibility}}" />
-                                    </Grid>
-                                    <TextBlock
-                                        Grid.Column="1"
-                                        Margin="5,0,0,0"
-                                        VerticalAlignment="Center"
-                                        FontSize="9.5"
-                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                        Text="{Binding TypeText}"
-                                        Visibility="{Binding HasName, Converter={StaticResource BoolToVisibility}}" />
-                                </Grid>
-                            </ToggleButton>
-
-                            <Popup
-                                x:Name="GlobalNamePopup"
-                                AllowsTransparency="True"
-                                IsOpen="{Binding IsGlobalNameOpen, Mode=TwoWay}"
-                                Placement="Bottom"
-                                PlacementTarget="{Binding ElementName=GlobalNameToggle}"
-                                PopupAnimation="Fade"
-                                StaysOpen="False">
-                                <Border
-                                    Width="300"
-                                    MaxHeight="320"
-                                    Padding="6"
-                                    Background="{StaticResource DialogSurfaceBrush}"
-                                    BorderBrush="{StaticResource DialogBorderBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="10">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="*" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-
-                                        <Border
-                                            Height="30"
-                                            Padding="7,0"
-                                            Background="{StaticResource DialogSurfaceBrush}"
-                                            BorderBrush="{StaticResource DialogBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="7">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock
-                                                    VerticalAlignment="Center"
-                                                    FontFamily="{StaticResource DialogIconFont}"
-                                                    FontSize="11"
-                                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                                    Text="&#xf002;" />
-                                                <TextBox
-                                                    Grid.Column="1"
-                                                    Margin="6,0,0,0"
-                                                    VerticalContentAlignment="Center"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    FontSize="11.5"
-                                                    Foreground="{StaticResource DialogTextPrimaryBrush}"
-                                                    Text="{Binding GlobalSearchText, UpdateSourceTrigger=PropertyChanged}" />
-                                            </Grid>
-                                        </Border>
-
-                                        <ScrollViewer
-                                            Grid.Row="1"
-                                            MaxHeight="230"
-                                            Margin="0,6,0,0"
-                                            HorizontalScrollBarVisibility="Disabled"
-                                            VerticalScrollBarVisibility="Auto">
-                                            <ItemsControl ItemsSource="{Binding FilteredCandidates}">
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button
-                                                            Command="{Binding DataContext.SelectGlobalCandidateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}">
-                                                            <Button.Style>
-                                                                <Style BasedOn="{StaticResource GlobalCandidateButtonStyle}" TargetType="Button">
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsInvalid}" Value="True">
-                                                                            <Setter Property="IsEnabled" Value="False" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Button.Style>
-                                                            <Grid>
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*" />
-                                                                    <ColumnDefinition Width="Auto" />
-                                                                </Grid.ColumnDefinitions>
-                                                                <StackPanel Grid.Column="0">
-                                                                    <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Setter Property="FontSize" Value="12" />
-                                                                                <Setter Property="FontWeight" Value="SemiBold" />
-                                                                                <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding IsInvalid}" Value="True">
-                                                                                        <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                    <TextBlock
-                                                                        FontSize="10.5"
-                                                                        Foreground="{StaticResource DialogTextMutedBrush}"
-                                                                        Text="{Binding Note}"
-                                                                        TextTrimming="CharacterEllipsis" />
-                                                                </StackPanel>
-                                                                <TextBlock
-                                                                    Grid.Column="1"
-                                                                    Margin="7,0,0,0"
-                                                                    VerticalAlignment="Center"
-                                                                    FontSize="10"
-                                                                    Foreground="{StaticResource DialogTextMutedBrush}"
-                                                                    Text="{Binding TypeName}" />
-                                                            </Grid>
-                                                        </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </ScrollViewer>
-
-                                        <Border
-                                            Grid.Row="2"
-                                            Margin="0,6,0,0"
-                                            Padding="0,6,0,0"
-                                            BorderBrush="{StaticResource DialogBorderLightBrush}"
-                                            BorderThickness="0,1,0,0">
-                                            <TextBlock
-                                                FontSize="10.5"
-                                                Foreground="{StaticResource DialogTextMutedBrush}"
-                                                Text="全局变量只能从变量管理里选；失效项不会自动替换，也不会静默清空。"
-                                                TextWrapping="Wrap" />
-                                        </Border>
-                                    </Grid>
-                                </Border>
-                            </Popup>
-                        </Grid>
-
-                        <!--  运行时：候选 + 允许手填  -->
-                        <ComboBox
-                            x:Name="RuntimeNameBox"
+                        <!--
+                            变量名（2026-10-30 改）：不再用行内下拉，整格可点 → 宿主的变量选择弹窗。
+                            为什么：下拉在几千条变量时会把全部候选项实例化（实测 10000 条 = 10002 个按钮，
+                            且 ItemsControl 结构上不支持虚拟化）；弹窗那边的列表已虚拟化（5000 条只实例化 6 行）。
+                            语义提醒：这里选的只是**名字**，不建立连线（值的来源由右边「值」列的 🔗 负责）。
+                        -->
+                        <Button
+                            x:Name="PickNameButton"
                             Height="30"
-                            Padding="4,0,20,0"
-                            VerticalContentAlignment="Center"
+                            Padding="8,0"
+                            HorizontalContentAlignment="Stretch"
                             Background="{StaticResource DialogSurfaceBrush}"
                             BorderBrush="{StaticResource DialogBorderBrush}"
-                            FontSize="11.5"
-                            Foreground="{StaticResource DialogTextPrimaryBrush}"
-                            IsEditable="True"
-                            IsTextSearchEnabled="False"
-                            ItemsSource="{Binding Candidates}"
-                            Tag="NameEditor"
-                            Text="{Binding Row.VariableName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                            Visibility="{Binding IsRuntime, Converter={StaticResource BoolToVisibility}}">
-                            <ComboBox.ToolTip>
-                                <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="运行时变量可选可填；手填的名字由你负责，运行期会明确报错或按「自动创建」新建" />
-                            </ComboBox.ToolTip>
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel Margin="0,2">
-                                        <StackPanel Orientation="Horizontal">
+                            BorderThickness="1"
+                            Command="{Binding PickNameCommand}"
+                            Cursor="Hand"
+                            FocusVisualStyle="{StaticResource DialogFocusVisual}"
+                            ToolTip="点这里选变量（全局 / 运行时；只选名字，不建立连线）">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="7">
+                                        <Grid Margin="{TemplateBinding Padding}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
                                             <TextBlock
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="{StaticResource DialogTextPrimaryBrush}"
-                                                Text="{Binding Name}" />
+                                                Grid.Column="0"
+                                                VerticalAlignment="Center"
+                                                FontSize="11.5"
+                                                Text="{Binding DisplayName}"
+                                                TextTrimming="CharacterEllipsis">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource DialogTextPrimaryBrush}" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsInvalidGlobal}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource DialogDangerTextBrush}" />
+                                                                <Setter Property="FontWeight" Value="SemiBold" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                             <TextBlock
-                                                Margin="7,0,0,0"
+                                                Grid.Column="1"
+                                                Margin="6,0,0,0"
+                                                VerticalAlignment="Center"
+                                                FontFamily="{StaticResource DialogIconFont}"
                                                 FontSize="10"
                                                 Foreground="{StaticResource DialogTextMutedBrush}"
-                                                Text="{Binding TypeName}" />
-                                        </StackPanel>
-                                        <TextBlock
-                                            FontSize="10.5"
-                                            Foreground="{StaticResource DialogTextMutedBrush}"
-                                            Text="{Binding Note}"
-                                            TextTrimming="CharacterEllipsis" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
+                                                Text="&#xf0d7;" />
+                                        </Grid>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
                     </Grid>
 
                     <StackPanel
@@ -677,6 +517,27 @@
                     Port="{Binding Port}"
                     StepData="{Binding StepData}"
                     VerticalAlignment="Center" />
+            </DataTemplate>
+
+            <!--
+                声明类型（v4 新增）：运行时变量按这个类型生成输出端口 Var_{变量名}，
+                下游绑定后 FlowCompiler 会做编译期类型检查。全局行不产端口，整格隐藏。
+                用外层 Border 控制可见性，**不要**给 ComboBox 挂本地 Style：
+                本地 Style 会顶掉应用级隐式样式（R30/R31 的坑），外观会突变。
+            -->
+            <DataTemplate x:Key="TypeCellTemplate">
+                <Border Visibility="{Binding TypeSelectable, Converter={StaticResource BoolToVisibility}}">
+                    <ComboBox
+                        Height="30"
+                        Padding="8,0,22,0"
+                        VerticalContentAlignment="Center"
+                        FontSize="11.5"
+                        DisplayMemberPath="Display"
+                        ItemsSource="{Binding TypeOptions}"
+                        SelectedValue="{Binding Row.Type, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                        SelectedValuePath="Value"
+                        ToolTip="运行时变量的声明类型（决定输出端口 Var_变量名的 CLR 类型）；「任意对象」= 不校验类型" />
+                </Border>
             </DataTemplate>
 
             <DataTemplate x:Key="CreateCellTemplate">
@@ -761,6 +622,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="88" />
                         <ColumnDefinition Width="1.4*" />
+                        <ColumnDefinition Width="96" />
                         <ColumnDefinition Width="1.1*" />
                         <ColumnDefinition Width="54" />
                         <ColumnDefinition Width="92" />
@@ -793,17 +655,25 @@
                         HorizontalContentAlignment="Stretch"
                         VerticalAlignment="Center"
                         Content="{Binding}"
-                        ContentTemplate="{StaticResource ValueCellTemplate}" />
+                        ContentTemplate="{StaticResource TypeCellTemplate}" />
                     <ContentControl
                         Grid.Row="0"
                         Grid.Column="3"
+                        Margin="0,0,8,0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalAlignment="Center"
+                        Content="{Binding}"
+                        ContentTemplate="{StaticResource ValueCellTemplate}" />
+                    <ContentControl
+                        Grid.Row="0"
+                        Grid.Column="4"
                         HorizontalContentAlignment="Stretch"
                         VerticalAlignment="Center"
                         Content="{Binding}"
                         ContentTemplate="{StaticResource CreateCellTemplate}" />
                     <ContentControl
                         Grid.Row="0"
-                        Grid.Column="4"
+                        Grid.Column="5"
                         HorizontalContentAlignment="Stretch"
                         VerticalAlignment="Center"
                         Content="{Binding}"
@@ -811,7 +681,7 @@
                     <ContentControl
                         Grid.Row="1"
                         Grid.Column="1"
-                        Grid.ColumnSpan="4"
+                        Grid.ColumnSpan="5"
                         HorizontalContentAlignment="Stretch"
                         Content="{Binding}"
                         ContentTemplate="{StaticResource RowMessageTemplate}" />
@@ -826,6 +696,7 @@
                         <ColumnDefinition Width="66" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -870,9 +741,26 @@
                         HorizontalContentAlignment="Stretch"
                         VerticalAlignment="Center"
                         Content="{Binding}"
-                        ContentTemplate="{StaticResource CreateCellTemplate}" />
+                        ContentTemplate="{StaticResource TypeCellTemplate}" />
                     <ContentControl
                         Grid.Row="2"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Margin="0,6,6,0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalAlignment="Center"
+                        Content="{Binding}"
+                        ContentTemplate="{StaticResource ValueCellTemplate}" />
+                    <ContentControl
+                        Grid.Row="2"
+                        Grid.Column="2"
+                        Margin="0,6,0,0"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalAlignment="Center"
+                        Content="{Binding}"
+                        ContentTemplate="{StaticResource CreateCellTemplate}" />
+                    <ContentControl
+                        Grid.Row="3"
                         Grid.Column="0"
                         Grid.ColumnSpan="3"
                         HorizontalContentAlignment="Stretch"
@@ -1141,6 +1029,7 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="88" />
                         <ColumnDefinition Width="1.4*" />
+                        <ColumnDefinition Width="96" />
                         <ColumnDefinition Width="1.1*" />
                         <ColumnDefinition Width="54" />
                         <ColumnDefinition Width="92" />
@@ -1165,9 +1054,17 @@
                         VerticalAlignment="Center"
                         FontSize="10.5"
                         Foreground="{StaticResource DialogTextMutedBrush}"
-                        Text="值（常量 / 上游）" />
+                        Text="类型"
+                        ToolTip="运行时变量会按这个类型生成输出端口 Var_变量名，下游可绑定；选「任意对象」则不校验类型" />
                     <TextBlock
                         Grid.Column="3"
+                        Margin="0,0,8,0"
+                        VerticalAlignment="Center"
+                        FontSize="10.5"
+                        Foreground="{StaticResource DialogTextMutedBrush}"
+                        Text="值（常量 / 上游）" />
+                    <TextBlock
+                        Grid.Column="4"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center"
                         FontSize="10.5"

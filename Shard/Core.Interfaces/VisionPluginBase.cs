@@ -429,6 +429,69 @@ namespace Core.Interfaces
         {
         }
 
+        /// <summary>
+        /// 清理孤儿连线：把宿主步骤上"已经没有同名输入端口"的连线键删掉，返回删除条数。
+        ///
+        /// 【为什么需要】动态端口插件的端口名来自配置（列名/字段名/参数名/变量名）。
+        /// 配置一改，旧端口被 <see cref="RemoveDynamicInput"/> 摘掉，但
+        /// <c>StepModel.LinkedSources</c> 里挂在旧端口名上的那条连线**没人删**。
+        /// 它成了界面上够不到、也没有同名端口的悬空键，而 <c>FlowCompiler</c> 对它是
+        /// **硬错误**（"没有名为 X 的输入端口"）——一条孤儿键足以让整条流程编译失败。
+        ///
+        /// 【为什么放在这里而不是 RebuildDynamicInputs 里】
+        /// 重建会在用户输入过程中反复触发（列名清空、改名撞名、类型切换）。
+        /// 那时"名字暂时为空但行还活着"的端口名此刻不在 <see cref="Inputs"/> 里，
+        /// 自动清理会把用户的有效绑定当孤儿删掉（CSharpScript 专门用锚点字典防这件事）。
+        /// 所以清理只允许在 <c>OnConfirm</c>（用户点了确定）之后显式调用。
+        ///
+        /// 【为什么必须在 base.OnConfirm 之后调用】
+        /// 基类 <c>OnConfirm</c> 会给"未链接的端口"写 InputValues 固定值。若先清理，
+        /// 被清掉的连线键会被当成未链接、写进一条脏的固定值（运行时以常量覆盖连线）。
+        ///
+        /// 【断言宿主兼容】宿主的 <see cref="IStepConfigData"/> 夹具多数没有实现
+        /// <see cref="IStepLinkInventory"/>，此时**返回 0 并跳过**（与 JudgeTable 同口径）。
+        /// 因此这个方法在夹具上恒为空跑——断言必须用真 <c>StepModel</c> 才测得到。
+        /// </summary>
+        /// <param name="stepData">宿主步骤数据；null（编译期实例）直接返回 0。</param>
+        /// <param name="extraKeep">
+        /// 追加的"有效键"：某些插件有"配置态暂时没有端口、但连线键必须留住"的锚点名字
+        /// （如名字被清空的行、改名撞名时尚未迁移的旧键）。传进来才不会被误删。
+        /// </param>
+        /// <returns>实际删除的连线键条数（0 = 没有孤儿，或宿主不支持枚举）。</returns>
+        protected int PruneOrphanLinks(IStepConfigData stepData, IEnumerable<string>? extraKeep = null)
+        {
+            if (stepData == null) return 0;
+
+            // 宿主不支持枚举连线键 → 无从判断，跳过（不猜、不删）
+            if (stepData is not IStepLinkInventory inventory) return 0;
+
+            // 有效键 = 本插件当前声明的全部输入端口（静态 + 动态）+ 调用方给的锚点
+            var valid = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var name in Inputs.Keys)
+            {
+                if (!string.IsNullOrEmpty(name)) valid.Add(name);
+            }
+            if (extraKeep != null)
+            {
+                foreach (var name in extraKeep)
+                {
+                    if (!string.IsNullOrEmpty(name)) valid.Add(name);
+                }
+            }
+
+            // 先拍快照（GetLinkedPortNames 已 ToList，这里再 ToList 一层防未来实现变动）
+            var linked = inventory.GetLinkedPortNames()?.ToList() ?? new List<string>();
+            var removed = 0;
+            foreach (var key in linked)
+            {
+                if (string.IsNullOrEmpty(key)) continue;
+                if (valid.Contains(key)) continue;
+                stepData.RemoveLink(key);
+                removed++;
+            }
+            return removed;
+        }
+
         #endregion
 
         private void EnsurePortsDiscovered()

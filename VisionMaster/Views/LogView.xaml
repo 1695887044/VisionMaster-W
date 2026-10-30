@@ -481,12 +481,17 @@
             会看到从顶部开始，而不是贴底）。
         -->
         <Grid Grid.Row="1">
+            <!--
+                面板保留条数绑 VM.PanelMaxRows（= AppConfigModel.LogPanelMaxRows，设置弹窗可改）。
+                原先这里硬编码 MaxItems="2000"，与配置默认值 5000 并存 —— 改配置永远被 2000 压住，
+                "面板保留条数"这一项实际上是死的（2026-10-30 实测）。
+            -->
             <ui:LogConsole
                 x:Name="Console"
                 AutoScroll="{Binding AutoScroll}"
                 FilterLevel="{Binding FilterLevel}"
                 ItemsSource="{Binding SystemLogs}"
-                MaxItems="2000"
+                MaxItems="{Binding PanelMaxRows}"
                 SearchText="{Binding SearchText}" />
 
             <!--  无结果：放大镜 + 一句说明 + 清空筛选条件（出口按钮，接 ClearFiltersCommand）  -->

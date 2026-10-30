@@ -3372,6 +3372,9 @@ namespace UIThemeSmokeTest
                     ("AutoScroll=\"{Binding AutoScroll}\"", "AutoScroll"),
                     ("ItemsSource=\"{Binding LevelOptions}\"", "LevelOptions"),
                     ("SelectedItem=\"{Binding LevelOption}\"", "LevelOption"),
+                    // 面板上限必须绑配置现值：写死一个数字就与「系统参数设置 → 日志面板保留条数」
+                    // 变成两个上限并取小，改了设置永远不生效（2026-10-30 修的就是这个）。
+                    ("MaxItems=\"{Binding PanelMaxRows}\"", "PanelMaxRows"),
                 };
                 var wireProblems = new List<string>();
                 foreach (var wire in wires)
@@ -3388,10 +3391,10 @@ namespace UIThemeSmokeTest
                         || typeof(VisionMaster.ViewModels.LogLevelFilterOption).GetProperty(prop) == null)
                         wireProblems.Add("等级筹码的 {Binding " + prop + "} 对不上 LogLevelFilterOption." + prop);
                 }
-                Check("LogView 的三处过滤/开关接线 + 等级筹码都点到点（写错只会静默失效，不报编译错）",
+                Check("LogView 的四处过滤/开关 + 面板上限接线 + 等级筹码都点到点（写错只会静默失效，不报编译错）",
                     viewText.Length > 0 && wireProblems.Count == 0,
                     viewText.Length == 0 ? "找不到 " + logViewPath
-                        : (wireProblems.Count == 0 ? "5 处绑定 + 筹码 Text/Count 全部对得上" : string.Join(" | ", wireProblems)));
+                        : (wireProblems.Count == 0 ? "6 处绑定 + 筹码 Text/Count 全部对得上" : string.Join(" | ", wireProblems)));
 
                 // ---- 来源为空的行不许留灰块 ----
                 // 真机截图里的症状：每行时间右边一个灰色小方块（来源胶囊空着仍然在画）。

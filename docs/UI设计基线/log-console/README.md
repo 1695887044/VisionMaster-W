@@ -146,7 +146,7 @@
 | --- | --- | --- | --- |
 | ① | `ClearFiltersCommand` | 无结果态出口 | VM 无此命令 |
 | ② | **筛选后条数 `FilteredCount`** | 底栏"显示 96 / 共 128"里的 96 | 筛选逻辑在 `LogConsole.cs:168-187` 的**私有** `FilterLogic`，控件只暴露 `AutoScroll`/`SearchText`/`FilterLevel`/`GroupBy`/`MaxItems`（`:51-102`）。需新增依赖属性或改为 VM 侧计数 |
-| ③ | 面板上限绑定 | 底栏"面板保留最近 N 条" | 设计稿已改成 `N` 占位，不写死 2000——真实上限是 `AppConfigModel.LogPanelMaxRows`（`Core\Models\AppConfigModel.cs:747`）与 `LogView.xaml:327` 的 `MaxItems="2000"` 取小。**两个上限并存，复刻时要统一口径并绑定显示** |
+| ③ | 面板上限绑定 | 底栏"面板保留最近 N 条" | 设计稿已改成 `N` 占位，不写死 2000。**已于 2026-10-30 统一口径**：视图改为 `MaxItems="{Binding PanelMaxRows}"`，`LogViewModel.PanelMaxRows` 读 `AppConfigModel.LogPanelMaxRows`，不再有第二个数字（原 `LogView.xaml` 的 `MaxItems="2000"` 已删除）。 |
 | ④ | **「成功」等级的生产者** | 设计稿的「成功」筹码与绿色成功行 | `LogService.Success()` 实际发的是 `LogLevel.Info`（`Core\LogService.cs:95-98`），全仓没有一处产生 `LogLevel.Success`（除探针工具）。**要么修 `LogService.Success` 改发 `LogLevel.Success`，要么把该档视为"预留、当前恒 0"**——否则界面上永远有一个点不开的空等级。这条不在纯 UI 范围，需要单独裁定 |
 
 ## 4c. 状态矩阵与三态（R115 / R116）

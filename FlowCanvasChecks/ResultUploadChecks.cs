@@ -7,6 +7,11 @@ using VisionMaster.Services;
 // 裸写 ExecutionContext 会与 System.Threading.ExecutionContext 撞名（两个宿主都启用了隐式 using）
 using ExecutionContext = VisionMaster.Services.ExecutionContext;
 
+// 方案 B（2026-10-30）：`FieldSource.Variable` 已从 UI 下线并标了 [Obsolete]，
+// 但**成员与数值必须保留**（旧 .vms 的 "Source": 1 要能反序列化），运行期分支也保留。
+// 下面的用例正是钉住"旧配置还能跑"，所以这里显式抑制 CS0618——不是违规，是刻意兼容路径。
+#pragma warning disable CS0618
+
 namespace FlowCanvasChecks
 {
     /// <summary>
@@ -27,8 +32,9 @@ namespace FlowCanvasChecks
             DataPipelineCheckSupport.Section("结果上报：字段表 / 时机 / 重试 / 断网续传");
 
             DataPipelineCheckSupport.SafeRun("字段表类型", FieldTableTypes);
-            DataPipelineCheckSupport.SafeRun("变量来源覆盖全局/通讯与数组格式（N2）", VariableSourceCoversSharedRegistry);
+            DataPipelineCheckSupport.SafeRun("变量来源覆盖全局/通讯与数组格式（N2，旧配置兼容）", VariableSourceCoversSharedRegistry);
             DataPipelineCheckSupport.SafeRun("缺名变量 WARN 有上限（N2）", MissingVariableWarnsBounded);
+            DataPipelineCheckSupport.SafeRun("方案B：下拉不再提供「变量」档", SourceDropdownExcludesVariable);
             DataPipelineCheckSupport.SafeRun("仅NG时机", OnlyNgTiming);
             DataPipelineCheckSupport.SafeRun("触发端口时机", TriggerTiming);
             DataPipelineCheckSupport.SafeRun("重试与幂等ID", RetryAndIdempotencyId);
@@ -43,6 +49,30 @@ namespace FlowCanvasChecks
         // ------------------------------------------------------------------
         //  用例
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// 方案 B：`FieldSource.Variable` 必须从下拉数据源里消失，但枚举成员与数值不变。
+        /// 两个方向都钉：只隐藏 UI → 旧配置仍能反序列化；只保留成员 → 方案 B 没做。
+        /// </summary>
+        private static void SourceDropdownExcludesVariable()
+        {
+            var plugin = new ResultUploadPlugin();
+            var sources = plugin.FieldSources.Cast<FieldSource>().ToList();
+
+            DataPipelineCheckSupport.Check("方案B：结果上报下拉只留「取值（绑定）」与「内置」",
+                sources.Count == 2 && sources.Contains(FieldSource.Port) && sources.Contains(FieldSource.BuiltIn),
+                string.Join(",", sources));
+
+            DataPipelineCheckSupport.Check("方案B：枚举数值不变（Variable=1 / BuiltIn=2）",
+                (int)FieldSource.Variable == 1 && (int)FieldSource.BuiltIn == 2,
+                $"Variable={(int)FieldSource.Variable} BuiltIn={(int)FieldSource.BuiltIn}");
+
+            var def = Newtonsoft.Json.JsonConvert.DeserializeObject<UploadFieldDef>(
+                "{\"Name\":\"旧字段\",\"Source\":1,\"VariableName\":\"Legacy\"}");
+            DataPipelineCheckSupport.Check("方案B：旧 .vms 的 Source:1 仍反序列化成「变量」档",
+                def != null && (int)def.Source == 1 && def.VariableName == "Legacy",
+                def == null ? "null" : $"Source={(int)def.Source} Name={def.VariableName}");
+        }
 
         private static void FieldTableTypes()
         {

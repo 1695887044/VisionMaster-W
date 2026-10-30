@@ -14,5 +14,10 @@
     <ProjectReference Include="..\..\..\Plugins\Plugin.Utility\Plugin.Util.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.DataRecord\Plugin.DataRecord.csproj" />
     <ProjectReference Include="..\..\..\Plugins\Plugin.ResultUpload\Plugin.ResultUpload.csproj" />
+    <!-- C30 孤儿连线清理：结果显示插件（其余四个已在上面引用） -->
+    <ProjectReference Include="..\..\..\Plugins\Plugin.ResultDisplay\Plugin.ResultDisplay.csproj" />
+    <ProjectReference Include="..\..\..\Plugins\Plugin.Database\Plugin.Database.csproj" />
+    <!-- C32 共享变量表自动生成：C# 脚本插件的真实现（ScriptSharedUsageValidator / CSharpScriptPlugin） -->
+    <ProjectReference Include="..\..\..\Plugins\Plugin.CSharpScript\Plugin.CSharpScript.csproj" />
   </ItemGroup>
 </Project>

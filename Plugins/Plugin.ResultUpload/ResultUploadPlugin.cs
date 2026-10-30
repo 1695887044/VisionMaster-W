@@ -234,73 +234,56 @@ namespace Plugin.ResultUpload
 
         public override void OnConfirm(IStepConfigData stepData)
         {
-            CaptureVariableIds();
             // 改名迁移排在 base 之前：base 会给"未链接"的端口写 InputValues 固定值，
             // 迁完新名才算已链接，才不会留下一条脏的固定值。
             MigrateLinksOnRename(stepData);
             base.OnConfirm(stepData);
+
+            // 清孤儿连线（必须在 base.OnConfirm 之后：基类会给"未链接端口"写固定值）。
+            // 上面的 MigrateLinksOnRename 只处理"改名"；**切换来源 / 删除字段 / 禁用字段**
+            // 同样会让端口消失，那些键没人删 → FlowCompiler 报"没有名为 X 的输入端口"。
+            PruneOrphanLinks(stepData);
+
             SnapshotPortNames();
         }
 
         /// <summary>
-        /// 把「来源=变量」各字段的目标 Id 落进配置（<see cref="VariableOptionResolver.ResolveTarget"/>）。
-        ///
-        /// 文本是真相源：手填的名字按唯一名解析；下拉选的「名字 · 设备」按二元组解析；
-        /// 文本没被改过且已有 Id → 保留（变量改名不断链）。解析完把名字**归一成裸名字**。
+        /// 旧配置提示：**只在存在 <see cref="FieldSource.Variable"/> 字段时才有内容**，
+        /// 提示用户这一档已下线、应改选「取值（绑定）」。
         /// </summary>
-        private void CaptureVariableIds()
+        public string LegacyVariableNotice
         {
-            var options = _configContext?.Variables;
-            if (Fields == null) return;
-
-            foreach (var field in Fields)
+            get
             {
-                if (field == null || field.Source != FieldSource.Variable) continue;
-
-                var target = VariableOptionResolver.ResolveTarget(
-                    options, field.VariableId, field.VariableName, field.IsTextDirty, "Global");
-                field.VariableId = target.VariableId;
-                field.VariableName = target.Name;
-                field.MarkTextClean();
+                var fields = Fields?.Where(f => f != null && IsLegacyVariable(f)).ToList();
+                if (fields == null || fields.Count == 0) return string.Empty;
+                return $"有 {fields.Count} 个字段仍是旧「变量」档（{string.Join("、", fields.Select(f => f.Name))}）："
+                     + "这一档已下线，取值请改选「取值（绑定）」并在那一格点 🔗 绑定；"
+                     + "旧字段在改之前仍按原口径取值。";
             }
         }
 
         /// <summary>
+        /// 判"这个字段是不是旧「变量」档"。用数值比较而不是直接写 <c>FieldSource.Variable</c>：
+        /// 后者带 <see cref="ObsoleteAttribute"/>，每写一次多一条 CS0618 警告；
+        /// 这里明确表达"只在兼容旧数据时读它"。
+        /// </summary>
+        private static bool IsLegacyVariable(UploadFieldDef f) => (int)f.Source == LegacyVariableSourceValue;
+
+        /// <summary>旧「变量」档的枚举数值（硬编码 = 1，见 <see cref="FieldSource"/> 的注释）。</summary>
+        private const int LegacyVariableSourceValue = 1;
+
+        /// <summary>
         /// 宿主在配置窗口打开后推一次上下文快照。
-        /// 本插件原本不实现 <see cref="IPluginConfigContextProvider"/>（变量名是自由文本），
-        /// 2026-10-29 起实现它：一来确认时按文本解析 Id，二来给变量名格子供候选
-        /// （网络变量的候选带设备后缀，多设备同名点位在浮层里能分辨）。
+        /// 方案 B 之后这里不再铺变量名候选（那一档已下线），只剩刷新旧配置提示一件事。
         /// </summary>
         public void SetConfigContext(PluginConfigContext context)
         {
             _configContext = context;
-            RefreshVariableNameOptions();
+            OnPropertyChanged(nameof(LegacyVariableNotice));
         }
 
         private PluginConfigContext _configContext;
-
-        /// <summary>「变量名」格子的候选（含全局 / 通讯 / 系统 / 上游运行时变量；网络变量带设备后缀）。</summary>
-        public ObservableCollection<string> VariableNameOptions { get; } = new();
-
-        private void RefreshVariableNameOptions()
-        {
-            VariableNameOptions.Clear();
-            var options = _configContext?.Variables;
-            if (options == null) return;
-
-            // 去重键 = 作用域 + 名字 + 设备（与数据记录插件同一口径）；
-            // 网络变量带设备后缀，多设备同名点位在下拉里能分辨。
-            var seen = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var option in options)
-            {
-                if (option == null || string.IsNullOrWhiteSpace(option.Name)) continue;
-                if (!seen.Add((option.Scope ?? "") + "\n" + option.Name + "\n" + (option.Device ?? ""))) continue;
-
-                VariableNameOptions.Add(string.IsNullOrWhiteSpace(option.Device)
-                    ? option.Name
-                    : $"{option.Name} · {option.Device}");
-            }
-        }
 
         /// <summary>
         /// 本步骤的有效名字（用于 {步骤名} 占位符）：
@@ -322,8 +305,17 @@ namespace Plugin.ResultUpload
         /// <summary>上报时机枚举值（供视图下拉 ItemsSource）。</summary>
         public Array SendTimings => Enum.GetValues(typeof(SendTiming));
 
-        /// <summary>字段来源枚举值（供视图行内下拉 ItemsSource）。</summary>
-        public Array FieldSources => Enum.GetValues(typeof(FieldSource));
+        /// <summary>
+        /// 字段来源枚举值（供视图行内下拉 ItemsSource）。
+        ///
+        /// **过滤掉已废弃的 <see cref="FieldSource.Variable"/>**（方案 B）——成员保留只是为了
+        /// 旧 `.vms` 的 `"Source": 1` 还能反序列化，不再出现在下拉里。
+        /// </summary>
+        public Array FieldSources => new[]
+        {
+            FieldSource.Port,
+            FieldSource.BuiltIn,
+        };
 
         /// <summary>内置字段枚举值（供视图行内下拉 ItemsSource）。</summary>
         public Array BuiltInFields => Enum.GetValues(typeof(BuiltInField));
@@ -749,8 +741,11 @@ namespace Plugin.ResultUpload
                         v = Inputs.TryGetValue(f.Name.Trim(), out var p) ? p.GetActualValue() : null;
                         break;
                     case FieldSource.Variable:
+                        // 旧「变量」档（方案 B 已从 UI 下线，仅旧 .vms 还能反序列化出来）。
                         // N2：先本轮局部变量，再共享变量注册表（全局 / 通讯 / 系统变量）；
-                        // 共享变量那条按 Id 优先（多设备同名点位只有 Id 能唯一定位）
+                        // 共享变量那条按 Id 优先（多设备同名点位只有 Id 能唯一定位）。
+                        // **保留这条分支是刻意的**：删掉它会让旧配置落到 default/内置，
+                        // 表现为"以前上报数值的字段，现在上报时间戳"——不报错、只错数据。
                         v = TryResolveVariable(context, f.VariableId, f.VariableName, out var resolved) ? resolved : null;
                         break;
                     case FieldSource.BuiltIn:

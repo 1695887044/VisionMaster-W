@@ -13,22 +13,29 @@ using System.Windows.Input;
 namespace VisionMaster.Plugins.Util
 {
     /// <summary>
-    /// 变量赋值插件（v3：一个节点写多个变量）。
+    /// 变量定义与赋值插件（v4：一个节点可声明/写多个变量，并把它们作为输出端口暴露给下游）。
     ///
     /// 兼容策略：
     /// - 旧四端口 Name / Value / Scope / CreateIfNotExists **保留**：旧 .vms 的键与旧连线仍能解析；
     ///   旧配置（Rows 为空）首次打开/编译时迁移成 1 行，值仍走旧 Value 端口。
     /// - 新行用 <c>Value_&lt;RowId&gt;</c> 动态输入端口；端口名只由 RowId 决定，改名不断线。
     /// - Rows 非空时以 Rows 为权威；旧四端口只用于回退旧版本与旧连线兼容。
+    ///
+    /// v4 新增：**每个运行时行同时产出一个输出端口** <c>Var_{变量名}</c>（类型 = 行的声明类型）。
+    /// 为什么：这个节点以前只写 <c>context.LocalVariables</c>，下游只能靠"按名读"取到值
+    /// （数据记录/结果上报的「变量」档、脚本 GetVar）。而「变量」档已于 2026-10-30 下线，
+    /// 端口绑定成了唯一的跨插件取值通道——没有输出端口，这个节点写出去的值就是死的。
+    /// 执行时**双写**：<c>LocalVariables[名] = 值</c>（脚本 GetVar 仍能读）+ <c>Var_名.Set(值)</c>（下游可连线）。
+    /// 这是本仓既有范式（CSharpScript 的 OutputVars、JudgeTable 的规则输出都是这么干的）。
     /// </summary>
     [Display(
-        Name = "变量赋值",
+        Name = "变量定义与赋值",
         GroupName = "变量操作",
-        Description = "为已定义的本地变量赋值（一个节点可写多个变量）",
+        Description = "声明运行时变量并赋值（一个节点可写多个变量，声明的变量作为输出端口供下游绑定）",
         ShortName = "\uf044"
     )]
     [ParallelSafe] // 二期真并行：Runtime 写走记账字典; Global 写由编辑器检查
-    public class VariableAssignmentPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider
+    public class VariableAssignmentPlugin : VisionPluginBase, IPluginCustomViewProvider, IPluginConfigContextProvider, IDynamicOutputProvider
     {
         #region 旧端口（兼容，不可删）
 
@@ -544,9 +551,9 @@ namespace VisionMaster.Plugins.Util
                 return (prefix + $"变量管理里没有「{name}」：运行期会明确报「找不到全局变量」，不会静默新建。", "Error");
             }
 
-            if (row.CreateIfNotExists)
+            if (row!.CreateIfNotExists)
             {
-                return (prefix + $"「{name}」不在上游的变量定义里：已勾选「自动创建」，运行期会新建它（类型由值决定）；名字由你负责，拼错会新建另一个变量。", "Info");
+                return (prefix + $"「{name}」不在上游的变量定义里：已勾选「自动创建」，运行期会新建它（类型由声明类型与本行值共同决定）；名字由你负责，拼错会新建另一个变量。", "Info");
             }
 
             return (prefix + $"「{name}」不在上游的变量定义里：运行期会报「本地变量 {name} 不存在」；请在上游「变量定义」声明，或勾选「自动创建」。", "Warn");
@@ -590,14 +597,21 @@ namespace VisionMaster.Plugins.Util
             {
                 if (vm.IsGlobal) vm.Row.CreateIfNotExists = false;
                 vm.RefreshCandidates();
+                RebuildDynamicOutputs();   // 作用域决定"要不要端口"
             }
             else if (string.Equals(e.PropertyName, nameof(AssignmentRow.VariableName), StringComparison.Ordinal))
             {
                 if (vm.IsGlobal && !vm.IsRefreshingCandidates) vm.RefreshCandidates();
+                RebuildDynamicOutputs();   // 变量的名字就是端口名
             }
             else if (string.Equals(e.PropertyName, nameof(AssignmentRow.ValuePortName), StringComparison.Ordinal))
             {
                 RebuildDynamicInputs();
+            }
+            else if (string.Equals(e.PropertyName, nameof(AssignmentRow.Type), StringComparison.Ordinal))
+            {
+                // 类型变了 → 输出端口的 CLR 类型跟着变（端口对象必须换新，不能就地改 DataType）
+                RebuildDynamicOutputs();
             }
 
             vm.RefreshHint();
@@ -734,6 +748,7 @@ namespace VisionMaster.Plugins.Util
                 MigrateLegacy(stepData);
                 RebuildRowVms();
                 RebuildDynamicInputs();
+                RebuildDynamicOutputs();   // 编译期端口必须先于 LinkPorts 存在（FlowCompiler 走同一个 ApplyConfigValues）
                 RefillRowConstants(stepData);
             }
             finally
@@ -746,13 +761,47 @@ namespace VisionMaster.Plugins.Util
 
         public override void OnConfirm(IStepConfigData stepData)
         {
+            // 重名/空名必须在任何写入之前拒绝：两行同名会让输出端口折叠（AddDynamicOutput 见同名跳过），
+            // 下游只拿到一个、另一行的值静默丢失。异常由宿主 catch，窗口不关、状态栏给原因。
+            string nameError = GetOutputNameError();
+            if (nameError != null) throw new InvalidOperationException(nameError);
+
             CaptureVariableIds();
             RebuildDynamicInputs();
+            RebuildDynamicOutputs();
             base.OnConfirm(stepData); // 写端口 + Rows JSON 快照
             DropOrphanLinks(stepData);
             StripNonConstantValues(stepData);
             RemoveLegacyNameLink(stepData);
             RefreshAllRows();
+        }
+
+        /// <summary>
+        /// 输出端口名冲突检查：两行声明同一个运行时变量名 → 端口会折叠成一个。
+        ///
+        /// 只在"运行时 + 名字非空"的行之间比（全局行不产端口）；比较口径与端口名一致
+        /// （<see cref="OutputPortPrefix"/> + Trim 后的名字，<c>Ordinal</c>）。
+        /// </summary>
+        private string GetOutputNameError()
+        {
+            var seen = new Dictionary<string, int>(StringComparer.Ordinal);
+            for (var i = 0; i < Rows.Count; i++)
+            {
+                var row = Rows[i];
+                if (row == null) continue;
+                if (string.Equals(row.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)) continue;
+
+                var varName = (row.VariableName ?? string.Empty).Trim();
+                if (varName.Length == 0) continue;
+
+                var portName = OutputPortPrefix + varName;
+                if (seen.TryGetValue(portName, out var first))
+                    return $"第 {first + 1} 行与第 {i + 1} 行声明了同名的运行时变量「{varName}」："
+                         + $"两行会折叠成同一个输出端口 {portName}，下游只会拿到其中一个。请改名或用同一个变量合并成一行。";
+
+                seen[portName] = i;
+            }
+            return null;
         }
 
         /// <summary>
@@ -796,6 +845,7 @@ namespace VisionMaster.Plugins.Util
             RowVms.Clear();
             UnhookRows(_rows);
             DisposeDynamicInputs();
+            DisposeDynamicOutputs();
             base.Dispose();
         }
 
@@ -845,6 +895,92 @@ namespace VisionMaster.Plugins.Util
         }
 
         private readonly List<string> _dynamicInputNames = new();
+
+        #region 动态输出端口（v4：声明即输出）
+
+        /// <summary>运行时行声明出来的输出端口名前缀。加前缀是为了不和用户的输入端口重名。</summary>
+        public const string OutputPortPrefix = "Var_";
+
+        /// <summary>本插件当前持有的动态输出端口名（重建时按它清理）。</summary>
+        private readonly List<string> _dynamicOutputNames = new();
+
+        /// <summary>
+        /// 按「运行时行」重建动态输出端口（<c>Var_{变量名}</c>），并同步定义快照到
+        /// <c>StepData.OutputPortDefinitions</c>（编译器与绑定界面靠它，不依赖配置实例存活）。
+        ///
+        /// 只处理 <c>Scope=Runtime</c> 且变量名非空的行：
+        /// 全局行写的是**既有的**全局变量，它本来就有一整套按 Id 的绑定通道，
+        /// 再生成一个同名端口会造成"两个入口改同一个变量"，容易配错。
+        /// </summary>
+        public void RebuildDynamicOutputs()
+        {
+            foreach (var name in _dynamicOutputNames)
+                RemoveDynamicOutput(name);
+            _dynamicOutputNames.Clear();
+
+            var snapshot = new List<DynamicPortInfo>();
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var row in Rows)
+            {
+                if (row == null) continue;
+                if (string.Equals(row.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)) continue;
+
+                var varName = (row.VariableName ?? string.Empty).Trim();
+                if (varName.Length == 0) continue;
+
+                var portName = OutputPortPrefix + varName;
+                if (!seen.Add(portName)) continue;   // 重名行只建一个端口（确认时会被拒绝，这里只保证 1:1）
+
+                var port = CreateOutputPort(portName, row.Type, varName);
+                AddDynamicOutput(port);
+                _dynamicOutputNames.Add(portName);
+
+                snapshot.Add(new DynamicPortInfo
+                {
+                    Name = portName,
+                    DataTypeName = port.DataType.AssemblyQualifiedName,
+                    Description = $"运行时变量「{varName}」（第 {Rows.IndexOf(row) + 1} 行声明）",
+                });
+            }
+
+            // 编译期 StepData 为 null（快照来自已保存的 StepModel），仅配置态写快照
+            if (StepData != null)
+                StepData.OutputPortDefinitions = snapshot;
+
+            _outputsVersion++;
+            OnPropertyChanged(nameof(OutputsVersion));
+        }
+
+        private static IOutputPort CreateOutputPort(string portName, VariableValueType type, string varName)
+            => type switch
+            {
+                VariableValueType.Int => new OutputPort<int>(portName, $"运行时变量「{varName}」"),
+                VariableValueType.Double => new OutputPort<double>(portName, $"运行时变量「{varName}」"),
+                VariableValueType.Bool => new OutputPort<bool>(portName, $"运行时变量「{varName}」"),
+                VariableValueType.String => new OutputPort<string>(portName, $"运行时变量「{varName}」"),
+                _ => new OutputPort<object>(portName, $"运行时变量「{varName}」（任意对象）"),
+            };
+
+        private int _outputsVersion;
+        /// <summary>输出端口重建计数器（视图/绑定的重取锚点）。</summary>
+        public int OutputsVersion => _outputsVersion;
+
+        /// <summary>运行期行声明类型候选项（供行内类型下拉；值=枚举成员名，显示=中文）。</summary>
+        public IReadOnlyList<StepConfigOption> TypeOptions { get; } =
+            Enum.GetNames(typeof(VariableValueType))
+                .Select(n => StepConfigOption.ForEnum(typeof(VariableValueType), n))
+                .ToList();
+
+        /// <summary>清掉本插件建过的动态输出端口（Dispose 用；不动静态端口）。</summary>
+        private void DisposeDynamicOutputs()
+        {
+            foreach (var name in _dynamicOutputNames)
+                RemoveDynamicOutput(name);
+            _dynamicOutputNames.Clear();
+        }
+
+        #endregion
 
         private void RebuildDynamicInputs()
         {
@@ -1014,6 +1150,7 @@ namespace VisionMaster.Plugins.Util
             SelectedRow = RowVms.FirstOrDefault(v => string.Equals(v.Row.RowId, selectedId, StringComparison.Ordinal))
                 ?? RowVms.FirstOrDefault();
             RebuildDynamicInputs();
+            RebuildDynamicOutputs();   // 行增删 → 输出端口跟着增删
             RefreshStatus();
         }
 
@@ -1081,6 +1218,17 @@ namespace VisionMaster.Plugins.Util
                             : existed
                                 ? $"{InstanceName} 第 {index} 行：本地变量 {name} 已赋值"
                                 : $"{InstanceName} 第 {index} 行：本地变量 {name} 已创建并赋值");
+
+                        // 双写：把值同时推到输出端口（下游可连线取值）。
+                        // 为什么不能只在 LocalVariables 上：本节点是"声明"，下游要能配线，
+                        // 而端口绑定是唯一的跨插件取值通道（「变量」档已于 2026-10-30 下线）。
+                        // 全局行没有输出端口（它写的是既有变量），PushOutput 内部按作用域跳过。
+                        PushOutput(row, name, value, out var pushError);
+                        if (pushError != null)
+                        {
+                            failures.Add($"{label}{pushError}");
+                            context.Logger.Error($"{InstanceName} 第 {index} 行「{name}」输出端口写入失败：{pushError}");
+                        }
                     }
                     else
                     {
@@ -1138,6 +1286,42 @@ namespace VisionMaster.Plugins.Util
                 Success.Value = false;
                 ErrorMessage.Value = ex.Message;
                 context.Logger.Error($"{InstanceName} 变量赋值失败: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// 把本行刚写进变量的值同步推给输出端口 <c>Var_{变量名}</c>（下游可连线取值）。
+        ///
+        /// 三条口径：
+        /// ① 全局行 / 名字为空 / 端口不存在（旧配置没有类型字段时端口仍会建，见 <see cref="CreateOutputPort"/>）
+        ///    → 静默跳过，不算失败（这些行本来就不产端口）；
+        /// ② 值按行的声明类型**先转换再写**：转换失败必须报清被拒原值（不许静默写个错值）；
+        /// ③ 端口写失败不算流程失败吗——**算**。下游拿到的值会是上一轮的陈旧值，
+        ///    与"这一步没跑"一样危险，所以计入 failures。
+        /// </summary>
+        private void PushOutput(AssignmentRow row, string name, object? value, out string? error)
+        {
+            error = null;
+            if (row == null) return;
+            if (string.Equals(row.Scope, ScopeGlobal, StringComparison.OrdinalIgnoreCase)) return;
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            var portName = OutputPortPrefix + name;
+            if (!Outputs.TryGetValue(portName, out var port)) return;
+
+            if (!VariableValueTypes.TryCoerce(value, row.Type, out var coerced, out var coerceError))
+            {
+                error = coerceError;
+                return;
+            }
+
+            try
+            {
+                port.Value = coerced;
+            }
+            catch (Exception ex)
+            {
+                error = $"输出端口 {portName} 写入失败：{ex.Message}";
             }
         }
 
