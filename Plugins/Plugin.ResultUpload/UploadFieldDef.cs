@@ -1,5 +1,6 @@
 using Core.Interfaces;
 using System;
+using Newtonsoft.Json;
 
 namespace Plugin.ResultUpload
 {
@@ -83,8 +84,32 @@ namespace Plugin.ResultUpload
         public string VariableName
         {
             get => _variableName;
-            set { _variableName = value; OnPropertyChanged(); }
+            set
+            {
+                // 名字被改（手填/下拉选了带设备后缀的文本）→ 标脏：
+                // 确认时按"文本"重新解析目标（ResolveTarget），而不是保留旧 Id。
+                if (SetProperty(ref _variableName, value ?? string.Empty))
+                    IsTextDirty = true;
+            }
         }
+
+        private bool _textDirty;
+
+        /// <summary>
+        /// 名字文本是否被用户改过（自上次加载/确认以来）。
+        /// <c>false</c> 且已有 Id → 确认时保留 Id（变量改名不断链）；
+        /// <c>true</c> → 确认时按文本重新解析（见 <see cref="VariableOptionResolver.ResolveTarget"/>）。
+        /// 不落盘：这是"这次编辑会话"的状态，方案里存的只有名字与 Id。
+        /// </summary>
+        [JsonIgnore]
+        public bool IsTextDirty
+        {
+            get => _textDirty;
+            private set { _textDirty = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>加载/确认归一完成后把脏标记复位（下次用户再改名字才重新标脏）。</summary>
+        public void MarkTextClean() => IsTextDirty = false;
 
         private Guid _variableId = Guid.Empty;
 

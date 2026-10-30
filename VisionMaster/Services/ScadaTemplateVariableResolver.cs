@@ -61,6 +61,16 @@ namespace VisionMaster.Services
                 return false;
             }
 
+            // ①c 设备限定写法：`设备/变量` 或 `设备/变量[下标]`。
+            // 多设备同名点位之后，自由文本模板必须能指定是哪一台；不写设备的重名引用
+            // 会在 ①b 明确报歧义（不会静默选一台）。
+            // 注意顺序：精确名（含真正的 `x/y` 名字）在 ① 已经赢了，走到这里才按分隔符拆。
+            if (text.IndexOf('/') > 0
+                && TryParseQualifiedReference(text, out var qualifiedDevice, out var qualifiedName, out var qualifiedIndex))
+            {
+                return TryResolveQualified(text, qualifiedDevice, qualifiedName, qualifiedIndex, out variable, out error);
+            }
+
             // ② 数组元素：Base[index]
             if (!TryParseElementReference(text, out string baseName, out int index))
             {
@@ -83,6 +93,87 @@ namespace VisionMaster.Services
             }
 
             return TryResolveElement(root, index, text, out variable, out error);
+        }
+
+        /// <summary>
+        /// 解析设备限定引用：按（设备, 变量名[, 下标]）在注册表里找**网络变量**。
+        ///
+        /// 错误分三档，指引各不相同：
+        /// - 名字哪儿都不存在 → "设备「X」不存在，或该设备上没有这个变量"；
+        /// - 名字存在但不在那台设备上 → "设备「X」上没有变量「Y」（这个名字在别的设备上存在）"；
+        /// - 那台设备上有同名 → 方案数据疑似被手工修改（同一设备内唯一是三条创建路径把关的）。
+        /// </summary>
+        private bool TryResolveQualified(
+            string referenceText, string device, string variableName, int index,
+            out ScadaTemplateVariable variable, out string? error)
+        {
+            variable = default;
+            error = null;
+
+            var sameName = _registry.FindAllByName(variableName);
+            List<NetworkVariableModel> onDevice = new();
+            foreach (var candidate in sameName)
+            {
+                if (candidate is NetworkVariableModel network
+                    && string.Equals(network.ConnectionName, device, StringComparison.Ordinal))
+                {
+                    onDevice.Add(network);
+                }
+            }
+
+            if (onDevice.Count == 0)
+            {
+                error = sameName.Count == 0
+                    ? $"找不到变量「{referenceText}」（设备「{device}」不存在，或该设备上没有这个变量）"
+                    : $"设备「{device}」上没有变量「{variableName}」（这个名字在别的设备上存在）";
+                return false;
+            }
+
+            if (onDevice.Count > 1)
+            {
+                error = $"设备「{device}」上有 {onDevice.Count} 个同名变量「{variableName}」"
+                        + "——方案数据疑似被手工修改，请先到变量管理里清理";
+                return false;
+            }
+
+            var root = onDevice[0];
+
+            if (index >= 0)
+                return TryResolveElement(root, index, referenceText, out variable, out error);
+
+            if (root.DataType.IsArray)
+            {
+                error = $"变量「{referenceText}」是数组，请指定元素下标（例如 {referenceText}[0]）";
+                return false;
+            }
+
+            variable = FromVariable(root, -1);
+            return true;
+        }
+
+        /// <summary>
+        /// 拆设备限定引用：<c>设备/变量</c> 或 <c>设备/变量[下标]</c>。
+        /// 分隔符取**第一个** <c>/</c>——连接名按惯例不含斜杠，而变量名可能含
+        /// （精确名在 ① 已经赢了，走到这里说明整串不是任何变量的名字）。
+        /// </summary>
+        private static bool TryParseQualifiedReference(
+            string text, out string device, out string name, out int index)
+        {
+            device = name = string.Empty;
+            index = -1;
+
+            var slash = text.IndexOf('/');
+            if (slash <= 0 || slash >= text.Length - 1)
+                return false;
+
+            device = text[..slash].Trim();
+            var rest = text[(slash + 1)..].Trim();
+
+            if (TryParseElementReference(rest, out name, out index) && name.Length > 0)
+                return true;
+
+            name = rest;
+            return name.Length > 0;
         }
 
         /// <inheritdoc />

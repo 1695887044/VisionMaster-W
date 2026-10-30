@@ -162,6 +162,16 @@ namespace VisionMaster.Binding
         void RefreshSystemNames();
 
         /// <summary>
+        /// 最近一次发现的问题（同作用域重名 / 重复身份 / 用户与系统变量同名），供宿主做加载期体检。
+        ///
+        /// **惰性计算**：读属性时才扫，永远反映索引当前状态（方案加载走 Clear+Add 的增量路径，
+        /// "Rebuild 时算好存起来"会停在加载前）。只记录、不自动修正：
+        /// 自动替用户改名的后果比"某个变量解析不到"更难解释。
+        /// 跨设备同名是合法状态，**不会**出现在这里（见 <c>VariableNameScope</c>）。
+        /// </summary>
+        IReadOnlyList<string> LastProblems { get; }
+
+        /// <summary>
         /// 变量被改名（新名已生效）。订阅方据此刷新依赖该变量的引用与画面绑定。
         /// </summary>
         event EventHandler<VariableRenamedEventArgs>? VariableRenamed;

@@ -177,6 +177,8 @@ namespace Plugin.DataRecord
         {
             // 先让基类灌入 [StepConfig]（含 Columns），再按列定义重建动态端口（编译期必须先于 LinkPorts）
             base.ApplyConfigValues(stepData);
+            foreach (var column in Columns)
+                column?.MarkTextClean();   // 加载不算"用户改过名字"
             RebuildDynamicInputs();
         }
 
@@ -187,22 +189,26 @@ namespace Plugin.DataRecord
         }
 
         /// <summary>
-        /// 把「来源=变量」各列的目标 Id 落进配置（Id 优先、名字兜底，见 <see cref="VariableOptionResolver"/>）。
+        /// 把「来源=变量」各列的目标 Id 落进配置（<see cref="VariableOptionResolver.ResolveTarget"/>）。
         ///
-        /// 为什么要捕获：多设备允许同名点位之后（同一设备内唯一），名字不再能唯一定位一个变量；
-        /// 运行期只有拿到 Id 才能在变量改名后仍然读同一个变量。
-        /// 重名时留空 → 运行期明确报歧义，而不是静默读另一台设备的值。
+        /// 文本是真相源：手填的名字按唯一名解析；下拉选的「名字 · 设备」按二元组解析；
+        /// 文本没被改过且已有 Id → 保留（变量改名不断链）。解析完把名字**归一成裸名字**
+        /// （剥掉下拉文本里的设备后缀），否则存进方案的名字会越攒越长。
         /// </summary>
         private void CaptureVariableIds()
         {
             var options = _configContext?.Variables;
-            if (options == null || Columns == null) return;
+            if (Columns == null) return;
 
             foreach (var column in Columns)
             {
                 if (column == null || column.Source != ColumnSource.Variable) continue;
-                column.VariableId = VariableOptionResolver.CaptureId(
-                    options, column.VariableId, column.VariableName, "Global");
+
+                var target = VariableOptionResolver.ResolveTarget(
+                    options, column.VariableId, column.VariableName, column.IsTextDirty, "Global");
+                column.VariableId = target.VariableId;
+                column.VariableName = target.Name;
+                column.MarkTextClean();
             }
         }
 
@@ -253,14 +259,20 @@ namespace Plugin.DataRecord
             var options = _configContext?.Variables;
             if (options == null) return;
 
-            // 只按名字去重：同一名字可能同时是全局与运行时变量，但这一行填的就是名字，
-            // 运行期由「局部优先」的解析顺序决定取哪一个（见 TryResolveVariable）。
+            // 去重键 = 名字 + 作用域 + 设备（同一设备内唯一，所以这个三元组天然唯一）：
+            // 只按名字去重会让第二台设备的同名点位在下拉里消失。
+            // 网络变量的候选文本带设备后缀（「名字 · 设备」）——下拉里能分辨，
+            // 确认时 ResolveTarget 会按（名字, 设备）解析并把名字归一成裸名字。
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var option in options)
             {
                 if (option == null || string.IsNullOrWhiteSpace(option.Name)) continue;
-                if (!seen.Add(option.Name)) continue;
-                VariableNameCandidates.Add(option.Name);
+                if (!seen.Add((option.Scope ?? "") + "\n" + option.Name + "\n" + (option.Device ?? ""))) continue;
+
+                var text = string.IsNullOrWhiteSpace(option.Device)
+                    ? option.Name
+                    : $"{option.Name} · {option.Device}";
+                VariableNameCandidates.Add(text);
             }
         }
 

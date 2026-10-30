@@ -82,11 +82,15 @@ namespace ScadaChecks
                 knob.Max = 100;
                 knob.Step = 1;
                 knob.SnapToStep = true;
-                knob.Value = 50;
 
                 knob.RuntimeContext = KnobContext(writer);
                 knob.Style = KnobStyle();
                 knob.Refresh();
+
+                // Value 必须在 Refresh **之后**设：Refresh 会从模型属性袋重读一遍配置，
+                // 模型上没写 "Value" 键时落回描述符默认 0，先设的 50 会被悄悄覆盖成 0
+                //（这正是本轮 5 条红 [KN2/5/6/10/12] 的根因：不是控件没做显示值，是测试设早了）。
+                knob.Value = 50;
                 Layout(knob);
 
                 var inputCompleted = 0;
@@ -140,6 +144,7 @@ namespace ScadaChecks
                 element.RequiredRole = ScadaRole.Administrator;
                 knob.RuntimeContext = KnobContext(writer, new FakeAccessPolicy { CurrentRole = ScadaRole.Operator });
                 knob.Refresh();
+                knob.Value = 50; // Refresh 会把 DP 重读回模型默认 0，先设值会被覆盖（同 KN2 注释）
 
                 var beforeDenied = writer.Writes.Count;
                 var denied = knob.Commit(60);
@@ -156,6 +161,7 @@ namespace ScadaChecks
                 element.RequiredRole = null;
                 knob.RuntimeContext = KnobContext(writer);
                 knob.Refresh();
+                knob.Value = 50; // 同上：Refresh 之后设值
 
                 writer.FailReason = "设备离线，写入被拒绝";
                 var beforeFail = writer.Writes.Count;
@@ -241,6 +247,7 @@ namespace ScadaChecks
                 // ---- [KN10] 设计期：可拖但绝不写值 ----
                 knob.RuntimeContext = null;
                 knob.Refresh();
+                knob.Value = 50; // 设计期 Refresh 同样会把值重读回 0，先补回初值再拖
 
                 var beforeDesign = writer.Writes.Count;
                 var designDrag = knob.BeginDrag(100, captureMouse: false);
@@ -274,8 +281,8 @@ namespace ScadaChecks
                 // ---- [KN12] 读数格式：坏格式回落 F0 ----
                 knob.ShowValue = true;
                 knob.ValueFormat = "F0";
-                knob.Value = 60;
                 knob.Refresh();
+                knob.Value = 60; // Refresh 之后设值：先设会被模型默认 0 覆盖
                 var plainText = knob.DisplayText;
 
                 knob.ValueFormat = "这不是格式";
@@ -341,9 +348,12 @@ namespace ScadaChecks
                 {
                     try
                     {
-                        if (Application.Current == null)
-                            _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-
+                        // 本宿主刻意不 new Application（Program.cs 头部契约）：
+                        // Application 是单例且有线程亲和，在子 STA 线程上创建会把
+                        // Application.Current 的线程亲和留在死线程上，毒化后续
+                        // 所有触碰它的检查（ScadaMonitoringChecks 实测整进程崩溃）。
+                        // WPF 控件只需要 Dispatcher（STA 线程自带），模板资源走
+                        // LoadComponent 直读字典，不需要 Application 级查找。
                         action();
                     }
                     catch (Exception ex)

@@ -221,6 +221,8 @@ namespace Plugin.ResultUpload
         {
             // 先让基类灌入 [StepConfig]（含 Fields），再按字段定义重建动态端口（编译期必须先于 LinkPorts）
             base.ApplyConfigValues(stepData);
+            foreach (var field in Fields)
+                field?.MarkTextClean();   // 加载不算"用户改过名字"
             RebuildDynamicInputs();
         }
 
@@ -241,37 +243,64 @@ namespace Plugin.ResultUpload
         }
 
         /// <summary>
-        /// 把「来源=变量」各字段的目标 Id 落进配置（Id 优先、名字兜底，见 <see cref="VariableOptionResolver"/>）。
+        /// 把「来源=变量」各字段的目标 Id 落进配置（<see cref="VariableOptionResolver.ResolveTarget"/>）。
         ///
-        /// 为什么要捕获：多设备允许同名点位之后（同一设备内唯一），名字不再能唯一定位一个变量；
-        /// 运行期只有拿到 Id 才能在变量改名后仍然上报同一个变量。
-        /// 重名时留空 → 运行期明确报歧义（字段按空值上报 + 限次 WARN），而不是静默取另一台设备的值。
+        /// 文本是真相源：手填的名字按唯一名解析；下拉选的「名字 · 设备」按二元组解析；
+        /// 文本没被改过且已有 Id → 保留（变量改名不断链）。解析完把名字**归一成裸名字**。
         /// </summary>
         private void CaptureVariableIds()
         {
             var options = _configContext?.Variables;
-            if (options == null || Fields == null) return;
+            if (Fields == null) return;
 
             foreach (var field in Fields)
             {
                 if (field == null || field.Source != FieldSource.Variable) continue;
-                field.VariableId = VariableOptionResolver.CaptureId(
-                    options, field.VariableId, field.VariableName, "Global");
+
+                var target = VariableOptionResolver.ResolveTarget(
+                    options, field.VariableId, field.VariableName, field.IsTextDirty, "Global");
+                field.VariableId = target.VariableId;
+                field.VariableName = target.Name;
+                field.MarkTextClean();
             }
         }
 
         /// <summary>
         /// 宿主在配置窗口打开后推一次上下文快照。
         /// 本插件原本不实现 <see cref="IPluginConfigContextProvider"/>（变量名是自由文本），
-        /// 2026-10-29 起实现它只为拿 <see cref="PluginConfigContext.Variables"/>：
-        /// 确认配置时按名字把目标变量的稳定 Id 捕获下来，运行期才能"Id 优先"。
+        /// 2026-10-29 起实现它：一来确认时按文本解析 Id，二来给变量名格子供候选
+        /// （网络变量的候选带设备后缀，多设备同名点位在浮层里能分辨）。
         /// </summary>
         public void SetConfigContext(PluginConfigContext context)
         {
             _configContext = context;
+            RefreshVariableNameOptions();
         }
 
         private PluginConfigContext _configContext;
+
+        /// <summary>「变量名」格子的候选（含全局 / 通讯 / 系统 / 上游运行时变量；网络变量带设备后缀）。</summary>
+        public ObservableCollection<string> VariableNameOptions { get; } = new();
+
+        private void RefreshVariableNameOptions()
+        {
+            VariableNameOptions.Clear();
+            var options = _configContext?.Variables;
+            if (options == null) return;
+
+            // 去重键 = 作用域 + 名字 + 设备（与数据记录插件同一口径）；
+            // 网络变量带设备后缀，多设备同名点位在下拉里能分辨。
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var option in options)
+            {
+                if (option == null || string.IsNullOrWhiteSpace(option.Name)) continue;
+                if (!seen.Add((option.Scope ?? "") + "\n" + option.Name + "\n" + (option.Device ?? ""))) continue;
+
+                VariableNameOptions.Add(string.IsNullOrWhiteSpace(option.Device)
+                    ? option.Name
+                    : $"{option.Name} · {option.Device}");
+            }
+        }
 
         /// <summary>
         /// 本步骤的有效名字（用于 {步骤名} 占位符）：

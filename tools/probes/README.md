@@ -40,6 +40,7 @@ $project = Join-Path (Join-Path 'tools\probes' $p.dir) $p.project
 | 登记名 | 目录 | 工程文件 | 运行方式 | 用途 |
 | --- | --- | --- | --- | --- |
 | `ResProbe` | `tools/probes/_ResProbe` | `_ResProbe.csproj` | `dotnet run` | 资源字典合并链 + 模板落地 + 弹窗尺寸（R32 运行期对照，期望 `RESULT: ALL_OK`） |
+| `VarScopeAudit` | `tools/probes/_VarScopeAudit` | `VarScopeAudit.csproj` | `dotnet run`（**也进 `run_gates`**） | **多设备同名变量四批改造回归**：重名不猜 / 同设备内唯一 / 三插件存 Id / 绑定与赋值显示设备 / SCADA 设备限定写法（155 项断言，期望 `ASSERT: N PASS / 0 FAIL`）。改变量解析 / 候选 / 导入导出后必跑 |
 | `StyleProbe` | `tools/probes/_StyleProbe` | `_StyleProbe.csproj` | `dotnet run` | 控件样式与主题渲染对照 |
 | `ToolboxProbe` | `tools/probes/_ToolboxProbe` | `_ToolboxProbe.csproj` | `dotnet run` | 工具箱面板（收藏 / 视图 / 分类映射） |
 | `LogViewProbe` | `tools/probes/_LogViewProbe` | `_LogViewProbe.csproj` | `dotnet run` | 日志控制台（过滤 / 分组 / 粘底 / 容量） |

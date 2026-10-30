@@ -4,6 +4,13 @@
   "note": "探针登记表：dir/project 均相对本文件所在目录。运行中的任务必须通过 run-probe.ps1 或本表解析路径，禁止按记忆拼旧路径。",
   "probes": [
     {
+      "name": "VarScopeAudit",
+      "dir": "_VarScopeAudit",
+      "project": "VarScopeAudit.csproj",
+      "runMode": "dotnet",
+      "description": "多设备同名变量四批改造的回归探针（重名不猜 / 同设备内唯一 / 三插件存 Id / 设备上屏 / SCADA 设备限定写法）；154 项断言，输出 RESULT: ALL_OK。改变量解析 / 候选 / 导入导出后必跑"
+    },
+    {
       "name": "ResProbe",
       "dir": "_ResProbe",
       "project": "_ResProbe.csproj",

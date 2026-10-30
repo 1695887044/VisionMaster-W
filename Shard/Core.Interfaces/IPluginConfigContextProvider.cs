@@ -275,6 +275,11 @@ namespace Core.Interfaces
     /// </summary>
     public static class VariableOptionResolver
     {
+        /// <summary>解析结果：目标 Id + 归一后的**裸名字**（剥掉设备后缀）。</summary>
+        public readonly record struct VariableTarget(Guid VariableId, string Name);
+
+        public const string DeviceSeparator = " · ";
+
         /// <summary>解析目标 Id；无法唯一确定时返回 <see cref="Guid.Empty"/>（= 按名字兜底）。</summary>
         public static Guid CaptureId(
             IReadOnlyList<VariableOption>? options, Guid currentId, string? name, string scope)
@@ -315,6 +320,101 @@ namespace Core.Interfaces
 
             return count == 1 ? found : Guid.Empty;
         }
+
+        /// <summary>
+        /// 从"用户在文本框里留下的文本"解析目标（数据记录 / 结果上报用）。
+        ///
+        /// 这两处的变量名是**可编辑文本**——用户可能手填运行期变量名，也可能从下拉选了
+        /// 「名字 · 设备」。解析顺序：
+        /// ① 文本未被用户改过（<paramref name="textDirty"/>=false）且已有 Id 可解析 → 保留 Id
+        ///    （变量在变量管理里改名后，这条引用仍然指向同一个变量，**不断链**）；
+        /// ② 文本与某条候选的名字**完全一致** → 按名字解析（唯一才给 Id，重名留空）；
+        /// ③ 文本带「{<see cref="DeviceSeparator"/>设备}」后缀 → 按（名字, 设备）二元组命中 →
+        ///    多设备同名点位从这里拿到确定的 Id，并归一成裸名字；
+        /// ④ 其余 → Id 留空、名字原样（运行期按名解析，命中不了会明确报错）。
+        /// </summary>
+        /// <param name="text">文本框里的原始文本（可能带设备后缀）</param>
+        /// <param name="bareName">归一后的裸名字（写入配置的 <c>VariableName</c>）</param>
+        public static VariableTarget ResolveTarget(
+            IReadOnlyList<VariableOption>? options,
+            Guid currentId,
+            string? text,
+            bool textDirty,
+            string scope)
+        {
+            var raw = (text ?? string.Empty).Trim();
+
+            // ① 未被改过的文本 + 可解析的 Id → 保留（改名不断链）
+            if (!textDirty && currentId != Guid.Empty && FindById(options, currentId) != null)
+                return new VariableTarget(currentId, BareNameOf(FindById(options, currentId)!));
+
+            if (options == null || raw.Length == 0)
+                return new VariableTarget(Guid.Empty, raw);
+
+            // ② 精确名字优先（变量名本身可以含「 · 」，所以先试整串）
+            var exact = FindByName(options, raw, scope).ToList();
+            if (exact.Count == 1)
+                return new VariableTarget(exact[0].VariableId, exact[0].Name ?? string.Empty);
+            if (exact.Count > 1)
+                return new VariableTarget(Guid.Empty, raw);   // 重名且没有设备后缀 → 留空让运行期报歧义
+
+            // ③ 「名字 · 设备」后缀 → 按（名字, 设备）二元组唯一命中
+            var separator = raw.LastIndexOf(DeviceSeparator, StringComparison.Ordinal);
+            if (separator > 0)
+            {
+                var name = raw[..separator].Trim();
+                var device = raw[(separator + DeviceSeparator.Length)..].Trim();
+                var scoped = FindByNameAndDevice(options, name, device, scope).ToList();
+                if (scoped.Count == 1)
+                    return new VariableTarget(scoped[0].VariableId, scoped[0].Name ?? string.Empty);
+            }
+
+            // ④ 未命中：名字原样（可能是运行期变量 / 拼错——运行期会给明确错误）
+            return new VariableTarget(Guid.Empty, raw);
+        }
+
+        private static VariableOption? FindById(IReadOnlyList<VariableOption>? options, Guid id)
+        {
+            if (options == null || id == Guid.Empty)
+                return null;
+
+            for (var i = 0; i < options.Count; i++)
+            {
+                var option = options[i];
+                if (option != null && option.VariableId == id)
+                    return option;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<VariableOption> FindByName(
+            IReadOnlyList<VariableOption> options, string name, string scope)
+        {
+            foreach (var option in options)
+            {
+                if (option == null) continue;
+                if (!string.Equals(option.Scope ?? string.Empty, scope, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.Equals((option.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)) continue;
+                yield return option;
+            }
+        }
+
+        private static IEnumerable<VariableOption> FindByNameAndDevice(
+            IReadOnlyList<VariableOption> options, string name, string device, string scope)
+        {
+            foreach (var option in options)
+            {
+                if (option == null) continue;
+                if (!string.Equals(option.Scope ?? string.Empty, scope, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.Equals((option.Name ?? string.Empty).Trim(), name, StringComparison.OrdinalIgnoreCase)) continue;
+                if (!string.Equals((option.Device ?? string.Empty).Trim(), device, StringComparison.Ordinal)) continue;
+                yield return option;
+            }
+        }
+
+        private static string BareNameOf(VariableOption option)
+            => (option.Name ?? string.Empty).Trim();
     }
 
     /// <summary>

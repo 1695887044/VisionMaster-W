@@ -21,11 +21,13 @@ namespace VarScopeAudit
     internal static class Program
     {
         private static int _fail;
+        private static int _pass;
 
         private static void Check(string id, bool ok, string detail)
         {
             Console.WriteLine((ok ? "[PASS] " : "[FAIL] ") + id + " :: " + detail);
-            if (!ok) _fail++;
+            if (ok) _pass++;
+            else _fail++;
         }
 
         private static void Guard(string group, Action body)
@@ -46,9 +48,21 @@ namespace VarScopeAudit
             {
                 Name = name,
                 ConnectionName = conn,
-                DataType = typeof(int),
+                DataType = mirror is Array ? mirror.GetType() : typeof(int),
             };
             // 只写镜像，不走 Value setter（后者会 WriteToDevice）
+            v.UpdateMirrorValue(mirror);
+            return v;
+        }
+
+        private static NetworkVariableModel Net(string name, string conn, Type dataType, object mirror)
+        {
+            var v = new NetworkVariableModel
+            {
+                Name = name,
+                ConnectionName = conn,
+                DataType = dataType,
+            };
             v.UpdateMirrorValue(mirror);
             return v;
         }
@@ -107,8 +121,14 @@ namespace VarScopeAudit
             Guard("C20", C20_BindingDialogCandidates);
             Guard("C21", C21_BindingDialogDisplay);
             Guard("C22", C22_AssignmentRowDisplay);
+            Guard("C23", C23_LastProblemsScope);
+            Guard("C24", C24_RecordUploadTarget);
+            Guard("C25", C25_ScadaQualified);
+            Guard("C26", C26_TouchedViewsParse);
 
             Console.WriteLine("=== RESULT: " + (_fail == 0 ? "ALL_OK" : _fail + " FAIL") + " ===");
+            // 供 run_gates.ps1 的 Get-Counts 提取（两个捕获组：pass / fail）
+            Console.WriteLine($"ASSERT: {_pass} PASS / {_fail} FAIL");
             return _fail == 0 ? 0 : 1;
         }
 
@@ -172,7 +192,7 @@ namespace VarScopeAudit
                 error == null ? "无异常" : error.GetType().Name + ": " + error.Message);
             Check("C2.2 加载后按名解析为 null（不再静默取首个）",
                 reg.FindByName("Alarm[90]") == null, "");
-            Check("C2.3 LastProblems 仍为空（批1 不改唯一性口径，也不新增诊断）",
+            Check("C2.3 跨设备重名不进诊断（合法状态，不弹假警报）",
                 reg.LastProblems.Count == 0, "problems=" + reg.LastProblems.Count);
 
             var beforeCount = reg.FindAllByName("Alarm[90]").Count;
@@ -1232,6 +1252,215 @@ namespace VarScopeAudit
                 !(localHint.Text ?? string.Empty).Contains("设备 "), localHint.Text);
         }
 
+        // ================= C23 重名诊断（LastProblems 按作用域） =================
+        private static void C23_LastProblemsScope()
+        {
+            // ① 跨设备同名：合法 → 不报（不弹假警报）
+            var reg1 = new VariableRegistry(new ObservableCollection<IVariable>
+            {
+                Net("A", "L1", 1),
+                Net("A", "L2", 2),
+            });
+            Check("C23.1 跨设备同名 → 不进诊断", reg1.LastProblems.Count == 0,
+                string.Join(" | ", reg1.LastProblems));
+
+            // ② 同设备同名：报并点名设备
+            var reg2 = new VariableRegistry(new ObservableCollection<IVariable>
+            {
+                Net("A", "L1", 1),
+                Net("A", "L1", 2),
+            });
+            Check("C23.2 同设备同名 → 诊断点名设备",
+                reg2.LastProblems.Count == 1 && reg2.LastProblems[0].Contains("设备「L1」"),
+                string.Join(" | ", reg2.LastProblems));
+
+            // ③ 本地变量与网络变量同名：报（本地无设备，按名无法区分）
+            var reg3 = new VariableRegistry(new ObservableCollection<IVariable>
+            {
+                VariableFactory.CreateLocal("A", typeof(int), "本地", 1),
+                Net("A", "L1", 2),
+            });
+            Check("C23.3 本地变量与网络变量同名 → 诊断",
+                reg3.LastProblems.Count == 1 && reg3.LastProblems[0].Contains("本地变量"),
+                string.Join(" | ", reg3.LastProblems));
+
+            // ④ 增量加载路径（方案加载就是 Clear + Add）同样能发现
+            var coll4 = new ObservableCollection<IVariable>();
+            var reg4 = new VariableRegistry(coll4);
+            coll4.Clear();
+            coll4.Add(Net("A", "L1", 1));
+            coll4.Add(Net("A", "L1", 2));
+            Check("C23.4 增量加载路径同样能发现同设备重名",
+                reg4.LastProblems.Count == 1,
+                string.Join(" | ", reg4.LastProblems));
+
+            // ⑤ 改掉一个 → 诊断消失（惰性计算，永远反映当前状态）
+            reg4.TryRename(coll4[1], "B", out _);
+            Check("C23.5 改名后诊断消失",
+                reg4.LastProblems.Count == 0, string.Join(" | ", reg4.LastProblems));
+        }
+
+        // ================= C24 数据记录 / 结果上报：文本解析目标（批 4） =================
+        private static void C24_RecordUploadTarget()
+        {
+            var a = Net("Alarm1[48]", "A_PLC", 1);
+            var b = Net("Alarm1[48]", "B_PLC", 2);
+            var opts = new List<VariableOption>
+            {
+                new() { VariableId = a.VariableId, Name = "Alarm1[48]", Scope = "Global", Device = "A_PLC" },
+                new() { VariableId = b.VariableId, Name = "Alarm1[48]", Scope = "Global", Device = "B_PLC" },
+                new() { VariableId = Guid.NewGuid(), Name = "Local1", Scope = "Global" },
+            };
+
+            Guid Id(string text, Guid currentId, bool dirty, out string bare)
+            {
+                var t = VariableOptionResolver.ResolveTarget(opts, currentId, text, dirty, "Global");
+                bare = t.Name;
+                return t.VariableId;
+            }
+
+            // ① 未改文本 + Id 可解析 → 保留（变量改名不断链）
+            var id1 = Id("Alarm1[48]", b.VariableId, false, out var bare1);
+            Check("C24.1 文本未改 + Id 可解析 → 保留（改名不断链）",
+                id1 == b.VariableId && bare1 == "Alarm1[48]", bare1);
+
+            // ② 带设备后缀 → 按（名字, 设备）解析并归一裸名（批 4 的核心：重名可选）
+            var id2 = Id("Alarm1[48] · B_PLC", Guid.Empty, true, out var bare2);
+            Check("C24.2 「名字 · 设备」→ 解析到 B_PLC 并归一裸名",
+                id2 == b.VariableId && bare2 == "Alarm1[48]", bare2);
+
+            // ③ 设备不存在 → Id 空、名字原样
+            var id3 = Id("Alarm1[48] · C_PLC", Guid.Empty, true, out var bare3);
+            Check("C24.3 设备不存在 → Id 空且名字不丢",
+                id3 == Guid.Empty && bare3 == "Alarm1[48] · C_PLC", bare3);
+
+            // ④ 裸名重名（没写设备）→ 不猜
+            var id4 = Id("Alarm1[48]", Guid.Empty, true, out var bare4);
+            Check("C24.4 裸名重名（无后缀）→ Id 空不猜",
+                id4 == Guid.Empty && bare4 == "Alarm1[48]", bare4);
+
+            // ⑤ 唯一名 → 捕获
+            var id5 = Id("Local1", Guid.Empty, true, out var bare5);
+            Check("C24.5 唯一名 → 捕获", id5 == opts[2].VariableId && bare5 == "Local1", bare5);
+
+            // ⑥ 变量名本身含「 · 」：精确名优先于后缀解析
+            var tricky = Net("X · Y", "L9", 9);
+            var opts2 = new List<VariableOption>
+            {
+                new() { VariableId = tricky.VariableId, Name = "X · Y", Scope = "Global", Device = "L9" },
+            };
+            var id6 = VariableOptionResolver.ResolveTarget(opts2, Guid.Empty, "X · Y", true, "Global");
+            Check("C24.6 变量名本身含分隔符 → 精确名优先", id6.VariableId == tricky.VariableId, id6.VariableId.ToString());
+
+            // ⑦ 数据记录插件的候选串带设备后缀（两台都可见）
+            var plugin = new Plugin.DataRecord.DataRecordPlugin();
+            plugin.SetConfigContext(new PluginConfigContext { Variables = opts });
+            var cands = plugin.VariableNameCandidates;
+            Check("C24.7 数据记录候选串带设备后缀（两台都可见）",
+                cands.Contains("Alarm1[48] · A_PLC") && cands.Contains("Alarm1[48] · B_PLC"),
+                string.Join(" | ", cands));
+
+            // ⑧ 模型：改名字 → 标脏；MarkTextClean → 复位；同值写回不标脏
+            var col = new Plugin.DataRecord.RecordColumnDef
+            {
+                VariableName = "Alarm1[48]",
+                VariableId = b.VariableId,
+            };
+            Check("C24.8 名字变化 → 标脏", col.IsTextDirty, "");
+            col.MarkTextClean();
+            col.VariableName = "Alarm1[48]";
+            Check("C24.9 同值写回不标脏", !col.IsTextDirty, "");
+            col.VariableName = "Local1";
+            Check("C24.10 再改名字 → 标脏", col.IsTextDirty, "");
+
+            // ⑪ JSON 往返仍保留 Id（声明顺序：名字在前、Id 在后；IsTextDirty 不落盘）
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(col);
+            var colBack = Newtonsoft.Json.JsonConvert.DeserializeObject<Plugin.DataRecord.RecordColumnDef>(json);
+            Check("C24.11 JSON 往返保留 Id 与名字（脏标记不落盘）",
+                colBack.VariableId == col.VariableId && colBack.VariableName == "Local1",
+                colBack.VariableId + " / " + colBack.VariableName);
+            Check("C24.11b IsTextDirty 不落盘（[JsonIgnore] 生效）",
+                !json.Contains("IsTextDirty") && !json.Contains("_textDirty"), json);
+            colBack.MarkTextClean();   // 插件加载路径的复位动作
+            Check("C24.11c 加载复位后 clean", !colBack.IsTextDirty, "");
+
+            // ⑫ 结果上报字段同款
+            var fld = new Plugin.ResultUpload.UploadFieldDef { VariableName = "A", VariableId = a.VariableId };
+            Check("C24.12 结果上报字段：改名字 → 标脏", fld.IsTextDirty, "");
+
+            // ⑬ 结果上报插件的候选串同口径
+            var urPlugin = new Plugin.ResultUpload.ResultUploadPlugin();
+            urPlugin.SetConfigContext(new PluginConfigContext { Variables = opts });
+            var urCands = urPlugin.VariableNameOptions;
+            Check("C24.13 结果上报候选串带设备后缀",
+                urCands.Contains("Alarm1[48] · A_PLC") && urCands.Contains("Alarm1[48] · B_PLC"),
+                string.Join(" | ", urCands));
+        }
+
+        // ================= C25 SCADA 模板：设备限定写法（批 4） =================
+        private static void C25_ScadaQualified()
+        {
+            var a = Net("A", "A_PLC", 111);
+            var b = Net("A", "B_PLC", 222);
+            // 限定写法针对**网络变量**（本地变量没有设备），数组镜像给 int[]
+            var arrA = Net("Samples", "A_PLC", typeof(int[]), new[] { 1, 2, 3 });
+            var arrB = Net("Samples", "B_PLC", typeof(int[]), new[] { 4, 5, 6 });
+
+            var reg = new VariableRegistry(new ObservableCollection<IVariable> { a, b, arrA, arrB });
+            var resolver = new ScadaTemplateVariableResolver(reg);
+
+            // ① 设备/名字 → 指定那一台
+            var okA = resolver.TryResolve("A_PLC/A", out var varA, out var errA);
+            Check("C25.1 A_PLC/A → 命中 A_PLC 的 A",
+                okA && varA.VariableId == a.VariableId, "err=" + (errA ?? "null"));
+
+            var okB = resolver.TryResolve("B_PLC/A", out var varB, out var errB);
+            Check("C25.2 B_PLC/A → 命中 B_PLC 的 A",
+                okB && varB.VariableId == b.VariableId, "err=" + (errB ?? "null"));
+
+            // ② 设备/数组[下标]
+            var okArr = resolver.TryResolve("B_PLC/Samples[1]", out var varArr, out var errArr);
+            Check("C25.3 B_PLC/Samples[1] → 数组 B 的元素 1",
+                okArr && varArr.VariableId == arrB.VariableId && varArr.ArrayIndex == 1,
+                "err=" + (errArr ?? "null"));
+
+            // ③ 设备不存在
+            var okNoDev = resolver.TryResolve("C_PLC/A", out _, out var errNoDev);
+            Check("C25.4 设备不存在 → 明确指引",
+                !okNoDev && (errNoDev ?? string.Empty).Contains("C_PLC"),
+                "err=" + (errNoDev ?? "null"));
+
+            // ④ 设备在、变量不在
+            var okNoVar = resolver.TryResolve("A_PLC/NoSuch", out _, out var errNoVar);
+            Check("C25.5 设备上没有该变量 → 明确指引",
+                !okNoVar && (errNoVar ?? string.Empty).Contains("A_PLC") && (errNoVar ?? string.Empty).Contains("NoSuch"),
+                "err=" + (errNoVar ?? "null"));
+
+            // ⑤ 不写设备的重名 → 仍是歧义（批 1 行为不回退）
+            var okAmbiguous = resolver.TryResolve("A", out _, out var errAmbiguous);
+            Check("C25.6 不写设备的重名 → 仍报歧义",
+                !okAmbiguous && (errAmbiguous ?? string.Empty).Contains("重复"),
+                "err=" + (errAmbiguous ?? "null"));
+
+            // ⑥ 精确名优先：真的建了一个名字叫 A_PLC/A 的变量
+            var literal = Net("A_PLC/A", "L9", 9);
+            var reg2 = new VariableRegistry(new ObservableCollection<IVariable> { a, b, literal });
+            var resolver2 = new ScadaTemplateVariableResolver(reg2);
+            var okLiteral = resolver2.TryResolve("A_PLC/A", out var varLiteral, out var errLiteral);
+            Check("C25.7 精确名优先：名字就叫 A_PLC/A 的变量仍按精确名命中",
+                okLiteral && varLiteral.VariableId == literal.VariableId,
+                "err=" + (errLiteral ?? "null"));
+
+            // ⑧ 同设备重名（手工编辑）→ 报数量
+            var dup = Net("A", "A_PLC", 333);
+            var reg3 = new VariableRegistry(new ObservableCollection<IVariable> { a, dup });
+            var resolver3 = new ScadaTemplateVariableResolver(reg3);
+            var okDup = resolver3.TryResolve("A_PLC/A", out _, out var errDup);
+            Check("C25.8 同设备重名 → 报同名数量",
+                !okDup && (errDup ?? string.Empty).Contains("2 个同名变量"),
+                "err=" + (errDup ?? "null"));
+        }
+
         // ================= 探针夹具：可记录的共享变量入口 =================
         private sealed class RecordingSharedAccess : ISharedVariableAccess
         {
@@ -1256,6 +1485,48 @@ namespace VarScopeAudit
                 error = null;
                 return true;
             }
+        }
+
+        // ================= C26 被改过的视图都能 XAML 解析（批 4 的教训） =================
+        private static void C26_TouchedViewsParse()
+        {
+            // 本宿主刻意不 new Application（E-13）：每个视图在自己的 STA 线程上构造，
+            // XAML 解析错误（TargetType 不匹配 / 缺资源 / 缺转换器）当场判红——
+            // ResultUpload 的 TextBox→ComboBox 换错了样式，闸门四轮全绿都没抓到，
+            // 直到用户在真机上打开参数面板才炸（XamlParseException）。
+            void OnSta(Action action)
+            {
+                Exception? error = null;
+                var thread = new System.Threading.Thread(() =>
+                {
+                    try { action(); }
+                    catch (Exception ex) { error = ex; }
+                });
+                thread.SetApartmentState(System.Threading.ApartmentState.STA);
+                thread.Start();
+                thread.Join();
+                if (error != null)
+                    throw error;
+            }
+
+            OnSta(() =>
+            {
+                var assignment = new VisionMaster.Plugins.Util.VariableAssignmentView();
+                Check("C26.1 VariableAssignmentView XAML 解析", assignment != null, "");
+            });
+
+            OnSta(() =>
+            {
+                var record = new Plugin.DataRecord.DataRecordView();
+                Check("C26.2 DataRecordView XAML 解析", record != null, "");
+            });
+
+            OnSta(() =>
+            {
+                var upload = new Plugin.ResultUpload.ResultUploadView();
+                Check("C26.3 ResultUploadView XAML 解析（TargetType 不匹配当场红）", upload != null, "");
+            });
+
         }
 
         private sealed class FakeContext : IExecutionContext

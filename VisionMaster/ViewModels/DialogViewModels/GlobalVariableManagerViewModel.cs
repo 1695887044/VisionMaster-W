@@ -539,6 +539,33 @@ namespace VisionMaster.ViewModels.DialogViewModels
         protected override void RefreshDisplay()
         {
             UpdateFilteredList();
+            RefreshDuplicateNameWarning();
+        }
+
+        /// <summary>
+        /// 重名诊断条（来自 <see cref="VisionMaster.Binding.VariableRegistry.LastProblems"/>）。
+        ///
+        /// 只在**同一作用域**内有同名变量时非空（跨设备同名是合法状态，见 VariableNameScope）；
+        /// 这种状态三条创建路径都拦得住，能出现只可能是手工编辑过的方案文件——
+        /// 表现是"按名解析无法确定目标"，必须让用户打开变量管理就看见，而不是等数值不对再查。
+        /// </summary>
+        public string DuplicateNameWarning
+        {
+            get
+            {
+                var problems = _workspace.VariableRegistry?.LastProblems;
+                return problems == null || problems.Count == 0
+                    ? string.Empty
+                    : string.Join("；", problems);
+            }
+        }
+
+        public bool HasDuplicateNameWarning => DuplicateNameWarning.Length > 0;
+
+        private void RefreshDuplicateNameWarning()
+        {
+            RaisePropertyChanged(nameof(DuplicateNameWarning));
+            RaisePropertyChanged(nameof(HasDuplicateNameWarning));
         }
 
         private void UpdateFilteredList()

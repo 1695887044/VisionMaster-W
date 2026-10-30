@@ -2,7 +2,7 @@
   "SolutionName": "视觉样例对拍",
   "Version": 1.0,
   "Config": {
-    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"7\" ConsoleState=\"Collapsed\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"9a39d9e1-6488-438f-8677-be3bd505ff7d\" DockWidth=\"340\" DockMinWidth=\"320\">\r\n      <LayoutAnchorable AutoHideWidth=\"222.5\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"流程导航\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:59:00\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"156.32161429396865*\">\r\n      <LayoutDocumentPane Id=\"bdda9cd1-4dc6-45ce-8c5c-c8ff49f2b2b6\">\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/29/2026 22:56:38\" />\r\n        <LayoutDocument Title=\"流程画布\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_FlowCanvasView\" CanClose=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" />\r\n        <LayoutDocument Title=\"运行驾驶舱\" ContentId=\"Panel_RunCockpitView\" CanClose=\"False\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" DockHeight=\"200\" />\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" DockWidth=\"300\" DockMinWidth=\"300\">\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" FloatingLeft=\"748\" FloatingTop=\"480.5\" FloatingWidth=\"952\" FloatingHeight=\"748\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" DockWidth=\"300\" DockMinWidth=\"300\" FloatingWidth=\"952\" FloatingHeight=\"748\" FloatingLeft=\"748\" FloatingTop=\"480.5\" />\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup Id=\"f1404472-b7e7-4181-837e-a2c0a2b7e0ce\" PreviousContainerId=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" />\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"控制台\" IsSelected=\"True\" ContentId=\"Panel_LogView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图层\" IsSelected=\"True\" ContentId=\"Panel_ScadaLayerView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"1\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"2\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/29/2026 22:58:56\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
+    "DockLayoutXml": "<LayoutRoot LayoutSchemaVersion=\"7\" ConsoleState=\"Expanded\">\r\n  <RootPanel Orientation=\"Horizontal\">\r\n    <LayoutAnchorablePane Id=\"9a39d9e1-6488-438f-8677-be3bd505ff7d\" DockWidth=\"340\" DockMinWidth=\"320\">\r\n      <LayoutAnchorable AutoHideWidth=\"222.5\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"流程导航\" IsSelected=\"True\" ContentId=\"Panel_ProcessView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:20\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutPanel Orientation=\"Vertical\" DockWidth=\"156.32161429396865*\">\r\n      <LayoutDocumentPane Id=\"bdda9cd1-4dc6-45ce-8c5c-c8ff49f2b2b6\">\r\n        <LayoutDocument Title=\"视觉图像\" ContentId=\"Panel_ImageView\" CanClose=\"False\" LastActivationTimeStamp=\"10/29/2026 22:56:38\" />\r\n        <LayoutDocument Title=\"流程画布\" IsSelected=\"True\" IsLastFocusedDocument=\"True\" ContentId=\"Panel_FlowCanvasView\" CanClose=\"False\" LastActivationTimeStamp=\"10/30/2026 08:54:25\" />\r\n        <LayoutDocument Title=\"运行驾驶舱\" ContentId=\"Panel_RunCockpitView\" CanClose=\"False\" />\r\n        <LayoutDocument Title=\"组态画面\" ContentId=\"Panel_ScadaEditorView\" CanClose=\"False\" />\r\n      </LayoutDocumentPane>\r\n      <LayoutAnchorablePane Id=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" DockHeight=\"200\" />\r\n    </LayoutPanel>\r\n    <LayoutAnchorablePane Id=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" DockWidth=\"300\" DockMinWidth=\"300\">\r\n      <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"工具箱\" IsSelected=\"True\" ContentId=\"Panel_ToolView\" FloatingLeft=\"748\" FloatingTop=\"480.5\" FloatingWidth=\"952\" FloatingHeight=\"748\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:54:25\" />\r\n    </LayoutAnchorablePane>\r\n    <LayoutAnchorablePane Id=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" DockWidth=\"300\" DockMinWidth=\"300\" FloatingWidth=\"952\" FloatingHeight=\"748\" FloatingLeft=\"748\" FloatingTop=\"480.5\" />\r\n  </RootPanel>\r\n  <TopSide />\r\n  <RightSide>\r\n    <LayoutAnchorGroup Id=\"f1404472-b7e7-4181-837e-a2c0a2b7e0ce\" PreviousContainerId=\"2a9016b7-94f8-4a74-810a-2dc4f1024264\" />\r\n  </RightSide>\r\n  <LeftSide />\r\n  <BottomSide />\r\n  <FloatingWindows />\r\n  <Hidden>\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"监控栏\" IsSelected=\"True\" ContentId=\"Panel_MonitorView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图层\" IsSelected=\"True\" ContentId=\"Panel_ScadaLayerView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"1\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"图元工具箱\" IsSelected=\"True\" ContentId=\"Panel_ScadaToolboxView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"2\" />\r\n    <LayoutAnchorable AutoHideWidth=\"300\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" CanDockAsTabbedDocument=\"False\" Title=\"属性\" IsSelected=\"True\" ContentId=\"Panel_ScadaPropertyView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"2364f0e8-9520-441e-87a8-7147b29ed06c\" PreviousContainerIndex=\"0\" />\r\n    <LayoutAnchorable CanHide=\"False\" AutoHideMinWidth=\"100\" AutoHideMinHeight=\"100\" Title=\"控制台\" IsSelected=\"True\" ContentId=\"Panel_LogView\" CanFloat=\"False\" LastActivationTimeStamp=\"10/30/2026 08:53:08\" PreviousContainerId=\"dcad7807-7fda-45ec-ae90-9e326eed38e3\" PreviousContainerIndex=\"0\" />\r\n  </Hidden>\r\n</LayoutRoot>",
     "ImageViewMode": 8
   },
   "Flows": [
@@ -3514,7 +3514,7 @@
     {
       "FlowID": "51c03971dbb046338a546d336480d75e",
       "FlowName": "测试",
-      "Version": 26,
+      "Version": 30,
       "IsEnabled": true,
       "Role": 0,
       "InvokeType": 0,
@@ -3542,9 +3542,19 @@
             "X": 0.0,
             "Y": 172.0,
             "Collapsed": false
+          },
+          "5ebf048f-2700-4d0d-bd67-683188107976": {
+            "X": 0.0,
+            "Y": 258.0,
+            "Collapsed": false
+          },
+          "ea1fa78f-ea09-4c0e-9b1d-f95723d22af2": {
+            "X": 0.0,
+            "Y": 344.0,
+            "Collapsed": false
           }
         },
-        "Count": 3
+        "Count": 5
       },
       "Steps": [
         {
@@ -3615,6 +3625,44 @@
           "InputValues": {},
           "LinkedSources": {},
           "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "5ebf048f-2700-4d0d-bd67-683188107976",
+          "Icon": "",
+          "PluginName": "结果上报",
+          "Category": "数据处理",
+          "PluginTypeName": "Plugin.ResultUpload.ResultUploadPlugin, Plugin.ResultUpload, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "结果上报_0",
+          "Description": "结果上报",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {},
+          "LinkedSources": {},
+          "OutputPortDefinitions": []
+        },
+        {
+          "$type": "VisionMaster.Models.ActionStep, VM.Core",
+          "StepID": "ea1fa78f-ea09-4c0e-9b1d-f95723d22af2",
+          "Icon": "",
+          "PluginName": "判定表",
+          "Category": "逻辑判断",
+          "PluginTypeName": "Plugin.JudgeTable.JudgeTablePlugin, Plugin.JudgeTable, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null",
+          "StepName": "判定表_0",
+          "Description": "判定表",
+          "SortId": 0,
+          "IsDisEnable": false,
+          "State": 0,
+          "InputValues": {},
+          "LinkedSources": {},
+          "OutputPortDefinitions": [
+            {
+              "Name": "判定表_0.规则1.结果",
+              "DataTypeName": "System.Boolean, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e",
+              "Description": "规则「规则1」的判定结果（同时写运行时变量）"
+            }
+          ]
         }
       ]
     },

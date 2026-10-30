@@ -800,10 +800,11 @@
                             </Grid>
                         </Border>
 
+                        <!--  横幅区（Auto 行：可见几条就撑多高）  -->
+                        <StackPanel Grid.Row="1">
                         <!--  系统变量只读横幅  -->
                         <Border
                             x:Name="SystemBanner"
-                            Grid.Row="1"
                             Height="34"
                             Padding="16,0"
                             Background="{StaticResource DialogWarningSubtleBrush}"
@@ -837,6 +838,43 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
+
+                        <!--  重名诊断条：同作用域内有同名变量时显示（数据来自 VariableRegistry.LastProblems）  -->
+                        <Border
+                            Height="34"
+                            Padding="16,0"
+                            Background="{StaticResource DialogWarningSubtleBrush}"
+                            BorderBrush="{StaticResource DialogWarningBorderBrush}"
+                            BorderThickness="0,0,0,1">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasDuplicateNameWarning}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                                <TextBlock
+                                    Margin="0,0,7,0"
+                                    FontFamily="{StaticResource DialogIconFont}"
+                                    FontSize="12"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="&#xf071;" />
+                                <TextBlock
+                                    FontSize="11"
+                                    Foreground="{StaticResource DialogWarningTextBrush}"
+                                    Text="{Binding DuplicateNameWarning}"
+                                    TextTrimming="CharacterEllipsis">
+                                    <TextBlock.ToolTip>
+                                        <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="{Binding DuplicateNameWarning}" />
+                                    </TextBlock.ToolTip>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        </StackPanel>
 
                         <!--  明细表 + 空态覆盖层  -->
                         <Grid Grid.Row="2">

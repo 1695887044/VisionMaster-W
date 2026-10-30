@@ -146,6 +146,11 @@
 | `run_gates` 已在跑，又往 `docs/code-changes/` 加文档 → `docs_index` 判红 | C-54 | ✅ |
 | 加了 `InternalsVisibleTo` 仍报 `CS0122`（被引用 DLL 没重建） | C-55 | ✅ |
 | `run_gates` 全绿，但某个视图的冒烟其实没跑（要 `--xxx` 参数） | C-55 | ⚠️ |
+| 构建命令接 `findstr` 过滤 → 无匹配时退出码 1，成功被误判为失败 | C-56 | ✅ |
+| 等"某进程退出"时 `Get-Process -Id` 命中了被复用的 PID（conhost） | C-57 | ✅ |
+| `Select-String -SimpleMatch` 把 `[01]` 当字面量 → 字符类失效 | C-58 | ✅ |
+| 探针反射调用私有方法，`GetMethod` 返回 null 被静默跳过 | E-12 | ✅ |
+| 断言宿主里子线程 `new Application` → 后续检查 `add_Exit` 跨线程崩溃 | E-13 | ✅ |
 
 ---
 
@@ -232,7 +237,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 
 ### A. 进程与宿主
 
-#### A-01 宿主运行时构建在复制阶段失败（DLL 被锁）  [✅]  最近：2026-10-28  复发：11 次
+#### A-01 宿主运行时构建在复制阶段失败（DLL 被锁）  [✅]  最近：2026-10-29  复发：12 次
 - **现象**：`dotnet build VisionMaster\VisionMaster.csproj` 报 `MSB3027/MSB3021`，提示
   `The process cannot access the file '...\VM.Core.dll' because it is being used by another process. 文件被“VisionMaster (PID)”锁定`。
 - **触发场景 / 复现**：`VisionMaster.exe` 正在运行（含用户刚重启的实例），执行任何会复制到
@@ -243,6 +248,10 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   轮询 `Get-Process -Id <pid>` 直到消失，再构建。
 - **规避建议**：构建前先查 `Get-Process VisionMaster`；宿主在跑就不要开始构建链；
   不要靠"反复重试"赌它刚好退出。
+- **2026-10-29 补充（错误文本不含锁持有者）**：`MSB3073/MSB3021` 只说"文件被另一进程使用"，
+  **不说是谁**。这次 `copy Microsoft.CodeAnalysis*.dll → Modules\` 失败，文本里没有进程名；
+  定位法 = 把同一条 `copy` 命令**手动跑一遍**看报错，再 `Get-Process` 按进程名找持有者——
+  结果是另一个会话的 `VisionMaster.exe`（连 `Modules\` 里的 Roslyn DLL 一起锁）。
 - **相关命令 / 参数**：
   ```powershell
   Get-Process VisionMaster -ErrorAction SilentlyContinue | Select-Object Id,StartTime
@@ -506,7 +515,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   `[IO.File]::WriteAllText` 落盘 → `powershell -File`（与 R2 同一条），JSON 用编辑工具写文件，
   不在 `-Command` 里拼。
 
-#### C-05 `findstr` 用中文 pattern 搜 UTF-8 文件不命中  [✅]  最近：2026-10-25  复发：3 次
+#### C-05 `findstr` 用中文 pattern 搜 UTF-8 文件不命中  [✅]  最近：2026-10-29  复发：4 次
 - **现象**：明明存在的行搜不到；据此误判"没有引用"。
 - **触发场景 / 复现**：`findstr /c:"方案清单" "VisionMaster\bin\...\Logs\2026-10-25.log"`。
 - **原因**：`findstr` 用当前代码页（936）解释 pattern 与文件，日志是 UTF-8。
@@ -562,7 +571,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   `[胶囊] Click 到达 …` + `点击后 visible=True` 三条才算成功；不要只按设计稿中心坐标点。
   **若后续觉得难点**：回退到 18px 胶囊/20px 轨道，或把轨道加宽到 20px，不要加透明命中层绕过。
 
-#### C-08 两个断言宿主同时跑 → 证据 PNG / gate 原始日志被锁、出现假红  [✅]  最近：2026-10-27  复发：3 次
+#### C-08 两个断言宿主 / 两个 `run_gates` 同时跑 → 证据 PNG、原始日志、obj 产物被锁，出现假红与计数漂移  [✅]  最近：2026-10-29  复发：4 次
 - **现象**：`ScadaChecks` 报 5 条红，其中一条是
   `System.IO.IOException: The process cannot access the file '…\artifacts\scada-editor-toolbar.png' because it is being used by another process.`
   同一构建前后两次跑却是全绿。
@@ -585,6 +594,18 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   `Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | ? { $_.CommandLine -like '*run_gates.ps1*' }`
   与 `Get-Process <Host>`；有就等，别把 `NO OUTPUT` 当代码红，也别 kill 对方的跑测。
   本轮实测：`gate-FlowCanvasChecks.log` 里宿主自身是 **3724/0**，gate 行红是日志文件被抢。
+- **2026-10-29 补充（两个会话各跑一份完整 `run_gates`）**：同一台机器两个 AI 会话同时各跑一轮
+  16 步闸门，互相抢的东西比单宿主多得多：`Scada.Controls\obj\*.dll`（`CS2012`）、
+  `Modules\*.dll`（`MSB3073`）、`AppConfig.json`、方案 `Logs\`、渲染 PNG。
+  **特征性症状是断言计数来回跳**：同一宿主两轮之间 `3284/2 → 3290/6`（对方在改断言），
+  还出现 `IOException` 直接出现在断言详情里。**判据不变**：红在自己没碰过的宿主上，
+  先查有没有第二个 `run_gates.ps1` 在跑、对方最近 10 分钟改了哪些文件；有就等，别修自己的代码。
+- **2026-10-30 补充（检测查询自匹配）**：用
+  `Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" | ? { $_.CommandLine -like '*run_gates.ps1*' }`
+  检测"另一个 gate 在跑"时，**这条查询自己的命令行里就含 `run_gates.ps1`** → 永远自匹配，
+  哪怕对方根本没在跑（实测整夜误判 40+ 分钟，把"机器空闲"误读成"对方一直在跑"）。
+  必须排除自身：`$me = $PID` 后 `Where-Object { $_.ProcessId -ne $me -and ... }`；
+  或改按产物判（`Get-Process ScadaChecks` / `VisionMaster`）。
 
 #### C-09 日志文件被运行中的宿主独占，读不了  [✅]  最近：2026-10-27  复发：2 次
 - **现象**：`[IO.File]::ReadAllLines($log)` 抛 `IOException: 文件正由另一进程使用`，而宿主明明还在正常写日志。
@@ -1002,7 +1023,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 - **相关命令 / 参数**：`vm_ui_act {"nameContains":"稍后再说","controlType":"Button","action":"invoke"}`；
   守门：`uismoke.mjs` 两条（按名字定位 + 计数确实变了）。
 
-#### C-39 `cmd` 里 `& echo EXIT=%ERRORLEVEL%` 读到的是上一条命令的退出码  [✅]  最近：2026-10-29  复发：7 次
+#### C-39 `cmd` 里 `& echo EXIT=%ERRORLEVEL%` 读到的是上一条命令的退出码  [✅]  最近：2026-10-29  复发：8 次
 - **现象**：`node tools\oneoff\register-vm-mcp.mjs & echo EXIT=%ERRORLEVEL%` 打印 `EXIT=0`，
   但脚本走的是 `process.exit(1)` 的拒绝分支——"闸门没拦住"的假结论。
 - **触发场景 / 复现**：cmd 单行里用 `&` 串联后紧跟 `%ERRORLEVEL%`，判"闸门到底拦没拦住"时。
@@ -1176,7 +1197,7 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 - **规避建议**：菜单类交互一律"打开 + 选择"原子化；`INVOKED`/`AXPress` 只证明动作被接受，
   必须回读目标窗口标题（本次 `window 运行统计 · 结果源`）才算打开。
 
-#### C-54 `run_gates` 已在跑，又往 `docs/code-changes/` 加文档 → `docs_index` 判红  [✅]  最近：2026-10-29  复发：3 次
+#### C-54 `run_gates` 已在跑，又往 `docs/code-changes/` 加文档 → `docs_index` 判红  [✅]  最近：2026-10-29  复发：4 次
 - **现象**：整轮 gate 跑完是 15/16，唯一红的是
   `[FAIL] docs_index exit=1 STALE INDEX (docs/code-changes entries= N written) - regenerated, re-run`。
 - **触发场景 / 复现**：先启动 `run_gates.ps1`（后台），随后写本轮要交付的 `code-changes` 文档；
@@ -1215,6 +1236,40 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   再 `-p:BuildProjectReferences=false` 编宿主。
 - **规避建议**：报"internal 类型不可访问"但源码确实加了 `InternalsVisibleTo` → 先怀疑 DLL 陈旧，
   比该 DLL 与 csproj 的 mtime；不要改代码去"绕过保护级别"。
+
+#### C-56 `findstr` 无匹配返回退出码 1 → 接在构建命令后面把"成功"误判成"失败"  [✅]  最近：2026-10-29  复发：4 次
+- **现象**：`dotnet build X.csproj -v:q 2>&1 | findstr /i /c:"error" /c:"个错误"` 明明构建成功，
+  命令行却报 `Exit code 1`，被当成构建失败又排查了一轮。
+- **触发场景 / 复现**：用 `findstr` 过滤构建输出，但输出里**没有**匹配行（构建成功、无 error）。
+- **原因**：`findstr` 找不到匹配时退出码是 **1**（不是 0）；管道命令的退出码 = 最后一条，
+  于是"构建成功"被上报成 `Exit code 1`。与 C-05（中文 pattern 不命中）不同根因：这次是
+  **"没有匹配"本身就是 1**，pattern 写得再对也会发生。
+- **解决办法**：判构建成败**只看输出文本**（`已成功生成` / `0 个错误` / `error CS`），
+  不看 findstr 的退出码；或者干脆不过滤、把输出落文件再回读。
+- **规避建议**：`<构建> | findstr …` 这种组合的退出码**永远没有判据价值**；
+  要"成功才继续"就用 `&&`，要"只看文本"就落日志。
+- **相关命令 / 参数**：`dotnet build X -v:q 2>&1 > log`，然后 `Select-String -Pattern 'error CS' log`
+
+#### C-57 `Get-Process -Id <pid>` 在目标退出后立刻命中别的进程（PID 复用）  [✅]  最近：2026-10-29  复发：1 次
+- **现象**：等 `VisionMaster.exe`（PID 40448）退出，轮询 `Get-Process -Id 40448` 仍命中，
+  但 `ProcessName` 变成了 **`conhost`**——PID 被新进程复用，"还没退"是误判。
+- **触发场景 / 复现**：按 PID 轮询等某个进程退出；PID 恰好被系统分配给下一个短命进程。
+- **原因**：按 Id 查询不做进程名校验；Windows 会复用已退出进程的 PID。
+- **解决办法**：轮询条件改成 **`Get-Process <名称> -ErrorAction SilentlyContinue`**（按名 + 判 Id），
+  或命中时再核对 `ProcessName`。
+- **规避建议**：等"某某 exe 退出"一律按**进程名**轮询；固定 PID 只做首轮定位。
+- **相关命令 / 参数**：`while (Get-Process VisionMaster -ErrorAction SilentlyContinue) { Start-Sleep 5 }`
+
+#### C-58 `Select-String -SimpleMatch` 把正则式 pattern 当字面量 → 匹配不到  [✅]  最近：2026-10-29  复发：1 次
+- **现象**：`Select-String -SimpleMatch 'C2[01].'` 想匹配 `C20.` / `C21.`，结果一条都匹配不到；
+  同样的 pattern 去掉 `-SimpleMatch` 就命中。
+- **触发场景 / 复现**：过滤探针/宿主日志里某几段断言时。
+- **原因**：`-SimpleMatch` 表示"按**字面**字符串匹配"，`[01]` 被当成方括号字符本身；
+  字符类语法只有在**默认正则模式**下才生效。
+- **解决办法**：要字符类就去掉 `-SimpleMatch`；要按字面匹配（如 `C20.` 里的点）就用
+  `-SimpleMatch 'C20.'` 逐个写。
+- **规避建议**：`Select-String` 带方括号/点/星号的 pattern 先想清楚走哪种模式；
+  拿不准就两条各跑一次对比。
 
 ### D. 路径与权限
 #### D-01 相对路径按进程当前目录解析  [✅]  最近：2026-10-25  复发：2 次
@@ -1401,6 +1456,35 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
   **"名字相同"不代表"地址相同"**，地址维度必须独立核；反向也成立——`Rail_Servo_Cmd` 与 `Sv_Cmd`
   不同名却可能是同一份数据。多连接导出（本例 `Plc` / `切轨PLC`）里的变量不能塞进同一条连接。
   详见 `docs/code-changes/2026-10-29-EasyNet读取值与PLC不一致（变量表地址陈旧）.md`。
+
+#### E-12 探针反射调用私有方法：`GetMethod` 返回 null 被静默跳过 → 断言等于没写  [✅]  最近：2026-10-29  复发：1 次
+- **现象**：想验证插件把 `VariableId` 传进私有方法 `TryAssign`，产品侧改了签名或方法名后，
+  `GetMethod(...)` 返回 null——若写成 `method?.Invoke(...)`，整段断言**静默通过**，等于没测。
+- **触发场景 / 复现**：用反射测私有/内部方法（公共入口要走完整 UI 或执行链时）。
+- **原因**：反射是"运行期按名查找"，签名/名字一变就查不到；`?.` 把"查不到"吞成了"跳过"。
+- **解决办法**：**先单独断言"方法找到了且参数个数对"**（`Check("C16.0 反射定位 TryAssign(7 参)", method != null && method.GetParameters().Length == 7, ...)`），
+  找不到就当场判红退出该段；参数数组里的 `out` 参数用 `object[]` 下标取回。
+- **规避建议**：反射断言一律配一条"定位成功"的前置断言；方法签名变更时探针会红着提醒同步，
+  而不是静默失效。与 E-04（断言随 UI 改版过期）同一类，但发生在**定位**这一步。
+
+#### E-13 断言宿主里 new Application（子 STA 线程）→ 污染后续检查的线程亲和  [✅]  最近：2026-10-30  复发：2 次
+- **现象**：`ScadaChecks` 在旋钮断言（KnobChecks）之后整进程崩溃
+  `InvalidOperationException: 调用线程无法访问此对象… at Application.add_Exit`
+  → `ScadaMonitoringHost..ctor`（`ScadaMonitoringChecks.cs:66`）。
+- **触发场景 / 复现**：某个断言组在**自己的 STA 线程**里
+  `if (Application.Current == null) _ = new Application { ShutdownMode = OnExplicitShutdown };`
+  ——该线程退出后，`Application.Current` 仍活着且**线程亲和留在死线程上**；
+  任何后续在主线程触碰 `Application.Current` 的检查（`add_Exit` / 资源查找）当场抛。
+- **原因**：本宿主的既定契约（`Program.cs` 注释原文："本宿主刻意不 new Application、断言跑在子 STA 线程上"）
+  被新断言组破坏；WPF `Application` 是单例且有线程亲和，"顺手补一个"会毒化整个宿主。
+- **解决办法**：删掉 `new Application`（WPF 控件只需要 Dispatcher，STA 线程自带；
+  模板资源用 `LoadComponent`/直接读字典，不需要 Application 级查找）。
+  **2026-10-30 已按此修掉（`KnobChecks.RunOnSta`），宿主跑完出汇总，不再崩；
+  连带治好了旋钮自己的 5 条 `display=0` 断言**——被毒化的 `Application.Current`
+  正是旋钮显示值算不出来的原因（KnobElement 本体未改），删掉后 KN 全绿。
+- **规避建议**：往 `ScadaChecks`/`UIThemeSmokeTest` 加 WPF 断言组前先读本宿主头部注释；
+  断言里需要 WPF 资源时走控件自身的资源链，不建 Application。
+- **相关命令 / 参数**：崩溃定位看 `gate-ScadaChecks.log` 尾部堆栈（`exit=-532462766`）。
 
 ### F. 端口与网络
 
@@ -1775,4 +1859,5 @@ $text = $out.Result + $err.Result   # 空串 = 红，不是绿
 | 2026-10-29 | EasyNet 读取值与 PLC 对不上（Alarm3[79]）：原始帧实测定位为**变量表地址陈旧**（12.csv@01:40 早于 16:46 重编译），驱动无缺陷；解析 `VarAddrMap.am`（9649 条）生成 437 条修正表，逐点实测 Alarm3[79]=1、PLCVersion=1.0 | E-11 | E-10（补"地址不存在会被读成 0 而非报错"变体，复发 +1） |
 | 2026-10-29 | 流程栏双击算子不弹参数窗修复（`TreeViewBehavior` 双击写回靶 + null 清高亮、`ProcessViewModel` 接住 `Open` 返回值）：FlowCanvasChecks 4392/0（新增 V11 四条真 TreeView 回放）；构建期撞另一会话写 `ScadaActionDispatcher.cs` 与并发复制 `Modules\`，各补一条变体 | — | C-01（补 `[Diagnostics.Process]` 重定向 936 可救回）、C-41（补 `MSB3073 copy` 并发变体 + VBCSCompiler 不是构建） |
 | 2026-10-29 | 变量绑定弹窗打开卡死（9000 变量）：临时诊断量出"首次 `UpdateLayout` = 122 781 ms / realized=9001，随后收敛回 6"——首帧代价被终态断言掩盖；修法 = 构造器预置有界 `MaxHeight` + `Items.Count == 0` 不放宽，9000 条首帧降到 61 ms；新增两条首帧断言并做变异反证（改坏守卫 → `firstPassRealized=1501` 判红）。`--variable-binding` 41/0 | — | C-39（`& echo %ERRORLEVEL%` 又踩一次：FAIL 那轮仍打印 RUN=0，复发 +1；并补「后台任务整条没跑、任务报 exit 0、日志文件根本不存在」变体） |
+| 2026-10-29 | 多设备同名变量四批改造（重名不猜 / 同设备内唯一 / 三插件存 Id / 绑定弹窗与变量赋值行内显示设备）：探针 127 项 ALL_OK；全程与另一会话的 `run_gates` 并发，ScadaChecks 红在 `ScadaActionType` 被对方扩到 34 个成员上（与本改动无关），复跑还撞 `VM.Scada.Controls.dll`/`AppConfig.json` 文件锁 | C-08（扩到「两个 run_gates 并发」，复发 +1）、A-01（补「错误文本不含锁持有者，手动 copy + Get-Process 定位」） | C-56（findstr 无匹配=退出码 1，构建成功被误判失败，4 次）、C-57（`Get-Process -Id` 命中被复用的 PID，conhost 顶替）、C-58（`Select-String -SimpleMatch` 字符类失效）、E-12（反射定位私有方法必须先断言签名）、C-05（中文 pattern，复发 +1）、C-39（复发 +1）、C-54（gate 期间加文档，复发 +1） |
 新增条目按模板补齐五段；汇报里写「台账已更新：新增 N 条 / 合并 M 条」。

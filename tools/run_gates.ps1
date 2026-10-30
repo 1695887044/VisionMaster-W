@@ -309,6 +309,9 @@ $hosts = @(
     @{ N = 'ScadaChecks';        P = 'ScadaChecks\ScadaChecks.csproj' }
     @{ N = 'RecipeChecks';       P = 'RecipeChecks\RecipeChecks.csproj' }
     @{ N = 'FlowCanvasChecks';   P = 'FlowCanvasChecks\FlowCanvasChecks.csproj' }
+    # VarScopeAudit lives under tools\probes (registered in probes.json) and prints
+    # the English summary line "=== RESULT: ALL_OK ===" — own dir + count pattern.
+    @{ N = 'VarScopeAudit';      P = 'tools\probes\_VarScopeAudit\VarScopeAudit.csproj'; D = 'tools\probes\_VarScopeAudit'; M = 'ASSERT:\s*(\d+)\s*PASS\s*/\s*(\d+)\s*FAIL' }
     @{ N = 'UIThemeSmokeTest';   P = 'UIThemeSmokeTest\UIThemeSmokeTest.csproj' }
     @{ N = 'HelpProbe';          P = 'HelpProbe\HelpProbe.csproj' }
     # ScadaWebChecks lives under Web\ (not next to the other hosts) and prints the

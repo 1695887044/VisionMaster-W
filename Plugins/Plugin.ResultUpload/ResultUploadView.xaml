@@ -896,14 +896,23 @@
                                                     </ComboBox.ItemTemplate>
                                                 </ComboBox>
                                                 <Grid Grid.Column="3" Margin="4,0,0,0">
-                                                    <TextBox
-                                                        Style="{StaticResource RowInputStyle}"
+                                                    <!--
+                                                        变量名：可编辑 ComboBox（候选来自宿主快照，仍允许手填运行期变量名）。
+                                                        网络变量的候选带「· 设备」后缀——多设备同名点位在下拉里能分辨；
+                                                        确认时按（名字, 设备）解析成稳定 Id，并把名字归一成裸名字。
+                                                    -->
+                                                    <ComboBox
+                                                        IsEditable="True"
+                                                        IsTextSearchEnabled="False"
+                                                        MaxDropDownHeight="280"
+                                                        Style="{StaticResource RowComboStyle}"
+                                                        ItemsSource="{Binding DataContext.VariableNameOptions, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         Text="{Binding VariableName, UpdateSourceTrigger=PropertyChanged}"
                                                         Visibility="{Binding Source, Converter={StaticResource EnumInVis}, ConverterParameter=Variable}">
-                                                        <TextBox.ToolTip>
-                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="变量名（运行期变量池的键，如『变量定义』步骤写入的名字）" />
-                                                        </TextBox.ToolTip>
-                                                    </TextBox>
+                                                        <ComboBox.ToolTip>
+                                                            <ToolTip Style="{StaticResource DialogToolTipStyle}" Content="变量名（运行期变量池的键，如『变量定义』步骤写入的名字）；也可从全局/通讯/系统变量里选（网络变量带设备后缀）" />
+                                                        </ComboBox.ToolTip>
+                                                    </ComboBox>
                                                     <ComboBox
                                                         ItemsSource="{Binding DataContext.BuiltInFields, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                         SelectedItem="{Binding BuiltIn}"

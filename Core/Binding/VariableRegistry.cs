@@ -424,7 +424,13 @@ namespace VisionMaster.Binding
         }
 
         /// <summary>
-        /// 最近一次重建发现的**既有**问题（重名/重复身份，用于宿主加载期体检）。
+        /// 最近一次发现的问题（同作用域重名 / 重复身份 / 用户与系统变量同名），供宿主做加载期体检。
+        ///
+        /// **惰性计算**：读属性时才扫一遍名字表。为什么不用"Rebuild 时算好存起来"：
+        /// 方案加载走 <c>Clear() + 逐个 Add</c>，全量 Rebuild 只发生在空集合那一刻，
+        /// 增量路径不重算的话诊断就永远停在"加载前"；而跟着增删来回维护一条诊断列表
+        /// 又容易漏。名字表本来就攥在手里，读时全扫是 O(名字数)，只在打开变量管理时被读一次。
+        ///
         /// 只记录、不自动修正：自动替用户改名的后果比"某个变量解析不到"更难解释。
         /// </summary>
         public IReadOnlyList<string> LastProblems
@@ -432,7 +438,46 @@ namespace VisionMaster.Binding
             get
             {
                 lock (_gate)
-                    return _lastProblems;
+                {
+                    var problems = new List<string>(_lastProblems);
+                    AppendSameScopeDuplicateProblems(problems);
+                    return problems;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 追加「同一作用域内重名」诊断（须在锁内调用）。
+        ///
+        /// 2026-10-29 起跨设备同名是**合法**状态（同一设备内唯一），不能见到重名就报——
+        /// 那会让正常的多设备方案天天弹假警报。判定共用 <see cref="VariableNameScope.Conflicts"/>：
+        /// 同一连接内两条同名、或本地/系统变量与任何变量同名，才算冲突。
+        /// 这种状态三条创建路径都拦得住，能出现只可能是手工编辑过的方案文件。
+        /// </summary>
+        private void AppendSameScopeDuplicateProblems(List<string> problems)
+        {
+            foreach (var pair in _byName)
+            {
+                var sameName = pair.Value;
+                if (sameName.Count < 2)
+                    continue;
+
+                var reported = false;
+                for (var i = 0; i < sameName.Count && !reported; i++)
+                {
+                    for (var j = i + 1; j < sameName.Count; j++)
+                    {
+                        if (!VariableNameScope.Conflicts(sameName[i], sameName[j]))
+                            continue;
+
+                        problems.Add(
+                            $"变量名「{pair.Key}」存在同名冲突"
+                            + $"（{VariableNameScope.DescribeScope(sameName[i])} / {VariableNameScope.DescribeScope(sameName[j])}）"
+                            + "——按名解析无法确定目标，请改名或删除多余的一个");
+                        reported = true;
+                        break;
+                    }
+                }
             }
         }
 

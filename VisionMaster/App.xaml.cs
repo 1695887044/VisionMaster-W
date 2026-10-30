@@ -652,9 +652,19 @@ namespace VisionMaster
                 // v6「切换语言」：按方案当前文档读词表，换方案后现取（抓实例会在换方案后继续读旧文档）。
                 c.Resolve<IScadaLanguageService>(),
                 // v7「确认报警」：与 Web 命令层共用同一个报警命令出口（映射到运行宿主单例）。
-                c.Resolve<IScadaAlarmCommands>(),
+                // 【不能在这里直接 Resolve】——ScadaRuntimeHost 的构造又需要 IScadaActionDispatcher
+                //（:550），而 IScadaAlarmCommands 映射回 ScadaRuntimeHost（:589），三者构成
+                // ScadaRuntimeHost → IScudaActionDispatcher → IScadaAlarmCommands → ScadaRuntimeHost
+                // 的**构造期环**：DryIoc 的工厂委托重入没有环检测，首次解析即 StackOverflow
+                //（2026-10-30 实测启动即崩）。用惰性适配器断环：适配器构造零依赖，
+                // 首次派发报警命令时宿主单例早已就绪，行为与直接注入宿主完全一致。
+                new LazyAlarmCommands(() => c.Resolve<ScadaRuntimeHost>()),
                 // v7「静音」：声音服务是每轮运行新建的，适配器每次调用现取（见适配器注释）。
-                c.Resolve<IScadaAlarmMute>()));
+                // 【同样不能直接 Resolve】——ScadaAlarmMuteAdapter 要 ScadaMonitoringHost（:570），
+                // 而监控宿主的构造又需要 IScudaActionDispatcher（:579）——与上面同族的第二个
+                // 构造期环（实测拆掉 AlarmCommands 环之后仍 StackOverflow 的根因）。
+                // 同样用惰性适配器断环：首次静音操作时三个单例早已就绪。
+                new LazyAlarmMute(() => new ScadaAlarmMuteAdapter(c.Resolve<ScadaMonitoringHost>()))));
             // 运行态语言出口（v6）：词表 + 当前语言 + 变化通知。全局一份——
             // 动作「切换语言」、运行窗口、设计期画布必须看到同一个"当前语言"，
             // 两份实例的表现是"切了语言，画布变了但运行窗口没变"（而且不报错）。
@@ -1517,6 +1527,47 @@ namespace VisionMaster
             }, TaskScheduler.FromCurrentSynchronizationContext());
             Dispatcher.PushFrame(frame);
             return tcs.Task.GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// 断开 ScadaRuntimeHost → IScudaActionDispatcher → IScadaAlarmCommands → ScadaRuntimeHost
+        /// 的构造期 DI 环（2026-10-30，启动即 StackOverflow）：适配器构造零依赖（只捕获解析委托），
+        /// 首次派发报警命令时才解析运行宿主单例——那时三个单例都已就绪，
+        /// 行为与直接注入宿主完全一致（同一个实例、同一批成员）。
+        /// </summary>
+        private sealed class LazyAlarmCommands : IScadaAlarmCommands
+        {
+            private readonly Func<IScadaAlarmCommands> _factory;
+            public LazyAlarmCommands(Func<IScadaAlarmCommands> factory) => _factory = factory;
+
+            private IScadaAlarmCommands Real => _factory();
+
+            public bool TryAcknowledge(Guid alarmId, out string? error)
+                => Real.TryAcknowledge(alarmId, out error);
+
+            public int AcknowledgeAll(out string? error)
+                => Real.AcknowledgeAll(out error);
+        }
+
+        /// <summary>
+        /// 断开 ScadaActionDispatcher → IScadaAlarmMute → ScadaMonitoringHost → IScudaActionDispatcher
+        /// 的第二个构造期环（与 <see cref="LazyAlarmCommands"/> 同族、同修法）：构造零依赖，
+        /// 成员转发到首次调用时的适配器实例——适配器"每次现取声音服务"的语义不变。
+        /// </summary>
+        private sealed class LazyAlarmMute : IScadaAlarmMute
+        {
+            private readonly Func<IScadaAlarmMute> _factory;
+            public LazyAlarmMute(Func<IScadaAlarmMute> factory) => _factory = factory;
+
+            private IScadaAlarmMute Real => _factory();
+
+            public bool IsMuted => Real.IsMuted;
+
+            public int MuteMinutes => Real.MuteMinutes;
+
+            public bool TryMute(int minutes, out string? error) => Real.TryMute(minutes, out error);
+
+            public bool TryUnmute(out string? error) => Real.TryUnmute(out error);
         }
     }
 }
